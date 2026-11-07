@@ -21,10 +21,11 @@ import { useAction, useNotify } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader, Tag } from '../components/common'
 import { ago } from '../components/Freshness'
 import {
-  KEEP_DAY_CHOICES, MAX_KEEP_DAYS, PICTURE_SECONDS, PLACEMENTS, VIDEO_PIECE_MB, bytesPerDay, cameraProblem, clipsByDay, isLive, newCamera, sizeText,
+  KEEP_DAY_CHOICES, MAX_KEEP_DAYS, PICTURE_SECONDS, PLACEMENTS, VIDEO_PIECE_MB, bytesPerDay, cameraProblem, clipsByDay, irishCctvSign, isLive, newCamera, sizeText,
   type Camera, type CameraClip, type CameraInput, type CameraLive, type Placement,
 } from '../../shared/cameras'
 import { addDays, formatLocal, today, TZ } from '../../shared/time'
+import { currentCountry } from '../../shared/country'
 import { tokens } from '../theme'
 import { t, tn, tr } from '../i18n'
 
@@ -304,7 +305,9 @@ function KeepDialog({ clip, tz, onClose }: { clip: CameraClip; tz: string; onClo
       <DialogTitle>{t('Keep for an incident')}</DialogTitle>
       <DialogContent>
         <Typography variant="body2" sx={{ mb: 1.5 }}>
-          {t('The clip from {time} isn’t deleted when its days are up. If it shows a crime, the law asks for it to be handed to the police within 72 hours of finding it.', { time: formatLocal(clip.started_at, 'HH:mm:ss', tz) })}
+          {currentCountry() === 'IE'
+            ? t('The clip from {time} isn’t deleted when its days are up, so it can be given to the Gardaí or an insurer if they need it. Keep it only as long as the incident needs.', { time: formatLocal(clip.started_at, 'HH:mm:ss', tz) })
+            : t('The clip from {time} isn’t deleted when its days are up. If it shows a crime, the law asks for it to be handed to the police within 72 hours of finding it.', { time: formatLocal(clip.started_at, 'HH:mm:ss', tz) })}
         </Typography>
         <TextField fullWidth autoFocus label={t('What happened (optional)')} value={note} onChange={e => setNote(e.target.value)} slotProps={{ htmlInput: { maxLength: 300 } }} />
       </DialogContent>
@@ -327,9 +330,42 @@ function Field({ label, value, mono = true }: { label: string; value: string; mo
   )
 }
 
+/**
+ * Ireland: the Data Protection Commission's CCTV guidance in short, with the business's own sign for the
+ * entrances (who runs the cameras, what for, how to contact it) to copy.
+ */
+function IrishCameraLaw() {
+  const { business } = useApp()
+  const notify = useNotify()
+  const sign = irishCctvSign({ name: business?.name ?? '', email: business?.email, phone: business?.phone, website: business?.website })
+  const copy = () => navigator.clipboard.writeText(sign).then(() => notify(t('Sign copied'), 'success'), () => notify(sign, 'info'))
+  return (
+    <Alert severity="info" icon={false} aria-label={t('Cameras and the law in Ireland')}>
+      <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>{t('Cameras and the law in Ireland')}</Typography>
+      <Stack component="ul" sx={{ m: 0, pl: 2.5 }} spacing={0.25}>
+        <Typography component="li" variant="body2">
+          {t('Put up a sign at every entrance, where people see it before they’re recorded. The Data Protection Commission asks that it says who runs the cameras, what they’re for and how to contact you. Yours:')}
+        </Typography>
+        <Box component="li" sx={{ listStyle: 'none', ml: -2.5, my: 0.75 }}>
+          <Box component="pre" aria-label={t('The CCTV sign')} sx={{ m: 0, p: 1.25, borderRadius: 1, bgcolor: 'background.paper', border: 1, borderColor: 'divider',
+            whiteSpace: 'pre-wrap', fontFamily: 'inherit', typography: 'body2' }}>{sign}</Box>
+          <Button size="small" startIcon={<CopyIcon />} onClick={copy} sx={{ mt: 0.5 }}>{t('Copy the sign')}</Button>
+        </Box>
+        <Typography component="li" variant="body2">
+          {t('Keep the rest to hand, at the counter or on your website: how long video is kept, who it may be given to (the Gardaí, an insurer), how it’s kept safe, and people’s right to a copy and to complain to the Data Protection Commission.')}
+        </Typography>
+        <Typography component="li" variant="body2">{t('Tell the team in writing before the cameras go on, and add them to the staff rules.')}</Typography>
+        <Typography component="li" variant="body2">{t('No cameras in the toilets, changing room or staff rest area, and none pointing at the street.')}</Typography>
+        <Typography component="li" variant="body2">{t('Video is deleted after the days you choose ({n} at most). The law sets no period: keep it no longer than you can justify, not “just in case”.', { n: MAX_KEEP_DAYS })}</Typography>
+      </Stack>
+    </Alert>
+  )
+}
+
 /** Where the camera sends to, and the steps in the Reolink app. */
 function SetUp({ camera, ftp }: { camera: Camera; ftp: { host: string; port: number } | null }) {
   const { api } = useApp()
+  const irish = currentCountry() === 'IE'
   const run = useAction()
   const [relinking, setRelinking] = useState(false)
   const renew = () => run(async () => { await api.newCameraPassword(camera.id); setRelinking(false) }, t('New password made. Type it into the camera’s FTP settings: the old one no longer works.'))
@@ -360,7 +396,8 @@ function SetUp({ camera, ftp }: { camera: Camera; ftp: { host: string; port: num
         <Typography variant="overline" component="h3" sx={{ color: 'text.secondary' }}>{t('In the Reolink app')}</Typography>
         <Stack component="ol" spacing={1.25} sx={{ listStyle: 'none', p: 0, m: 0, mt: 1 }}>
           {step(1, t('Set the camera up as usual on the café’s Wi-Fi (or its cable), with a microSD card in it: it keeps recording there too, as a backup you watch in the app.'))}
-          {step(2, t('Turn off sound recording (camera settings → Audio). In Spain staff can’t be recorded with sound.'))}
+          {step(2, irish ? t('Turn off sound recording (camera settings → Audio). Recording what staff and customers say is far harder to justify than pictures.')
+            : t('Turn off sound recording (camera settings → Audio). In Spain staff can’t be recorded with sound.'))}
           {step(3, tr('Tap the gear icon → {more} → {ftp} → turn on {upload} → {setup}.', { more: b(t('More Features')), ftp: b('FTP'), upload: b(t('FTP Upload')), setup: b(t('Set Up Now')) }))}
           {step(4, tr('Type in the {server}, {port}, {user} and {password} above. Leave {anon} off and {dir} empty, and set {mode} to {pasv}.', {
             server: b(t('FTP server')), port: b(t('Port')), user: b(t('User Name')), password: b(t('Password')), anon: b(t('Anonymous')), dir: b(t('Directory')),
@@ -374,7 +411,7 @@ function SetUp({ camera, ftp }: { camera: Camera; ftp: { host: string; port: num
         </Stack>
       </Box>
 
-      <Alert severity="info" icon={false}>
+      {irish ? <IrishCameraLaw /> : <Alert severity="info" icon={false}>
         <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>{t('Cameras and the law in Spain')}</Typography>
         <Stack component="ul" sx={{ m: 0, pl: 2.5 }} spacing={0.25}>
           <Typography component="li" variant="body2">{t('Put up a “Zona videovigilada” sign at the entrance, saying who’s responsible and how to ask about the recordings.')}</Typography>
@@ -382,7 +419,7 @@ function SetUp({ camera, ftp }: { camera: Camera; ftp: { host: string; port: num
           <Typography component="li" variant="body2">{t('No cameras in the toilets, changing room or staff rest area, and none pointing at the street.')}</Typography>
           <Typography component="li" variant="body2">{t('Video is deleted after a month at most: this page does it, after the days you choose ({n} at most).', { n: MAX_KEEP_DAYS })}</Typography>
         </Stack>
-      </Alert>
+      </Alert>}
 
       {relinking && (
         <Dialog open onClose={() => setRelinking(false)} maxWidth="xs" fullWidth>
@@ -425,7 +462,8 @@ function CameraSettings({ camera }: { camera: Camera }) {
         </ToggleButtonGroup>
       </Stack>
       <TextField select label={t('Keep video for')} value={c.keep_days} onChange={e => set({ keep_days: Number(e.target.value) })}
-        helperText={t('Then it’s deleted from your storage. Spain allows a month at most; a clip kept for an incident stays.')}>
+        helperText={currentCountry() === 'IE' ? t('Then it’s deleted from your storage. Choose the shortest you need; a clip kept for an incident stays.')
+          : t('Then it’s deleted from your storage. Spain allows a month at most; a clip kept for an incident stays.')}>
         {[...new Set([...KEEP_DAY_CHOICES, c.keep_days])].sort((a, b) => a - b).map(n => <MenuItem key={n} value={n}>{tn(n, '{n} day', '{n} days')}</MenuItem>)}
       </TextField>
       <Box>

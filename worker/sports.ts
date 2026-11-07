@@ -1,4 +1,4 @@
-// Keeps sports_events fresh (football, rugby, UFC and boxing): each followed competition is refreshed every 6 hours from its free
+// Keeps sports_events fresh (football, rugby, GAA, UFC and boxing): each followed competition is refreshed every 6 hours from its free
 // source, a couple per cron minute. TheSportsDB's free key is shared and answers 429 when called
 // quickly, so its calls are spaced out and only one of its competitions is done per run.
 // Past events are dropped two days after.
@@ -91,7 +91,7 @@ export async function fetchCompetition(c: SportsCompetition, day = today()): Pro
   const raw = new Map(next.map(e => [e.idEvent, e]))
   const first = next[0]
   const round = Number(first?.intRound)
-  if ((c.sport === 'football' || c.sport === 'rugby') && first && round > 0 && round < 100) {
+  if ((c.sport === 'football' || c.sport === 'rugby' || c.sport === 'gaa') && first && round > 0 && round < 100) {
     const season = first.strSeason || seasonFor(c.season_style, day)
     for (let r = round; r < round + ROUNDS_AHEAD; r++) {
       const res = await tsdb<{ events: SportsDbEvent[] | null }>(`eventsround.php?id=${c.source_id}&r=${r}&s=${season}`)

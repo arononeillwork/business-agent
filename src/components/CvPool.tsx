@@ -18,9 +18,10 @@ import { Empty, SectionTitle, Tag } from './common'
 import { FileViewer } from '../pages/LegalDocumentsPage'
 import type { Api } from '../data/api'
 import { cleanPhone } from '../../shared/customers'
+import { currentCountry } from '../../shared/country'
 import { formatLocal, today as todayIs } from '../../shared/time'
 import {
-  CV_ACCEPT, JOB_BOARDS, availableBy, boardLabel, cleanRoles, cvPreview, cvProblem, cvSize, keepUntil, matchesPoolCandidate, openingStatusLabel, overdue, poolRoles,
+  CV_ACCEPT, availableBy, boardLabel, cleanRoles, cvPreview, cvProblem, cvSize, jobBoards, keepUntil, matchesPoolCandidate, openingStatusLabel, overdue, poolRoles,
   suits, type Applicant, type ApplicantCv, type JobOpening, type PoolInput,
 } from '../../shared/hiring'
 import { tokens } from '../theme'
@@ -256,7 +257,7 @@ export function PoolDialog({ person, pool, files, onClose }: { person: Applicant
               placeholder={t('Weekends, mornings until June…')} slotProps={{ htmlInput: { maxLength: 200 } }} sx={{ flex: 1 }} />
           </Stack>
           <TextField select label={t('Came from')} value={c.source ?? 'other'} onChange={e => set({ source: e.target.value as Applicant['source'] })}>
-            {JOB_BOARDS.map(b => <MenuItem key={b.id} value={b.id}>{t(b.label)}</MenuItem>)}
+            {jobBoards(currentCountry(), c.source ? [c.source] : []).map(b => <MenuItem key={b.id} value={b.id}>{t(b.label)}</MenuItem>)}
           </TextField>
           <CvFileField cv={cv} change={file} onChange={setFile} onView={cv ? () => files.view(cv, c.full_name) : undefined} />
           <TextField label={t('Or a link to it')} value={c.cv_link ?? ''} onChange={e => set({ cv_link: e.target.value || null })} placeholder={'https://'}

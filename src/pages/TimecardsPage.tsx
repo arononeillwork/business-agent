@@ -153,7 +153,7 @@ export function TimecardsPage() {
             <Stat label={t('On holidays')} value={formatDuration(holidayMin)} note={t('paid extra or time off')} />
             <Stat label={t('Needs a look')} value={flagged} tone={flagged ? 'warning' : 'good'} note={flagged ? t('missed breaks, auto clock-outs…') : t('all clean')} />
             <Stat label={t('Week status')} value={allApproved ? t('Approved') : t('Open')} tone={allApproved ? 'good' : undefined}
-              note={allApproved ? t('locked for the gestor') : pending.length ? tn(pending.length, '{n} request pending', '{n} requests pending') : t('ready to approve')} />
+              note={allApproved ? (countryProfile().code === 'IE' ? t('locked for the accountant') : t('locked for the gestor')) : pending.length ? tn(pending.length, '{n} request pending', '{n} requests pending') : t('ready to approve')} />
           </StatRow>
         )
       })()}

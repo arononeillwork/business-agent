@@ -13,7 +13,7 @@ const OWNER = {
   permissions: levels('update'), positions: ['owner', 'propietario', 'propietaria', 'dueño', 'dueña'],
   duties: [
     ...d('core', msg('Hires the team and agrees their contracts and pay'), msg('Sets the prices and the opening hours'),
-      msg('Keeps the licences, insurance and taxes up to date with the gestoría'), msg('Is who the team goes to with a problem')),
+      msg('Keeps the licences, insurance and taxes up to date with the {adviser}'), msg('Is who the team goes to with a problem')),
     ...d('weekly', msg('Checks the takings against the till and the bank'), msg('Pays the suppliers’ invoices')),
   ],
 }

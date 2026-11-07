@@ -239,7 +239,7 @@ function Statement({ pnl, lastYear, periodName }: { pnl: Pnl; lastYear: Pnl | nu
           </Table>
         </Box>
         <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 1.5 }}>
-          {t('An estimate from the app’s own figures (the till, Finances, timecards and the rota), to run the business by. The accounts your gestoría files are the official ones.')}
+          {t('An estimate from the app’s own figures (the till, Finances, timecards and the rota), to run the business by. The accounts your {adviser} files are the official ones.', { adviser: t(countryProfile().adviser) })}
           {pnl.partial.length > 0 && ` ${t('* Part of the month: this month so far, or the month the business opened.')}`}
         </Typography>
       </CardContent>

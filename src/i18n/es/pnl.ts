@@ -27,8 +27,8 @@ export default {
   'Same months last year': 'Mismos meses del año pasado',
   'Part of the month': 'Parte del mes',
   'Last year': 'Año pasado',
-  'An estimate from the app’s own figures (the till, Finances, timecards and the rota), to run the business by. The accounts your gestoría files are the official ones.':
-    'Una estimación con los datos de la app (la caja, Finanzas, los fichajes y el cuadrante) para llevar el negocio. Las cuentas oficiales son las que presenta tu gestoría.',
+  'An estimate from the app’s own figures (the till, Finances, timecards and the rota), to run the business by. The accounts your {adviser} files are the official ones.':
+    'Una estimación con los datos de la app (la caja, Finanzas, los fichajes y el cuadrante) para llevar el negocio. Las cuentas oficiales son las que presenta tu {adviser}.',
   '* Part of the month: this month so far, or the month the business opened.': '* Parte del mes: este mes hasta hoy, o el mes en que abrió el negocio.',
   'One-off income and costs': 'Ingresos y gastos puntuales',
   'Add a line': 'Añadir partida',

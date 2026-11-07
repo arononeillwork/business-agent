@@ -14,11 +14,12 @@ import { ExportButton } from '../components/tables'
 import type { ExportTable } from '../lib/export'
 import type { Profile } from '../../shared/types'
 import {
-  CONTRACT_FILTERS, CONTRACT_KINDS, DEFAULT_CONVENIO, SALARY_PERS, contractKind, contractProblem, contractStatus, contractTotals, contractsByPerson,
+  CONTRACT_FILTERS, DEFAULT_CONVENIO, SALARY_PERS, contractKind, contractKinds, contractProblem, contractStatus, contractTotals, contractsByPerson, defaultContractKind,
   daysBetween, inFilter, monthlyGross, trialEndingSoon, type ContractFilter, type ContractKind, type ContractStatus, type EmploymentContract,
   type EmploymentContractInput, type SalaryPer,
 } from '../../shared/contracts'
 import { currencySymbol, formatLocal, formatMoney, formatNumber, today } from '../../shared/time'
+import { currentCountry } from '../../shared/country'
 import { tokens } from '../theme'
 import { msg, t, tc, tn } from '../i18n'
 
@@ -30,6 +31,10 @@ function datesText(c: Pick<EmploymentContract, 'starts_on' | 'ends_on'>) {
   return c.ends_on ? t('{from} to {to}', { from: day(c.starts_on), to: day(c.ends_on) }) : t('Since {date}', { date: day(c.starts_on) })
 }
 const onTheTeam = (p: Profile) => p.role === 'admin' || p.role === 'employee'
+/** Ireland has no convenio: the field holds a Sectoral Employment Order or Employment Regulation Order, if one covers the job. */
+const convenioLabel = () => (currentCountry() === 'IE' ? t('Sectoral Employment Order or ERO') : t('Convenio'))
+/** What the gross pay is before. */
+const beforeTax = () => (currentCountry() === 'IE' ? t('Before tax, USC and PRSI') : t('Before tax and Social Security'))
 const STATUS_LABEL: Record<ContractStatus, string> = {
   upcoming: msg('Not started yet'), trial: msg('Trial period'), active: msg('Active'), ending: msg('Ending soon'), ended: msg('Ended'),
 }
@@ -86,13 +91,14 @@ export function TeamContracts({ tabs }: { tabs: ReactNode }) {
   const endingSoon = contracts.filter(c => statusOf(c) === 'ending').sort((a, b) => a.ends_on!.localeCompare(b.ends_on!))
   const trialsSoon = contracts.filter(c => trialEndingSoon(c, now))
   // A new contract starts with the convenio the business used last (Easy Beans' first one with its own; another business's blank).
+  const irish = currentCountry() === 'IE'
   const convenio = [...contracts].sort((a, b) => b.created_at.localeCompare(a.created_at)).find(c => c.convenio)?.convenio
-    ?? ((business?.id ?? 1) === 1 ? DEFAULT_CONVENIO : '')
-  const add = (profileId = '') => setEditing({ profile_id: profileId, kind: 'indefinido', starts_on: now, convenio })
+    ?? ((business?.id ?? 1) === 1 && !irish ? DEFAULT_CONVENIO : '')
+  const add = (profileId = '') => setEditing({ profile_id: profileId, kind: defaultContractKind(), starts_on: now, convenio })
 
   const table = (): ExportTable => ({
     title: t('Contracts'), filename: `contracts-${now}`,
-    columns: [t('Person'), t('Type of contract'), t('Job and category'), t('Convenio'), t('Starts'), t('Last day'), t('Trial period ends'), t('Hours a week'),
+    columns: [t('Person'), t('Type of contract'), irish ? t('Job title') : t('Job and category'), convenioLabel(), t('Starts'), t('Last day'), t('Trial period ends'), t('Hours a week'),
       ...(canSeePay ? [t('Gross salary'), t('Per'), t('Gross a month')] : []), t('Status'), t('Signed contract'), t('Notes')],
     rows: contracts.map(c => [nameOf(c.profile_id), kindLabel(c.kind), c.job_title ?? '', c.convenio ?? '', c.starts_on, c.ends_on ?? '', c.trial_ends_on ?? '',
       c.hours_per_week, ...(canSeePay ? [c.salary, c.salary_per ? t(SALARY_PERS.find(p => p.id === c.salary_per)!.label) : '', monthlyGross(c)] : []),
@@ -121,9 +127,17 @@ export function TeamContracts({ tabs }: { tabs: ReactNode }) {
       {tabs}
       <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2, maxWidth: 760 }}>
         {!seesAll ? t('Your employment contract with {business}. If something isn’t right, tell an admin.', { business: business?.name ?? '' })
+          : irish ? (canSeePay ? t('Each person’s employment contract under Irish law: its type, dates, probation, hours and gross pay.')
+            : t('Each person’s employment contract under Irish law: its type, dates, probation and hours. Pay is shown to owners only.'))
           : canSeePay ? t('Each person’s employment contract under Spanish law: its type, dates, trial period, hours, gross pay and convenio.')
           : t('Each person’s employment contract under Spanish law: its type, dates, trial period, hours and convenio. Pay is shown to owners only.')}
       </Typography>
+      {irish && canEdit && (
+        <Alert severity="info" sx={{ mb: 2, maxWidth: 760 }} aria-label={t('The written statement')}>
+          {t('The Terms of Employment (Information) Act: within 5 days of starting, give each person the five core terms in writing (both your names, the business’s address, how long the job lasts or its end date, the pay and how it’s worked out, and the hours expected a day and a week). The rest of the written statement follows within one month.')}
+          {' '}{t('There’s no convenio in Ireland, but in some sectors a Sectoral Employment Order or an Employment Regulation Order sets the minimum pay: check whether one covers the job.')}
+        </Alert>
+      )}
       <ErrorBox error={list.error} />
 
       {seesAll && (
@@ -134,7 +148,7 @@ export function TeamContracts({ tabs }: { tabs: ReactNode }) {
           {canSeePay && (
             <StatTile label={t('Gross pay a month')} value={list.data ? formatMoney(totals.monthly) : '–'}
               note={totals.unknown ? tn(totals.unknown, '{n} contract not counted: add its salary or hours', '{n} contracts not counted: add their salary or hours')
-                : t('Before tax and Social Security')} />
+                : beforeTax()} />
           )}
           <StatTile label={t('Ending soon')} value={list.data ? endingSoon.length : '–'}
             note={endingSoon.length ? t('First: {name}, {date}', { name: nameOf(endingSoon[0].profile_id), date: day(endingSoon[0].ends_on) }) : t('Within 30 days')} />
@@ -288,7 +302,10 @@ function ContractDialog({ contract, people, setsPay, name, onClose }: {
   const [salary, setSalary] = useState(numberText(contract.salary))
   const [deleting, setDeleting] = useState(false)
   const set = (p: Partial<EmploymentContractInput>) => setC(x => ({ ...x, ...p }))
-  const kind = contractKind(c.kind ?? 'indefinido')
+  const kind = contractKind(c.kind ?? defaultContractKind())
+  const irish = currentCountry() === 'IE'
+  // The country's kinds, and the one it already is if that's another (a contract from before).
+  const kinds = contractKinds().some(k => k.id === kind.id) ? contractKinds() : [...contractKinds(), kind]
   const per: SalaryPer = c.salary_per ?? 'month'
   const monthly = monthlyGross({ salary: numberOf(salary), salary_per: per, hours_per_week: numberOf(hours) })
 
@@ -322,12 +339,12 @@ function ContractDialog({ contract, people, setsPay, name, onClose }: {
             onChange={e => set({ profile_id: e.target.value })} autoFocus={!c.id && !c.profile_id}>
             {people.map(p => <MenuItem key={p.id} value={p.id}>{p.full_name}</MenuItem>)}
           </TextField>
-          <TextField select label={t('Type of contract')} value={c.kind ?? 'indefinido'} helperText={t(kind.summary)}
+          <TextField select label={t('Type of contract')} value={kind.id} helperText={t(kind.summary)}
             onChange={e => set({ kind: e.target.value as ContractKind })}>
-            {CONTRACT_KINDS.map(k => <MenuItem key={k.id} value={k.id}>{t(k.label)}</MenuItem>)}
+            {kinds.map(k => <MenuItem key={k.id} value={k.id}>{t(k.label)}</MenuItem>)}
           </TextField>
-          <TextField label={t('Job and category (grupo profesional)')} value={c.job_title ?? ''} onChange={e => set({ job_title: e.target.value })}
-            placeholder={t('e.g. Camarero/a, grupo II')} slotProps={{ htmlInput: { maxLength: 120 } }} />
+          <TextField label={irish ? t('Job title') : t('Job and category (grupo profesional)')} value={c.job_title ?? ''} onChange={e => set({ job_title: e.target.value })}
+            placeholder={irish ? t('e.g. Barista') : t('e.g. Camarero/a, grupo II')} slotProps={{ htmlInput: { maxLength: 120 } }} />
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField fullWidth type="date" label={t('Starts')} value={c.starts_on ?? ''} onChange={e => set({ starts_on: e.target.value })}
               slotProps={{ inputLabel: { shrink: true } }} />
@@ -337,21 +354,21 @@ function ContractDialog({ contract, people, setsPay, name, onClose }: {
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField fullWidth type="date" label={t('Trial period ends')} value={c.trial_ends_on ?? ''} onChange={e => set({ trial_ends_on: e.target.value || null })}
-              slotProps={{ inputLabel: { shrink: true } }} helperText={t('The periodo de prueba, if it has one')} />
+              slotProps={{ inputLabel: { shrink: true } }} helperText={irish ? t('The probation, if it has one: 6 months at most, as a rule') : t('The periodo de prueba, if it has one')} />
             <TextField fullWidth label={t('Hours a week')} value={hours} inputMode="decimal" onChange={e => setHours(e.target.value)} />
           </Stack>
           {setsPay && (
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
               <TextField fullWidth label={t('Gross salary')} value={salary} inputMode="decimal" onChange={e => setSalary(e.target.value)}
-                helperText={monthly !== null && per !== 'month' ? t('About {amount} a month', { amount: formatMoney(monthly) }) : t('Before tax and Social Security')}
+                helperText={monthly !== null && per !== 'month' ? t('About {amount} a month', { amount: formatMoney(monthly) }) : beforeTax()}
                 slotProps={{ input: { startAdornment: <InputAdornment position="start">{currencySymbol()}</InputAdornment> } }} />
               <TextField select fullWidth label={t('Per')} value={per} onChange={e => set({ salary_per: e.target.value as SalaryPer })}>
                 {SALARY_PERS.map(p => <MenuItem key={p.id} value={p.id}>{t(p.label)}</MenuItem>)}
               </TextField>
             </Stack>
           )}
-          <TextField label={t('Convenio')} value={c.convenio ?? ''} onChange={e => set({ convenio: e.target.value })}
-            helperText={t('The collective agreement it’s under')} slotProps={{ htmlInput: { maxLength: 200 } }} />
+          <TextField label={convenioLabel()} value={c.convenio ?? ''} onChange={e => set({ convenio: e.target.value })}
+            helperText={irish ? t('Only if one sets the pay for this job') : t('The collective agreement it’s under')} slotProps={{ htmlInput: { maxLength: 200 } }} />
           <TextField label={t('Signed contract')} type="url" placeholder={'https://'} value={c.document_url ?? ''} onChange={e => set({ document_url: e.target.value })}
             helperText={t('A link to it in Drive or OneDrive (optional)')} />
           <TextField label={t('Notes')} value={c.notes ?? ''} onChange={e => set({ notes: e.target.value })} multiline minRows={2}
@@ -393,7 +410,8 @@ function EndDialog({ contract, name, onClose }: { contract: EmploymentContract; 
         <Stack spacing={2} sx={{ pt: 1 }}>
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>{kindLabel(contract.kind)} · {datesText(contract)}</Typography>
           <TextField type="date" label={t('Last day')} value={last} onChange={e => setLast(e.target.value)} slotProps={{ inputLabel: { shrink: true } }}
-            helperText={t('It stays on record as ended. The finiquito and the paperwork are the gestoría’s.')} />
+            helperText={currentCountry() === 'IE' ? t('It stays on record as ended. Your accountant does the final pay and the paperwork.')
+              : t('It stays on record as ended. The finiquito and the paperwork are the gestoría’s.')} />
         </Stack>
       </DialogContent>
       <DialogActions>

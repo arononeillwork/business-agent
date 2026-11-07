@@ -16,8 +16,9 @@ import { HiringBoard, OPENING_TONE, STAGE_TONE } from '../components/HiringBoard
 import { AddToJobDialog, CvActions, CvFileField, CvPool, PoolDialog, applyCvChange, useCvFiles, type CvChange, type CvFiles } from '../components/CvPool'
 import { addDays, formatLocal, localDate, today, zonedIso } from '../../shared/time'
 import { cleanPhone } from '../../shared/customers'
+import { currentCountry } from '../../shared/country'
 import {
-  APPLICANT_STAGES, CONTRACTS, JOB_BOARDS, OPENING_STATUSES, STILL_IN, applicantStageLabel, boardLabel, boardMove, contractLabel, finishedJob, hiringLanes,
+  APPLICANT_STAGES, OPENING_STATUSES, STILL_IN, applicantStageLabel, boardLabel, boardMove, contractLabel, finishedJob, hiringContracts, hiringLanes, jobBoards,
   keepUntil, matchesCandidate, onAJob, openingStatusLabel, overdue, poolOrder,
   type Applicant, type ApplicantInput, type ApplicantStage, type JobApplicant, type JobOpening, type OpeningInput, type OpeningStatus,
 } from '../../shared/hiring'
@@ -218,7 +219,9 @@ export function HiringPage() {
       })}
 
       <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
-        {t('Posting jobs to InfoJobs, Indeed and LinkedIn from the app is coming (Connections). Until then, post them there and add who applies here.')}
+        {currentCountry() === 'IE'
+          ? t('Post your jobs on IrishJobs.ie, Jobs.ie, Indeed or JobsIreland.ie (the State’s free job board), then add who applies here.')
+          : t('Posting jobs to InfoJobs, Indeed and LinkedIn from the app is coming (Connections). Until then, post them there and add who applies here.')}
       </Typography>
 
       {opening && <OpeningDialog opening={opening} onClose={() => setOpening(null)} />}
@@ -331,7 +334,7 @@ function OpeningDialog({ opening, onClose }: { opening: OpeningInput; onClose: (
               {positions.filter(p => p.active).map(p => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
             </TextField>
             <TextField select label={t('Contract')} value={o.contract ?? 'part_time'} onChange={e => set({ contract: e.target.value as JobOpening['contract'] })} sx={{ flex: 1 }}>
-              {CONTRACTS.map(c => <MenuItem key={c.id} value={c.id}>{t(c.label)}</MenuItem>)}
+              {hiringContracts().map(c => <MenuItem key={c.id} value={c.id}>{t(c.label)}</MenuItem>)}
             </TextField>
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -343,7 +346,7 @@ function OpeningDialog({ opening, onClose }: { opening: OpeningInput; onClose: (
           <Box>
             <FormLabel component="legend" sx={{ fontSize: '0.8rem' }}>{t('Advertised on')}</FormLabel>
             <FormGroup row>
-              {JOB_BOARDS.map(b => (
+              {jobBoards(currentCountry(), posted).map(b => (
                 <FormControlLabel key={b.id} label={t(b.label)} control={
                   <Checkbox checked={posted.includes(b.id)} onChange={e => set({ posted_on: e.target.checked ? [...posted, b.id] : posted.filter(x => x !== b.id) })} />} />
               ))}
@@ -403,7 +406,7 @@ function ApplicantDialog({ applicant, openings, files, onClose }: { applicant: A
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField select label={t('Came from')} value={a.source ?? 'other'} onChange={e => set({ source: e.target.value as Applicant['source'] })} sx={{ flex: 1 }}>
-              {JOB_BOARDS.map(b => <MenuItem key={b.id} value={b.id}>{t(b.label)}</MenuItem>)}
+              {jobBoards(currentCountry(), a.source ? [a.source] : []).map(b => <MenuItem key={b.id} value={b.id}>{t(b.label)}</MenuItem>)}
             </TextField>
             <TextField select label={t('Stage')} value={a.stage ?? 'applied'} onChange={e => set({ stage: e.target.value as ApplicantStage })} sx={{ flex: 1 }}>
               {APPLICANT_STAGES.map(s => <MenuItem key={s.id} value={s.id}>{t(s.label)}</MenuItem>)}

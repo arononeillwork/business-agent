@@ -60,7 +60,7 @@ export default {
     'Dirige el negocio: el equipo, el dinero, los proveedores y el rumbo de la cafetería.',
   'Hires the team and agrees their contracts and pay': 'Contrata al equipo y acuerda sus contratos y sueldos',
   'Sets the menu, the prices and the opening hours': 'Decide la carta, los precios y el horario',
-  'Keeps the licences, insurance and taxes up to date with the gestoría': 'Tiene al día las licencias, los seguros y los impuestos con la gestoría',
+  'Keeps the licences, insurance and taxes up to date with the {adviser}': 'Tiene al día las licencias, los seguros y los impuestos con la {adviser}',
   'Is who the team goes to with a problem': 'Es a quien acude el equipo con un problema',
   'Publishes the rota and approves time off': 'Publica el cuadrante y aprueba las ausencias',
   'Approves the week’s timecards': 'Aprueba los fichajes de la semana',
