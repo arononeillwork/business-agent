@@ -7,12 +7,13 @@
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { bearer, requestDb, secretPlaceId, type Env } from './supabase'
-import { findPlaces, nearbyCafes, placeDetails, type PlaceDetails, type PlaceSummary } from './providers/places'
+import { findPlaces, nearbyPlaces, placeDetails, type PlaceDetails, type PlaceSummary } from './providers/places'
 import {
   DEFAULT_RADIUS, GOOGLE_EVERY_DAYS, NEW_PLACE_MAX_REVIEWS, distanceM, featuresFromGoogle, hoursFromGoogle, kindFromGoogle, priceLevelFromGoogle,
   suggestedThreat, type Competitor, type GoogleStatus, type NearbyPlace,
 } from '../shared/localCompetitors'
 import { today } from '../shared/time'
+import { kindOfBusiness, nearbyTypes } from '../shared/businessKind'
 import { signInCheck } from './signedIn'
 
 export const competitors = new Hono<{ Bindings: Env }>()
@@ -104,7 +105,14 @@ export async function lookAround(env: Env, db: SupabaseClient, { radius, notify 
   if (!at) throw new Error(NO_CENTRE)
   const { data: settings } = await db.from('competitor_settings').select('radius_m, scanned_at').eq('id', 1).maybeSingle()
   const r = radius ?? settings?.radius_m ?? DEFAULT_RADIUS
-  const found = (await nearbyCafes(key, at, r)).filter(p => p.id !== secretPlaceId(env, db))
+  // Places like this one: cafés around a café, salons around a salon (shared/businessKind.ts).
+  // A business of another kind: places of its own type on Google, when it's listed there.
+  const { data: biz } = await db.from('business').select('business_type').maybeSingle()
+  const kind = kindOfBusiness(biz?.business_type as string | null)
+  const own = kind === 'other' ? secretPlaceId(env, db) : null
+  const ownType = own ? (await placeDetails(key, own).catch(() => null))?.primaryType ?? null : null
+  const types = nearbyTypes(kind, ownType)
+  const found = (await nearbyPlaces(key, at, r, types)).filter(p => p.id !== secretPlaceId(env, db))
   const [{ data: seen }, { data: followed }] = await Promise.all([db.from('competitor_radar').select('place_id'), db.from('competitors').select('place_id, is_self')])
   const known = new Set((seen ?? []).map(x => x.place_id as string))
   const ours = new Set((followed ?? []).filter(x => x.is_self).map(x => x.place_id as string | null).filter(Boolean))
