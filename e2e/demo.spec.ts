@@ -2049,6 +2049,47 @@ test('self-serve: a new business signs up, creates its business and goes on to t
   await expect(page.getByRole('navigation', { name: 'Main' })).toContainText('Café Lola')
 })
 
+test('a business in Ireland: asked at sign-up, then Irish labels, VAT rates, phone numbers and pages', async ({ page }) => {
+  await page.goto('/?demo')
+  await page.getByRole('tab', { name: 'Create account' }).click()
+  await page.getByLabel('Your name').fill('Aoife Byrne')
+  await page.getByRole('textbox', { name: 'Email' }).fill('aoife@dailygrind.example')
+  await page.getByLabel('Password').fill('flat-white-dublin-8')
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await page.getByRole('textbox', { name: 'Business name' }).fill('The Daily Grind')
+  // Spain or Ireland: Ireland puts it on Dublin time.
+  const where = page.getByRole('group', { name: 'Where is it?' })
+  await where.getByRole('button', { name: 'Ireland' }).click()
+  await expect(where.getByRole('button', { name: 'Ireland' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(where).toContainText('Irish working-time rules, bank holidays and VAT rates')
+  await expect(page.getByRole('combobox', { name: 'Time zone' })).toHaveValue('Europe/Dublin')
+  await page.getByRole('button', { name: 'Café & coffee shop' }).click()
+  await page.getByRole('button', { name: 'Add my business' }).click()
+  await page.getByRole('button', { name: 'Skip this step' }).click()
+  await page.getByRole('button', { name: /^Use a ready-made setup/ }).click()
+  await page.getByRole('button', { name: 'Skip setup for now' }).click()
+  // Spain's own Grants and Tax pages start hidden.
+  const nav = page.getByRole('navigation', { name: 'Main' })
+  await expect(nav).toContainText('The Daily Grind')
+  await expect(nav.getByRole('link', { name: 'Grants' })).toHaveCount(0)
+  await expect(nav.getByRole('link', { name: 'Tax', exact: true })).toHaveCount(0)
+  // Business: the country, and an Irish VAT number checked as one.
+  await nav.getByRole('link', { name: 'Business', exact: true }).click()
+  const company = page.getByRole('region', { name: 'Company' })
+  await expect(company).toContainText('Ireland')
+  await company.getByRole('button', { name: 'Edit' }).click()
+  const tax = company.getByRole('textbox', { name: 'VAT or CRO number' })
+  await tax.fill('B12345674')
+  await expect(page.getByText('That isn’t an Irish VAT number (IE1234567T) or CRO number')).toBeVisible()
+  await tax.fill('ie 1234567t')
+  await expect(page.getByText('Looks right')).toBeVisible()
+  await company.getByRole('button', { name: 'Save' }).click()
+  await expect(company).toContainText('IE1234567T')
+  // Timecards: Ireland's working time records.
+  await nav.getByRole('link', { name: 'Timecards' }).click()
+  await expect(page.getByText('Working time records').first()).toBeVisible()
+})
+
 test('signed out: one-tap Google, Apple, Facebook and Microsoft sign-in next to email', async ({ page }) => {
   await page.goto('/?demo')
   for (const name of ['Google', 'Apple', 'Facebook', 'Microsoft']) {

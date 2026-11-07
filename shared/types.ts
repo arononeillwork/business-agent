@@ -29,9 +29,11 @@ export interface Business {
   /** The business's website (https://…), when it has one. Search Console is matched to it. */
   website?: string | null
   timezone: string
+  /** Where it is: Spain or Ireland (the country migration). Its rules, labels and holidays follow it. */
+  country?: 'ES' | 'IE'
   /** ISO 4217 code, e.g. EUR. Money everywhere is shown in it. */
   currency: string
-  /** Spanish CIF (company) or NIF/NIE (self-employed), upper case, no spaces. */
+  /** Its tax ID, upper case, no spaces: in Spain a CIF (company) or NIF/NIE (self-employed); in Ireland a VAT or CRO number. */
   tax_id: string | null
   opening_hours: OpeningHours
   peak_hours: { start: string; end: string } | null

@@ -7,7 +7,8 @@ import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { ErrorBox, Loading } from '../components/common'
 import { monthRange, registroMonth } from '../../shared/registro'
-import { formatDuration, formatLocal, today, zonedIso } from '../../shared/time'
+import { formatDuration, formatLocal, today, zoneCity, zonedIso } from '../../shared/time'
+import { COUNTRIES } from '../../shared/country'
 import type { Business, Profile, TimeEntry } from '../../shared/types'
 import { fonts } from '../theme'
 import { t } from '../i18n'
@@ -73,25 +74,30 @@ export function RegistroPage() {
 function Sheet({ person, business, entries, month }: { person: Profile; business: Business; entries: TimeEntry[]; month: string }) {
   const r = registroMonth(entries, person.id, month)
   const monthName = formatLocal(zonedIso(`${month}-15`, '12:00'), 'MMMM yyyy')
+  // Ireland's record is in English, kept 3 years; Spain's registro is bilingual, kept 4.
+  const ireland = business.country === 'IE'
   const cell = { border: '1px solid #CFC9C2', px: 1, py: 0.4, fontSize: 12.5, fontVariantNumeric: 'tabular-nums' } as const
   return (
     <Box component="article" aria-label={t('Hours record: {name}', { name: person.full_name })} sx={{ bgcolor: '#fff', p: { xs: 2, sm: 4 }, mb: 3, borderRadius: 2, boxShadow: 1, color: '#1d1a18',
       '@media print': { boxShadow: 'none', borderRadius: 0, p: 0, mb: 0, breakAfter: 'page' } }}>
       <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 2, alignItems: 'flex-start', mb: 2 }}>
         <Box>
-          <Typography sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: '1.3rem' }}>{'Registro diario de jornada'}</Typography>
-          <Typography sx={{ fontSize: 13, color: '#6B645E' }}>{t('Daily working hours record · art. 34.9 Estatuto de los Trabajadores')}</Typography>
+          <Typography sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: '1.3rem' }}>{ireland ? t('Working time record') : 'Registro diario de jornada'}</Typography>
+          <Typography sx={{ fontSize: 13, color: '#6B645E' }}>{ireland
+            ? t('Start and finish times and breaks · Organisation of Working Time (Records) Regulations 2001')
+            : t('Daily working hours record · art. 34.9 Estatuto de los Trabajadores')}</Typography>
         </Box>
         <Typography sx={{ fontWeight: 500, textTransform: 'capitalize', whiteSpace: 'nowrap' }}>{monthName}</Typography>
       </Stack>
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1, fontSize: 13, mb: 2 }}>
-        <Box><b>{t('Empresa / Company:')}</b> {business.name}{business.address ? `, ${business.address}` : ''}</Box>
-        <Box><b>{t('Trabajador/a / Worker:')}</b> {person.full_name}{person.email ? ` (${person.email})` : ''}</Box>
+        <Box><b>{ireland ? t('Employer:') : t('Empresa / Company:')}</b> {business.name}{business.address ? `, ${business.address}` : ''}</Box>
+        <Box><b>{ireland ? t('Employee:') : t('Trabajador/a / Worker:')}</b> {person.full_name}{person.email ? ` (${person.email})` : ''}</Box>
       </Box>
       <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr>
-            {[t('Día / Day'), t('Entrada / In'), t('Salida / Out'), t('Pausas / Breaks'), t('Horas / Hours')].map(h => (
+            {(ireland ? [t('Day'), t('Start'), t('Finish'), t('Breaks'), t('Hours')]
+              : [t('Día / Day'), t('Entrada / In'), t('Salida / Out'), t('Pausas / Breaks'), t('Horas / Hours')]).map(h => (
               <Box component="th" key={h} sx={{ ...cell, bgcolor: '#F3F1EE', textAlign: 'left', fontWeight: 500 }}>{h}</Box>
             ))}
           </tr>
@@ -119,11 +125,12 @@ function Sheet({ person, business, entries, month }: { person: Profile; business
         </tbody>
       </Box>
       <Typography sx={{ fontSize: 11.5, color: '#6B645E', mt: 1 }}>
-        {t("Times are Madrid time, recorded by the app's server. * corrected, with the reason kept in the change log. Hours exclude unpaid breaks.")}
-        {r.open_entries ? ` ${t('{n} clock-in(s) still open.', { n: r.open_entries })}` : ''}{' '}{t('Records are kept for 4 years.')}
+        {t("Times are {zone} time, recorded by the app's server. * corrected, with the reason kept in the change log. Hours exclude unpaid breaks.", { zone: zoneCity(business.timezone) })}
+        {r.open_entries ? ` ${t('{n} clock-in(s) still open.', { n: r.open_entries })}` : ''}{' '}{t('Records are kept for {n} years.', { n: COUNTRIES[business.country ?? 'ES'].hoursRecord.years })}
       </Typography>
       <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, mt: 5 }}>
-        {[t('Firma de la empresa / Company signature'), t('Firma del trabajador/a / Worker signature')].map(label => (
+        {(ireland ? [t('Employer signature'), t('Employee signature')]
+          : [t('Firma de la empresa / Company signature'), t('Firma del trabajador/a / Worker signature')]).map(label => (
           <Box key={label} sx={{ borderTop: '1px solid #1d1a18', pt: 0.75, fontSize: 12 }}>{label}</Box>
         ))}
       </Box>

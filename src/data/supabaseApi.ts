@@ -246,7 +246,7 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
       return { confirmEmail: !data.session }
     },
     async createBusiness(b) {
-      return check(await sb.rpc('create_business', { p_name: b.name, p_kind: b.kind, p_timezone: b.timezone, p_referral: b.referral ?? null })) as number
+      return check(await sb.rpc('create_business', { p_name: b.name, p_kind: b.kind, p_timezone: b.timezone, p_referral: b.referral ?? null, p_country: b.country ?? null })) as number
     },
     async signIn(email, password) {
       checkAuth(await sb.auth.signInWithPassword({ email, password }))

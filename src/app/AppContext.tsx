@@ -5,7 +5,8 @@ import { currentRates } from '../data/api'
 import { createDemoApi } from '../data/demoApi'
 import { createSupabaseApi } from '../data/supabaseApi'
 import type { BreakType, Business, PartnerArea, PayRate, Position, Profile, Settings } from '../../shared/types'
-import { setCurrency, setNumberFormat, setOwnTimeZone } from '../../shared/time'
+import { setBusinessTimeZone, setCurrency, setNumberFormat, setOwnTimeZone } from '../../shared/time'
+import { setCountry } from '../../shared/country'
 import { permissionsOf, type JobRole, type RoleArea, type RoleLevel } from '../../shared/roles'
 import { withoutTestAccounts } from '../../shared/people'
 import { LoadError, StartError } from '../pages/StatusPages'
@@ -126,6 +127,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Set before any page renders, so every amount on screen uses this person's decimal mark.
     setNumberFormat(me?.preferences?.numberFormat)
     setCurrency(state.business?.currency)
+    // The business's own time zone and country (Spain or Ireland): its shifts, rules and labels.
+    setBusinessTimeZone(state.business?.timezone)
+    setCountry(state.business?.country)
     setOwnTimeZone(me?.preferences?.timeZone, state.business?.timezone)
     const isPartner = me?.role === 'partner'
     const partnerCan = (area: PartnerArea) => !!(isPartner && me?.partner_access?.includes(area))

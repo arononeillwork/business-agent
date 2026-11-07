@@ -21,6 +21,7 @@ import { unitLabel, type StockItem } from '../../shared/stock'
 import { addDays, formatMoney, formatNumber, today } from '../../shared/time'
 import { tokens } from '../theme'
 import { t, tc, tn } from '../i18n'
+import { countryProfile, vatChoices } from '../../shared/country'
 
 const pct = (n: number | null) => (n === null ? '—' : `${formatNumber(n)}%`)
 /** empty: nothing entered for what goes in, so no cost or margin yet. pending: empty, or an ingredient without a cost. */
@@ -163,7 +164,7 @@ export function RecipesPage() {
   )
 }
 
-const blank = (): RecipeInput => ({ name: '', category: 'Coffee', square_item: null, sell_price: null, vat_rate: 10, target_margin: DEFAULT_TARGET_MARGIN,
+const blank = (): RecipeInput => ({ name: '', category: 'Coffee', square_item: null, sell_price: null, vat_rate: countryProfile().defaultVat, target_margin: DEFAULT_TARGET_MARGIN,
   wastage_pct: 0, notes: null, active: true, variants: [], lines: [] })
 
 /** One menu item: its price, what goes in, its variants, and the cost and margin as you type. */
@@ -248,7 +249,7 @@ function RecipeDialog({ recipe, items, readOnly, onClose }: { recipe: Recipe | n
             <DecimalField fullWidth label={t('Menu price, with IVA')} value={r.sell_price} disabled={readOnly} onNumber={n => set({ sell_price: n })}
               slotProps={{ input: { startAdornment: <InputAdornment position="start">{'€'}</InputAdornment> } }} />
             <TextField select fullWidth label={t('IVA')} value={r.vat_rate} disabled={readOnly} onChange={e => set({ vat_rate: Number(e.target.value) })}>
-              {[0, 4, 10, 21].map(v => <MenuItem key={v} value={v}>{`${v}%`}</MenuItem>)}
+              {vatChoices(r.vat_rate).map(v => <MenuItem key={v} value={v}>{`${v}%`}</MenuItem>)}
             </TextField>
             <DecimalField fullWidth label={t('Target margin')} value={r.target_margin} blank={0} disabled={readOnly} onNumber={n => set({ target_margin: Math.min(99, n ?? 0) })}
               slotProps={{ input: { endAdornment: <InputAdornment position="end">{'%'}</InputAdornment> } }} />
