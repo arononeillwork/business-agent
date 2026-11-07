@@ -2,6 +2,7 @@ import { createClient, isAuthRetryableFetchError, type SupabaseClient } from '@s
 import { PromptError, SOCIAL_PROVIDERS, type AiTrackResult, type Api, type BillingInfo, type HqBusiness, type MusicStatus, type PlanStatus, type SignInMethods, type SocialProvider } from './api'
 import type { ApiKey, AppNotification, Brand, Business, Customer, SocialPost, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff, Todo, TodoCategory, CafeTrack, MusicPlayerState } from '../../shared/types'
 import type { HolidayReminder, PushDevice } from '../../shared/types'
+import type { HqClosure } from './api'
 import type { AiMusicQuote, MusicGeneration, MusicTrack } from '../../shared/types'
 import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, TaxDocument, TaxSettings } from '../../shared/tax'
@@ -1775,6 +1776,33 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
     instagramThread: id => worker(`/api/integrations/instagram/inbox/${encodeURIComponent(id)}`),
     async hqBusinesses() {
       return check(await sb.rpc('hq_businesses')) as HqBusiness[]
+    },
+    // The back-office's acts: complimentary in the database (HQ's admins only), a longer trial through Stripe (the Worker).
+    async hqSetComplimentary(businessId, kind, note) {
+      check(await sb.rpc('hq_set_complimentary', { p_business: businessId, p_kind: kind, p_note: note }))
+    },
+    async hqEndComplimentary(businessId) {
+      check(await sb.rpc('hq_end_complimentary', { p_business: businessId }))
+    },
+    async hqExtendTrial(businessId, days) {
+      return (await worker<{ trial_ends_at: string }>(`/api/hq/businesses/${businessId}/extend-trial`, { method: 'POST', body: JSON.stringify({ days }) })).trial_ends_at
+    },
+    async hqClosures() {
+      return check(await sb.rpc('hq_closures')) as HqClosure[]
+    },
+    // An owner's own data and account (the Worker: worker/account.ts).
+    async exportData() {
+      const token = (await sb.auth.getSession()).data.session?.access_token
+      const res = await fetch('/api/account/export', { headers: { authorization: `Bearer ${token}` } })
+      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `Request failed (${res.status})`)
+      const filename = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? 'business-data.zip'
+      return { filename, blob: await res.blob() }
+    },
+    async closeAccount() {
+      return (await worker<{ closes_at: string }>('/api/account/close', { method: 'POST' })).closes_at
+    },
+    async keepAccount() {
+      return { renewalFailed: !!(await worker<{ renewal_failed?: boolean }>('/api/account/keep', { method: 'POST' })).renewal_failed }
     },
     async referrals() {
       const [{ data: b }, list, opens] = await Promise.all([

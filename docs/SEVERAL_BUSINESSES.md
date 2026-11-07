@@ -130,3 +130,28 @@ changed: worth doing if people in several businesses become common.
 With several businesses, say which one: `select public.grant_complimentary('friends_family', 'Note', 7);`
 (the business number last), `select public.end_complimentary(7);`. For anything else, inside a
 transaction: `select set_config('app.business_id', '7', true);` first.
+
+HQ's admins do the usual ones from the app instead: on the Businesses page each business's menu makes it
+complimentary (founding account, or friends & family, with a note) or ends that (`hq_set_complimentary()`,
+`hq_end_complimentary()`, the `hq_actions` migration; not while a Stripe subscription runs, so that is
+cancelled in Stripe first), and gives a free trial 7, 14 or 30 days more (`worker/hq.ts`, through Stripe).
+
+## Closing an account
+
+An owner closes the account on Billing (`worker/account.ts`, the `close_account` migration). It closes 30
+days after they ask (`business.closing_requested_at` and `closing_requested_by`); until then everything
+works as before, a banner says when it closes, and an owner can keep it with one click. Its subscription
+stops renewing at once (`cancel_at_period_end`, marked in Stripe so keeping the account renews it again):
+nothing more is charged and nothing is refunded. HQ's admins get a notification each time (`notify_hq()`),
+support@ an email when Cloudflare Email Sending is on, and the Businesses page shows when each closes. On
+the same card the owner downloads everything as CSV files in a zip (`export_tables()`, `export_part()`:
+the business's own rows only, without stored tokens, key and PIN hashes or the app's plumbing).
+
+Deleting the data once it has closed is HQ's, by hand, for now. The working-hours record (registro de
+jornada) must be kept for four years, and it hangs together with other rows: `time_entries` with their
+`breaks`, `time_entry_changes` and `correction_requests`, the `profiles`, `positions` and `break_types` they
+point to, and the `business` row, whose deletion deletes every row of the business. A nightly job that
+deleted everything else wasn't safe enough to write without a way to try it on real data. So, once a
+business has closed: cancel its Stripe subscription at once if it still has one; in a transaction naming
+the business (`set_config('app.business_id', …, true)`), delete its rows from every other table; switch
+its people off so nobody signs in; and four years after its last timecard delete the business row.

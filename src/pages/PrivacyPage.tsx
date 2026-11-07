@@ -108,6 +108,9 @@ export function PrivacyPage() {
         <P>
           {t('We keep data while the business’s account is active. Working-hours records are kept for four years, as Spanish law requires. When a business closes its account, or a person is removed, we delete or anonymise their data within 30 days, except what we must keep by law. Disconnecting an app deletes its stored tokens straight away.')}
         </P>
+        <P>
+          {t('An account owner can download all of the business’s data, as CSV files, from the Billing page at any time, and close the account there. It closes 30 days after they ask, and they can keep it until then.')}
+        </P>
 
         <H>{t('Security')}</H>
         <P>

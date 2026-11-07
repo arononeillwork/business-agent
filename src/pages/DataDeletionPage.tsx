@@ -7,7 +7,7 @@ import { t, tr } from '../i18n'
 // The public data deletion instructions (no sign-in needed): Meta asks for this link for apps
 // that use Facebook Login or connect Facebook and Instagram.
 
-const UPDATED = '2026-10-13'
+const UPDATED = '2026-11-07'
 
 export function DataDeletionPage() {
   const e = LEGAL
@@ -60,6 +60,9 @@ export function DataDeletionPage() {
       />
       <P>
         {t('If you are a team member, you can also ask your employer: an admin can remove you from the business, which starts the same deletion.')}
+      </P>
+      <P>
+        {t('Account owners can also close the whole business account themselves on the Billing page, and download all of its data there first. It closes 30 days after they ask, and they can keep it until then; the deletion follows once it has closed.')}
       </P>
 
       <H>{t('3. What we delete')}</H>

@@ -54,6 +54,8 @@ import { EMAIL_ADDRESS, accessOf, emailBlock, teamRoleOf } from '../shared/teamR
 import type { Profile } from '../shared/types'
 import { signInCheck } from './signedIn'
 import { addNationalHolidays } from './holidays'
+import { hq } from './hq'
+import { account } from './account'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
 // Every minute from 02:00 to 03:59 UTC: the night's connection checks, a few a run (checkDue), each
@@ -340,6 +342,10 @@ app.route('/', repPage)
 
 // Business Agent's own subscription (Stripe Billing): plans, checkout, portal, webhook.
 app.route('/', billing)
+// The Business Agent's back-office: what HQ's admins do through Stripe (a longer free trial).
+app.route('/', hq)
+// An owner's own data and account (Billing): everything out as CSV files, closing the account and keeping it.
+app.route('/', account)
 
 // Music on stories and reels: AI tracks (ElevenLabs, paid per use) and putting music into files.
 app.route('/', socialMusic)

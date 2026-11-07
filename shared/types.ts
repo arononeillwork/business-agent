@@ -57,6 +57,9 @@ export interface Business {
   team_size?: TeamSize | null
   /** A new business: the day it opens (YYYY-MM-DD). */
   opens_on?: string | null
+  /** An owner asked to close the account (Billing): it closes 30 days later unless an owner keeps it (the close_account migration). */
+  closing_requested_at?: string | null
+  closing_requested_by?: string | null
 }
 
 /** How many people work at a business, the owner included. */

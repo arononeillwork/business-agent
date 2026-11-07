@@ -1,6 +1,7 @@
 import type { AiMusicQuote, MusicGeneration, MusicTrack } from '../../shared/types'
 import type { ApiKey, AppNotification, Brand, BreakType, Business, CalendarApp, CalendarEvent, ConnectorProvider, ContactMethod, CorrectionRequest, Customer, CustomerInput, EventAlert, Expense, InstagramProfile, Integration, PostMedia, Sales, SalesItems, SearchReport, SocialNetwork, SocialPost, IntegrationProvider, IntegrationsState, KioskPerson, MusicNow, MusicPlaylist, MusicProvider, MyMusic, MyNowPlaying, OpenBreak, OpeningHours, OutboxItem, PartnerArea, PayRate, Position, Profile, Settings, Shift, SpotifyPlaylist, TimeEntry, TimeEntryChange, TimeOff, TimeOffKind, Todo, TodoCategory, TodoPatch, CafeMusicLibrary, CafeTrack, MusicAction, MusicPlayerReport, MusicPlayerState } from '../../shared/types'
 import type { Billing, Interval, PlanId } from '../../shared/plans'
+import type { Complimentary } from '../../shared/plans'
 import type { HolidayReminder, PushDevice } from '../../shared/types'
 import type { SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
 import type { InboxConversation, InboxState, InboxThread } from '../../shared/messages'
@@ -110,6 +111,14 @@ export interface HqBusiness {
   people: number
   set_up_at: string | null
   last_sign_in: string | null
+}
+
+/** A business whose owner asked to close it, on HQ's back-office (public.hq_closures(), the close_account migration). */
+export interface HqClosure {
+  id: number
+  closing_requested_at: string
+  closes_at: string
+  requested_by: string | null
 }
 
 /** Create with AI turned down (an artist or a song named): ElevenLabs' own rewording, when it gives one. */
@@ -1092,6 +1101,20 @@ export interface Api {
   referrals(): Promise<ReferralState>
   /** The Business Agent's back-office: every business (HQ's admins only; anyone else gets none). */
   hqBusinesses(): Promise<HqBusiness[]>
+  /** HQ's admins: make a business complimentary (the founding account, or friends & family) with a note saying who it's for. */
+  hqSetComplimentary(businessId: number, kind: Complimentary, note: string): Promise<void>
+  /** HQ's admins: end a business's complimentary account (it goes back to Free, or to its Stripe subscription). */
+  hqEndComplimentary(businessId: number): Promise<void>
+  /** HQ's admins: a business's Stripe free trial, `days` longer; returns when it now ends. */
+  hqExtendTrial(businessId: number, days: number): Promise<string>
+  /** HQ's admins: the businesses whose owners asked to close them (anyone else gets none). */
+  hqClosures(): Promise<HqClosure[]>
+  /** Owners: everything the business keeps, one CSV file per table in a zip, to save. */
+  exportData(): Promise<{ filename: string; blob: Blob }>
+  /** Owners: close the account; it closes in 30 days (returns when) and the subscription stops renewing. */
+  closeAccount(): Promise<string>
+  /** Owners: keep the account, within the 30 days; `renewalFailed` when Stripe didn't start the subscription renewing again. */
+  keepAccount(): Promise<{ renewalFailed: boolean }>
   /** Someone opened a referral link (no sign-in): counted, and who invited them: another business, or a Business Agent rep. */
   openReferral(code: string, count?: boolean): Promise<ReferralOpen>
   /** An owner adds the Business Agent rep's code they forgot (Billing, the first 30 days); returns the rep's name. */

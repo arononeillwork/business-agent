@@ -2282,6 +2282,73 @@ test.describe('billing', () => {
     await page.getByRole('button', { name: /Account menu/ }).first().click()
     await expect(page.getByRole('menuitem', { name: 'Businesses' })).toHaveCount(0)
   })
+
+  test('the back-office for The Business Agent HQ’s admins: friends & family with a note, a longer free trial, and who asked to close', async ({ page }) => {
+    await open(page, '/hq/businesses?hq')
+    await expect(page.getByRole('heading', { level: 1, name: 'Businesses' })).toBeVisible()
+    const table = page.getByRole('table', { name: 'Businesses' })
+    const row = (name: string) => table.getByRole('row').filter({ hasText: name })
+    await expect(page.getByText('1 business asked to close its account.')).toBeVisible()
+    await expect(row('La Taberna de Juan').getByText('Closes 25 October 2026')).toBeVisible()
+
+    // Bar Bea, on Free: friends & family, with a note saying who it's for.
+    await row('Bar Bea').getByRole('button', { name: 'Actions for Bar Bea' }).click()
+    await page.getByRole('menuitem', { name: 'Make complimentary…' }).click()
+    const comp = page.getByRole('dialog', { name: 'Make Bar Bea complimentary' })
+    await comp.getByRole('radio', { name: 'Friends & family' }).check()
+    await expect(comp.getByRole('button', { name: 'Make complimentary' })).toBeDisabled()
+    await comp.getByRole('textbox', { name: 'Note' }).fill('Bea, a friend from the gym')
+    await comp.getByRole('button', { name: 'Make complimentary' }).click()
+    await toast(page, 'Bar Bea is complimentary now')
+    await expect(row('Bar Bea').getByText('Complimentary')).toBeVisible()
+
+    // Café Lola pays through Stripe: its subscription is cancelled there first, so the card isn't charged.
+    await row('Café Lola').getByRole('button', { name: 'Actions for Café Lola' }).click()
+    await expect(page.getByRole('menuitem', { name: /Make complimentary/ })).toBeDisabled()
+    await expect(page.getByRole('menuitem', { name: /Make complimentary/ })).toContainText('Cancel it in Stripe first')
+    await page.keyboard.press('Escape')
+
+    // Peluquería Sol's free trial: two weeks more.
+    await row('Peluquería Sol').getByRole('button', { name: 'Actions for Peluquería Sol' }).click()
+    await page.getByRole('menuitem', { name: 'Extend free trial…' }).click()
+    const trial = page.getByRole('dialog', { name: 'Extend Peluquería Sol’s free trial' })
+    await expect(trial.getByText('Ends now on 17 November 2026.')).toBeVisible()
+    await trial.getByRole('button', { name: '30 days' }).click()
+    await expect(trial.getByText('Will end on 17 December 2026.')).toBeVisible()
+    await trial.getByRole('button', { name: '14 days' }).click()
+    await expect(trial.getByText('Will end on 1 December 2026.')).toBeVisible()
+    await trial.getByRole('button', { name: 'Extend trial' }).click()
+    await toast(page, 'Peluquería Sol’s trial now ends on 1 December 2026')
+    await expect(trial).toHaveCount(0)
+  })
+
+  test('an owner downloads all its data as CSV files in a zip, then closes the account: closing across the app until an owner keeps it', async ({ page }) => {
+    await open(page, '/account/billing')
+    const card = page.getByRole('region', { name: 'Your data and closing the account' })
+    const download = page.waitForEvent('download')
+    await card.getByRole('button', { name: 'Download all data' }).click()
+    const file = await download
+    expect(file.suggestedFilename()).toBe('easy-beans-coffee-2026-09-30.zip')
+    const zip = readFileSync(await file.path())
+    expect(zip.subarray(0, 4).toString('latin1')).toBe('PK\x03\x04')
+    for (const name of ['README.txt', 'business.csv', 'profiles.csv', 'shifts.csv', 'time_entries.csv']) expect(zip.includes(name)).toBe(true)
+
+    await card.getByRole('button', { name: 'Close the account…' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Close Easy Beans Coffee’s account?' })
+    await expect(dialog.getByText(/^It closes on 30 October 2026, 30 days from now\./)).toBeVisible()
+    await expect(dialog.getByText(/except the working-hours records \(registro de jornada\)/)).toBeVisible()
+    await dialog.getByRole('button', { name: 'Close the account' }).click()
+    await toast(page, 'The account closes in 30 days')
+    await expect(card.getByText('Closing on 30 October 2026, as Aron O\'Neill asked on 30 September 2026.', { exact: false })).toBeVisible()
+
+    // Across the app, with a way to keep it.
+    await page.getByRole('link', { name: 'Rota' }).first().click()
+    const banner = page.getByRole('alert').filter({ hasText: 'This account closes on 30 October 2026, in 30 days.' })
+    await expect(banner).toBeVisible()
+    await banner.getByRole('button', { name: 'Keep the account' }).click()
+    await toast(page, 'The account stays open')
+    await expect(banner).toHaveCount(0)
+  })
 })
 
 test('guest link: opens already signed in as a Guest admin, no sign-in page', async ({ page }) => {
