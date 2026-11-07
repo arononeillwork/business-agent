@@ -368,7 +368,7 @@ function StocktakeDialog({ items, locations, onClose }: { items: StockItem[]; lo
 function OrderList({ orders }: { orders: SupplierOrder[] }) {
   const { business, isAdmin } = useApp()
   const notify = useNotify()
-  const name = business?.name ?? 'Easy Beans Coffee'
+  const name = business?.name ?? ''
   const table = (): ExportTable => ({
     title: t('Order list'),
     filename: `order-list-${today()}`,
