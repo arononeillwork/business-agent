@@ -2,6 +2,8 @@
 // and the 5 newest reviews. No replying, and Google may leave reviews out altogether for some
 // projects (it does for EEA billing accounts at times); the business's own profile has them all.
 // Used by the Reviews page only until Google approves Business Profile access.
+import { NEARBY_TYPES } from '../../shared/businessKind'
+
 export interface PlaceReviews {
   rating: number | null
   count: number | null
@@ -73,8 +75,6 @@ const OFFER = ['outdoorSeating', 'liveMusic', 'menuForChildren', 'servesDessert'
   'paymentOptions', 'parkingOptions', 'accessibilityOptions', 'takeout', 'delivery', 'reservable', 'servesBreakfast', 'servesLunch', 'servesBrunch',
   'servesBeer', 'servesWine', 'servesVegetarianFood']
 /** Cafés and what competes with them for a coffee or breakfast. */
-const CAFE_TYPES = ['cafe', 'coffee_shop', 'bakery', 'breakfast_restaurant', 'brunch_restaurant', 'juice_shop', 'tea_house', 'cafeteria']
-const CORE_TYPES = ['cafe', 'coffee_shop', 'bakery']
 
 const summary = (p: ApiPlace): PlaceSummary => ({
   id: p.id ?? '', name: p.displayName?.text ?? '', address: p.formattedAddress ?? null,
@@ -101,14 +101,15 @@ export async function placeDetails(apiKey: string, placeId: string): Promise<Pla
   return { ...summary(p), id: p.id ?? placeId, website: p.websiteUri ?? null, periods: p.regularOpeningHours?.periods ?? null, raw: p }
 }
 
-/** The cafés nearest a point within a radius (Google gives up to 20). */
-export async function nearbyCafes(apiKey: string, centre: { lat: number; lng: number }, radius: number): Promise<PlaceSummary[]> {
+/** The places of these types (cafés unless said: shared/businessKind.ts) nearest a point within a radius (Google gives up to 20). */
+export async function nearbyPlaces(apiKey: string, centre: { lat: number; lng: number }, radius: number,
+  { types, core }: { types: string[]; core: string[] } = NEARBY_TYPES.cafe): Promise<PlaceSummary[]> {
   const ask = (types: string[]) => places<{ places?: ApiPlace[] }>(apiKey, 'places:searchNearby', SUMMARY.map(f => `places.${f}`).join(','), {
     includedTypes: types, maxResultCount: 20, rankPreference: 'DISTANCE',
     locationRestriction: { circle: { center: { latitude: centre.lat, longitude: centre.lng }, radius } },
   })
   // Should Google stop knowing one of the types, ask again with the ones it always has.
-  const res = await ask(CAFE_TYPES).catch(e => (/type/i.test(String(e)) ? ask(CORE_TYPES) : Promise.reject(e)))
+  const res = await ask(types).catch(e => (/type/i.test(String(e)) ? ask(core) : Promise.reject(e)))
   return (res.places ?? []).map(summary).filter(p => p.id && p.name)
 }
 

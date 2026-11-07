@@ -116,8 +116,6 @@ export default {
   'Latest: {name}, {item} {from} → {to}': 'Último: {name}, {item} {from} → {to}',
   'None in the last 90 days': 'Ninguno en los últimos 90 días',
   'What it means for you': 'Qué significa para ti',
-  'Follow the cafés around you and add a few of their prices: what it means for you shows here.':
-    'Sigue las cafeterías de tu zona y añade algunos de sus precios: aquí verás qué significa para ti.',
   'Good': 'Bien',
   'Good to know': 'Bueno saberlo',
   'Places': 'Locales',
@@ -127,7 +125,6 @@ export default {
   'Notes & ideas': 'Notas e ideas',
   'Nearby': 'Cerca',
   'Places followed': 'Locales que sigues',
-  'Follow the cafés around you': 'Sigue las cafeterías de tu zona',
   'Find them on Google, or add them by hand, then compare prices, what they offer and how they do.':
     'Búscalas en Google o añádelas a mano, y compara precios, lo que ofrecen y cómo les va.',
   'See what’s nearby': 'Ver qué hay cerca',
@@ -209,7 +206,6 @@ export default {
   'Not looked yet.': 'Aún no se ha mirado.',
   'Nearby on Google': 'Cerca, en Google',
   'Nothing else nearby: everything Google lists is followed or put aside.': 'Nada más cerca: todo lo que muestra Google ya lo sigues o lo has apartado.',
-  'Look around to see the cafés Google lists near you.': 'Mira alrededor para ver las cafeterías que Google tiene cerca de ti.',
   'Put aside': 'Apartados',
 
   // Kinds of place, how much they compete, notes, ideas.

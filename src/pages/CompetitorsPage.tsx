@@ -29,7 +29,8 @@ import {
   walkMinutes, type Analysis, type Competitor, type CompetitorData, type CompetitorInput, type CompetitorKind, type CompetitorNoteInput, type Feature,
   type Insight, type NearbyPlace, type Threat,
 } from '../../shared/localCompetitors'
-import type { DayKey, OpeningHours } from '../../shared/types'
+import type { Business, DayKey, OpeningHours } from '../../shared/types'
+import { kindOfBusiness, RIVALS } from '../../shared/businessKind'
 import { formatLocal, formatMoney, today } from '../../shared/time'
 import { tokens } from '../theme'
 import { msg, t, tn } from '../i18n'
@@ -63,11 +64,15 @@ function hoursLabel(h: OpeningHours | null, days: DayKey[]) {
 }
 
 /**
- * Competitors (Marketing): the cafés around the business, followed over time. What each one charges
+ * Competitors (Marketing): the places like it around the business (cafés for a café, salons for a
+ * salon: shared/businessKind.ts), followed over time. What each one charges
  * for the same basket (yours from Menu costing), what it offers, its hours and its Google rating, with
  * what it all means for the business in plain words; notes from visits and ideas worth borrowing; and
  * what Google lists nearby, looked at again every week. Admins only (the database enforces it too).
  */
+/** The places like this business, in words: "the cafés", "the salons" (shared/businessKind.ts). */
+const rivals = (business: Business | null) => t(RIVALS[kindOfBusiness(business?.business_type)])
+
 export function CompetitorsPage() {
   const { isAdmin, isPartner, api, business } = useApp()
   const canEdit = isAdmin && !isPartner
@@ -141,7 +146,7 @@ export function CompetitorsPage() {
           <CardContent>
             <SectionTitle>{t('What it means for you')}</SectionTitle>
             {found.length === 0
-              ? <Empty>{t('Follow the cafés around you and add a few of their prices: what it means for you shows here.')}</Empty>
+              ? <Empty>{t('Follow {places} around you and add a few of their prices: what it means for you shows here.', { places: rivals(business) })}</Empty>
               : <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' }, columnGap: 4, rowGap: 2.5 }}>
                   {AREAS.filter(g => found.some(i => i.area === g.id)).map(g => (
                     <Box key={g.id} role="group" aria-label={t(g.label)}>
@@ -196,6 +201,7 @@ export function CompetitorsPage() {
 function PlacesView({ a, d, ownHours, onEdit, onAdd, onNearby }: {
   a: Analysis; d: CompetitorData; ownHours: OpeningHours | null; onEdit: (c: Competitor) => void; onAdd: () => void; onNearby: () => void
 }) {
+  const { business } = useApp()
   const order: Record<Threat, number> = { high: 0, medium: 1, low: 2 }
   const rows = [...(a.self ? [a.self] : []), ...[...a.rivals].sort((x, y) => order[x.threat ?? 'low'] - order[y.threat ?? 'low'] || (x.distance_m ?? 1e9) - (y.distance_m ?? 1e9))]
   const stopped = d.competitors.filter(c => !c.is_self && !c.active)
@@ -207,7 +213,7 @@ function PlacesView({ a, d, ownHours, onEdit, onAdd, onNearby }: {
         <SectionTitle>{t('Places followed')}</SectionTitle>
         {a.rivals.length === 0
           ? <Empty>
-              <Typography sx={{ fontWeight: 500, color: 'text.primary', mb: 0.5 }}>{t('Follow the cafés around you')}</Typography>
+              <Typography sx={{ fontWeight: 500, color: 'text.primary', mb: 0.5 }}>{t('Follow {places} around you', { places: rivals(business) })}</Typography>
               <Typography variant="body2" sx={{ mb: 1.5 }}>{t('Find them on Google, or add them by hand, then compare prices, what they offer and how they do.')}</Typography>
               <Stack direction="row" spacing={1} sx={{ justifyContent: 'center' }}>
                 <Button variant="outlined" onClick={onNearby}>{t('See what’s nearby')}</Button>
@@ -674,7 +680,7 @@ function NotesView({ d, onNote, onEdit }: { d: CompetitorData; onNote: (p?: Part
 
 /** What Google lists around the business: look now or every week, follow what matters, put aside what doesn't. */
 function NearbyView({ a, d, places, onFollow }: { a: Analysis; d: CompetitorData; places: boolean; onFollow: (p: NearbyPlace) => void }) {
-  const { api } = useApp()
+  const { api, business } = useApp()
   const run = useAction()
   const [radius, setRadius] = useState(d.settings.radius_m)
   const fresh = new Set(a.newNearby.map(p => p.place_id))
@@ -708,7 +714,7 @@ function NearbyView({ a, d, places, onFollow }: { a: Analysis; d: CompetitorData
         <CardContent>
           <SectionTitle>{t('Nearby on Google')}</SectionTitle>
           {a.untracked.length === 0
-            ? <Empty>{d.settings.scanned_at ? t('Nothing else nearby: everything Google lists is followed or put aside.') : t('Look around to see the cafés Google lists near you.')}</Empty>
+            ? <Empty>{d.settings.scanned_at ? t('Nothing else nearby: everything Google lists is followed or put aside.') : t('Look around to see {places} Google lists near you.', { places: rivals(business) })}</Empty>
             : <List dense>
                 {a.untracked.map(p => <PlaceRow key={p.place_id} p={p} isNew={fresh.has(p.place_id)} onFollow={() => onFollow(p)}
                   onDismiss={() => void run(() => api.dismissNearby(p.place_id, true), t('Put aside'))} />)}
