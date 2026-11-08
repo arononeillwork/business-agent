@@ -193,8 +193,12 @@ function IrishMileage() {
         {t('What the business pays back a kilometre driven in someone’s own car. Revenue lets you pay up to the civil service motor travel rates without tax; above them, the extra is taxed as pay (check with your accountant).')}
       </Typography>
       <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
-        {t('The app starts at band 1, for someone’s first 1,500 business km in the year: {small} a km for a car up to 1,200 cc. In band 1, a car of 1,201 to 1,500 cc or an electric car can have {mid}, and one of 1,501 cc or more {large}. After 1,500 km in a year, other bands apply.', {
-          small: kmRate(r.band1.upTo1200cc), mid: kmRate(r.band1.from1201To1500cc), large: `${formatNumber(r.band1.from1501cc * 100)}c` })}
+        {t('The app starts at band 1, for someone’s first 1,500 business km in the year: {small} a km for a car up to 1,200 cc. In band 1, a car of 1,201 to 1,500 cc or an electric car can have {mid}, and one of 1,501 cc or more {large}. The rates for 1,501 to 5,500 km are higher, so {small} is tax free for anyone’s first {km} business km in a year, whatever the car; from then on they’re lower ({band3} a km up to 1,200 cc), and paying more is taxed as pay.', {
+          small: kmRate(r.band1.upTo1200cc), mid: kmRate(r.band1.from1201To1500cc), large: `${formatNumber(r.band1.from1501cc * 100)}c`,
+          km: formatNumber(r.taxFreeUpToKm), band3: `${formatNumber(r.band3.upTo1200cc * 100)}c` })}
+      </Typography>
+      <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
+        {t('Revenue asks you to keep each trip’s date, reason, start and end and kilometres for six years, and to report what you pay back to it (its Enhanced Reporting Requirements).')}
       </Typography>
       <Typography variant="caption" sx={{ color: 'text.secondary' }}>
         {tr('Source: {link}, rates from {since}. Checked on {checked}.', {

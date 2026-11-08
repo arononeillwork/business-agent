@@ -19,7 +19,7 @@ describe('Ireland’s catalogue', () => {
       'ie-start-your-own-business', 'ie-green-for-business', 'ie-energy-efficiency', 'ie-microfinance', 'ie-enterprise-ireland', 'ie-seai-energy-audit', 'ie-seai-solar']))
     for (const g of IE_GRANTS) {
       expect(g.source, g.id).toMatch(/^https:\/\/(www\.)?(localenterprise\.ie|microfinanceireland\.ie|enterprise-ireland\.com|seai\.ie)\//)
-      expect(g.checked).toBe('2026-11-07')
+      expect(g.checked).toBe('2026-11-08')
       expect(g.id).toMatch(/^[a-z0-9-]{2,60}$/) // grant_applications.grant_id
       expect(IE_RULES[g.rule], g.id).toBeDefined()
       for (const d of g.documents) expect(DOCUMENTS[d.id], `${g.id}: ${d.id}`).toBeDefined()
@@ -84,10 +84,28 @@ describe('the rules for an Irish café', () => {
     expect(status('ie-microfinance', dailyGrind({ employees: 12 }))).toBe('no')
     expect(status('ie-seai-energy-audit', dailyGrind({ ieEnergySpend: 'yes' }))).toBe('yes')
     expect(status('ie-seai-energy-audit', dailyGrind({ ieEnergySpend: 'no' }))).toBe('no')
+    // SEAI's guidance (October 2026): tax compliant, and under 2.8 GWh a year, which a maker may not be.
+    expect(status('ie-seai-energy-audit', dailyGrind({ ieEnergySpend: 'yes', debts: 'yes' }))).toBe('no')
+    expect(status('ie-seai-energy-audit', dailyGrind({ ieEnergySpend: 'yes', sector: 'industry' }))).toBe('check')
+    expect(grant('ie-seai-energy-audit').source).toBe('https://www.seai.ie/grants/business-grants/energy-audits')
     expect(status('ie-seai-solar', dailyGrind({ ieSolar: 'no' }))).toBe('no')
     expect(status('ie-mentoring', dailyGrind())).toBe('yes')
     expect(status('ie-start-your-own-business', dailyGrind())).toBe('yes')
     expect(status('ie-start-your-own-business', dailyGrind({ startY: 2020, startM: 1 }))).toBe('no')
+  })
+
+  it('Lean for Business: any sector up to 50 employees, trading 6 months, with no turnover test', () => {
+    expect(status('ie-lean', dailyGrind())).toBe('yes')
+    expect(status('ie-lean', dailyGrind({ employees: 40, ieTurnover: 'under30k' }))).toBe('yes')
+    expect(status('ie-lean', dailyGrind({ employees: 60 }))).toBe('no')
+    expect(status('ie-lean', dailyGrind({ startY: 2026, startM: 9 }))).toBe('next')
+  })
+
+  it('after a Priming Grant, the Business Expansion Grant is 12 months on, and Microfinance Ireland lends for less through the LEO', () => {
+    expect(grant('ie-expansion').note).toMatch(/12 months after it was approved or drawn down/)
+    expect(grant('ie-microfinance').paid).toMatch(/6\.5%, or 5\.5% when you apply through your LEO/)
+    expect(grant('ie-energy-efficiency').amount).toBe('75% of the cost, from €750 up to €10,000')
+    expect(grant('ie-grow-digital').amount).toBe('50% of the cost, from €500 up to €5,000')
   })
 
   it('a question goes once it can’t change anything: trading wider doesn’t matter for a café', () => {

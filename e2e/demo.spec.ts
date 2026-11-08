@@ -2162,11 +2162,14 @@ test('a business in Ireland: asked at sign-up, then Irish labels, VAT rates, pho
   await expect(results.getByRole('button', { name: 'Grow Digital Voucher' })).toContainText('Later for you')
   const audit = results.getByRole('button', { name: 'SEAI energy audit voucher' })
   await expect(audit).toContainText('Confirm first')
+  // SEAI asks for tax compliance and an energy bill of €10,000 or more.
+  await answers.getByRole('group', { name: 'Does the business owe Revenue any tax it isn’t paying off?' }).getByRole('button', { name: 'No', exact: true }).click()
+  await expect(audit).toContainText('Confirm first')
   await answers.getByRole('group', { name: 'Does the business spend €10,000 or more a year on energy?' }).getByRole('button', { name: 'Yes', exact: true }).click()
   await expect(audit).toContainText('Eligible')
   await audit.click()
   await expect(results.getByRole('link', { name: 'Official page' }).first()).toHaveAttribute('href', /seai\.ie/)
-  await expect(results.getByText(/^Checked on 7 Nov 2026/).first()).toBeVisible()
+  await expect(results.getByText(/^Checked on 8 Nov 2026/).first()).toBeVisible()
 })
 
 test('a business in Ireland: Irish contract types, competition terms, the mileage rate, the CCTV sign, job boards, GAA in sports and an accountant', async ({ page }) => {
@@ -2227,6 +2230,7 @@ test('a business in Ireland: Irish contract types, competition terms, the mileag
   const mileage = page.getByRole('region', { name: 'Mileage rate' })
   await expect(mileage).toContainText('Revenue lets you pay up to the civil service motor travel rates without tax')
   await expect(mileage).toContainText(/41[,.]8c a km for a car up to 1,200 cc/)
+  await expect(mileage).toContainText(/tax free for anyone’s first 5[,.]?500 business km in a year, whatever the car/)
   await expect(mileage.getByRole('link', { name: 'Revenue, civil service rates' })).toHaveAttribute('href', /^https:\/\/www\.revenue\.ie\//)
   await expect(mileage.getByRole('textbox', { name: 'Euros a km' })).toHaveValue('0.418')
 
@@ -2235,6 +2239,7 @@ test('a business in Ireland: Irish contract types, competition terms, the mileag
   await page.getByRole('tab', { name: 'Set up' }).click()
   const law = page.getByRole('alert', { name: 'Cameras and the law in Ireland' })
   await expect(law.getByLabel('The CCTV sign')).toContainText('Images are recorded by Cork Roast for the safety of staff and customers and to prevent crime.')
+  await expect(law).toContainText('why the recording is lawful')
   await expect(page.getByText('Cameras and the law in Spain')).toHaveCount(0)
 
   // Hiring: Ireland's job boards, and no InfoJobs.

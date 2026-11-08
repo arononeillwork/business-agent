@@ -162,6 +162,9 @@ function Calendar({ year, filings, records, canEdit }: { year: number; filings: 
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
               {t('What the business files with Revenue, from what it does (change it under What you file). The last days are the 23rd, Revenue’s day for filing and paying on ROS (otherwise the 19th, or the 14th for payroll), for accounts that run to 31 December.')}
             </Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
+              {t('Revenue’s pages don’t say that a 23rd on a weekend or bank holiday moves to the next working day, so it’s shown as it is: check with your {adviser}.', { adviser })}
+            </Typography>
             <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.5 }}>
               {tr('From Revenue’s own pages, checked on {date}: each return links to its page, and Revenue’s {calendar} has every date. Your {adviser} confirms what applies to you.', {
                 date: day(IRELAND_TAX_CHECKED), adviser,
@@ -418,7 +421,7 @@ function WhatYouFile({ settings }: { settings: TaxSettings }) {
           {ie ? <>
             {row('withholding', t('Staff on the payroll'), t('PAYE, PRSI and USC: each payroll sent to Revenue by pay day, and the monthly statement paid.'))}
             {row('sole_trader', t('A sole trader, not a company'), t('Income tax on Form 11, instead of Corporation Tax on the CT1.'))}
-            {!settings.sole_trader && row('instalments', t('Preliminary Corporation Tax'), t('Paid ahead each year from the second year (a new company with a small tax bill pays none in its first).'))}
+            {!settings.sole_trader && row('instalments', t('Preliminary Corporation Tax'), t('Paid ahead each year in the 11th month (a new company whose first year’s tax is under €200,000 pays none that year).'))}
             {row('intra_eu', t('Sales to EU businesses'), t('Goods or services sold to VAT-registered businesses elsewhere in the EU: the VIES listing.'))}
           </> : <>
             {row('withholding', t('Staff or freelancers'), t('Income tax held back from payslips or invoices: modelos 111 and 190.'))}

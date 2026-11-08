@@ -84,7 +84,7 @@ function Sheet({ person, business, entries, month }: { person: Profile; business
         <Box>
           <Typography sx={{ fontFamily: fonts.display, fontWeight: 500, fontSize: '1.3rem' }}>{ireland ? t('Working time record') : 'Registro diario de jornada'}</Typography>
           <Typography sx={{ fontSize: 13, color: '#6B645E' }}>{ireland
-            ? t('Start and finish times and breaks · Organisation of Working Time (Records) Regulations 2001')
+            ? t('Start and finish times and breaks · Organisation of Working Time Act 1997, s.25')
             : t('Daily working hours record · art. 34.9 Estatuto de los Trabajadores')}</Typography>
         </Box>
         <Typography sx={{ fontWeight: 500, textTransform: 'capitalize', whiteSpace: 'nowrap' }}>{monthName}</Typography>

@@ -47,7 +47,7 @@ export function ClockRulesCard() {
             <li>{tr('Limits: {daily}, {weekly}, and {rest} between shifts.', { daily: <b>{t('{n}h a day', { n: s.max_daily_hours })}</b>, weekly: <b>{t('{n}h a week', { n: s.max_weekly_hours })}</b>, rest: <b>{t('{n}h rest', { n: s.min_rest_hours })}</b> })}</li>
           </Box>
           <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>
-            {currentCountry() === 'IE' ? t('Irish defaults (Organisation of Working Time Act 1997). A contract can give more; check with your accountant.')
+            {currentCountry() === 'IE' ? t('Irish defaults (Organisation of Working Time Act 1997): a 15-minute break after 4½ hours and 30 minutes in all after 6 (breaks needn’t be paid), 11 hours’ rest between working days, 24 hours’ rest each week, and 48 hours a week on average over 4 months. A contract can give more; check with your accountant.')
               : t('Spanish defaults (Estatuto de los Trabajadores). Your convenio can be stricter; check with the gestor.')}
           </Typography>
         </Collapse>
