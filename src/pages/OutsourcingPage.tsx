@@ -29,6 +29,7 @@ import {
 import { formatLocal, formatMoney, formatNumber, today } from '../../shared/time'
 import { tokens } from '../theme'
 import { msg, t, tc, tn } from '../i18n'
+import { currentCountry } from '../../shared/country'
 
 type View = 'active' | 'catalogue' | 'past'
 // Catalogue filters: everyone (grouped by job), the starred, one job's options, or the archived.
@@ -298,7 +299,7 @@ function MightOutsource({ active, options, onOptions, onAdd }: {
               <Stack key={s.name} direction="row" sx={{ alignItems: 'center', gap: 1.5, py: 1, borderTop: 1, borderColor: 'divider' }}>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Typography variant="body2" sx={{ fontWeight: 500 }}>{t(s.name)}</Typography>
-                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t(s.what)}</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t(currentCountry() === 'IE' ? s.whatIreland ?? s.what : s.what)}</Typography>
                 </Box>
                 {n > 0
                   ? <Button size="small" onClick={() => onOptions(s.name)} aria-label={t('See the options for {job}', { job: t(s.name) })}>{tn(n, '{n} option', '{n} options')}</Button>

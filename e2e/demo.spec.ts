@@ -2134,6 +2134,98 @@ test('a business in Ireland: asked at sign-up, then Irish labels, VAT rates, pho
   await expect(results.getByText(/^Checked on 7 Nov 2026/).first()).toBeVisible()
 })
 
+test('a business in Ireland: Irish contract types, competition terms, the mileage rate, the CCTV sign, job boards, GAA in sports and an accountant', async ({ page }) => {
+  test.setTimeout(60_000)
+  await page.goto('/?demo')
+  await page.getByRole('tab', { name: 'Create account' }).click()
+  await page.getByLabel('Your name').fill('Niamh Kelly')
+  await page.getByRole('textbox', { name: 'Email' }).fill('niamh@corkroast.example')
+  await page.getByLabel('Password').fill('flat-white-cork-21')
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await page.getByRole('textbox', { name: 'Business name' }).fill('Cork Roast')
+  await page.getByRole('group', { name: 'Where is it?' }).getByRole('button', { name: 'Ireland' }).click()
+  await page.getByRole('button', { name: 'Café & coffee shop' }).click()
+  await page.getByRole('button', { name: 'Add my business' }).click()
+  await page.getByRole('button', { name: 'Skip this step' }).click()
+  await page.getByRole('button', { name: /^Use a ready-made setup/ }).click()
+  await page.getByRole('button', { name: 'Skip setup for now' }).click()
+  const nav = page.getByRole('navigation', { name: 'Main' })
+  await expect(nav).toContainText('Cork Roast')
+
+  // Contracts: Ireland's five kinds, the written statement's deadlines, and a sectoral order instead of a convenio.
+  await nav.getByRole('link', { name: 'Team', exact: true }).click()
+  await page.getByRole('tab', { name: 'Contracts' }).click()
+  await expect(page.getByText('Each person’s employment contract under Irish law')).toBeVisible()
+  await expect(page.getByRole('alert', { name: 'The written statement' })).toContainText('within 5 days of starting')
+  await page.getByRole('button', { name: 'Add a contract', exact: true }).click()
+  const contract = page.getByRole('dialog', { name: 'Add a contract' })
+  const kind = contract.getByRole('combobox', { name: 'Type of contract' })
+  await expect(kind).toHaveText('Permanent full-time')
+  await kind.click()
+  await expect(page.getByRole('option')).toHaveText(['Permanent full-time', 'Permanent part-time', 'Fixed-term', 'Specified-purpose', 'Casual'])
+  await page.getByRole('option', { name: 'Specified-purpose' }).click()
+  await expect(contract).toContainText('Ends when a task is done')
+  await expect(contract.getByRole('textbox', { name: 'Job title' })).toBeVisible()
+  await expect(contract.getByRole('textbox', { name: 'Sectoral Employment Order or ERO' })).toBeVisible()
+  await expect(contract.getByRole('textbox', { name: 'Convenio' })).toHaveCount(0)
+  await contract.getByRole('button', { name: 'Cancel' }).click()
+
+  // Competitions: terms and conditions in English, for Ireland, and no Spanish caption.
+  await nav.getByRole('link', { name: 'Competitions' }).click()
+  await page.getByRole('button', { name: 'Start your own' }).click()
+  const competition = page.getByRole('dialog', { name: 'New competition' })
+  await competition.getByRole('textbox', { name: 'Name' }).fill('Christmas giveaway')
+  await competition.getByRole('textbox', { name: 'Step 1' }).fill('Follow @corkroast on Instagram')
+  await expect(competition.getByRole('switch', { name: 'Living in Ireland only' })).toBeChecked()
+  await competition.getByRole('region', { name: 'Terms and conditions' }).getByRole('button', { name: 'Write the terms from the details' }).click()
+  const terms = competition.getByRole('textbox', { name: 'Terms' })
+  await expect(terms).toHaveValue(/^TERMS AND CONDITIONS: “Christmas giveaway”/)
+  await expect(terms).toHaveValue(/1\. Follow @corkroast on Instagram/)
+  await expect(terms).toHaveValue(/who lives in the Republic of Ireland/)
+  await expect(terms).toHaveValue(/General Data Protection Regulation \(GDPR\)/)
+  await expect(competition.getByRole('region', { name: 'Bases legales' })).toHaveCount(0)
+  await expect(competition.getByRole('textbox', { name: 'Caption in Spanish' })).toHaveCount(0)
+  await competition.getByRole('button', { name: 'Cancel' }).click()
+
+  // Expenses: Revenue's civil service rate, its band, and where it's from.
+  await nav.getByRole('link', { name: 'Expenses', exact: true }).click()
+  const mileage = page.getByRole('region', { name: 'Mileage rate' })
+  await expect(mileage).toContainText('Revenue lets you pay up to the civil service motor travel rates without tax')
+  await expect(mileage).toContainText(/41[,.]8c a km for a car up to 1,200 cc/)
+  await expect(mileage.getByRole('link', { name: 'Revenue, civil service rates' })).toHaveAttribute('href', /^https:\/\/www\.revenue\.ie\//)
+  await expect(mileage.getByRole('textbox', { name: 'Euros a km' })).toHaveValue('0.418')
+
+  // Cameras: the Data Protection Commission's sign, with the business's name on it.
+  await nav.getByRole('link', { name: 'Cameras' }).click()
+  await page.getByRole('tab', { name: 'Set up' }).click()
+  const law = page.getByRole('alert', { name: 'Cameras and the law in Ireland' })
+  await expect(law.getByLabel('The CCTV sign')).toContainText('Images are recorded by Cork Roast for the safety of staff and customers and to prevent crime.')
+  await expect(page.getByText('Cameras and the law in Spain')).toHaveCount(0)
+
+  // Hiring: Ireland's job boards, and no InfoJobs.
+  await nav.getByRole('link', { name: 'Hiring' }).click()
+  await expect(page.getByText('Post your jobs on IrishJobs.ie, Jobs.ie, Indeed or JobsIreland.ie')).toBeVisible()
+  await page.getByRole('button', { name: 'Add a vacancy' }).first().click()
+  const vacancy = page.getByRole('dialog', { name: 'Add a vacancy' })
+  for (const board of ['IrishJobs.ie', 'Jobs.ie', 'Indeed', 'JobsIreland.ie']) await expect(vacancy.getByRole('checkbox', { name: board, exact: true })).toBeVisible()
+  await expect(vacancy.getByRole('checkbox', { name: 'InfoJobs' })).toHaveCount(0)
+  await vacancy.getByRole('button', { name: 'Cancel' }).click()
+
+  // Sports: the GAA offered first, and its chip first once followed.
+  await nav.getByRole('link', { name: 'Sports' }).click()
+  await page.getByRole('button', { name: 'Competitions', exact: true }).click()
+  const follow = page.getByRole('dialog', { name: 'Competitions to follow' })
+  await expect(follow.getByText(/^(GAA|Football|Rugby) · /).first()).toHaveText('GAA · Ireland')
+  await follow.getByRole('checkbox', { name: 'All-Ireland Senior Hurling Championship' }).check()
+  await toast(page, 'Following All-Ireland Senior Hurling Championship')
+  await follow.getByRole('button', { name: 'Done' }).click()
+  await expect(page.getByRole('group', { name: 'Sport' }).getByRole('button')).toHaveText(['All', 'GAA', 'Football', 'Rugby', 'UFC', 'Boxing'])
+
+  // Who does the books: the accountant, not the gestoría.
+  await nav.getByRole('link', { name: 'Profit & loss' }).click()
+  await expect(page.getByText('The accounts your accountant files are the official ones.')).toBeVisible()
+})
+
 test('signed out: one-tap Google, Apple, Facebook and Microsoft sign-in next to email', async ({ page }) => {
   await page.goto('/?demo')
   for (const name of ['Google', 'Apple', 'Facebook', 'Microsoft']) {

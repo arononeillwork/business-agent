@@ -129,6 +129,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'square prices', files: [/shared\/menuSquare/, /i18n\/es\/squarePrices/], tests: String.raw`menu|Square` },
   { name: 'ireland tax and grants', files: [/shared\/(taxIreland|grantsIreland|grantCatalogueIreland)/, /i18n\/es\/irelandTaxGrants/],
     tests: String.raw`a business in Ireland|tax|grants` },
+  { name: 'ireland screens', files: [/i18n\/es\/irelandScreens/], tests: String.raw`in Ireland|contract|competition|expenses and mileage|camera|hiring|sports` },
 ]
 
 /** The --grep pattern for these changed files, or 'all'. */

@@ -11,6 +11,7 @@ import { useAction } from '../app/Notify'
 import { SectionTitle } from './common'
 import type { Settings } from '../../shared/types'
 import { t, tr } from '../i18n'
+import { currentCountry } from '../../shared/country'
 
 /** The house rules for clocking in, in plain sentences; admins can edit them. */
 export function ClockRulesCard() {
@@ -46,7 +47,8 @@ export function ClockRulesCard() {
             <li>{tr('Limits: {daily}, {weekly}, and {rest} between shifts.', { daily: <b>{t('{n}h a day', { n: s.max_daily_hours })}</b>, weekly: <b>{t('{n}h a week', { n: s.max_weekly_hours })}</b>, rest: <b>{t('{n}h rest', { n: s.min_rest_hours })}</b> })}</li>
           </Box>
           <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>
-            {t('Spanish defaults (Estatuto de los Trabajadores). Your convenio can be stricter; check with the gestor.')}
+            {currentCountry() === 'IE' ? t('Irish defaults (Organisation of Working Time Act 1997). A contract can give more; check with your accountant.')
+              : t('Spanish defaults (Estatuto de los Trabajadores). Your convenio can be stricter; check with the gestor.')}
           </Typography>
         </Collapse>
       </CardContent>
@@ -95,7 +97,8 @@ function RulesDialog({ onClose }: { onClose: () => void }) {
       <FormControlLabel control={<Checkbox checked={s.auto_timecards_from_rota}
         onChange={e => setS({ ...s, auto_timecards_from_rota: e.target.checked })} />}
         label={t('Fill missing timecards from the rota every night (marked for review)')} />
-      <Alert severity="info">{t('Spanish defaults. Check your convenio with the gestor; it can be stricter.')}</Alert>
+      <Alert severity="info">{currentCountry() === 'IE' ? t('Irish defaults. Check with your accountant; a contract can give more.')
+        : t('Spanish defaults. Check your convenio with the gestor; it can be stricter.')}</Alert>
       <Grid container spacing={2}>
         <Grid size={12}>{num('break_after_hours', t('Break needed after'), t('h'))}</Grid>
         <Grid size={12}>{num('min_break_minutes', t('Minimum break'), t('min'))}</Grid>

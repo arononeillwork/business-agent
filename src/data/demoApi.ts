@@ -92,7 +92,7 @@ import { CONNECT_MAPS, MAX_REPLY, type Review } from '../../shared/reviews'
 import { checkSite, parsePage, scoreOf, type PageSpeed, type WebsiteReport } from '../../shared/seo'
 import { addDays, formatMoney, localDate, localTime, minutesBetween, today, weekDates, weekStart, zonedIso } from '../../shared/time'
 import { SOURCE_FOR, type Enquiry } from '../../shared/leads'
-import { DEFAULT_MILEAGE_RATE, mileageAmount, type ExpenseClaim } from '../../shared/claims'
+import { DEFAULT_MILEAGE_RATE, IRISH_MILEAGE, mileageAmount, type ExpenseClaim } from '../../shared/claims'
 import { EVERYONE, type Campaign } from '../../shared/campaigns'
 import { keepUntil, type Applicant, type JobOpening } from '../../shared/hiring'
 import { cleanRoles, cvProblem, type ApplicantCv } from '../../shared/hiring'
@@ -2247,6 +2247,8 @@ export function createDemoApi(): Api {
       settings.hidden_pages = [...(KIND_HIDDEN_PAGES[(b.kind ?? 'other') as BusinessKind] ?? []), ...COUNTRY_HIDDEN_PAGES[b.country ?? 'ES']]
       // And Ireland's working-time rules (the country migration).
       if (b.country === 'IE') Object.assign(settings, { break_after_hours: 4.5, min_break_minutes: 15, max_daily_hours: 13, max_weekly_hours: 48, min_rest_hours: 11, vacation_days_per_year: 28 })
+      // And Revenue's mileage rate (the ireland_screens migration).
+      if (b.country === 'IE') settings.mileage_rate = IRISH_MILEAGE.rate
       notify()
       return 1
     },

@@ -92,6 +92,21 @@ export function cameraProblem(c: Pick<CameraInput, 'name' | 'keep_days'>): strin
   return null
 }
 
+/**
+ * Ireland: the sign for each entrance, as the Data Protection Commission's CCTV guidance asks: that
+ * cameras are recording, who runs them (the business, the controller), what for, and how to contact it,
+ * with where to read more when the business has a website. In English, for the public.
+ */
+export function irishCctvSign(b: { name: string; email?: string | null; phone?: string | null; website?: string | null }): string {
+  const contact = [b.email, b.phone].map(x => x?.trim()).filter(Boolean).join(' or ')
+  return [
+    'CCTV in operation',
+    `Images are recorded by ${b.name.trim() || '[business name]'} for the safety of staff and customers and to prevent crime.`,
+    `To ask about the recordings, contact ${contact || '[email or phone]'}.`,
+    ...(b.website?.trim() ? [`More information: ${b.website.trim()}`] : []),
+  ].join('\n')
+}
+
 /** Is the camera sending now (a picture in the last couple of minutes)? */
 export const isLive = (live: CameraLive | undefined, now = Date.now()) =>
   !!live?.picture_at && now - Date.parse(live.picture_at) < LIVE_MS

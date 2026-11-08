@@ -1,9 +1,11 @@
 // Competitions (Marketing): giveaways, draws and contests the business runs on Instagram, in the
 // café or by email; ideas for the next one worked out from what the app knows (the calendar, the
 // big matches, the quiet days, the stock that could be a prize); the bases legales a promotion in
-// Spain needs; rules the platforms forbid; and the entries and the draw.
+// Spain needs; rules the platforms forbid; and the entries and the draw. A business in Ireland gets
+// English terms and conditions instead (irishTerms) and Ireland's warnings.
 // The terms and warnings are a careful starting point, not legal advice: each says to check.
 import { msg } from './i18n'
+import { currentCountry } from './country'
 import { EMAIL, cleanPhone, mapHeadings, parseCsv, type ImportField } from './customers'
 
 export type CompetitionKind = 'instagram_giveaway' | 'email_draw' | 'photo_contest' | 'name_a_drink' | 'in_cafe' | 'quiz' | 'referral' | 'sports_prediction' | 'custom'
@@ -414,6 +416,7 @@ export const PRIZE_TAX_THRESHOLD = 300
  */
 export function entryProblems(c: Pick<Competition, 'channels' | 'how_to_enter' | 'prize_value' | 'rules' | 'winners' | 'starts_on' | 'ends_on' | 'draw_on' | 'kind'>): Words[] {
   const out: Words[] = []
+  const irish = currentCountry() === 'IE'
   const steps = c.how_to_enter.join(' \n ').toLowerCase()
   if (/review|reseña|resena|valoraci[oó]n|opini[oó]n en google|google maps|tripadvisor|estrellas|stars|rate us|punt[uú]a/.test(steps)) {
     out.push(w(msg('Don’t ask for a review to enter: Google and TripAdvisor ban reviews given for a reward, and can remove your reviews or mark the listing.')))
@@ -427,10 +430,15 @@ export function entryProblems(c: Pick<Competition, 'channels' | 'how_to_enter' |
   if ((c.channels.includes('instagram') || c.channels.includes('facebook')) && c.kind !== 'in_cafe') {
     out.push(w(msg('Say in the post and the terms that the promotion isn’t sponsored, endorsed or run by Instagram or Facebook (Meta asks for it).')))
   }
-  if ((c.prize_value ?? 0) > PRIZE_TAX_THRESHOLD) {
+  if ((c.prize_value ?? 0) > PRIZE_TAX_THRESHOLD && !irish) {
     out.push(w(msg('The prize is worth more than €300: the business pays the IRPF on it (an ingreso a cuenta) and declares it on modelos 111 and 190. Ask your gestoría.')))
   }
-  if (c.rules.min_age < 14) out.push(w(msg('Under 14s need a parent’s consent to give their details (RGPD): keep it to 14 or over, or ask for that consent.')))
+  if (c.rules.min_age < 14 && !irish) out.push(w(msg('Under 14s need a parent’s consent to give their details (RGPD): keep it to 14 or over, or ask for that consent.')))
+  // Ireland: the digital age of consent is 16 (Data Protection Act 2018), and a draw people pay to enter can be a lottery.
+  if (irish && c.rules.min_age < 16) out.push(w(msg('In Ireland, under 16s need a parent’s consent to give their details online (GDPR): keep it to 16 or over, or ask for that consent.')))
+  if (irish && (c.kind === 'in_cafe' || /\b(buy|purchase)/.test(steps))) {
+    out.push(w(msg('A draw people have to buy something to enter can count as a lottery under Irish gaming law: offer a free way to enter too, or check with your solicitor.')))
+  }
   if (c.winners < 1) out.push(w(msg('Choose how many winners there are.')))
   if (!c.ends_on) out.push(w(msg('Set the day entries close.')))
   if (c.ends_on && c.draw_on && c.draw_on < c.ends_on) out.push(w(msg('The draw is before entries close.')))
@@ -472,6 +480,40 @@ export function basesLegales(c: Pick<Competition, 'name' | 'kind' | 'channels' |
     ...(meta ? [`8. Instagram y Facebook\nEsta promoción no está patrocinada, avalada ni administrada por Instagram ni Facebook (Meta), ni asociada a ellas. Los participantes liberan a Meta de toda responsabilidad y aceptan sus condiciones de uso.`] : []),
     ...((c.prize_value ?? 0) > PRIZE_TAX_THRESHOLD ? [`${meta ? 9 : 8}. Fiscalidad\nEl premio está sujeto al IRPF. El Organizador hará el ingreso a cuenta correspondiente y lo declarará en los modelos 111 y 190; el ganador deberá incluir el premio en su declaración de la renta.`] : []),
     `${8 + (meta ? 1 : 0) + ((c.prize_value ?? 0) > PRIZE_TAX_THRESHOLD ? 1 : 0)}. Aceptación de las bases\nParticipar supone aceptar estas bases. El Organizador puede descalificar participaciones fraudulentas y modificar o cancelar la promoción por causas justificadas, avisándolo por los mismos canales.${b.website ? ` Las bases están publicadas en ${b.website}.` : ''}`,
+  ]
+  return sections.join('\n\n')
+}
+
+const IE_CHANNEL: Record<CompetitionChannel, string> = {
+  instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok', in_cafe: 'the premises', website: 'the website', email: 'email', whatsapp: 'WhatsApp',
+}
+const euro = (n: number) => `€${Number.isInteger(n) ? n : n.toFixed(2)}`
+const longDate = (date: string) => at(date).toLocaleDateString('en-IE', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+
+/**
+ * The terms and conditions of a promotion run by a business in Ireland, in English: who runs it, the
+ * dates, who can enter and how, the prize, how the winner is chosen and told, data protection under
+ * the GDPR, Meta's disclaimer when it runs on Instagram or Facebook, and that Irish law applies.
+ * A general draft for the business to check (with its solicitor if anything is unusual), then publish.
+ */
+export function irishTerms(c: Pick<Competition, 'name' | 'kind' | 'channels' | 'starts_on' | 'ends_on' | 'draw_on' | 'prize' | 'prize_value' | 'winners' | 'reserves' | 'how_to_enter' | 'rules'>,
+  b: { name: string; tax_id?: string | null; address?: string | null; email?: string | null; website?: string | null }): string {
+  const judged = c.kind === 'photo_contest' || c.kind === 'name_a_drink'
+  const meta = c.channels.some(x => x === 'instagram' || x === 'facebook')
+  const where = c.channels.map(x => IE_CHANNEL[x]).join(', ')
+  const d = (x: string | null) => (x ? longDate(x) : '[date]')
+  const steps = c.how_to_enter.filter(s => s.trim()).map((s, i) => `${i + 1}. ${s.trim()}`).join('\n')
+  const sections = [
+    `TERMS AND CONDITIONS: “${c.name}”`,
+    `1. The promoter\n${b.name}${b.tax_id ? ` (${b.tax_id})` : ''}${b.address ? `, ${b.address}` : ''} (“the Promoter”) runs this promotion${where ? ` on ${where}` : ''}.`,
+    `2. Dates\nThe promotion opens on ${d(c.starts_on)} and closes at 23:59 Irish time on ${d(c.ends_on)}. The winner will be ${judged ? 'chosen' : 'drawn'} on ${d(c.draw_on)}.`,
+    `3. Who can enter\nAnyone aged ${c.rules.min_age} or over${c.rules.spain_only ? ' who lives in the Republic of Ireland' : ''}, except the Promoter’s staff and their immediate families.${c.rules.one_entry_per_person ? ' One entry per person: duplicate accounts, or accounts made for the promotion, are left out.' : ''}`,
+    `4. How to enter\n${steps || '[How to enter]'}\nEntry is free${c.kind === 'in_cafe' ? ', apart from any purchase stated above' : ''}.${c.rules.marketing_signup ? ' By entering, you agree to get the Promoter’s news and offers; you can unsubscribe at any time.' : ''}`,
+    `5. The prize\n${c.prize ? `${c.prize[0].toUpperCase()}${c.prize.slice(1)}` : '[Prize]'}${c.prize_value ? `, worth ${euro(c.prize_value)} (including VAT)` : ''}. There will be ${c.winners === 1 ? 'one winner' : `${c.winners} winners`}${c.reserves ? ` and ${c.reserves} reserve${c.reserves === 1 ? '' : 's'}` : ''}. The prize is personal to the winner: it can’t be transferred or exchanged for cash.`,
+    `6. Choosing and telling the winner\n${judged ? 'The Promoter will choose the winning entry for its originality and quality.' : 'The winner will be drawn at random from all valid entries.'} The winner will be contacted${meta ? ' by direct message or a reply to their comment' : ''} within 3 days and has 7 days to reply. If they don’t reply, or don’t meet these terms, the prize goes to the next reserve.`,
+    `7. Data protection\nThe Promoter is the data controller. Entrants’ personal data is used to run the promotion and contact the winner${c.rules.marketing_signup ? ', and to send news and offers to those who agreed' : ''}, under the General Data Protection Regulation (GDPR) and the Data Protection Acts 1988 to 2018, and is kept only as long as that needs. With the winner’s agreement, their name or username is published when the winner is announced. You can ask to see, correct or delete your data, or object to its use, by writing to ${b.email ?? '[the Promoter’s email]'}. You can also complain to the Data Protection Commission (www.dataprotection.ie).`,
+    ...(meta ? ['8. Instagram and Facebook\nThis promotion is not sponsored, endorsed or administered by, or associated with, Instagram or Facebook (Meta). Entrants release Meta from all liability and agree to its terms of use.'] : []),
+    `${meta ? 9 : 8}. General\nBy entering, you accept these terms. The Promoter may disqualify entries that are fraudulent or break these terms, and may change or cancel the promotion for good reason, announcing it on the same channels. These terms are governed by Irish law.${b.website ? ` They are published at ${b.website}.` : ''}`,
   ]
   return sections.join('\n\n')
 }

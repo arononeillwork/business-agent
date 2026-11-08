@@ -100,11 +100,15 @@ export function BenefitsPage() {
       </>} />
       <ErrorBox error={data.error} />
       <Typography sx={{ mb: 0.5, maxWidth: 760 }}>
-        {t('What everyone on the team gets in {country}: the legal minimum, and what {business} gives on top. A convenio colectivo can give more, never less.',
-          { country: t(COUNTRY_NAME[country]), business: businessName })}
+        {currentCountry() === 'IE'
+          ? t('What everyone on the team gets in {country}: the legal minimum, and what {business} gives on top. A contract can give more, never less.',
+            { country: t(COUNTRY_NAME[country]), business: businessName })
+          : t('What everyone on the team gets in {country}: the legal minimum, and what {business} gives on top. A convenio colectivo can give more, never less.',
+            { country: t(COUNTRY_NAME[country]), business: businessName })}
       </Typography>
       <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
-        {tr('Checked against the {law} on {date}. Your convenio and your gestoría have the final word.', {
+        {tr(currentCountry() === 'IE' ? 'Checked against {law} on {date}. Your contracts and your accountant have the final word.'
+          : 'Checked against the {law} on {date}. Your convenio and your gestoría have the final word.', {
           law: <Link href={checked.link} target="_blank" rel="noopener">{checked.source}</Link>, date: day(checked.on) })}
       </Typography>
 
