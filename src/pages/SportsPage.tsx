@@ -21,6 +21,7 @@ import { useAction } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader, Tag } from '../components/common'
 import { addDays, formatLocal, localDate, localTime, today, zonedIso } from '../../shared/time'
 import type { Sport, SportsCompetition, SportsEvent, SportsFavourite } from '../../shared/sports'
+import { homeFirst } from '../../shared/sports'
 import { fonts, tokens } from '../theme'
 import { EventAlertButton } from '../components/NotificationBell'
 import { msg, t } from '../i18n'
@@ -157,11 +158,14 @@ function Fixtures() {
   const comps = useMemo(() => new Map((data.data?.competitions ?? []).map(c => [c.code, c])), [data.data])
   const followed = (data.data?.competitions ?? []).filter(c => c.followed)
   const sports = sportOrder().filter(s => followed.some(c => c.sport === s))
-  // Football's areas, in catalogue order: national teams first, then each country, then Europe.
+  // Football's areas, in catalogue order: national teams first, then each country, then Europe. In Ireland,
+  // Ireland's own (the League of Ireland, the FAI Cup) come first.
   const football = followed.filter(c => c.sport === 'football').sort((a, b) => a.sort - b.sort)
+  const home = currentCountry() === 'IE' && football.some(c => c.region === 'Ireland' && c.kind !== 'national') ? ['Ireland'] : []
   const areas: Area[] = [
+    ...home,
     ...(football.some(c => c.kind === 'national') ? ['national'] : []),
-    ...new Set(football.filter(c => c.kind !== 'national').map(c => c.region)),
+    ...new Set(football.filter(c => c.kind !== 'national' && !home.includes(c.region)).map(c => c.region)),
   ]
   const pickSport = (s: SportFilter) => { setSport(s); setArea('all') }
   const events = (data.data?.events ?? []).filter(e => {
@@ -464,8 +468,9 @@ function EventCard({ e, c, fav, onFav }: { e: SportsEvent; c: SportsCompetition;
 function CompetitionsDialog({ competitions, onClose }: { competitions: SportsCompetition[]; onClose: () => void }) {
   const { api } = useApp()
   const run = useAction()
-  // By sport, then by region (Spain, England, National teams…) within it; the fights together. GAA first in Ireland.
-  const groups = sportOrder().filter(s => s !== 'ufc' && s !== 'boxing').flatMap(s => [...new Set(competitions.filter(c => c.sport === s).map(c => c.region))]
+  // By sport, then by region (Spain, England, National teams…) within it; the fights together. GAA first in Ireland,
+  // and Ireland's own football (the League of Ireland, the FAI Cup) next to it.
+  const groups = sportOrder().filter(s => s !== 'ufc' && s !== 'boxing').flatMap(s => [...new Set(homeFirst(competitions, currentCountry()).filter(c => c.sport === s).map(c => c.region))]
     .map(r => ({ key: `${s}:${r}`, title: `${t(SPORT[s].label)} · ${regionName(r)}`, list: competitions.filter(c => c.sport === s && c.region === r) })))
   const fights = competitions.filter(c => c.kind === 'fight')
   if (fights.length) groups.push({ key: 'fights', title: regionName('Fights'), list: fights })

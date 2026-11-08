@@ -10,7 +10,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
-import { copyTsv, csvContent, exportCsv, exportXlsx, printPdf, type ExportTable } from '../lib/export'
+import { copyTsv, csvContent, csvStyle, exportCsv, exportXlsx, printPdf, type ExportTable } from '../lib/export'
 import { formatMoney } from '../../shared/time'
 import { savingStorage } from '../../shared/connections'
 import { tokens } from '../theme'
@@ -72,9 +72,11 @@ export function SortCell({ sort, id, children, ...cell }: { sort: Sort; id: stri
 
 /** "Export" with Excel, CSV, PDF, copy for Google Sheets, and (when connected) save to Drive or OneDrive. */
 export function ExportButton({ table, disabled, folder }: { table: () => ExportTable; disabled?: boolean; folder?: string }) {
-  const { api, isAdmin } = useApp()
+  const { api, isAdmin, me } = useApp()
   const run = useAction()
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
+  // The CSV as Excel reads it where the business is, and for this person's decimal mark (csvStyle).
+  const csv = csvStyle(undefined, me?.preferences?.numberFormat)
   const links = useAsync('integrations', () => (isAdmin ? api.integrations() : Promise.resolve(null)), [])
   const storage = folder ? savingStorage(links.data?.integrations) : undefined
   const where = storage?.provider === 'onedrive' ? 'OneDrive' : 'Google Drive'
@@ -95,12 +97,12 @@ export function ExportButton({ table, disabled, folder }: { table: () => ExportT
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         slotProps={{ paper: { sx: { minWidth: 240, borderRadius: '14px' } } }}>
         {item(<ExcelIcon fontSize="small" />, 'Excel', t('.xlsx spreadsheet'), () => pick(() => exportXlsx(table())))}
-        {item(<CsvIcon fontSize="small" />, 'CSV', t('For any spreadsheet or accounts app'), () => pick(() => exportCsv(table())))}
+        {item(<CsvIcon fontSize="small" />, 'CSV', t('For any spreadsheet or accounts app'), () => pick(() => exportCsv(table(), csv)))}
         {item(<PdfIcon fontSize="small" />, 'PDF', t('Print, or save as PDF'), () => pick(() => printPdf(table(), formatMoney)))}
         {item(<CopyIcon fontSize="small" />, t('Copy'), t('Paste into Google Sheets or Numbers'), () => pick(() => copyTsv(table()), t('Copied: paste it into a spreadsheet')))}
         {storage && item(<CloudUploadIcon fontSize="small" />, t('Save to {where}', { where: storage.provider === 'onedrive' ? 'OneDrive' : 'Drive' }), t('As a CSV file'), () => pick(async () => {
           const data = table()
-          const r = await api.saveFile({ folder: folder!, name: `${data.filename}.csv`, content: csvContent(data), type: 'text/csv;charset=utf-8' })
+          const r = await api.saveFile({ folder: folder!, name: `${data.filename}.csv`, content: csvContent(data, csv), type: 'text/csv;charset=utf-8' })
           window.open(r.link, '_blank', 'noopener')
         }, t('Saved to {where} › The Business Agent › {folder}', { where, folder: folder! })))}
       </Menu>

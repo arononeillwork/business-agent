@@ -80,6 +80,20 @@ const BIG_CLUBS = [
 ]
 const HOME_NATIONS = ['spain', 'england', 'netherlands', 'scotland', 'ireland', 'wales', 'germany', 'france', 'portugal', 'belgium', 'italy']
 
+/**
+ * The League of Ireland's divisions (the `league_of_ireland` migration) and their last round: ten clubs each,
+ * playing each other four times: 36 rounds, from February to the end of October or the start of November.
+ */
+const LEAGUE_OF_IRELAND_LAST_ROUND: Record<string, number> = { 'ie-premier-division': 36, 'ie-first-division': 36 }
+
+/**
+ * The catalogue in the order a business sees it: in Ireland, Ireland's own competitions (the League of
+ * Ireland and the FAI Cup, after the GAA) ahead of the rest of their sport; elsewhere as it comes.
+ */
+export function homeFirst<T extends Pick<SportsCompetition, 'region'>>(list: T[], country: string): T[] {
+  return country === 'IE' ? [...list.filter(c => c.region === 'Ireland'), ...list.filter(c => c.region !== 'Ireland')] : list
+}
+
 // Whole words only: "Inter" is big, "Winterthur" isn't.
 const has = (name: string | null | undefined, list: string[]) => {
   const n = ` ${(name ?? '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ')} `
@@ -95,6 +109,10 @@ export function isBigEvent(e: Pick<SportsEvent, 'sport' | 'title' | 'home' | 'aw
   if (e.sport === 'rugby') return /final/i.test(e.round ?? '')
   // GAA: the knock-outs, quarter-finals to the final (TheSportsDB numbers them 125, 150 and 200).
   if (e.sport === 'gaa') return /final/i.test(e.round ?? '') || (Number(e.round) >= 125 && Number(e.round) <= 200)
+  // League of Ireland: the last round, when every match kicks off together and the title, Europe and the drop
+  // (or going up) are settled; and the FAI Cup final (TheSportsDB's round 200), in November.
+  if (Object.hasOwn(LEAGUE_OF_IRELAND_LAST_ROUND, c.code)) return Number(e.round) === LEAGUE_OF_IRELAND_LAST_ROUND[c.code]
+  if (c.code === 'ie-fai-cup') return e.round === '200' || /^final$/i.test(e.round ?? '')
   const bothBig = has(e.home, BIG_CLUBS) && has(e.away, BIG_CLUBS)
   if (bothBig) return true
   if (c.kind === 'cup' && (c.code.startsWith('uefa-') || /final/i.test(e.round ?? ''))) return has(e.home, BIG_CLUBS) || has(e.away, BIG_CLUBS)
