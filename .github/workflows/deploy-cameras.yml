@@ -33,8 +33,8 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       FLY_APP: ${{ vars.FLY_CAMERAS_APP || 'business-agent-cameras' }}
       FLY_ORG: ${{ vars.FLY_ORG || 'personal' }}
-      # Where the server sends video: the app's Worker.
-      APP_URL: https://business-agent.arononeillwork.workers.dev
+      # Where the server sends video: the app (businesssagent.com, the Worker's custom domain).
+      APP_URL: https://businesssagent.com
     steps:
       - name: Check the tokens are set
         id: gate
