@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_TAX_SETTINGS, filingsFor, overdue, upcoming, type TaxSettings } from './tax'
-import { filingsIn, irishFilingsFor, irishModelLabel } from './taxIreland'
+import { FORM11_ROS_DATES, filingsIn, irishFilingsFor, irishModelLabel } from './taxIreland'
 
 const s = (patch: Partial<TaxSettings> = {}): TaxSettings => ({ ...DEFAULT_TAX_SETTINGS, ...patch })
 const due = (model: string, period: string, settings = s()) => irishFilingsFor(2026, settings).find(f => f.model === model && f.period === period)?.due
@@ -34,13 +34,32 @@ describe('the tax calendar in Ireland', () => {
   it('a sole trader: Form 11 by 31 October, and no Corporation Tax', () => {
     const list = irishFilingsFor(2026, s({ sole_trader: true, instalments: true }))
     expect(list.find(f => f.model === 'F11')?.due).toBe('2027-10-31')
+    expect(list.find(f => f.model === 'F11')?.what).toMatch(/once Revenue sets the date/)
     expect(list.some(f => f.model === 'CT1')).toBe(false)
     expect(irishModelLabel('F11')).toBe('Form 11')
+  })
+
+  it('Form 11 on ROS: Revenue’s own later date once it’s announced (Wednesday 18 November 2026 for 2025’s)', () => {
+    const f11 = (year: number) => irishFilingsFor(year, s({ sole_trader: true })).find(f => f.model === 'F11')!
+    expect(f11(2025).due).toBe('2026-11-18')
+    expect(f11(2025).what).toMatch(/Revenue’s later date shown here/)
+    expect(f11(2024).due).toBe('2025-11-19')
+    expect(FORM11_ROS_DATES[2026]).toBeUndefined()
+  })
+
+  it('preliminary tax: 90% of this year’s or 100% of last year’s, none in a small new company’s first year', () => {
+    const prelim = irishFilingsFor(2026, s({ instalments: true })).find(f => f.model === 'CT1' && f.period === '1P')!
+    expect(prelim.what).toMatch(/90% of this year’s tax, or 100% of last year’s/)
+    expect(prelim.what).toMatch(/under €200,000 pays none that year/)
   })
 
   it('EU sales: a VIES listing each quarter', () => {
     expect(due('VIES', '1T')).toBeUndefined()
     expect(['1T', '2T', '3T', '4T'].map(p => due('VIES', p, s({ intra_eu: true })))).toEqual(['2026-04-23', '2026-07-23', '2026-10-23', '2027-01-23'])
+    // Monthly once goods sold pass €50,000 a quarter (the VIES Traders Manual, 3.5), linked from the row.
+    const vies = irishFilingsFor(2026, s({ intra_eu: true })).find(f => f.model === 'VIES')!
+    expect(vies.what).toMatch(/€50,000 a quarter/)
+    expect(vies.source).toMatch(/vies-traders-manual\.pdf$/)
   })
 
   it('soonest first, each with Revenue’s page, and what’s coming and overdue work as in Spain', () => {

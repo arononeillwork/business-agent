@@ -19,6 +19,11 @@ describe('contracts in Ireland', () => {
     expect(defaultContractKind('IE')).toBe('permanent')
     expect(defaultContractKind('ES')).toBe('indefinido')
     expect(contractKind('casual').label).toBe('Casual')
+    // The Fixed-Term Work Act's 4 years, and the 2018 Act's zero hours, minimum payment and banded hours.
+    expect(contractKind('fixed_term').summary).toMatch(/can’t add up to more than 4 years without an objective reason/)
+    expect(contractKind('casual').summary).toMatch(/zero-hours contracts are otherwise banned/)
+    expect(contractKind('casual').summary).toMatch(/at least 3 hours at the minimum wage/)
+    expect(contractKind('casual').summary).toMatch(/band of hours/)
     expect(contractKind('indefinido').label).toBe('Permanent (indefinido)')
   })
 
@@ -80,6 +85,9 @@ describe('competition terms in Ireland', () => {
     expect(irish).toMatch(/under 16s need a parent’s consent/)
     expect(irish).not.toMatch(/IRPF|Under 14s/)
     expect(problems('IE', { kind: 'in_cafe', channels: ['in_cafe'] })).toMatch(/count as a lottery/)
+    // On 7 November 2026 the Gambling Regulation Act 2024's lottery rules weren't in force: the 1956 to 2019 Acts were.
+    expect(problems('IE', { kind: 'in_cafe', channels: ['in_cafe'] })).toMatch(/Gaming and Lotteries Acts 1956 to 2019/)
+    expect(irish).toMatch(/Data Protection Act 2018/)
     expect(problems('IE', { how_to_enter: ['Buy any drink in the café'] })).toMatch(/count as a lottery/)
     expect(problems('IE', {})).not.toMatch(/lottery/)
     // Spain's as they were.
@@ -101,6 +109,16 @@ describe('mileage in Ireland', () => {
     setCountry('IE')
     expect(defaultMileageRate()).toBe(0.418)
     expect(mileageAmount(12, defaultMileageRate(), true)).toBe(10.03)
+  })
+
+  it('the starting rate is tax free whatever the car for the first 5,500 business km of a year, and over band 3’s after', () => {
+    // Revenue's civil service rates from 1 September 2022, as its page and Tax and Duty Manual Part 05-01-06 give them.
+    expect(IRISH_MILEAGE.since).toBe('2022-09-01')
+    expect(IRISH_MILEAGE.band1).toEqual({ upTo1200cc: 0.418, from1201To1500cc: 0.434, from1501cc: 0.5182 })
+    expect(IRISH_MILEAGE.rate).toBeLessThan(Math.min(...Object.values(IRISH_MILEAGE.band2)))
+    expect(IRISH_MILEAGE.taxFreeUpToKm).toBe(5500)
+    expect(IRISH_MILEAGE.rate).toBeGreaterThan(Math.max(...Object.values(IRISH_MILEAGE.band3)))
+    expect(IRISH_MILEAGE.checked).toBe('2026-11-08')
   })
 })
 

@@ -1,18 +1,21 @@
 // Tax for a business in Ireland: which returns are due when, with Revenue (revenue.ie, filed on ROS).
 // The Tax page shows these for an Irish business instead of the Agencia Tributaria's modelos (tax.ts),
 // in the same table, with the same statuses and documents. Dates are ROS's: filing and paying online
-// gives until the 23rd (the 19th or 14th otherwise), and they assume the accounts run to 31 December.
-// Written from Revenue's pages (each return's `source`) on IRELAND_TAX_CHECKED; the accountant confirms.
+// gives until the 23rd (the 19th or 14th otherwise), and Form 11 until Revenue's ROS date each November;
+// they assume the accounts run to 31 December. Checked against Revenue's pages (each return's `source`),
+// its Agent's Guide to the Collector-General's Division and its VIES and RTD manuals on IRELAND_TAX_CHECKED;
+// the accountant confirms.
 import type { Country } from './country'
 import { filingsFor, type Filing, type FilingPeriod, type TaxSettings } from './tax'
 import { msg } from './i18n'
 
 /** When the dates and rules here were last checked against Revenue's pages. */
-export const IRELAND_TAX_CHECKED = '2026-11-07'
+export const IRELAND_TAX_CHECKED = '2026-11-08'
 
 export const REVENUE = {
   vat: 'https://www.revenue.ie/en/vat/accounting-for-vat/how-to-account-for-value-added-tax/when-vat-becomes-payable.aspx',
-  vies: 'https://www.revenue.ie/en/vat/goods-and-services-to-and-from-abroad/acquisitions-from-other-eu-member-states/vies-and-intrastat.aspx',
+  // The VIES Traders Manual: its filing dates and frequency (the VIES and Intrastat page links to it, without them).
+  vies: 'https://www.revenue.ie/en/tax-professionals/tdm/value-added-tax/vat-information-exchange-system-VIES/vies-traders-manual.pdf',
   paye: 'https://www.revenue.ie/en/employing-people/paying-your-employees-tax-to-revenue/paying-tax-to-revenue.aspx',
   preliminary: 'https://www.revenue.ie/en/companies-and-charities/corporation-tax-for-companies/corporation-tax-payment-and-filing/when-is-preliminary-ct-due.aspx',
   ct: 'https://www.revenue.ie/en/companies-and-charities/corporation-tax-for-companies/corporation-tax-payment-and-filing/payment-and-filing.aspx',
@@ -32,8 +35,16 @@ const after = (y: number, m: number): [string, string] => {
 }
 
 /**
+ * The last day to pay and file Form 11 on ROS for a tax year, as Revenue announces it each year (the
+ * date otherwise is 31 October). From Revenue's "Filing your tax return" page and its Agent's Guide.
+ */
+export const FORM11_ROS_DATES: Record<number, string> = { 2024: '2025-11-19', 2025: '2026-11-18' }
+
+/**
  * Every return an Irish business files for the tax year, in the order they fall due. Revenue's dates
- * aren't moved for weekends here: the 23rd is shown as it is (earlier is always safe).
+ * aren't moved for weekends or bank holidays here: Revenue's pages don't say that a 23rd on one moves
+ * (it gave the 2025 Form 11's 31 October as Saturday 31 October 2026), so the 23rd is shown as it is
+ * (earlier is always safe) and the page asks the accountant.
  */
 export function irishFilingsFor(year: number, s: TaxSettings): Filing[] {
   const out: Filing[] = []
@@ -48,7 +59,8 @@ export function irishFilingsFor(year: number, s: TaxSettings): Filing[] {
   add('RTD', '0A', msg('Return of Trading Details'), msg('The year’s sales and purchases by VAT rate, sent with the year’s last VAT3.'),
     [ymd(year + 1, 1, 1), ymd(year + 1, 1, 23)], REVENUE.vat)
   if (s.intra_eu) for (let q = 1; q <= 4; q++) {
-    add('VIES', `${q}T` as FilingPeriod, msg('EU sales listing (VIES)'), msg('Sales to VAT-registered businesses elsewhere in the EU, for the quarter.'),
+    add('VIES', `${q}T` as FilingPeriod, msg('EU sales listing (VIES)'),
+      msg('Sales to VAT-registered businesses elsewhere in the EU, for the quarter (a nil one when there were none). Each month instead once goods sold to them pass €50,000 a quarter.'),
       after(year, q * 3), REVENUE.vies)
   }
   // Payroll (PAYE Modernisation): each payroll goes to Revenue on or before pay day; the month's statement is paid by the 23rd.
@@ -57,13 +69,15 @@ export function irishFilingsFor(year: number, s: TaxSettings): Filing[] {
       msg('Each payroll goes to Revenue on or before pay day; Revenue’s statement for the month is paid by the 23rd on ROS.'), after(year, m), REVENUE.paye)
   }
   if (s.sole_trader) {
+    const ros = FORM11_ROS_DATES[year]
     add('F11', '0A', msg('Income tax return (Form 11)'),
-      msg('The year’s income tax, with the balance for it and preliminary tax for the next year. Filing and paying on ROS usually gives until mid-November.'),
-      [ymd(year + 1, 1, 1), ymd(year + 1, 10, 31)], REVENUE.form11)
+      ros ? msg('The year’s income tax, with the balance for it and preliminary tax for the next year: by 31 October, or Revenue’s later date shown here when you both pay and file on ROS.')
+        : msg('The year’s income tax, with the balance for it and preliminary tax for the next year: by 31 October. Paying and filing on ROS usually gives until mid-November, once Revenue sets the date.'),
+      [ymd(year + 1, 1, 1), ros ?? ymd(year + 1, 10, 31)], REVENUE.form11)
   } else {
     if (s.instalments) {
       add('CT1', '1P', msg('Preliminary Corporation Tax'),
-        msg('Paid ahead on this year’s Corporation Tax, in its 11th month. A new company with a small tax bill pays none in its first year.'),
+        msg('Paid ahead on this year’s Corporation Tax, in its 11th month: 90% of this year’s tax, or 100% of last year’s. A new company whose first year’s tax is under €200,000 pays none that year; one whose last year’s was over €200,000 pays in two parts.'),
         [ymd(year, 11, 1), ymd(year, 11, 23)], REVENUE.preliminary)
     }
     add('CT1', '0A', msg('Corporation Tax return (CT1)'), msg('The year’s return, and any tax still to pay, 9 months after the year end.'),

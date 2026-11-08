@@ -30,7 +30,9 @@ export const CONTRACT_KINDS: { id: ContractKind; label: string; summary: string;
 ]
 /**
  * The kinds of contract in Ireland: permanent, full or part time; fixed-term and specified-purpose (the
- * Protection of Employees (Fixed-Term Work) Act 2003); and casual work. None of them is freelance.
+ * Protection of Employees (Fixed-Term Work) Act 2003); and casual work (zero hours, banded hours and the
+ * minimum payment: the Employment (Miscellaneous Provisions) Act 2018). None of them is freelance.
+ * Checked against the Workplace Relations Commission's guides on 8 November 2026.
  */
 export const IRISH_CONTRACT_KINDS: typeof CONTRACT_KINDS = [
   { id: 'permanent', label: msg('Permanent full-time'), temporary: false,
@@ -38,11 +40,11 @@ export const IRISH_CONTRACT_KINDS: typeof CONTRACT_KINDS = [
   { id: 'permanent_part_time', label: msg('Permanent part-time'), temporary: false,
     summary: msg('No end date, for fewer hours than full-time. The hours a week go in the contract; pay and holidays are pro rata.') },
   { id: 'fixed_term', label: msg('Fixed-term'), temporary: true,
-    summary: msg('Ends on a set date. Treated no less well than someone permanent; fixed-term contracts renewed past 4 years in all usually become permanent.') },
+    summary: msg('Ends on a set date. Treated no less well than someone permanent. Two or more in a row can’t add up to more than 4 years without an objective reason: past that, it counts as permanent.') },
   { id: 'specified_purpose', label: msg('Specified-purpose'), temporary: true,
     summary: msg('Ends when a task is done or something happens, such as cover until someone comes back from leave. Say in the contract what ends it.') },
   { id: 'casual', label: msg('Casual'), temporary: false,
-    summary: msg('Works as and when there are hours, with no set hours a week. Still gets a written statement, the minimum wage, breaks and paid holidays.') },
+    summary: msg('Works as and when there are hours, with no set hours a week: only for genuinely casual work, emergencies or short-term cover (zero-hours contracts are otherwise banned). Still gets a written statement, the minimum wage, breaks and paid holidays; someone called in and sent home without the work gets at least 3 hours at the minimum wage, and after a year can ask for a band of hours that matches what they work.') },
 ]
 const ALL_KINDS = [...CONTRACT_KINDS, ...IRISH_CONTRACT_KINDS]
 /** The kinds of contract to choose from where the business is. */

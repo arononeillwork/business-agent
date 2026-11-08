@@ -6,7 +6,7 @@ import { msg } from './i18n'
 import type { Grant, GrantDocument } from './grants'
 
 /** When these were last checked against the official pages. */
-export const IRELAND_GRANTS_CHECKED = '2026-11-07'
+export const IRELAND_GRANTS_CHECKED = '2026-11-08'
 const checked = IRELAND_GRANTS_CHECKED
 const LEO = 'https://www.localenterprise.ie/discover-business-supports'
 
@@ -48,7 +48,7 @@ export const IE_GRANTS: Grant[] = [
     amount: LEO_GRANT_AMOUNT, max: 150000,
     window: 'permanent', opens: null, closes: null, next_call: null,
     paid: LEO_GRANT_PAID,
-    summary: msg('A start-up grant in the first 18 months for a small business that makes products, or sells services, beyond its local area, with room to grow and take on staff. Cafés, restaurants, shops and other local services aren’t covered.'),
+    summary: msg('A start-up grant in the first 18 months for a small business that makes products, or sells services, beyond its local area, with room to grow and take on staff. Shops and personal, professional and building services that sell locally aren’t covered, nor projects that would take trade from others nearby, which usually rules out cafés, restaurants and pubs.'),
     covers: LEO_GRANT_COVERS,
     obligations: LEO_GRANT_OBLIGATIONS,
     steps: [msg('Talk to a business adviser at your LEO about the project.'), msg('Write the business plan, with the costs and the jobs it creates.'),
@@ -69,7 +69,7 @@ export const IE_GRANTS: Grant[] = [
     amount: LEO_GRANT_AMOUNT, max: 150000,
     window: 'permanent', opens: null, closes: null, next_call: null,
     paid: LEO_GRANT_PAID,
-    summary: msg('For a small business past its first 18 months that’s growing: the same costs as the Priming Grant, and the same rule that local services like cafés, restaurants and shops aren’t covered.'),
+    summary: msg('For a small business past its first 18 months that’s growing: the same costs as the Priming Grant, and the same rules leaving out local shops and services, and projects that would take trade from others nearby (usually cafés, restaurants and pubs).'),
     covers: LEO_GRANT_COVERS,
     obligations: LEO_GRANT_OBLIGATIONS,
     steps: [msg('Talk to a business adviser at your LEO about the expansion.'), msg('Write the business plan, with the costs, the last accounts and the jobs it creates.'),
@@ -83,7 +83,7 @@ export const IE_GRANTS: Grant[] = [
       { id: 'invoices_payments', required: true },
     ],
     source: `${LEO}/funding-and-grants/financial-supports/business-expansion-grant/`, ref: null, checked,
-    note: msg('Checked against localenterprise.ie. After a Priming Grant, it’s 18 months before you can apply.'),
+    note: msg('Checked against localenterprise.ie. After a Priming Grant, you can apply 12 months after it was approved or drawn down, whichever is later.'),
   },
   {
     id: 'ie-lean', rule: 'ie_lean', category: 'growth', level: 'local',
@@ -91,8 +91,8 @@ export const IE_GRANTS: Grant[] = [
     body: msg('Local Enterprise Office'),
     amount: msg('Up to 90% of a Lean consultant’s fee'), max: 0,
     window: 'permanent', opens: null, closes: null, next_call: null,
-    paid: msg('The LEO pays most of the consultant; the business pays its share, set by each LEO (often a few hundred euros).'),
-    summary: msg('A Lean consultant works with you for a few weeks on how the business runs: less waste, quicker service, lower costs. For businesses of any sector the LEO supports, trading for 6 months or more.'),
+    paid: msg('The LEO pays up to 90% of the consultant; the business pays the rest, set by each LEO.'),
+    summary: msg('A Lean consultant works with you for a few weeks on how the business runs: less waste, quicker service, lower costs. For businesses of any sector with up to 50 employees, trading for 6 months or more, that aren’t Enterprise Ireland or IDA clients.'),
     covers: [msg('An introduction to Lean workshop, then up to 5 half-day visits'), msg('Or a Lean consultant you choose, for a project of your own')],
     obligations: [msg('Take part in the visits, and send the LEO the results at the end.')],
     steps: [msg('Ask your LEO when its next Lean for Business programme starts.'), msg('Apply, with your last accounts.'), msg('Work with the consultant on one improvement project.')],
@@ -177,7 +177,7 @@ export const IE_GRANTS: Grant[] = [
     body: msg('Microfinance Ireland'),
     amount: msg('A loan of €2,000 to €50,000'), max: 0,
     window: 'permanent', opens: null, closes: null, next_call: null,
-    paid: msg('Not a grant: a loan paid back monthly at a fixed rate (6.5% when checked), with no fees, over up to 5 years. Mentoring can come with it.'),
+    paid: msg('Not a grant: a loan paid back monthly at a fixed rate (6.5%, or 5.5% when you apply through your LEO, when checked), with no fees, over up to 3 years for a start-up or cash-flow loan and 5 for expansion. Mentoring can come with it.'),
     summary: msg('Loans for small businesses that find it hard to borrow from a bank: starting up, equipment, stock or growing. Your LEO can help with the application.'),
     covers: [msg('Equipment, stock and day-to-day costs'), msg('Starting up'), msg('Growing the business')],
     obligations: [msg('Pay it back monthly over the term agreed.'), msg('At least one full-time job created or kept.')],
@@ -189,7 +189,7 @@ export const IE_GRANTS: Grant[] = [
       { id: 'ie_credit_report', required: true, applies_to: 'company' },
     ],
     source: 'https://microfinanceireland.ie/eligibility/', ref: null, checked,
-    note: msg('Checked against microfinanceireland.ie.'),
+    note: msg('Checked against microfinanceireland.ie and its loan packages.'),
   },
   {
     id: 'ie-enterprise-ireland', rule: 'ie_enterprise_ireland', category: 'growth', level: 'national',
@@ -217,14 +217,14 @@ export const IE_GRANTS: Grant[] = [
     body: msg('SEAI (Sustainable Energy Authority of Ireland)'),
     amount: msg('€2,000 towards an energy audit'), max: 2000,
     window: 'permanent', opens: null, closes: null, next_call: null,
-    paid: msg('A voucher for an SEAI-registered energy auditor, valid for 8 months. One per business.'),
-    summary: msg('For a small or medium business that spends €10,000 or more a year on energy: an expert audit of where the energy goes and what to change. The audit also opens the LEO’s Energy Efficiency Grant.'),
+    paid: msg('A voucher for an SEAI-registered energy auditor, valid for 8 months. One per business. It usually covers the whole audit; a business spending over €50,000 a year on energy may pay the rest.'),
+    summary: msg('For a business that spends €10,000 or more a year on energy at its premises (not counting transport) and uses less than 2.8 GWh a year: an expert audit of where the energy goes and what to change. The audit also opens the LEO’s Energy Efficiency Grant.'),
     covers: [msg('An energy audit by an SEAI-registered auditor')],
     obligations: [msg('Use the voucher within 8 months.')],
     steps: [msg('Apply for the voucher on seai.ie.'), msg('Choose an SEAI-registered energy auditor.'), msg('Get the audit report and act on it (the Energy Efficiency Grant can help).')],
     documents: [{ id: 'ie_energy_bills', required: true }],
-    source: 'https://www.seai.ie/business-and-public-sector/small-and-medium-business/supports/energy-audits', ref: null, checked,
-    note: msg('From SEAI’s guide for small businesses: confirm the current terms on seai.ie.'),
+    source: 'https://www.seai.ie/grants/business-grants/energy-audits', ref: null, checked,
+    note: msg('From SEAI’s guidance for applicants (October 2026): confirm the current terms on seai.ie.'),
   },
   {
     id: 'ie-seai-solar', rule: 'ie_seai_solar', category: 'energy', level: 'national',
@@ -242,7 +242,7 @@ export const IE_GRANTS: Grant[] = [
       { id: 'invoices_payments', required: true },
     ],
     source: 'https://www.seai.ie/grants/business-grants/commercial-solar-pv', ref: null, checked,
-    note: msg('From SEAI’s published scheme terms: confirm the current amounts on seai.ie.'),
+    note: msg('The Government announced higher rates for 9 months from 6 October 2026: about 45% of the cost instead of about 23%, and up to €325,200 instead of €162,600. Confirm the current amounts on seai.ie.'),
   },
 ]
 

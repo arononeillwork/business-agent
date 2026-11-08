@@ -4,8 +4,9 @@
 // checked against the consolidated text in the BOE on LAW_CHECKED's date. A convenio colectivo can
 // improve any of them, never reduce them, so the business's own amounts can only go up.
 // Ireland: the Organisation of Working Time, Sick Leave, Maternity, Paternity, Parent's, Parental,
-// Adoptive, Carer's Leave and Work Life Balance Acts, as Citizens Information explains them; a contract
-// can give more, never less.
+// Adoptive, Carer's Leave and Work Life Balance and Miscellaneous Provisions Acts, checked against the
+// Workplace Relations Commission's pages (and the Department of Enterprise for sick leave) on
+// LAW_CHECKED's date; a contract can give more, never less.
 import { msg } from './i18n'
 import type { TimeOff, TimeOffKind } from './types'
 import type { Country } from './country'
@@ -16,7 +17,7 @@ export const COUNTRY_NAME: Record<Country, string> = { ES: msg('Spain'), IE: msg
 /** Where the law was read, and when: the page says so, so nobody takes it as newer than it is. */
 export const LAW_CHECKED: Record<Country, { on: string; source: string; link: string }> = {
   ES: { on: '2026-10-23', source: 'Estatuto de los Trabajadores', link: 'https://www.boe.es/buscar/act.php?id=BOE-A-2015-11430' },
-  IE: { on: '2026-11-07', source: 'Citizens Information', link: 'https://www.citizensinformation.ie/en/employment/employment-rights-and-conditions/leave-and-holidays/' },
+  IE: { on: '2026-11-08', source: 'Workplace Relations Commission', link: 'https://www.workplacerelations.ie/en/what_you_should_know/leave/' },
 }
 
 export type LeaveGroup = 'holidays' | 'health' | 'family' | 'other'
@@ -109,42 +110,43 @@ export const ENTITLEMENTS: Record<Country, Entitlement[]> = {
   ],
   IE: [
     { key: 'holidays', group: 'holidays', name: msg('Paid holidays'), term: 'Annual leave', law: 'Organisation of Working Time Act 1997, s.19', amount: 28,
-      allowance: msg('{n} calendar days a year (4 working weeks)'), payer: 'business', pay: msg('Full pay'), leave: 'vacation',
-      detail: msg('4 working weeks for a full year, or 8% of the hours worked (up to 4 weeks), or a third of a working week for each month with 117 hours or more: whichever is most. Paid before it’s taken. Can’t be swapped for money except when someone leaves.') },
+      // The Act counts working weeks; Time off counts calendar days, so 4 weeks is 28 when a week off is booked Monday to Sunday.
+      allowance: msg('{n} calendar days a year, a week off counted as 7'), payer: 'business', pay: msg('Full pay'), leave: 'vacation',
+      detail: msg('Whichever is most: 4 working weeks in a year with 1,365 hours or more worked, a third of a working week for each month with 117 hours or more, or 8% of the hours worked (up to 4 weeks). The Act counts working weeks and Time off counts calendar days, so book a week off Monday to Sunday: 7 days. Someone on 5 days a week who books only the days they work has 20 of them. Paid in advance, at the normal weekly rate. Can’t be swapped for money except when someone leaves.') },
     { key: 'public_holidays', group: 'holidays', name: msg('Public holidays'), term: 'Public holidays', law: 'Organisation of Working Time Act 1997, s.21', amount: 10,
       allowance: msg('{n} a year'), payer: 'business', pay: msg('A paid day off, or an extra day’s pay or leave'),
       detail: msg('For each one, the business chooses: a paid day off that day, a paid day off within a month, an extra day of annual leave, or an extra day’s pay. Part-time staff need to have worked 40 hours in the 5 weeks before. They’re on the Calendar.') },
     { key: 'sick', group: 'health', name: msg('Sick leave'), term: 'Statutory sick leave', law: 'Sick Leave Act 2022', amount: 5,
       allowance: msg('{n} days a year paid by the business'), payer: 'business_then_state', leave: 'sick',
       pay: msg('70% of their usual pay, up to €110 a day'),
-      detail: msg('After 13 weeks working for the business, with a medical certificate. After those days, Illness Benefit from the Department of Social Protection when they qualify. Check the current number of days: the law lets it rise.') },
+      detail: msg('After 13 weeks working for the business, for days a doctor certifies. 5 days a year since 2024: the Act allows up to 10, but in April 2025 the Government kept it at 5. After those days, Illness Benefit from the Department of Social Protection when they qualify.') },
     { key: 'birth', group: 'family', name: msg('Maternity leave'), term: 'Maternity leave', law: 'Maternity Protection Acts 1994–2004', amount: 26,
       allowance: msg('{n} weeks, and 16 more unpaid'), payer: 'state', pay: msg('Maternity Benefit, when they qualify'), leave: 'birth',
-      detail: msg('At least 2 weeks before the birth and 4 after. Their job is kept, and the leave counts as time worked. Time off for antenatal and postnatal visits is paid by the business.') },
+      detail: msg('At least 2 weeks before the end of the week the baby is due, and 4 after. Their job is kept, and the leave counts as time worked. Time off for antenatal and postnatal visits is paid by the business.') },
     { key: 'paternity', group: 'family', name: msg('Paternity leave'), term: 'Paternity leave', law: 'Paternity Leave and Benefit Act 2016', amount: 2,
-      allowance: msg('{n} weeks within 6 months of the birth or adoption'), payer: 'state', pay: msg('Paternity Benefit, when they qualify'), leave: 'birth',
+      allowance: msg('{n} weeks within 26 weeks of the birth or adoption'), payer: 'state', pay: msg('Paternity Benefit, when they qualify'), leave: 'birth',
       detail: msg('For the other parent: taken as one block of 2 weeks, with 4 weeks’ notice.') },
     { key: 'parents_leave', group: 'family', name: msg('Parent’s leave'), term: 'Parent’s leave', law: 'Parent’s Leave and Benefit Act 2019', amount: 9,
       allowance: msg('{n} weeks each in the child’s first 2 years'), payer: 'state', pay: msg('Parent’s Benefit, when they qualify'), leave: 'parental',
       detail: msg('For each parent, at once or in separate weeks, with 6 weeks’ notice.') },
     { key: 'parental', group: 'family', name: msg('Parental leave'), term: 'Parental leave', law: 'Parental Leave Acts 1998–2019', amount: 26,
-      allowance: msg('Up to {n} weeks for each child under 12'), payer: 'unpaid', pay: msg('Unpaid: their job is kept'), leave: 'parental',
-      detail: msg('After a year working for the business. In one block, or in separate weeks or days if the business agrees; 6 weeks’ notice.') },
+      allowance: msg('Up to {n} weeks for each child under 12 (16 with a disability or long-term illness)'), payer: 'unpaid', pay: msg('Unpaid: their job is kept'), leave: 'parental',
+      detail: msg('After a year working for the business (pro rata from 3 months, when the child is about to pass the age). In one block, or two of at least 6 weeks with 10 weeks between them, or in days or hours if the business agrees; 6 weeks’ notice.') },
     { key: 'adoptive', group: 'family', name: msg('Adoptive leave'), term: 'Adoptive leave', law: 'Adoptive Leave Acts 1995–2005', amount: 24,
       allowance: msg('{n} weeks, and 16 more unpaid'), payer: 'state', pay: msg('Adoptive Benefit, when they qualify'),
-      detail: msg('For the adopting parent, from the day the child is placed.') },
+      detail: msg('For the adopting parent (one, for a couple), from the day the child is placed; 4 weeks’ notice.') },
     { key: 'nursing', group: 'family', name: msg('Breastfeeding breaks'), term: 'Breastfeeding breaks', law: 'Maternity Protection Acts', amount: 1,
       allowance: msg('{n} hour a day until the baby is 2'), payer: 'business', pay: msg('Full pay'),
-      detail: msg('Taken as breaks, or as shorter hours.') },
+      detail: msg('Up to an hour each working day without loss of pay, in one, two or three breaks; or as shorter hours when the business has no place for breastfeeding. Pro rata for part-time staff.') },
     { key: 'urgent', group: 'family', name: msg('Urgent family reasons'), term: 'Force majeure leave', law: 'Parental Leave Acts, s.13', amount: 3,
       allowance: msg('{n} days in 12 months (5 in 36)'), payer: 'business', pay: msg('Full pay'), leave: 'urgent',
       detail: msg('When an illness or injury of a close relative needs them there straight away.') },
-    { key: 'medical_care', group: 'family', name: msg('Leave to care for someone'), term: 'Leave for medical care purposes', law: 'Work Life Balance Act 2023', amount: 5,
-      allowance: msg('{n} days a year'), payer: 'unpaid', pay: msg('Unpaid'),
+    { key: 'medical_care', group: 'family', name: msg('Leave to care for someone'), term: 'Leave for medical care purposes', law: 'Work Life Balance and Miscellaneous Provisions Act 2023', amount: 5,
+      allowance: msg('{n} days in 12 months'), payer: 'unpaid', pay: msg('Unpaid'),
       detail: msg('To give significant care to a child, a partner, a parent, a relative or someone they live with, for a serious medical reason.') },
-    { key: 'domestic_violence', group: 'other', name: msg('Domestic violence leave'), term: 'Domestic violence leave', law: 'Work Life Balance Act 2023', amount: 5,
+    { key: 'domestic_violence', group: 'other', name: msg('Domestic violence leave'), term: 'Domestic violence leave', law: 'Work Life Balance and Miscellaneous Provisions Act 2023', amount: 5,
       allowance: msg('{n} days in 12 months'), payer: 'business', pay: msg('Full pay'),
-      detail: msg('To get medical help, legal advice, counselling, or to move, for themselves or a relative. No proof can be asked for beyond what’s reasonable.') },
+      detail: msg('For themselves or a relative who has suffered domestic violence: medical help, counselling, legal advice, help from the Gardaí or victim services, a court order, or moving home. They tell the business as soon as they can and confirm the days in writing afterwards; the business can’t ask what happened.') },
     { key: 'carers', group: 'other', name: msg('Carer’s leave'), term: 'Carer’s leave', law: 'Carer’s Leave Act 2001', amount: 104,
       allowance: msg('13 to {n} weeks to care full time'), payer: 'unpaid', pay: msg('Unpaid: Carer’s Benefit may apply'),
       detail: msg('After a year working for the business, to care full time for someone who needs it.') },

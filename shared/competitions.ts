@@ -434,10 +434,13 @@ export function entryProblems(c: Pick<Competition, 'channels' | 'how_to_enter' |
     out.push(w(msg('The prize is worth more than €300: the business pays the IRPF on it (an ingreso a cuenta) and declares it on modelos 111 and 190. Ask your gestoría.')))
   }
   if (c.rules.min_age < 14 && !irish) out.push(w(msg('Under 14s need a parent’s consent to give their details (RGPD): keep it to 14 or over, or ask for that consent.')))
-  // Ireland: the digital age of consent is 16 (Data Protection Act 2018), and a draw people pay to enter can be a lottery.
-  if (irish && c.rules.min_age < 16) out.push(w(msg('In Ireland, under 16s need a parent’s consent to give their details online (GDPR): keep it to 16 or over, or ask for that consent.')))
+  // Ireland: the digital age of consent is 16 (Data Protection Act 2018, s.31), and a draw people pay to enter can
+  // be a lottery. On 8 November 2026 lotteries were still the Gaming and Lotteries Acts 1956 to 2019's: the
+  // Gambling Regulation Act 2024's exemption for draws that promote a product (s.93, prizes up to €5,000) and its
+  // repeal of the 1956 Act hadn't been commenced (S.I. 31/2026 and 304/2026; the Minister's answer of 13 October 2026).
+  if (irish && c.rules.min_age < 16) out.push(w(msg('In Ireland, under 16s need a parent’s consent to give their details online (the GDPR, with the age set at 16 by the Data Protection Act 2018): keep it to 16 or over, or ask for that consent.')))
   if (irish && (c.kind === 'in_cafe' || /\b(buy|purchase)/.test(steps))) {
-    out.push(w(msg('A draw people have to buy something to enter can count as a lottery under Irish gaming law: offer a free way to enter too, or check with your solicitor.')))
+    out.push(w(msg('A draw people have to buy something to enter can count as a lottery under the Gaming and Lotteries Acts 1956 to 2019, which still apply until the Gambling Regulation Act 2024’s lottery rules come into force: offer a free way to enter too, or check with your solicitor.')))
   }
   if (c.winners < 1) out.push(w(msg('Choose how many winners there are.')))
   if (!c.ends_on) out.push(w(msg('Set the day entries close.')))

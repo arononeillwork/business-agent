@@ -23,19 +23,28 @@ export const DEFAULT_MILEAGE_RATE = 0.26
 
 /**
  * Ireland: Revenue lets an employer pay back business kilometres tax free at up to the civil service
- * motor travel rates. A business there starts at band 1 (someone's first 1,500 business km in the year)
- * for the smallest engines, up to 1,200 cc, so it's within the tax-free rate whatever the car; the other
+ * motor travel rates (Tax and Duty Manual Part 05-01-06, 2.5.2), which fall into bands by the business km
+ * driven in the year. A business there starts at band 1 (someone's first 1,500 business km in the year)
+ * for the smallest engines, up to 1,200 cc: every band 2 rate (1,501 to 5,500 km) is higher, so it's tax
+ * free whatever the car for the first 5,500 km, which covers a small business's supplier runs. Past that,
+ * the band 3 rates are lower (31.78c up to 1,200 cc), and paying more than them is taxed as pay. The other
  * band 1 rates are for the business to choose. Euros a km; keep in step with the mileage default in the
  * `ireland_screens` migration.
  */
 export const IRISH_MILEAGE = {
   rate: 0.418,
   band1: { upTo1200cc: 0.418, from1201To1500cc: 0.434, from1501cc: 0.5182 },
+  /** Band 2, 1,501 to 5,500 km in the year: all above the starting rate. */
+  band2: { upTo1200cc: 0.7264, from1201To1500cc: 0.7918, from1501cc: 0.9063 },
+  /** Band 3, 5,501 to 25,000 km: below it. */
+  band3: { upTo1200cc: 0.3178, from1201To1500cc: 0.3179, from1501cc: 0.3922 },
+  /** The business km in a year the starting rate stays tax free for, whatever the car. */
+  taxFreeUpToKm: 5500,
   /** Electric cars are paid at the 1,201–1,500 cc rates. */
   electric: 0.434,
   /** The rates in force since this day, as Revenue lists them, and when that was last checked. */
   since: '2022-09-01',
-  checked: '2026-11-07',
+  checked: '2026-11-08',
   source: 'https://www.revenue.ie/en/employing-people/employee-expenses/travel-and-subsistence/civil-service-rates.aspx',
 }
 
