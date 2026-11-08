@@ -15,12 +15,13 @@ import { ExportButton } from '../components/tables'
 import type { ExportTable } from '../lib/export'
 import { formatLocal, formatMoney, formatNumber, today } from '../../shared/time'
 import {
-  CLAIM_CATEGORIES, CLAIM_STATUSES, DEFAULT_MILEAGE_RATE, claimStatusLabel, claimTotals, mileageAmount, tripKm,
+  CLAIM_CATEGORIES, CLAIM_STATUSES, IRISH_MILEAGE, claimStatusLabel, claimTotals, defaultMileageRate, mileageAmount, tripKm,
   type ClaimInput, type ClaimStatus, type ExpenseClaim,
 } from '../../shared/claims'
 import { taxFileProblem } from '../../shared/tax'
+import { currentCountry } from '../../shared/country'
 import { tokens } from '../theme'
-import { t } from '../i18n'
+import { t, tr } from '../i18n'
 
 const day = (d: string | null) => (d ? formatLocal(`${d}T12:00:00Z`, 'd MMM yyyy') : '')
 const TONE: Record<ClaimStatus, { fg: string; bg: string }> = {
@@ -28,6 +29,8 @@ const TONE: Record<ClaimStatus, { fg: string; bg: string }> = {
   paid: { fg: tokens.goodFg, bg: tokens.goodBg }, rejected: { fg: tokens.neutralFg, bg: tokens.neutralBg },
 }
 type Show = 'all' | ClaimStatus
+/** A rate a km: in euros (€0,26), or in cent when it has a fraction of a cent (Ireland's 41,8c). */
+const kmRate = (r: number) => (Math.round(r * 1000) % 10 ? `${formatNumber(Math.round(r * 1000) / 10)}c` : formatMoney(r))
 
 /**
  * Expenses (Accounts): what people on the team spent for the business or drove for it in
@@ -44,7 +47,7 @@ export function ExpensesPage() {
   const [editing, setEditing] = useState<ClaimInput | null>(null)
   const decides = canSeePay && !isPartner
   const everyone = decides || isPartner
-  const rate = settings?.mileage_rate ?? DEFAULT_MILEAGE_RATE
+  const rate = settings?.mileage_rate ?? defaultMileageRate()
   const [rateText, setRateText] = useState(String(rate))
 
   const now = today()
@@ -89,7 +92,7 @@ export function ExpensesPage() {
         <StatTile label={t('To approve')} value={list.data ? formatMoney(sums.toApprove) : '–'} note={everyone ? t('Waiting on an admin') : t('Yours, waiting on an admin')} />
         <StatTile label={t('To pay back')} value={formatMoney(sums.toPayBack)} note={t('Approved, not paid yet')} />
         <StatTile label={t('Paid back this month')} value={formatMoney(sums.paidSince)} />
-        <StatTile label={t('Driven this month')} value={`${formatNumber(sums.km)} km`} note={t('{rate} a km', { rate: formatMoney(rate) })} />
+        <StatTile label={t('Driven this month')} value={`${formatNumber(sums.km)} km`} note={t('{rate} a km', { rate: kmRate(rate) })} />
       </StatGrid>
 
       {decides && sums.toApprove > 0 && (
@@ -130,7 +133,7 @@ export function ExpensesPage() {
                           <Typography variant="body2" sx={{ fontWeight: 500 }}>{c.description}</Typography>
                           <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                             {c.kind === 'mileage'
-                              ? [`${c.from_place ?? ''} → ${c.to_place ?? ''}`, t('{km} km at {rate}', { km: formatNumber(tripKm(c)), rate: formatMoney(c.rate_per_km ?? rate) })].join(' · ')
+                              ? [`${c.from_place ?? ''} → ${c.to_place ?? ''}`, t('{km} km at {rate}', { km: formatNumber(tripKm(c)), rate: kmRate(c.rate_per_km ?? rate) })].join(' · ')
                               : c.category ? t(c.category) : ''}
                           </Typography>
                           {c.decision_note && <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>{c.decision_note}</Typography>}
@@ -163,9 +166,11 @@ export function ExpensesPage() {
         <Card component="section" aria-label={t('Mileage rate')} sx={{ mb: 3 }}>
           <CardContent>
             <SectionTitle>{t('Mileage rate')}</SectionTitle>
-            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-              {t('What the business pays back a kilometre driven in someone’s own car. In Spain up to €0.26 a km is paid back without tax; above it, the extra is taxed as pay (check with your gestoría).')}
-            </Typography>
+            {currentCountry() === 'IE' ? <IrishMileage /> : (
+              <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
+                {t('What the business pays back a kilometre driven in someone’s own car. In Spain up to €0.26 a km is paid back without tax; above it, the extra is taxed as pay (check with your gestoría).')}
+              </Typography>
+            )}
             <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
               <TextField size="small" label={t('Euros a km')} value={rateText} onChange={e => setRateText(e.target.value)} sx={{ width: 140 }} />
               <Button variant="outlined" onClick={() => void saveRate()} disabled={Number(rateText.replace(',', '.')) === rate}>{t('Save')}</Button>
@@ -176,6 +181,26 @@ export function ExpensesPage() {
 
       {editing && <ClaimDialog claim={editing} rate={rate} decides={decides} onClose={() => setEditing(null)} />}
     </>
+  )
+}
+
+/** Ireland: the civil service motor travel rates Revenue lets a business pay back without tax, which band the app starts at, and where they're from. */
+function IrishMileage() {
+  const r = IRISH_MILEAGE
+  return (
+    <Box sx={{ mb: 2 }}>
+      <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
+        {t('What the business pays back a kilometre driven in someone’s own car. Revenue lets you pay up to the civil service motor travel rates without tax; above them, the extra is taxed as pay (check with your accountant).')}
+      </Typography>
+      <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
+        {t('The app starts at band 1, for someone’s first 1,500 business km in the year: {small} a km for a car up to 1,200 cc. In band 1, a car of 1,201 to 1,500 cc or an electric car can have {mid}, and one of 1,501 cc or more {large}. After 1,500 km in a year, other bands apply.', {
+          small: kmRate(r.band1.upTo1200cc), mid: kmRate(r.band1.from1201To1500cc), large: `${formatNumber(r.band1.from1501cc * 100)}c` })}
+      </Typography>
+      <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+        {tr('Source: {link}, rates from {since}. Checked on {checked}.', {
+          link: <Link href={r.source} target="_blank" rel="noopener">{t('Revenue, civil service rates')}</Link>, since: day(r.since), checked: day(r.checked) })}
+      </Typography>
+    </Box>
   )
 }
 
@@ -242,9 +267,9 @@ function ClaimDialog({ claim, rate, decides, onClose }: { claim: ClaimInput; rat
               <TextField label={t('Kilometres (one way)')} type="number" value={c.km ?? ''} onChange={e => set({ km: e.target.value === '' ? null : Number(e.target.value) })} sx={{ flex: 1 }} />
               <FormControlLabel control={<Switch checked={!!c.return_trip} onChange={e => set({ return_trip: e.target.checked })} />} label={t('There and back')} sx={{ flex: 1 }} />
             </Stack>
-            <Typography variant="body2">{t('{km} km at {rate} a km: {amount}', { km: formatNumber((c.km ?? 0) * (c.return_trip ? 2 : 1)), rate: formatMoney(perKm), amount: formatMoney(amount) })}</Typography>
+            <Typography variant="body2">{t('{km} km at {rate} a km: {amount}', { km: formatNumber((c.km ?? 0) * (c.return_trip ? 2 : 1)), rate: kmRate(perKm), amount: formatMoney(amount) })}</Typography>
           </> : (
-            <TextField label={t('Amount (with IVA)')} type="number" value={c.amount ?? ''} onChange={e => set({ amount: e.target.value === '' ? undefined : Number(e.target.value) })} />
+            <TextField label={t('Amount (with VAT)')} type="number" value={c.amount ?? ''} onChange={e => set({ amount: e.target.value === '' ? undefined : Number(e.target.value) })} />
           )}
           {decides && <>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>

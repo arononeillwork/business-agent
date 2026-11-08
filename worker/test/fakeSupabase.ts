@@ -182,6 +182,12 @@ export class FakeSupabase {
         return json(Number(headers.get('x-business-id')) || null)
       }
       if (rpc[1] === 'is_admin') return json(who?.role === 'admin')
+      // The hq_actions migration: an active admin of The Business Agent HQ (business.is_hq).
+      if (rpc[1] === 'is_hq_admin') {
+        const p = this.table('profiles').find(x => x.id === who?.id)
+        const b = this.table('business').find(x => x.id === ((p?.business_id as number | undefined) ?? FIRST_BUSINESS))
+        return json(who?.role === 'admin' && p?.active !== false && b?.is_hq === true)
+      }
       if (rpc[1] === 'is_staff') return json(who?.role === 'admin' || who?.role === 'employee')
       if (rpc[1] === 'my_role') return json(who?.role ?? null)
       if (rpc[1] === 'can_see_pay') return json(who?.role === 'admin' && this.table('profiles').some(p => p.id === who.id && p.can_see_pay === true))

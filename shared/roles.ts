@@ -215,7 +215,7 @@ export const ROLE_PRESETS: RolePreset[] = [
     summary: msg('Runs the business: the team, the money, the suppliers and where the café is going.'),
     duties: [
       ...d('core', msg('Hires the team and agrees their contracts and pay'), msg('Sets the menu, the prices and the opening hours'),
-        msg('Keeps the licences, insurance and taxes up to date with the gestoría'), msg('Is who the team goes to with a problem')),
+        msg('Keeps the licences, insurance and taxes up to date with the {adviser}'), msg('Is who the team goes to with a problem')),
       ...d('weekly', msg('Publishes the rota and approves time off'), msg('Approves the week’s timecards'),
         msg('Checks the takings against the till and the bank'), msg('Pays the suppliers’ invoices')),
     ],

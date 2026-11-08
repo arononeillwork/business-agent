@@ -1,14 +1,16 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Api } from '../data/api'
 import { currentRates } from '../data/api'
 import { createDemoApi } from '../data/demoApi'
 import { createSupabaseApi } from '../data/supabaseApi'
 import type { BreakType, Business, PartnerArea, PayRate, Position, Profile, Settings } from '../../shared/types'
-import { setCurrency, setNumberFormat, setOwnTimeZone } from '../../shared/time'
+import { setBusinessTimeZone, setCurrency, setNumberFormat, setOwnTimeZone } from '../../shared/time'
+import { setCountry } from '../../shared/country'
 import { permissionsOf, type JobRole, type RoleArea, type RoleLevel } from '../../shared/roles'
 import { withoutTestAccounts } from '../../shared/people'
 import { LoadError, StartError } from '../pages/StatusPages'
+import { reloadOnSignInChange, SHARED_KEY } from './signInWatch'
 import { refreshAll } from './query'
 
 export interface AppData {
@@ -90,7 +92,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Who is signed in plus the team's reference data, cached and refreshed with everything else.
   const shared = useQuery({
-    queryKey: ['app-shared', api?.mode],
+    queryKey: [SHARED_KEY, api?.mode],
     enabled: !!api,
     queryFn: async (): Promise<Shared> => {
       const me = await api!.me().catch(() => null)
@@ -106,16 +108,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
   })
 
-  // Signing in or out changes what everyone may see: drop the whole cache when the person signed in
-  // is not the one the app has loaded (or nothing is loaded yet). Compared with what is loaded, not
-  // with the previous event, so it doesn't matter which of Supabase's events arrives first; token
-  // refreshes for the same person don't reload anything.
-  const loaded = useRef<string | null | undefined>(undefined)
-  loaded.current = shared.isSuccess ? shared.data.me?.id ?? null : undefined
-  useEffect(() => {
-    if (!api) return
-    return api.onAuthChange(id => { if (id !== loaded.current) client.resetQueries() })
-  }, [api, client])
+  // Signing in or out: everything is loaded again for the new person (signInWatch.ts).
+  useEffect(() => (api ? reloadOnSignInChange(client, cb => api.onAuthChange(cb)) : undefined), [api, client])
 
   const refresh = useCallback(() => refreshAll(client), [client])
   const state = shared.data ?? EMPTY
@@ -126,6 +120,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Set before any page renders, so every amount on screen uses this person's decimal mark.
     setNumberFormat(me?.preferences?.numberFormat)
     setCurrency(state.business?.currency)
+    // The business's own time zone and country (Spain or Ireland): its shifts, rules and labels.
+    setBusinessTimeZone(state.business?.timezone)
+    setCountry(state.business?.country)
     setOwnTimeZone(me?.preferences?.timeZone, state.business?.timezone)
     const isPartner = me?.role === 'partner'
     const partnerCan = (area: PartnerArea) => !!(isPartner && me?.partner_access?.includes(area))

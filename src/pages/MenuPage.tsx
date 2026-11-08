@@ -42,6 +42,7 @@ import { DesignView } from './menu/DesignView'
 import { PhotoUpload } from './menu/PhotoUpload'
 import { tokens } from '../theme'
 import { t, tc, tn } from '../i18n'
+import { countryProfile, vatChoices } from '../../shared/country'
 
 const ICONS: Record<string, ReactNode> = {
   Coffee: <CoffeeIcon />, 'Tea & matcha': <TeaIcon />, 'Cold drinks': <ColdIcon />, Bakery: <BakeryIcon />, Food: <FoodIcon />, Shop: <ShopIcon />,
@@ -146,7 +147,7 @@ function Items({ items, allergens, admin, source, order, onOpen }: {
       <StatGrid>
         <StatTile label={t('On the menu')} value={items ? on.length : '–'} note={tn(off.length, '{n} off the menu', '{n} off the menu')} />
         <StatTile label={t('Sections')} value={items ? categories.length : '–'} note={categories.slice(0, 3).map(c => t(c)).join(', ')} />
-        <StatTile label={t('Average price')} value={priced.length ? formatMoney(priced.reduce((s, i) => s + i.sell_price!, 0) / priced.length) : '–'} note={t('with IVA')} />
+        <StatTile label={t('Average price')} value={priced.length ? formatMoney(priced.reduce((s, i) => s + i.sell_price!, 0) / priced.length) : '–'} note={t('with VAT')} />
         <StatTile label={t('Without a photo')} value={items ? noPhoto.length : '–'} note={noPhoto.length ? noPhoto.slice(0, 2).map(i => i.name).join(', ') : t('Every item has one')} />
       </StatGrid>
 
@@ -419,7 +420,7 @@ function MarkTags({ marks }: { marks: ItemMarks }) {
   </>
 }
 
-const blank = (): MenuItemInput => ({ name: '', category: 'Coffee', sell_price: null, price_label: null, vat_rate: 10, description: null, photo_url: null,
+const blank = (): MenuItemInput => ({ name: '', category: 'Coffee', sell_price: null, price_label: null, vat_rate: countryProfile().defaultVat, description: null, photo_url: null,
   featured: false, on_menu: true })
 
 /** Add or change a menu item: what customers read, its photo, and what's in it. */
@@ -481,14 +482,14 @@ function ItemDialog({ item, items, marks, fromSquare, onClose }: { item: Item | 
               renderInput={p => <TextField {...p} label={tc('menu', 'Section')} />} />
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <TextField fullWidth label={t('Price, with IVA')} value={price} inputMode="decimal" onChange={e => setPrice(e.target.value)} disabled={!priceHere}
+            <TextField fullWidth label={t('Price, with VAT')} value={price} inputMode="decimal" onChange={e => setPrice(e.target.value)} disabled={!priceHere}
               helperText={fromSquare && priceHere ? t('Changed in Square too') : undefined}
               slotProps={{ input: { startAdornment: <InputAdornment position="start">{'€'}</InputAdornment> } }} />
             <TextField fullWidth label={t('Price is for')} placeholder={t('e.g. Hot (optional)')} value={m.price_label ?? ''} disabled={fromSquare}
               onChange={e => set({ price_label: e.target.value || null })} slotProps={{ htmlInput: { maxLength: 40 } }}
               helperText={t('With Iced as a variant, menus show hot and iced prices side by side.')} />
-            <TextField select fullWidth label={t('IVA')} value={m.vat_rate} onChange={e => set({ vat_rate: Number(e.target.value) })}>
-              {[0, 4, 10, 21].map(v => <MenuItem key={v} value={v}>{`${v}%`}</MenuItem>)}
+            <TextField select fullWidth label={t('VAT')} value={m.vat_rate} onChange={e => set({ vat_rate: Number(e.target.value) })}>
+              {vatChoices(m.vat_rate).map(v => <MenuItem key={v} value={v}>{`${v}%`}</MenuItem>)}
             </TextField>
           </Stack>
           <TextField label={t('Description')} placeholder={t('One line customers read, e.g. Double ristretto with silky steamed milk')} value={m.description ?? ''} multiline minRows={2}

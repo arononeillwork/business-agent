@@ -444,3 +444,25 @@ test.describe('access keys (any AI)', () => {
     expect(Object.keys(spec.paths)).toContain('/tools/whoami')
   })
 })
+
+test.describe('set-up guide: the brand from a website', () => {
+  // A real café's website, read by the live Worker as the guide's "already open" step does: with
+  // Firecrawl when the Worker has FIRECRAWL_API_KEY (one credit; the Worker keeps the answer a day, so
+  // deploys after the first that day cost nothing), else from the page's own HTML.
+  test('an admin gets a real website’s logo and details, read by Firecrawl; an employee can’t ask', async ({ request }) => {
+    test.setTimeout(90_000)
+    const { session } = await signedIn(cfg, 'admin')
+    const res = await request.post('/api/setup/brand', { headers: { authorization: `Bearer ${session.access_token}` },
+      data: { website: 'www.monmouthcoffee.co.uk' }, timeout: 60_000 })
+    expect(res.status(), await res.text()).toBe(200)
+    const { found } = await res.json() as { found: { source: string; name: string | null; logo: string | null; icon: string | null; instagram: string | null } }
+    expect(found.name).toMatch(/Monmouth/)
+    expect(found.logo ?? found.icon).toMatch(/^data:image\//)
+    console.log(`Brand from a website: read by ${found.source}`)
+    // Without Firecrawl (no key, out of credit, refused) the HTML still answers: worth a warning, not a failure.
+    if (found.source !== 'firecrawl') console.log('::warning::The set-up guide read the website without Firecrawl: check FIRECRAWL_API_KEY and the Firecrawl account’s credit (docs/INTEGRATIONS.md section 22).')
+
+    const { session: staff } = await signedIn(cfg, 'employee')
+    expect((await request.post('/api/setup/brand', { headers: { authorization: `Bearer ${staff.access_token}` }, data: { website: 'www.monmouthcoffee.co.uk' } })).status()).toBe(403)
+  })
+})

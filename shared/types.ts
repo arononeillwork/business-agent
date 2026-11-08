@@ -1,5 +1,6 @@
 import { msg } from './i18n'
 import type { SavedDashboards } from './dashboards'
+import type { SpanishRegion } from './regions'
 
 export type Role = 'admin' | 'employee' | 'kiosk' | 'partner'
 
@@ -29,9 +30,13 @@ export interface Business {
   /** The business's website (https://…), when it has one. Search Console is matched to it. */
   website?: string | null
   timezone: string
+  /** Where it is: Spain or Ireland (the country migration). Its rules, labels and holidays follow it. */
+  country?: 'ES' | 'IE'
+  /** In Spain, its autonomous community or Ceuta or Melilla (shared/regions.ts; the business_region migration): its public holidays go on the calendar too. */
+  region?: SpanishRegion | null
   /** ISO 4217 code, e.g. EUR. Money everywhere is shown in it. */
   currency: string
-  /** Spanish CIF (company) or NIF/NIE (self-employed), upper case, no spaces. */
+  /** Its tax ID, upper case, no spaces: in Spain a CIF (company) or NIF/NIE (self-employed); in Ireland a VAT or CRO number. */
   tax_id: string | null
   opening_hours: OpeningHours
   peak_hours: { start: string; end: string } | null
@@ -55,6 +60,9 @@ export interface Business {
   team_size?: TeamSize | null
   /** A new business: the day it opens (YYYY-MM-DD). */
   opens_on?: string | null
+  /** An owner asked to close the account (Billing): it closes 30 days later unless an owner keeps it (the close_account migration). */
+  closing_requested_at?: string | null
+  closing_requested_by?: string | null
 }
 
 /** How many people work at a business, the owner included. */
@@ -448,7 +456,7 @@ export interface InstagramProfile {
 
 export const CATEGORY_META: Record<EventCategory, { label: string; colour: string }> = {
   national: { label: msg('National holiday'), colour: '#c62828' },
-  regional: { label: msg('Andalucía holiday'), colour: '#2e7d32' },
+  regional: { label: msg('Regional holiday'), colour: '#2e7d32' },
   local:    { label: msg('Local holiday'), colour: '#6a1b9a' },
   area:     { label: msg('Nearby town holiday'), colour: '#8d6e63' },
   event:    { label: msg('Local event / feria'), colour: '#ef6c00' },

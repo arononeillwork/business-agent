@@ -66,6 +66,9 @@ interface Subscription {
   created: number; items: { data: { id: string; price: Price }[] }
   /** How often pending invoice items (pay per use) are billed; null: with the next renewal. */
   pending_invoice_item_interval?: { interval: Interval } | null
+  /** When it was cancelled (set to end with the period, or ended) and when it ended, if it has. */
+  canceled_at?: number | null
+  ended_at?: number | null
 }
 interface BillingRow { plan: PlanId; status: string; stripe_customer_id: string | null; stripe_subscription_id: string | null; trial_used: boolean; complimentary?: string | null }
 
@@ -127,6 +130,8 @@ export async function syncBilling(env: Env, businessId: number): Promise<void> {
     current_period_end: iso(sub.current_period_end),
     cancel_at_period_end: sub.cancel_at_period_end,
     trial_used: row.trial_used || !!sub.trial_end,
+    // When it was cancelled, while it is or is set to end (HQ's funnel counts cancellations by month).
+    canceled_at: sub.status === 'canceled' || sub.cancel_at_period_end ? iso(sub.canceled_at ?? sub.ended_at) : null,
     updated_at: new Date().toISOString(),
   }).eq('id', 1)
   if (error) throw new Error(error.message)
@@ -400,6 +405,46 @@ export async function planBlocksInvite(env: Env, businessId: number, role: strin
     return `Your plan includes ${s.limits.people} people, and the team is full. Switch someone off, or upgrade on the Billing page.`
   }
   return null
+}
+
+/**
+ * HQ's back-office (worker/hq.ts): a business's free trial runs `days` longer. Stripe keeps the trial, so its
+ * subscription's trial end moves (nothing is charged for the extra days), then billing follows Stripe again.
+ * A retry of the same change (Stripe made it, the answer was lost) isn't made twice: Stripe's idempotency key.
+ */
+export async function extendTrial(env: Env, businessId: number, days: number): Promise<{ trial_ends_at: string } | { error: string; status: 404 | 409 }> {
+  const { data: r } = await businessDb(env, businessId).from('billing').select('status, stripe_subscription_id').eq('id', 1)
+    .maybeSingle<{ status: string; stripe_subscription_id: string | null }>()
+  if (!r) return { error: 'No such business', status: 404 }
+  if (r.status !== 'trialing' || !r.stripe_subscription_id) return { error: 'It isn’t on a free trial', status: 409 }
+  const sub = await stripe<Subscription>(env, 'GET', `/subscriptions/${r.stripe_subscription_id}`)
+  if (sub.status !== 'trialing' || !sub.trial_end) return { error: 'Its trial has already ended in Stripe', status: 409 }
+  const end = Math.max(sub.trial_end, Math.floor(Date.now() / 1000)) + days * 86_400
+  await stripe(env, 'POST', `/subscriptions/${sub.id}`, { trial_end: end, proration_behavior: 'none' },
+    `business-agent-trial-${sub.id}-${sub.trial_end}-${days}`)
+  await syncBilling(env, businessId)
+  return { trial_ends_at: iso(end)! }
+}
+
+/**
+ * Closing the account (worker/account.ts): the subscription stops renewing at the end of the period already
+ * paid for (a trial: at its end, uncharged), so nothing more is charged and nothing is refunded; keeping
+ * the account starts it renewing again. Only a subscription stopped this way is started again (Stripe keeps
+ * the mark), not one the owner had cancelled themselves. False when there's no subscription to change.
+ */
+export async function closingRenewal(env: Env, businessId: number, closing: boolean): Promise<boolean> {
+  const { data: r } = await businessDb(env, businessId).from('billing').select('status, stripe_subscription_id').eq('id', 1)
+    .maybeSingle<{ status: string; stripe_subscription_id: string | null }>()
+  if (!env.STRIPE_SECRET_KEY || !r?.stripe_subscription_id || r.status === 'comped') return false
+  const sub = await stripe<Subscription & { metadata?: Record<string, string> }>(env, 'GET', `/subscriptions/${r.stripe_subscription_id}`)
+  if (['canceled', 'incomplete_expired'].includes(sub.status)) return false
+  const ours = sub.metadata?.business_agent_closing === 'yes'
+  if (closing ? sub.cancel_at_period_end : !ours) return false
+  await stripe(env, 'POST', `/subscriptions/${sub.id}`, closing
+    ? { cancel_at_period_end: true, metadata: { business_agent_closing: 'yes' } }
+    : { cancel_at_period_end: false, metadata: { business_agent_closing: '' } })
+  await syncBilling(env, businessId)
+  return true
 }
 
 /** A business's plan features in force right now (for the background jobs). */

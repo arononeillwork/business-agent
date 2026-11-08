@@ -22,10 +22,12 @@ import {
 } from '../../shared/benefits'
 import { tokens } from '../theme'
 import { t, tc, tn, tr } from '../i18n'
+import { currentCountry } from '../../shared/country'
 
 const PAYER_TONE: Record<Payer, { fg: string; bg: string }> = {
   business: { fg: tokens.goodFg, bg: tokens.goodBg }, social_security: { fg: tokens.infoFg, bg: tokens.infoBg },
   shared: { fg: tokens.infoFg, bg: tokens.infoBg }, unpaid: { fg: tokens.neutralFg, bg: tokens.neutralBg },
+  state: { fg: tokens.infoFg, bg: tokens.infoBg }, business_then_state: { fg: tokens.infoFg, bg: tokens.infoBg },
 }
 const leaveLabel = (k: TimeOffKind) => tc('leave', TIME_OFF_LABELS[k])
 const day = (d: string) => formatLocal(`${d}T12:00:00Z`, 'd MMM yyyy')
@@ -57,7 +59,8 @@ export function BenefitsPage() {
     return { benefits, allowances, off, events }
   }, [year])
 
-  const country = businessConfig.country
+  // The law of the business's own country (Spain or Ireland).
+  const country = business?.country ?? 'ES'
   const law = ENTITLEMENTS[country]
   const checked = LAW_CHECKED[country]
   const businessName = business?.name ?? businessConfig.name
@@ -97,11 +100,15 @@ export function BenefitsPage() {
       </>} />
       <ErrorBox error={data.error} />
       <Typography sx={{ mb: 0.5, maxWidth: 760 }}>
-        {t('What everyone on the team gets in {country}: the legal minimum, and what {business} gives on top. A convenio colectivo can give more, never less.',
-          { country: t(COUNTRY_NAME[country]), business: businessName })}
+        {currentCountry() === 'IE'
+          ? t('What everyone on the team gets in {country}: the legal minimum, and what {business} gives on top. A contract can give more, never less.',
+            { country: t(COUNTRY_NAME[country]), business: businessName })
+          : t('What everyone on the team gets in {country}: the legal minimum, and what {business} gives on top. A convenio colectivo can give more, never less.',
+            { country: t(COUNTRY_NAME[country]), business: businessName })}
       </Typography>
       <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
-        {tr('Checked against the {law} on {date}. Your convenio and your gestoría have the final word.', {
+        {tr(currentCountry() === 'IE' ? 'Checked against {law} on {date}. Your contracts and your accountant have the final word.'
+          : 'Checked against the {law} on {date}. Your convenio and your gestoría have the final word.', {
           law: <Link href={checked.link} target="_blank" rel="noopener">{checked.source}</Link>, date: day(checked.on) })}
       </Typography>
 
@@ -366,7 +373,7 @@ function RecordDialog({ team, onClose }: { team: Profile[]; onClose: () => void 
   const [from, setFrom] = useState(today())
   const [to, setTo] = useState(today())
   const [note, setNote] = useState('')
-  const birthWeeks = ENTITLEMENTS[businessConfig.country].find(e => e.key === 'birth')?.amount ?? 0
+  const birthWeeks = ENTITLEMENTS[currentCountry()].find(e => e.key === 'birth')?.amount ?? 0
   const save = async () => {
     let opened = 0
     if (!await run(async () => { opened = await api.recordTimeOff(person, from, to, kind, note) })) return

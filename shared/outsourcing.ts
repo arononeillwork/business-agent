@@ -34,14 +34,15 @@ export const QUANTITY_PERS: { id: QuantityPer; label: string; perMonth: number }
 ]
 
 /** A job a café often has done from outside, how it's usually charged and what it covers. */
-export interface ServicePreset { name: string; unit: RateUnit; what: string }
+export interface ServicePreset { name: string; unit: RateUnit; what: string; /** What it covers in Ireland, where that's different. */ whatIreland?: string }
 export const SERVICES: ServicePreset[] = [
   { name: msg('Social media management'), unit: 'month', what: msg('Posts, stories and replies on Instagram, Facebook and TikTok, with a report each month.') },
   { name: msg('Photography & video'), unit: 'project', what: msg('Photos of the drinks, the food and the café, and short videos for reels.') },
   { name: msg('Graphic design'), unit: 'project', what: msg('Menus, posters, the logo, cups and bags.') },
   { name: msg('Website'), unit: 'month', what: msg('Building the website, keeping it up to date, and its hosting.') },
   { name: msg('Ads management'), unit: 'month', what: msg('Running the Facebook, Instagram and Google ads.') },
-  { name: msg('Bookkeeping & payroll'), unit: 'month', what: msg('The gestoría: the books, payslips, Social Security and the tax returns.') },
+  { name: msg('Bookkeeping & payroll'), unit: 'month', what: msg('The gestoría: the books, payslips, Social Security and the tax returns.'),
+    whatIreland: msg('The accountant: the books, payroll, PRSI and the tax returns.') },
   { name: msg('Cleaning'), unit: 'hour', what: msg('A deep clean of the café, the kitchen and the toilets.') },
   { name: msg('Window cleaning'), unit: 'visit', what: msg('The shop front and the windows, inside and out.') },
   { name: msg('Coffee machine servicing'), unit: 'visit', what: msg('The espresso machine and grinders: servicing, descaling and repairs.') },

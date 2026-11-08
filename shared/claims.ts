@@ -2,6 +2,7 @@
 // supplies bought in a hurry) or drove for it in their own car, sent for an admin to approve and
 // pay back. Not the running costs (Finances): those are the business's own monthly bills.
 import { msg } from './i18n'
+import { currentCountry, type Country } from './country'
 
 export type ClaimKind = 'expense' | 'mileage'
 export type ClaimStatus = 'submitted' | 'approved' | 'rejected' | 'paid'
@@ -19,6 +20,27 @@ export const CLAIM_CATEGORIES = [msg('Fuel'), msg('Parking & tolls'), msg('Suppl
  * July 2023). A business can pay more, but the extra is taxed as pay: check with the gestoría.
  */
 export const DEFAULT_MILEAGE_RATE = 0.26
+
+/**
+ * Ireland: Revenue lets an employer pay back business kilometres tax free at up to the civil service
+ * motor travel rates. A business there starts at band 1 (someone's first 1,500 business km in the year)
+ * for the smallest engines, up to 1,200 cc, so it's within the tax-free rate whatever the car; the other
+ * band 1 rates are for the business to choose. Euros a km; keep in step with the mileage default in the
+ * `ireland_screens` migration.
+ */
+export const IRISH_MILEAGE = {
+  rate: 0.418,
+  band1: { upTo1200cc: 0.418, from1201To1500cc: 0.434, from1501cc: 0.5182 },
+  /** Electric cars are paid at the 1,201–1,500 cc rates. */
+  electric: 0.434,
+  /** The rates in force since this day, as Revenue lists them, and when that was last checked. */
+  since: '2022-09-01',
+  checked: '2026-11-07',
+  source: 'https://www.revenue.ie/en/employing-people/employee-expenses/travel-and-subsistence/civil-service-rates.aspx',
+}
+
+/** What a new business pays back a km where it is: Spain's tax-free allowance, or Ireland's band 1 rate. */
+export const defaultMileageRate = (country: Country = currentCountry()) => (country === 'IE' ? IRISH_MILEAGE.rate : DEFAULT_MILEAGE_RATE)
 
 export interface ExpenseClaim {
   id: string

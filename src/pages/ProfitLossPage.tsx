@@ -21,6 +21,7 @@ import { buildPnl, COST_OF_SALES, monthsBetween, PEOPLE, yearBefore, type Pnl, t
 import { addDays, currencySymbol, formatLocal, formatMoney, today, zonedIso } from '../../shared/time'
 import { msg, t, tc } from '../i18n'
 import { tokens } from '../theme'
+import { countryProfile } from '../../shared/country'
 
 type Period = 'year' | '12' | 'quarter' | 'lastquarter' | 'custom'
 const PERIODS: { id: Period; label: string }[] = [
@@ -105,7 +106,7 @@ export function ProfitLossPage() {
   // The business opened on the first day the till took money (running costs count from then).
   const opened = days.find(d => d.gross > 0)?.date ?? null
   const input = (months: string[]) => ({
-    months, today: now, opened, vatRate: pnlSettings.data?.vat_rate ?? 10, employerMultiplier: settings?.employer_cost_multiplier ?? 1,
+    months, today: now, opened, vatRate: pnlSettings.data?.vat_rate ?? countryProfile().defaultVat, employerMultiplier: settings?.employer_cost_multiplier ?? 1,
     takings: days, expenses: expenses.data ?? [], entries: team.data?.entries ?? [], shifts: team.data?.shifts ?? [], rates, lines: lines.data ?? [],
   })
   // Months before the business opened are left out (unless that leaves nothing to show).
@@ -149,7 +150,7 @@ export function ProfitLossPage() {
 
       <StatGrid>
         <StatTile label={t('Income')} value={pnl ? formatMoney(pnl.totals.income) : '–'}
-          note={pnl ? t('{amount} with IVA from the till', { amount: formatMoney(pnl.takingsWithVat) }) : undefined} />
+          note={pnl ? t('{amount} with VAT from the till', { amount: formatMoney(pnl.takingsWithVat) }) : undefined} />
         <StatTile label={t('Gross profit')} value={pnl ? formatMoney(pnl.totals.grossProfit) : '–'}
           note={pnl?.totals.grossMargin != null ? t('{percent} margin', { percent: percent(pnl.totals.grossMargin) }) : undefined} />
         <StatTile label={t('Operating profit')} value={pnl ? formatMoney(pnl.totals.operatingProfit) : '–'}
@@ -238,7 +239,7 @@ function Statement({ pnl, lastYear, periodName }: { pnl: Pnl; lastYear: Pnl | nu
           </Table>
         </Box>
         <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 1.5 }}>
-          {t('An estimate from the app’s own figures (the till, Finances, timecards and the rota), to run the business by. The accounts your gestoría files are the official ones.')}
+          {t('An estimate from the app’s own figures (the till, Finances, timecards and the rota), to run the business by. The accounts your {adviser} files are the official ones.', { adviser: t(countryProfile().adviser) })}
           {pnl.partial.length > 0 && ` ${t('* Part of the month: this month so far, or the month the business opened.')}`}
         </Typography>
       </CardContent>
@@ -331,7 +332,7 @@ function LineDialog({ line, months, onClose }: { line: Partial<PnlLine>; months:
           </TextField>
           <TextField label={t('Amount')} type="number" value={d.amount ?? 0} onChange={e => setD({ ...d, amount: Number(e.target.value) })}
             slotProps={{ input: { startAdornment: <InputAdornment position="start">{currencySymbol()}</InputAdornment> }, htmlInput: { min: 0, step: 0.01 } }}
-            helperText={t('Without IVA')} />
+            helperText={t('Without VAT')} />
         </Stack>
       </DialogContent>
       <DialogActions>
@@ -351,7 +352,7 @@ function Rates({ vat, multiplier, canEdit }: { vat: number; multiplier: number; 
   const [ssDraft, setSs] = useState(String(ss))
   const save = async () => {
     const v = Number(vatDraft), s = Number(ssDraft)
-    if (!(v >= 0 && v <= 30)) { await run(async () => { throw new Error(t('IVA is between 0% and 30%')) }); return }
+    if (!(v >= 0 && v <= 30)) { await run(async () => { throw new Error(t('VAT is between 0% and 30%')) }); return }
     if (!(s >= 0 && s <= 60)) { await run(async () => { throw new Error(t('Social Security is between 0% and 60%')) }); return }
     await run(async () => {
       if (v !== vat) await api.savePnlSettings({ vat_rate: v })
@@ -363,7 +364,7 @@ function Rates({ vat, multiplier, canEdit }: { vat: number; multiplier: number; 
       <CardContent>
         <SectionTitle>{t('How the figures are worked out')}</SectionTitle>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'flex-start' } }}>
-          <TextField label={t('IVA in the takings')} type="number" value={vatDraft} onChange={e => setVat(e.target.value)} disabled={!canEdit}
+          <TextField label={t('VAT in the takings')} type="number" value={vatDraft} onChange={e => setVat(e.target.value)} disabled={!canEdit}
             slotProps={{ input: { endAdornment: <InputAdornment position="end">%</InputAdornment> }, htmlInput: { min: 0, max: 30, step: 0.5 } }}
             helperText={t('10% for food and drink served in a café')} sx={{ maxWidth: 260 }} />
           <TextField label={t('Employer’s Social Security on pay')} type="number" value={ssDraft} onChange={e => setSs(e.target.value)} disabled={!canEdit}

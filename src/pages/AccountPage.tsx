@@ -57,7 +57,7 @@ export function AccountPage() {
             </Box>
             {isPartner ? (
               <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                {t('{company}: read-only partner access. Ask {business} to change what you can see.', { company: me.partner_company ?? '', business: business?.name ?? 'Easy Beans' })}
+                {t('{company}: read-only partner access. Ask {business} to change what you can see.', { company: me.partner_company ?? '', business: business?.name ?? t('your business') })}
               </Typography>
             ) : (
               (method === 'sms' || method === 'whatsapp') && !phone && (
@@ -126,7 +126,7 @@ export function AccountPage() {
             <CardContent>
               <SectionTitle>{t('Your data')}</SectionTitle>
               <Typography variant="body2" color="text.secondary">
-                {isPartner ? t('Your access is read-only. Use what you see only for the work agreed with {business}. Data is stored in the EU.', { business: business?.name ?? 'Easy Beans' })
+                {isPartner ? t('Your access is read-only. Use what you see only for the work agreed with {business}. Data is stored in the EU.', { business: business?.name ?? t('your business') })
                   : t('We record your clock-in and clock-out times and breaks, as Spanish law requires (registro de jornada, kept 4 years). Times come from our server, not your phone. Your location is never tracked. Data is stored in the EU.')}
               </Typography>
               {!isPartner && <Button component={RouterLink} to="/registro" variant="outlined" size="small" sx={{ mt: 1.5 }}>{t('My monthly hours record')}</Button>}

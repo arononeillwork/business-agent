@@ -1642,6 +1642,32 @@ test('admins pick the café\'s currency on the Business page; euro until they do
   await expect(maria).toContainText('£8,80/h')
 })
 
+test('the Business page: a Spanish business’s region, next to its country, for its own public holidays', async ({ page }) => {
+  await open(page, '/business')
+  const company = page.getByRole('region', { name: 'Company' })
+  // Easy Beans is in Marbella.
+  await expect(company).toContainText('Region: Andalusia')
+  await company.getByRole('button', { name: 'Edit' }).click()
+  const region = company.getByRole('combobox', { name: 'Region' })
+  await expect(region).toHaveValue('AN')
+  await expect(company).toContainText('Its own public holidays go on your calendar too, with Spain’s.')
+  await region.selectOption({ label: 'Catalonia' })
+  await company.getByRole('button', { name: 'Save' }).click()
+  await toast(page, /^Saved$/)
+  await expect(company).toContainText('Region: Catalonia')
+  // Ireland has none: the region goes with the move.
+  await company.getByRole('button', { name: 'Edit' }).click()
+  await company.getByRole('combobox', { name: 'Country' }).selectOption({ label: 'Ireland' })
+  await expect(company.getByRole('combobox', { name: 'Region' })).toHaveCount(0)
+  await company.getByRole('textbox', { name: 'VAT or CRO number' }).fill('')
+  await company.getByRole('button', { name: 'Save' }).click()
+  await toast(page, /^Saved$/)
+  await expect(company).not.toContainText('Region')
+  await company.getByRole('button', { name: 'Edit' }).click()
+  await company.getByRole('combobox', { name: 'Country' }).selectOption({ label: 'Spain' })
+  await expect(company.getByRole('combobox', { name: 'Region' })).toHaveValue('')
+})
+
 test('people choose how they like to be contacted; admins see it on the team list', async ({ page }) => {
   await open(page, '/account', 'maria@example.com')
   await page.getByLabel('Preferred contact').click()
@@ -2036,6 +2062,9 @@ test('self-serve: a new business signs up, creates its business and goes on to t
   await page.getByRole('button', { name: 'Café & coffee shop' }).click()
   await expect(page.getByRole('button', { name: 'Café & coffee shop' })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByRole('combobox', { name: 'Time zone' })).not.toHaveValue('')
+  // In Spain, its region too (it can be left for later): Madrid's own public holidays.
+  await expect(page.getByRole('combobox', { name: 'Region' })).toHaveValue('')
+  await page.getByRole('combobox', { name: 'Region' }).selectOption({ label: 'Madrid' })
   await add.click()
   // She runs it now: on to the set-up guide, with a café's apps ready to connect.
   await expect(page).toHaveURL(/\/setup/)
@@ -2047,6 +2076,189 @@ test('self-serve: a new business signs up, creates its business and goes on to t
   await expect(page.getByRole('button', { name: /^Café & coffee shop/ })).toHaveAttribute('aria-pressed', 'true')
   await page.getByRole('button', { name: 'Skip setup for now' }).click()
   await expect(page.getByRole('navigation', { name: 'Main' })).toContainText('Café Lola')
+  // The region is on the Business page, next to the country.
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Business', exact: true }).click()
+  await expect(page.getByRole('region', { name: 'Company' })).toContainText('Region: Madrid')
+})
+
+test('a business in Ireland: asked at sign-up, then Irish labels, VAT rates, phone numbers and pages', async ({ page }) => {
+  // The dates the Tax and Grants pages work out are the same whenever the test runs.
+  await page.clock.install({ time: WED_0900 })
+  await page.goto('/?demo')
+  await page.getByRole('tab', { name: 'Create account' }).click()
+  await page.getByLabel('Your name').fill('Aoife Byrne')
+  await page.getByRole('textbox', { name: 'Email' }).fill('aoife@dailygrind.example')
+  await page.getByLabel('Password').fill('flat-white-dublin-8')
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await page.getByRole('textbox', { name: 'Business name' }).fill('The Daily Grind')
+  // Spain or Ireland: Ireland puts it on Dublin time.
+  const where = page.getByRole('group', { name: 'Where is it?' })
+  await where.getByRole('button', { name: 'Ireland' }).click()
+  await expect(where.getByRole('button', { name: 'Ireland' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(where).toContainText('Irish working-time rules, bank holidays and VAT rates')
+  await expect(page.getByRole('combobox', { name: 'Time zone' })).toHaveValue('Europe/Dublin')
+  // Regions are Spain's.
+  await expect(page.getByRole('combobox', { name: 'Region' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Café & coffee shop' }).click()
+  await page.getByRole('button', { name: 'Add my business' }).click()
+  await page.getByRole('button', { name: 'Skip this step' }).click()
+  await page.getByRole('button', { name: /^Use a ready-made setup/ }).click()
+  await page.getByRole('button', { name: 'Skip setup for now' }).click()
+  const nav = page.getByRole('navigation', { name: 'Main' })
+  await expect(nav).toContainText('The Daily Grind')
+  // Business: the country, and an Irish VAT number checked as one.
+  await nav.getByRole('link', { name: 'Business', exact: true }).click()
+  const company = page.getByRole('region', { name: 'Company' })
+  await expect(company).toContainText('Ireland')
+  await expect(company).not.toContainText('Region')
+  await company.getByRole('button', { name: 'Edit' }).click()
+  const tax = company.getByRole('textbox', { name: 'VAT or CRO number' })
+  await tax.fill('B12345674')
+  await expect(page.getByText('That isn’t an Irish VAT number (IE1234567T) or CRO number')).toBeVisible()
+  await tax.fill('ie 1234567t')
+  await expect(page.getByText('Looks right')).toBeVisible()
+  await company.getByRole('button', { name: 'Save' }).click()
+  await expect(company).toContainText('IE1234567T')
+  // Timecards: Ireland's working time records.
+  await nav.getByRole('link', { name: 'Timecards' }).click()
+  await expect(page.getByText('Working time records').first()).toBeVisible()
+
+  // Tax, shown from the start: Revenue's returns, by the 23rd on ROS, each linked to its page.
+  await nav.getByRole('link', { name: 'Tax', exact: true }).click()
+  const returns = page.getByRole('region', { name: 'Tax returns' })
+  await expect(returns).toContainText('What the business files with Revenue')
+  await expect(returns).not.toContainText('Agencia Tributaria')
+  await expect(returns.getByRole('columnheader', { name: 'Form' })).toBeVisible()
+  const vat = returns.getByRole('row').filter({ hasText: 'VAT return' }).filter({ hasText: 'Sep–Oct' })
+  await expect(vat).toContainText('23 Nov 2026')
+  await expect(vat.getByRole('link', { name: 'VAT3 on revenue.ie' })).toHaveAttribute('href', /^https:\/\/www\.revenue\.ie\//)
+  await expect(returns.getByRole('row').filter({ hasText: 'Payroll taxes (PAYE, PRSI and USC)' })).toHaveCount(12)
+  await expect(returns.getByRole('row').filter({ hasText: 'Corporation Tax return (CT1)' })).toContainText('23 Sep 2027')
+  await expect(page.getByRole('list', { name: 'At a glance' })).toContainText('PAYE · September')
+  // Statuses in the accountant's words; a sole trader files Form 11 instead of the CT1.
+  await returns.getByRole('combobox', { name: 'Status of PAYE September' }).click()
+  await expect(page.getByRole('option', { name: 'With your accountant' })).toBeVisible()
+  await page.getByRole('option', { name: 'Filed' }).click()
+  await toast(page, 'PAYE September: Filed')
+  const file = page.getByRole('region', { name: 'What you file' })
+  await expect(file.getByRole('switch', { name: /Rented premises/ })).toHaveCount(0)
+  await file.getByRole('switch', { name: /A sole trader, not a company/ }).check()
+  await expect(returns.getByRole('row').filter({ hasText: 'Income tax return (Form 11)' })).toContainText('31 Oct 2027')
+  await expect(returns.getByRole('row').filter({ hasText: 'Corporation Tax return (CT1)' })).toHaveCount(0)
+  await expect(file.getByRole('textbox', { name: 'Your accountant’s email' })).toBeVisible()
+
+  // Grants, shown from the start: Ireland's, from the LEO, Microfinance Ireland, Enterprise Ireland and SEAI.
+  await nav.getByRole('link', { name: 'Grants' }).click()
+  await expect(page.getByText(/^Grants and supports for small businesses in Ireland/)).toBeVisible()
+  const answers = page.getByRole('region', { name: 'Your answers' })
+  await expect(answers.getByRole('group', { name: 'Business type' }).getByRole('button', { name: 'Sole trader' })).toBeVisible()
+  await expect(answers.getByRole('group', { name: 'Where is it based?' })).toHaveCount(0)
+  const results = page.getByRole('region', { name: 'Grants for you' })
+  await expect(results).not.toContainText('Andalucía')
+  // A café is a local service: no Priming Grant, but mentoring is open to it.
+  await expect(results.getByRole('button', { name: 'Priming Grant (starting up)' })).toContainText('Not eligible')
+  await expect(results.getByRole('button', { name: 'Mentoring', exact: true })).toContainText('Eligible')
+  // Open since April: the Grow Digital Voucher comes after six months' trading.
+  await expect(results.getByRole('button', { name: 'Grow Digital Voucher' })).toContainText('Later for you')
+  const audit = results.getByRole('button', { name: 'SEAI energy audit voucher' })
+  await expect(audit).toContainText('Confirm first')
+  await answers.getByRole('group', { name: 'Does the business spend €10,000 or more a year on energy?' }).getByRole('button', { name: 'Yes', exact: true }).click()
+  await expect(audit).toContainText('Eligible')
+  await audit.click()
+  await expect(results.getByRole('link', { name: 'Official page' }).first()).toHaveAttribute('href', /seai\.ie/)
+  await expect(results.getByText(/^Checked on 7 Nov 2026/).first()).toBeVisible()
+})
+
+test('a business in Ireland: Irish contract types, competition terms, the mileage rate, the CCTV sign, job boards, GAA in sports and an accountant', async ({ page }) => {
+  test.setTimeout(60_000)
+  await page.goto('/?demo')
+  await page.getByRole('tab', { name: 'Create account' }).click()
+  await page.getByLabel('Your name').fill('Niamh Kelly')
+  await page.getByRole('textbox', { name: 'Email' }).fill('niamh@corkroast.example')
+  await page.getByLabel('Password').fill('flat-white-cork-21')
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await page.getByRole('textbox', { name: 'Business name' }).fill('Cork Roast')
+  await page.getByRole('group', { name: 'Where is it?' }).getByRole('button', { name: 'Ireland' }).click()
+  await page.getByRole('button', { name: 'Café & coffee shop' }).click()
+  await page.getByRole('button', { name: 'Add my business' }).click()
+  await page.getByRole('button', { name: 'Skip this step' }).click()
+  await page.getByRole('button', { name: /^Use a ready-made setup/ }).click()
+  await page.getByRole('button', { name: 'Skip setup for now' }).click()
+  const nav = page.getByRole('navigation', { name: 'Main' })
+  await expect(nav).toContainText('Cork Roast')
+
+  // Contracts: Ireland's five kinds, the written statement's deadlines, and a sectoral order instead of a convenio.
+  await nav.getByRole('link', { name: 'Team', exact: true }).click()
+  await page.getByRole('tab', { name: 'Contracts' }).click()
+  await expect(page.getByText('Each person’s employment contract under Irish law')).toBeVisible()
+  await expect(page.getByRole('alert', { name: 'The written statement' })).toContainText('within 5 days of starting')
+  await page.getByRole('button', { name: 'Add a contract', exact: true }).click()
+  const contract = page.getByRole('dialog', { name: 'Add a contract' })
+  const kind = contract.getByRole('combobox', { name: 'Type of contract' })
+  await expect(kind).toHaveText('Permanent full-time')
+  await kind.click()
+  await expect(page.getByRole('option')).toHaveText(['Permanent full-time', 'Permanent part-time', 'Fixed-term', 'Specified-purpose', 'Casual'])
+  await page.getByRole('option', { name: 'Specified-purpose' }).click()
+  await expect(contract).toContainText('Ends when a task is done')
+  await expect(contract.getByRole('textbox', { name: 'Job title' })).toBeVisible()
+  await expect(contract.getByRole('textbox', { name: 'Sectoral Employment Order or ERO' })).toBeVisible()
+  await expect(contract.getByRole('textbox', { name: 'Convenio' })).toHaveCount(0)
+  await contract.getByRole('button', { name: 'Cancel' }).click()
+
+  // Competitions: terms and conditions in English, for Ireland, and no Spanish caption.
+  await nav.getByRole('link', { name: 'Competitions' }).click()
+  await page.getByRole('button', { name: 'Start your own' }).click()
+  const competition = page.getByRole('dialog', { name: 'New competition' })
+  await competition.getByRole('textbox', { name: 'Name' }).fill('Christmas giveaway')
+  await competition.getByRole('textbox', { name: 'Step 1' }).fill('Follow @corkroast on Instagram')
+  await expect(competition.getByRole('switch', { name: 'Living in Ireland only' })).toBeChecked()
+  await competition.getByRole('region', { name: 'Terms and conditions' }).getByRole('button', { name: 'Write the terms from the details' }).click()
+  const terms = competition.getByRole('textbox', { name: 'Terms' })
+  await expect(terms).toHaveValue(/^TERMS AND CONDITIONS: “Christmas giveaway”/)
+  await expect(terms).toHaveValue(/1\. Follow @corkroast on Instagram/)
+  await expect(terms).toHaveValue(/who lives in the Republic of Ireland/)
+  await expect(terms).toHaveValue(/General Data Protection Regulation \(GDPR\)/)
+  await expect(competition.getByRole('region', { name: 'Bases legales' })).toHaveCount(0)
+  await expect(competition.getByRole('textbox', { name: 'Caption in Spanish' })).toHaveCount(0)
+  await competition.getByRole('button', { name: 'Cancel' }).click()
+
+  // Expenses: Revenue's civil service rate, its band, and where it's from.
+  await nav.getByRole('link', { name: 'Expenses', exact: true }).click()
+  const mileage = page.getByRole('region', { name: 'Mileage rate' })
+  await expect(mileage).toContainText('Revenue lets you pay up to the civil service motor travel rates without tax')
+  await expect(mileage).toContainText(/41[,.]8c a km for a car up to 1,200 cc/)
+  await expect(mileage.getByRole('link', { name: 'Revenue, civil service rates' })).toHaveAttribute('href', /^https:\/\/www\.revenue\.ie\//)
+  await expect(mileage.getByRole('textbox', { name: 'Euros a km' })).toHaveValue('0.418')
+
+  // Cameras: the Data Protection Commission's sign, with the business's name on it.
+  await nav.getByRole('link', { name: 'Cameras' }).click()
+  await page.getByRole('tab', { name: 'Set up' }).click()
+  const law = page.getByRole('alert', { name: 'Cameras and the law in Ireland' })
+  await expect(law.getByLabel('The CCTV sign')).toContainText('Images are recorded by Cork Roast for the safety of staff and customers and to prevent crime.')
+  await expect(page.getByText('Cameras and the law in Spain')).toHaveCount(0)
+
+  // Hiring: Ireland's job boards, and no InfoJobs.
+  await nav.getByRole('link', { name: 'Hiring' }).click()
+  await expect(page.getByText('Post your jobs on IrishJobs.ie, Jobs.ie, Indeed or JobsIreland.ie')).toBeVisible()
+  await page.getByRole('button', { name: 'Add a vacancy' }).first().click()
+  const vacancy = page.getByRole('dialog', { name: 'Add a vacancy' })
+  for (const board of ['IrishJobs.ie', 'Jobs.ie', 'Indeed', 'JobsIreland.ie']) await expect(vacancy.getByRole('checkbox', { name: board, exact: true })).toBeVisible()
+  await expect(vacancy.getByRole('checkbox', { name: 'InfoJobs' })).toHaveCount(0)
+  await vacancy.getByRole('button', { name: 'Cancel' }).click()
+
+  // Sports: the GAA offered first, and its chip first once followed.
+  await nav.getByRole('link', { name: 'Sports' }).click()
+  await page.getByRole('button', { name: 'Competitions', exact: true }).click()
+  const follow = page.getByRole('dialog', { name: 'Competitions to follow' })
+  await expect(follow.getByText(/^(GAA|Football|Rugby) · /).first()).toHaveText('GAA · Ireland')
+  await follow.getByRole('checkbox', { name: 'All-Ireland Senior Hurling Championship' }).check()
+  await toast(page, 'Following All-Ireland Senior Hurling Championship')
+  await follow.getByRole('button', { name: 'Done' }).click()
+  await expect(page.getByRole('group', { name: 'Sport' }).getByRole('button')).toHaveText(['All', 'GAA', 'Football', 'Rugby', 'UFC', 'Boxing'])
+
+  // Who does the books: the accountant, not the gestoría.
+  await nav.getByRole('link', { name: 'Profit & loss' }).click()
+  await expect(page.getByText('The accounts your accountant files are the official ones.')).toBeVisible()
 })
 
 test('signed out: one-tap Google, Apple, Facebook and Microsoft sign-in next to email', async ({ page }) => {
@@ -2241,6 +2453,107 @@ test.describe('billing', () => {
     await page.getByRole('button', { name: /Account menu/ }).first().click()
     await expect(page.getByRole('menuitem', { name: 'Businesses' })).toHaveCount(0)
   })
+
+  test('the back-office for The Business Agent HQ’s admins: friends & family with a note, a longer free trial, and who asked to close', async ({ page }) => {
+    await open(page, '/hq/businesses?hq')
+    await expect(page.getByRole('heading', { level: 1, name: 'Businesses' })).toBeVisible()
+    const table = page.getByRole('table', { name: 'Businesses' })
+    const row = (name: string) => table.getByRole('row').filter({ hasText: name })
+    await expect(page.getByText('1 business asked to close its account.')).toBeVisible()
+    await expect(row('La Taberna de Juan').getByText('Closes 25 October 2026')).toBeVisible()
+
+    // Bar Bea, on Free: friends & family, with a note saying who it's for.
+    await row('Bar Bea').getByRole('button', { name: 'Actions for Bar Bea' }).click()
+    await page.getByRole('menuitem', { name: 'Make complimentary…' }).click()
+    const comp = page.getByRole('dialog', { name: 'Make Bar Bea complimentary' })
+    await comp.getByRole('radio', { name: 'Friends & family' }).check()
+    await expect(comp.getByRole('button', { name: 'Make complimentary' })).toBeDisabled()
+    await comp.getByRole('textbox', { name: 'Note' }).fill('Bea, a friend from the gym')
+    await comp.getByRole('button', { name: 'Make complimentary' }).click()
+    await toast(page, 'Bar Bea is complimentary now')
+    await expect(row('Bar Bea').getByText('Complimentary')).toBeVisible()
+
+    // Café Lola pays through Stripe: its subscription is cancelled there first, so the card isn't charged.
+    await row('Café Lola').getByRole('button', { name: 'Actions for Café Lola' }).click()
+    await expect(page.getByRole('menuitem', { name: /Make complimentary/ })).toBeDisabled()
+    await expect(page.getByRole('menuitem', { name: /Make complimentary/ })).toContainText('Cancel it in Stripe first')
+    await page.keyboard.press('Escape')
+
+    // Peluquería Sol's free trial: two weeks more.
+    await row('Peluquería Sol').getByRole('button', { name: 'Actions for Peluquería Sol' }).click()
+    await page.getByRole('menuitem', { name: 'Extend free trial…' }).click()
+    const trial = page.getByRole('dialog', { name: 'Extend Peluquería Sol’s free trial' })
+    await expect(trial.getByText('Ends now on 17 November 2026.')).toBeVisible()
+    await trial.getByRole('button', { name: '30 days' }).click()
+    await expect(trial.getByText('Will end on 17 December 2026.')).toBeVisible()
+    await trial.getByRole('button', { name: '14 days' }).click()
+    await expect(trial.getByText('Will end on 1 December 2026.')).toBeVisible()
+    await trial.getByRole('button', { name: 'Extend trial' }).click()
+    await toast(page, 'Peluquería Sol’s trial now ends on 1 December 2026')
+    await expect(trial).toHaveCount(0)
+  })
+
+  test('the back-office’s funnel: sign-ups to paying, week two out of those old enough to tell, and cancellations month by month', async ({ page }) => {
+    await open(page, '/hq/businesses?hq')
+    const funnel = page.getByRole('region', { name: 'Funnel' })
+    for (const name of ['Signed up: 6, 100%', 'Finished set-up: 6, 100%', 'Active in week two: 3, 75%', 'On a trial: 1, 17%', 'Paying: 1, 17%', 'Cancelled: 3, 50%']) {
+      await expect(funnel.getByRole('listitem', { name })).toBeVisible()
+    }
+    // Peluquería Sol (12 days) and Bar Bea (6 days) haven't had their second week yet.
+    await expect(funnel.getByText('Share of those at least two weeks old (4) · 2 are younger: not yet')).toBeVisible()
+
+    // Bar El Puerto in June, Panadería Rosa in July, and La Taberna de Juan's owner asking to close in September.
+    const months = page.getByRole('region', { name: 'Cancellations by month' })
+    await expect(months.getByText('3 in the last 12 months: subscriptions cancelled, or owners asking to close the account.')).toBeVisible()
+    const chart = months.getByRole('img', { name: 'Cancellations in each of the last 12 months' })
+    await chart.focus()
+    await page.keyboard.press('ArrowLeft')
+    await expect(months.getByRole('status')).toContainText('September 2026')
+    await expect(months.getByRole('status')).toContainText('1 cancellation')
+    await page.keyboard.press('ArrowLeft')
+    await expect(months.getByRole('status')).toContainText('August 2026')
+    await expect(months.getByRole('status')).toContainText('0 cancellations')
+
+    // Panadería Rosa comes back as friends & family: no longer one that cancelled.
+    const row = page.getByRole('table', { name: 'Businesses' }).getByRole('row').filter({ hasText: 'Panadería Rosa' })
+    await row.getByRole('button', { name: 'Actions for Panadería Rosa' }).click()
+    await page.getByRole('menuitem', { name: 'Make complimentary…' }).click()
+    const comp = page.getByRole('dialog', { name: 'Make Panadería Rosa complimentary' })
+    await comp.getByRole('radio', { name: 'Friends & family' }).check()
+    await comp.getByRole('textbox', { name: 'Note' }).fill('Rosa, back as a friend')
+    await comp.getByRole('button', { name: 'Make complimentary' }).click()
+    await toast(page, 'Panadería Rosa is complimentary now')
+    await expect(funnel.getByRole('listitem', { name: 'Cancelled: 2, 33%' })).toBeVisible()
+    await expect(months.getByText('2 in the last 12 months: subscriptions cancelled, or owners asking to close the account.')).toBeVisible()
+  })
+
+  test('an owner downloads all its data as CSV files in a zip, then closes the account: closing across the app until an owner keeps it', async ({ page }) => {
+    await open(page, '/account/billing')
+    const card = page.getByRole('region', { name: 'Your data and closing the account' })
+    const download = page.waitForEvent('download')
+    await card.getByRole('button', { name: 'Download all data' }).click()
+    const file = await download
+    expect(file.suggestedFilename()).toBe('easy-beans-coffee-2026-09-30.zip')
+    const zip = readFileSync(await file.path())
+    expect(zip.subarray(0, 4).toString('latin1')).toBe('PK\x03\x04')
+    for (const name of ['README.txt', 'business.csv', 'profiles.csv', 'shifts.csv', 'time_entries.csv']) expect(zip.includes(name)).toBe(true)
+
+    await card.getByRole('button', { name: 'Close the account…' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Close Easy Beans Coffee’s account?' })
+    await expect(dialog.getByText(/^It closes on 30 October 2026, 30 days from now\./)).toBeVisible()
+    await expect(dialog.getByText(/except the working-hours records \(registro de jornada\)/)).toBeVisible()
+    await dialog.getByRole('button', { name: 'Close the account' }).click()
+    await toast(page, 'The account closes in 30 days')
+    await expect(card.getByText('Closing on 30 October 2026, as Aron O\'Neill asked on 30 September 2026.', { exact: false })).toBeVisible()
+
+    // Across the app, with a way to keep it.
+    await page.getByRole('link', { name: 'Rota' }).first().click()
+    const banner = page.getByRole('alert').filter({ hasText: 'This account closes on 30 October 2026, in 30 days.' })
+    await expect(banner).toBeVisible()
+    await banner.getByRole('button', { name: 'Keep the account' }).click()
+    await toast(page, 'The account stays open')
+    await expect(banner).toHaveCount(0)
+  })
 })
 
 test('guest link: opens already signed in as a Guest admin, no sign-in page', async ({ page }) => {
@@ -2391,6 +2704,26 @@ test.describe('connections for email, files and music', () => {
     const colours = (await page.locator('.MuiCard-root', { hasText: 'Rose Pink' }).first().boundingBox())!
     expect(colours.x).toBeGreaterThan(logo.x + logo.width - 2)
     expect(Math.abs(colours.y - logo.y)).toBeLessThan(4)
+  })
+
+  test('the app takes the business’s main colour as its accent, in light and dark mode', async ({ page }) => {
+    await open(page, '/brand')
+    const accent = () => page.evaluate(() => {
+      const cs = getComputedStyle(document.documentElement)
+      return [cs.getPropertyValue('--eb-rose').trim(), cs.getPropertyValue('--mui-palette-primary-main').trim()]
+    })
+    // The sample café's own rose pink.
+    await expect.poll(accent).toEqual(['#F79BA4', '#F79BA4'])
+    await page.getByRole('button', { name: 'Edit Rose Pink' }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByRole('textbox', { name: 'Hex code' }).fill('#2F5D50')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect.poll(accent).toEqual(['#2F5D50', '#2F5D50'])
+    // Dark mode (the system's, as the app follows it) lifts the deep green so it shows on the dark background.
+    await page.emulateMedia({ colorScheme: 'dark' })
+    await expect(page.locator('html')).toHaveAttribute('data-eb-theme', 'dark')
+    await expect.poll(async () => (await accent())[0]).not.toBe('#2F5D50')
+    expect((await accent())[0]).toMatch(/^#[0-9A-F]{6}$/)
   })
 
   test('our sound: the moods the brand’s music has, and never has; staff see them', async ({ page }) => {
@@ -4178,7 +4511,7 @@ test.describe('profit and loss', () => {
     await expect(page.getByRole('heading', { name: 'Profit & loss', exact: true })).toBeVisible()
   }
 
-  test('the statement shows the months since the café opened: takings without IVA, costs and profit', async ({ page }) => {
+  test('the statement shows the months since the café opened: takings without VAT, costs and profit', async ({ page }) => {
     test.skip(!FEATURES.square, 'Square is switched off for now')
     await withSquare(page)
     const statement = page.getByRole('table', { name: 'Profit & loss statement' })
@@ -4186,7 +4519,7 @@ test.describe('profit and loss', () => {
     await expect(statement.getByRole('columnheader', { name: /^Apr 26/ })).toBeVisible()
     await expect(statement.getByRole('columnheader', { name: /^Sep 26/ })).toBeVisible()
     await expect(statement.getByRole('columnheader', { name: /^Mar 26/ })).toHaveCount(0)
-    for (const line of ['Takings, without IVA', 'Total cost of sales', 'Gross profit', 'Total team', 'Total running costs', 'Operating profit']) {
+    for (const line of ['Takings, without VAT', 'Total cost of sales', 'Gross profit', 'Total team', 'Total running costs', 'Operating profit']) {
       await expect(statement.getByRole('rowheader', { name: new RegExp(`^${line}`) })).toBeVisible()
     }
     // Finances' wages estimate fills the months before there are timecards; expenses are grouped by category.
@@ -4194,7 +4527,7 @@ test.describe('profit and loss', () => {
     await expect(statement.getByRole('rowheader', { name: /^Premises/ })).toBeVisible()
     await expect(statement.getByRole('rowheader', { name: /^Rent/ })).toHaveCount(0)
     const tiles = page.getByRole('list', { name: 'At a glance' }).getByRole('listitem')
-    await expect(tiles.filter({ hasText: 'Income' })).toContainText('with IVA from the till')
+    await expect(tiles.filter({ hasText: 'Income' })).toContainText('with VAT from the till')
     await expect(page.getByText(/An estimate from the app’s own figures/)).toBeVisible()
   })
 
@@ -4234,7 +4567,7 @@ test.describe('profit and loss', () => {
     expect(file.suggestedFilename()).toBe('profit-and-loss-2026-04-2026-09.csv')
     const text = readFileSync((await file.path())!, 'utf8')
     expect(text).toContain('"Operating profit"')
-    expect(text).toContain('"Takings, without IVA"')
+    expect(text).toContain('"Takings, without VAT"')
   })
 
   test('employees cannot open profit and loss', async ({ page }) => {
@@ -4242,7 +4575,7 @@ test.describe('profit and loss', () => {
     await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Profit & loss' })).toHaveCount(0)
     await page.goto('/profit-and-loss?demo')
-    await expect(page.getByText('Takings, without IVA')).toHaveCount(0)
+    await expect(page.getByText('Takings, without VAT')).toHaveCount(0)
   })
 })
 
@@ -4690,7 +5023,7 @@ test.describe('stock and suppliers', () => {
     await item.getByRole('combobox', { name: 'Supplier' }).click()
     await page.getByRole('option', { name: 'Frutas Paqui' }).click()
     await item.getByRole('textbox', { name: 'Link to the item on their website' }).fill('https://frutas.example/naranjas')
-    await item.getByRole('textbox', { name: 'Cost per unit, without IVA' }).fill('1,20')
+    await item.getByRole('textbox', { name: 'Cost per unit, without VAT' }).fill('1,20')
     await item.getByRole('textbox', { name: 'In stock now' }).fill('5')
     await item.getByRole('textbox', { name: 'Reorder at' }).fill('10')
     await item.getByRole('button', { name: 'Add' }).click()
@@ -4747,7 +5080,7 @@ test.describe('stock and suppliers', () => {
     // The item opens read-only: no prices to change.
     await row.getByRole('button', { name: 'Napkins', exact: true }).click()
     const details = page.getByRole('dialog', { name: 'Napkins' })
-    await expect(details.getByRole('textbox', { name: 'Cost per unit, without IVA' })).toBeDisabled()
+    await expect(details.getByRole('textbox', { name: 'Cost per unit, without VAT' })).toBeDisabled()
     await expect(details.getByRole('button', { name: 'Save' })).toHaveCount(0)
     await details.getByRole('button', { name: 'Close' }).click()
   })
@@ -4916,7 +5249,7 @@ test.describe('stock and suppliers', () => {
     await page.getByRole('button', { name: 'Add menu item' }).click()
     const add = page.getByRole('dialog', { name: 'Add a menu item' })
     await add.getByRole('textbox', { name: 'Name' }).fill('Chia fruit parfait')
-    await add.getByRole('textbox', { name: 'Menu price, with IVA' }).fill('4,50')
+    await add.getByRole('textbox', { name: 'Menu price, with VAT' }).fill('4,50')
     await add.getByRole('combobox', { name: 'Category' }).click()
     await page.getByRole('option', { name: 'Food' }).click()
     await add.getByRole('button', { name: 'Add', exact: true }).click()
@@ -5050,8 +5383,8 @@ test.describe('recipes and waste', () => {
 
     await table.getByRole('row', { name: 'Croissant' }).click()
     const dialog = page.getByRole('dialog', { name: 'Croissant' })
-    await expect(dialog).toContainText('Below the 60% aimed for. At €2,60 with IVA it would be on target.')
-    await dialog.getByRole('textbox', { name: 'Menu price, with IVA' }).fill('2,60')
+    await expect(dialog).toContainText('Below the 60% aimed for. At €2,60 with VAT it would be on target.')
+    await dialog.getByRole('textbox', { name: 'Menu price, with VAT' }).fill('2,60')
     await expect(dialog.getByRole('alert')).toHaveCount(0)
     await dialog.getByRole('button', { name: 'Save' }).click()
     await toast(page, /^Saved$/)
@@ -5067,7 +5400,7 @@ test.describe('recipes and waste', () => {
     const table = page.getByRole('table', { name: 'Menu costing' })
     await table.getByRole('row', { name: 'Pain au chocolat' }).click()
     const dialog = page.getByRole('dialog', { name: 'Pain au chocolat' })
-    const price = dialog.getByRole('textbox', { name: 'Menu price, with IVA' })
+    const price = dialog.getByRole('textbox', { name: 'Menu price, with VAT' })
     await price.press('ControlOrMeta+a')
     await price.pressSequentially('2.90', { delay: 30 })
     await expect(price).toHaveValue('2.90')
@@ -5091,18 +5424,18 @@ test.describe('recipes and waste', () => {
     await page.getByRole('button', { name: 'Add item' }).first().click()
     const item = page.getByRole('dialog', { name: 'Add an item' })
     await item.getByRole('textbox', { name: 'Name' }).fill('Lemons')
-    await type(item.getByRole('textbox', { name: 'Cost per unit, without IVA' }), '0.45')
+    await type(item.getByRole('textbox', { name: 'Cost per unit, without VAT' }), '0.45')
     await type(item.getByRole('textbox', { name: 'In stock now' }), '1.5')
     await type(item.getByRole('textbox', { name: 'Reorder at' }), '2,5')
     await item.getByRole('checkbox', { name: 'Sold in the shop' }).check()
-    await type(item.getByRole('textbox', { name: 'Shop price, with IVA' }), '1.20')
+    await type(item.getByRole('textbox', { name: 'Shop price, with VAT' }), '1.20')
     await item.getByRole('button', { name: 'Add' }).click()
     await toast(page, 'Added Lemons')
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Current stock' }).click()
     await page.getByRole('table', { name: 'Stock items' }).getByRole('row', { name: 'Lemons' }).getByRole('button', { name: 'Lemons', exact: true }).click()
     const saved = page.getByRole('dialog', { name: 'Lemons' })
-    await expect(saved.getByRole('textbox', { name: 'Cost per unit, without IVA' })).toHaveValue('0.45')
-    await expect(saved.getByRole('textbox', { name: 'Shop price, with IVA' })).toHaveValue('1.2')
+    await expect(saved.getByRole('textbox', { name: 'Cost per unit, without VAT' })).toHaveValue('0.45')
+    await expect(saved.getByRole('textbox', { name: 'Shop price, with VAT' })).toHaveValue('1.2')
     await saved.press('Escape')
 
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Suppliers' }).click()
@@ -5122,12 +5455,12 @@ test.describe('recipes and waste', () => {
     await page.getByRole('button', { name: 'Add menu item' }).click()
     const dialog = page.getByRole('dialog', { name: 'Add a menu item' })
     await dialog.getByRole('textbox', { name: 'Name' }).fill('Cortado')
-    await dialog.getByRole('textbox', { name: 'Menu price, with IVA' }).fill('2,20')
+    await dialog.getByRole('textbox', { name: 'Menu price, with VAT' }).fill('2,20')
     await dialog.getByRole('button', { name: 'Add ingredient' }).click()
     await dialog.getByRole('combobox', { name: 'Ingredient' }).fill('House espresso')
     await page.getByRole('option', { name: 'House espresso blend' }).click()
     await dialog.getByRole('textbox', { name: 'Amount' }).fill('18')
-    await expect(dialog).toContainText('Cost €0,33 · €2,00 without IVA · margin €1,67 (83,4%)')
+    await expect(dialog).toContainText('Cost €0,33 · €2,00 without VAT · margin €1,67 (83,4%)')
     await dialog.getByRole('button', { name: 'Add a variant' }).click()
     await dialog.getByRole('textbox', { name: 'Variant' }).fill('Extra shot')
     await dialog.getByRole('textbox', { name: 'Price change' }).fill('0,5')
@@ -5135,7 +5468,7 @@ test.describe('recipes and waste', () => {
     await dialog.getByRole('combobox', { name: 'Ingredient' }).nth(1).fill('House espresso')
     await page.getByRole('option', { name: 'House espresso blend' }).click()
     await dialog.getByRole('textbox', { name: 'Amount' }).nth(1).fill('9')
-    await expect(dialog).toContainText('Cost €0,50 · €2,45 without IVA')
+    await expect(dialog).toContainText('Cost €0,50 · €2,45 without VAT')
     await dialog.getByRole('button', { name: 'Add', exact: true }).click()
     await toast(page, 'Added Cortado')
     await expect(page.getByRole('table', { name: 'Menu costing' }).getByRole('row', { name: 'Cortado' })).toContainText('Extra shot')
@@ -5149,7 +5482,7 @@ test.describe('recipes and waste', () => {
     await page.getByRole('button', { name: 'Add menu item' }).click()
     const dialog = page.getByRole('dialog', { name: 'Add a menu item' })
     await dialog.getByRole('textbox', { name: 'Name' }).fill('Bacon sandwich')
-    await dialog.getByRole('textbox', { name: 'Menu price, with IVA' }).fill('5,50')
+    await dialog.getByRole('textbox', { name: 'Menu price, with VAT' }).fill('5,50')
     await dialog.getByRole('button', { name: 'Add', exact: true }).click()
     await toast(page, 'Added Bacon sandwich')
     const row = page.getByRole('table', { name: 'Menu costing' }).getByRole('row', { name: 'Bacon sandwich' })
@@ -5271,7 +5604,7 @@ test.describe('menu, menu design and screens', () => {
     const dialog = page.getByRole('dialog', { name: 'Add a menu item' })
     await dialog.getByRole('textbox', { name: 'Name' }).fill('Oat cortado')
     await dialog.getByRole('combobox', { name: 'Section' }).fill('Coffee')
-    await dialog.getByRole('textbox', { name: 'Price, with IVA' }).fill('3,00')
+    await dialog.getByRole('textbox', { name: 'Price, with VAT' }).fill('3,00')
     await dialog.getByRole('textbox', { name: 'Description' }).fill('Espresso cut with steamed oat milk')
     await expect(dialog).toContainText('Once it’s added, put what goes into it on Menu costing')
     await dialog.getByRole('button', { name: 'Add', exact: true }).click()
@@ -5382,7 +5715,7 @@ test.describe('menu, menu design and screens', () => {
     const fw = page.getByRole('dialog', { name: 'Flat White' })
     await expect(fw).toContainText('Change its price here and it’s changed in Square too')
     await expect(fw).toContainText('Other ways it’s sold, from Square: Iced +€1,00')
-    await fw.getByRole('textbox', { name: 'Price, with IVA' }).fill('4,00')
+    await fw.getByRole('textbox', { name: 'Price, with VAT' }).fill('4,00')
     await fw.getByRole('button', { name: 'Save' }).click()
     await toast(page, 'Saved, and changed in Square')
     await expect(card(page, 'Flat White')).toContainText('Hot €4,00 · Iced €5,00')
@@ -5393,7 +5726,7 @@ test.describe('menu, menu design and screens', () => {
     await page.getByRole('region', { name: 'Extras' }).getByRole('button', { name: 'Edit Syrup' }).click()
     const syrup = page.getByRole('dialog', { name: 'Syrup' })
     await expect(syrup).toContainText('Extras are priced in Square too.')
-    await expect(syrup.getByRole('textbox', { name: 'Price, with IVA' })).toBeDisabled()
+    await expect(syrup.getByRole('textbox', { name: 'Price, with VAT' })).toBeDisabled()
     await syrup.getByRole('button', { name: 'Cancel' }).click()
 
     // Back to Custom: everything is kept here again, the Square items with it.
@@ -5929,7 +6262,7 @@ test.describe('offers and specials', () => {
 })
 
 test.describe('wholesale', () => {
-  test('wholesale shows every item by supplier with its price with and without IVA, what went up and the shop margin', async ({ page }) => {
+  test('wholesale shows every item by supplier with its price with and without VAT, what went up and the shop margin', async ({ page }) => {
     await open(page, '/wholesale')
     await expect(page.getByRole('heading', { name: 'Wholesale', level: 1 })).toBeVisible()
     const tiles = page.getByRole('list', { name: 'At a glance' })
@@ -5941,7 +6274,7 @@ test.describe('wholesale', () => {
     await expect(roaster.getByRole('link', { name: 'Order page' })).toHaveAttribute('href', 'https://tostadoresdelsur.example/trade')
     const beans = roaster.getByRole('table', { name: 'Items from Tostadores del Sur' }).getByRole('row', { name: 'House espresso blend' })
     await expect(beans).toContainText('18,50')
-    await expect(beans).toContainText('20,35') // with 10% IVA
+    await expect(beans).toContainText('20,35') // with 10% VAT
     await expect(beans).toContainText('+7,6% on 15 Sep')
     await expect(roaster.getByRole('row', { name: 'Easy Beans house blend 250 g' })).toContainText('Margin 54,2%')
 
@@ -7647,7 +7980,7 @@ test.describe('outsourcing', () => {
 
     await options.getByRole('button', { name: 'Choose Nacho Vega for Social media management' }).click()
     const dialog = page.getByRole('dialog', { name: 'Outsource a job' })
-    await expect(dialog.getByRole('textbox', { name: 'Price without IVA' })).toHaveValue('240')
+    await expect(dialog.getByRole('textbox', { name: 'Price without VAT' })).toHaveValue('240')
     await expect(dialog.getByRole('checkbox', { name: 'End the job with Lucía Marín today' })).toBeChecked()
     await dialog.getByRole('textbox', { name: 'What’s included' }).fill('2 posts and 3 stories a week')
     await dialog.getByRole('button', { name: 'Give them the job' }).click()
@@ -7678,7 +8011,7 @@ test.describe('outsourcing', () => {
     await page.getByRole('option', { name: 'Company' }).click()
     await add.getByRole('combobox', { name: 'Jobs they do' }).fill('Pest')
     await page.getByRole('option', { name: 'Pest control' }).click()
-    await add.getByRole('textbox', { name: 'Usual rate without IVA' }).fill('60')
+    await add.getByRole('textbox', { name: 'Usual rate without VAT' }).fill('60')
     await add.getByRole('combobox', { name: 'How it’s charged' }).click()
     await page.getByRole('option', { name: 'A visit' }).click()
     await add.locator('label', { hasText: '4 stars' }).click()
@@ -7765,7 +8098,7 @@ test.describe('leads and enquiries', () => {
     await dialog.getByRole('textbox', { name: 'Last name' }).fill('Paredes')
     await dialog.getByRole('textbox', { name: 'Phone' }).fill('644 221 908')
     await dialog.getByRole('textbox', { name: 'What they asked for' }).fill('Coffee cart for a wedding, 80 guests')
-    await dialog.getByRole('spinbutton', { name: 'Worth about (with IVA)' }).fill('900')
+    await dialog.getByRole('spinbutton', { name: 'Worth about (with VAT)' }).fill('900')
     await dialog.getByRole('button', { name: 'Save' }).click()
     await toast(page, /^Saved$/)
     const list = page.getByRole('region', { name: 'Enquiries' })
@@ -8524,7 +8857,7 @@ test.describe('competitions', () => {
     await dialog.getByRole('textbox', { name: 'Step 1' }).fill('Comment who you’d bring')
     await expect(warnings).not.toContainText('Don’t ask for a review')
     await expect(warnings).not.toContainText('modelos 111')
-    await dialog.getByLabel('Worth (each, IVA included)').fill('450')
+    await dialog.getByLabel('Worth (each, VAT included)').fill('450')
     await expect(warnings).toContainText('modelos 111 and 190')
     await dialog.getByRole('button', { name: 'Write the terms from the details' }).click()
     await expect(dialog.getByRole('textbox', { name: 'Terms' })).toHaveValue(/9\. Fiscalidad/)
@@ -8916,6 +9249,18 @@ test.describe('set-up wizard', () => {
     await expect(colours).toContainText('#E8C07D')
     await expect(colours).not.toContainText('#C8553D')
     await expect(page.getByRole('region', { name: 'Fonts' })).toContainText('Playfair Display')
+  })
+
+  test('set-up wizard: a business already set up goes back to “Your business” from Connections, to bring in its brand', async ({ page }) => {
+    await open(page, '/connections')
+    await page.getByRole('link', { name: 'Set-up guide' }).click()
+    await page.getByRole('button', { name: 'Back' }).click()
+    await expect(page.getByRole('heading', { name: 'Is Easy Beans Coffee new, or already open?' })).toBeVisible()
+    await page.getByRole('button', { name: /^It’s already open/ }).click()
+    // Its website is filled in from the Business page.
+    await expect(page.getByRole('textbox', { name: 'Website' })).toHaveValue('https://www.easybeanscoffee.com/')
+    await page.getByRole('button', { name: 'Find my brand' }).click()
+    await expect(page.getByRole('heading', { name: 'Here’s what I found' })).toBeVisible()
   })
 
   test('set-up wizard is for admins only', async ({ page }) => {

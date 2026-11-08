@@ -105,8 +105,8 @@ export default {
   'Ask your web host to switch on HTTPS (a free certificate) and send http:// to https://.':
     'Pide a tu hosting que active HTTPS (un certificado gratuito) y que redirija http:// a https://.',
   'The homepage has no title': 'La página de inicio no tiene título',
-  'Add a <title> of 30 to 60 characters: the business, what it is and where, e.g. “Easy Beans Coffee · Specialty café in San Pedro”.':
-    'Añade un <title> de 30 a 60 caracteres: el negocio, qué es y dónde, p. ej., «Easy Beans Coffee · Café de especialidad en San Pedro».',
+  'Add a <title> of 30 to 60 characters: the business, what it is and where, e.g. “Sol Café · Specialty coffee and brunch in Seville”.':
+    'Añade un <title> de 30 a 60 caracteres: el negocio, qué es y dónde, p. ej., «Sol Café · Café de especialidad y brunch en Sevilla».',
   'The title is {n} characters long': 'El título tiene {n} caracteres',
   'Aim for 30 to 60 characters, so Google shows it whole and it says what and where.':
     'Mejor entre 30 y 60 caracteres, para que Google lo muestre entero y diga qué y dónde.',

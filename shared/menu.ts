@@ -344,7 +344,7 @@ export function designFacets(designs: Pick<MenuDesign, 'language' | 'kind'>[]) {
 
 export const newDesign = (format: MenuFormat, name: string): MenuDesignInput => ({
   name, format, size: format === 'physical' ? 'a4_portrait' : 'screen_landscape', mode: 'background', style: 'boxed', categories: [], title: null, subtitle: null,
-  footer: msg('Prices include IVA. Ask us about allergens.'), text_tone: 'dark', panel: true, show_descriptions: true, show_allergens: true, image_id: null,
+  footer: msg('Prices include VAT. Ask us about allergens.'), text_tone: 'dark', panel: true, show_descriptions: true, show_allergens: true, image_id: null,
 })
 
 /** A boxed menu's image is a strip of illustrations along the bottom, not the whole page. */

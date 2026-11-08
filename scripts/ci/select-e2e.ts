@@ -89,6 +89,10 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
     tests: String.raw`pricing|billing|plan|landing|one-tap|founding` },
   { name: 'partners', files: [/PartnersPage/], tests: String.raw`partner` },
   { name: 'hq-businesses', files: [/HqBusinessesPage/, /i18n\/es\/hqBusinesses/], tests: String.raw`back-office` },
+  { name: 'hq actions', files: [/HqBusinessActions/, /i18n\/es\/hqActions/, /shared\/hqActions/], tests: String.raw`back-office` },
+  { name: 'hq funnel', files: [/HqFunnel/, /i18n\/es\/hqFunnel/, /shared\/hqFunnel/, /demoBackOffice/], tests: String.raw`back-office` },
+  { name: 'closing the account', files: [/AccountDataCard/, /app\/ClosingBanner/, /i18n\/es\/closeAccount/, /shared\/(accountClosing|dataExport)/],
+    tests: String.raw`closes the account|billing` },
   { name: 'compare', files: [/ComparePage/, /marketing\/compareCharts/, /shared\/compare/, /i18n\/es\/compare/], tests: String.raw`compare|landing` },
   { name: 'leads', files: [/LeadsPage/, /shared\/leads/], tests: String.raw`leads and enquiries|enquir` },
   { name: 'expenses', files: [/ExpensesPage/, /shared\/claims/], tests: String.raw`expenses and mileage|trip` },
@@ -123,6 +127,10 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'scheduled reports', files: [/ReportSchedules/, /shared\/reportSections/], tests: String.raw`reports|dashboards` },
   { name: 'refresh rates', files: [/components\/Freshness/, /shared\/refresh\.ts$/, /i18n\/es\/(refresh|refreshRates)\.ts$/], tests: String.raw`how often|Sales page|Square` },
   { name: 'square prices', files: [/shared\/menuSquare/, /i18n\/es\/squarePrices/], tests: String.raw`menu|Square` },
+  { name: 'ireland tax and grants', files: [/shared\/(taxIreland|grantsIreland|grantCatalogueIreland)/, /i18n\/es\/irelandTaxGrants/],
+    tests: String.raw`a business in Ireland|tax|grants` },
+  { name: 'ireland screens', files: [/i18n\/es\/irelandScreens/], tests: String.raw`in Ireland|contract|competition|expenses and mileage|camera|hiring|sports` },
+  { name: 'regions', files: [/shared\/regions/, /components\/RegionField/, /i18n\/es\/regions/], tests: String.raw`signs up|Business page|business in Ireland|holiday` },
 ]
 
 /** The --grep pattern for these changed files, or 'all'. */

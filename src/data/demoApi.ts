@@ -26,6 +26,7 @@ import { DEFAULT_WHATSAPP_RETENTION, isRetention, replyWindow } from '../../shar
 import { cleanCode } from '../../shared/referrals'
 import type { RepCodeInfo, RepIntroduction } from '../../shared/hqReps'
 import { KIND_HIDDEN_PAGES, type BusinessKind } from '../../shared/hqReps'
+import { COUNTRY_HIDDEN_PAGES } from '../../shared/country'
 import { postProblem } from '../../shared/social'
 import type { SportsFavourite } from '../../shared/sports'
 import { POPULAR_FONTS } from '../../shared/fonts'
@@ -62,6 +63,7 @@ import { demoPostIdeasApi } from './demoPostIdeas'
 import { demoNewsletterApi } from './demoNewsletter'
 import { reportSendProblem, scheduleProblem, type ReportSchedule } from '../../shared/reports'
 import { demoQrCodeApi } from './demoQrCodes'
+import { demoBackOfficeApi } from './demoBackOffice'
 import { COUNTED, type Contractor, type OutsourcedJob } from '../../shared/outsourcing'
 import { DEFAULT_CONVENIO, contractProblem, type EmploymentContract } from '../../shared/contracts'
 import { EASY_BEANS_ROLES, EASY_BEANS_RULES, handbookDuties } from './easyBeansHandbook'
@@ -90,7 +92,7 @@ import { CONNECT_MAPS, MAX_REPLY, type Review } from '../../shared/reviews'
 import { checkSite, parsePage, scoreOf, type PageSpeed, type WebsiteReport } from '../../shared/seo'
 import { addDays, formatMoney, localDate, localTime, minutesBetween, today, weekDates, weekStart, zonedIso } from '../../shared/time'
 import { SOURCE_FOR, type Enquiry } from '../../shared/leads'
-import { DEFAULT_MILEAGE_RATE, mileageAmount, type ExpenseClaim } from '../../shared/claims'
+import { DEFAULT_MILEAGE_RATE, IRISH_MILEAGE, mileageAmount, type ExpenseClaim } from '../../shared/claims'
 import { EVERYONE, type Campaign } from '../../shared/campaigns'
 import { keepUntil, type Applicant, type JobOpening } from '../../shared/hiring'
 import { cleanRoles, cvProblem, type ApplicantCv } from '../../shared/hiring'
@@ -123,6 +125,8 @@ export function createDemoApi(): Api {
     instagram: '@easy.beans.coffee',
     website: 'https://www.easybeanscoffee.com/',
     timezone: 'Europe/Madrid',
+    // San Pedro de Alcántara, Marbella: Andalucía's public holidays too.
+    region: 'AN',
     currency: 'EUR',
     tax_id: 'B12345674',
     opening_hours: {
@@ -1494,8 +1498,8 @@ export function createDemoApi(): Api {
     ['2026-04-03', 'Viernes Santo', 'national'], ['2026-05-01', 'Fiesta del Trabajo', 'national'],
     ['2026-08-15', 'Asunción de la Virgen', 'national'], ['2026-10-12', 'Fiesta Nacional de España', 'national'],
     ['2026-12-08', 'Inmaculada Concepción', 'national'], ['2026-12-25', 'Natividad del Señor', 'national'],
-    ['2026-02-28', 'Día de Andalucía', 'regional'], ['2026-04-02', 'Jueves Santo', 'regional'],
-    ['2026-11-02', 'Todos los Santos (trasladado)', 'regional'], ['2026-12-07', 'Día de la Constitución (trasladado)', 'regional'],
+    ['2026-02-28', 'Día de Andalucía', 'regional', 'Andalucía'], ['2026-04-02', 'Jueves Santo', 'regional', 'Andalucía'],
+    ['2026-11-02', 'Todos los Santos (trasladado)', 'regional', 'Andalucía'], ['2026-12-07', 'Día de la Constitución (trasladado)', 'regional', 'Andalucía'],
     ['2026-06-11', 'San Bernabé', 'local', 'Marbella'], ['2026-10-19', 'San Pedro de Alcántara', 'local', 'Marbella'],
     ['2026-05-15', 'San Isidro Labrador', 'area', 'Estepona', false], ['2026-07-16', 'Virgen del Carmen', 'area', 'Estepona', false],
     ['2026-08-17', 'Fiesta local', 'area', 'Benahavís', false], ['2026-08-19', 'Toma de Málaga', 'area', 'Málaga', false],
@@ -2240,9 +2244,15 @@ export function createDemoApi(): Api {
         demoBilling.rep_code_until = new Date(Date.now() + 30 * 86_400_000).toISOString()
       }
       Object.assign(business, { name, business_type: ({ cafe: 'Café', restaurant: 'Restaurant & bar', pub: 'Pub', salon: 'Salon & beauty', real_estate: 'Real estate agency' } as Record<string, string>)[b.kind ?? ''] ?? null,
-        timezone: b.timezone || 'Europe/Madrid', setup_completed_at: null })
+        timezone: b.timezone || 'Europe/Madrid', country: b.country ?? 'ES', setup_completed_at: null })
+      // Its region, in Spain: picked, or none yet.
+      business.region = b.country === 'IE' ? null : b.region ?? null
       // As the database does (the pages_by_kind migration): pages that don't fit its kind start hidden.
-      settings.hidden_pages = [...(KIND_HIDDEN_PAGES[(b.kind ?? 'other') as BusinessKind] ?? [])]
+      settings.hidden_pages = [...(KIND_HIDDEN_PAGES[(b.kind ?? 'other') as BusinessKind] ?? []), ...COUNTRY_HIDDEN_PAGES[b.country ?? 'ES']]
+      // And Ireland's working-time rules (the country migration).
+      if (b.country === 'IE') Object.assign(settings, { break_after_hours: 4.5, min_break_minutes: 15, max_daily_hours: 13, max_weekly_hours: 48, min_rest_hours: 11, vacation_days_per_year: 28 })
+      // And Revenue's mileage rate (the ireland_screens migration).
+      if (b.country === 'IE') settings.mileage_rate = IRISH_MILEAGE.rate
       notify()
       return 1
     },
@@ -5110,8 +5120,13 @@ export function createDemoApi(): Api {
       // The demo has no render service: the picture stays as it is, with the music noted on the post.
       return { media: req.sources.length > 1 ? { url: '/demo/music/reel.mp4', type: 'video' } : req.sources[0], ms: null }
     },
-    // The demo's café isn't HQ: its back-office has nothing to list.
-    async hqBusinesses() { return [] },
+    // The back-office (HQ's admins, ?hq; the café isn't HQ, so it has nothing to list) and an owner's own
+    // data and account (export, closing): src/data/demoBackOffice.ts.
+    ...demoBackOfficeApi({
+      hqAdmin: () => demoHq && isAdmin() && !!me()?.active, isOwner: () => paysAdmin() && !!me()?.active, me: () => me()?.id ?? null,
+      business, billing: demoBilling, team: () => profiles.filter(p => p.role !== 'partner'), shifts: () => shifts,
+      timecards: () => entries.map(e => ({ ...e })), daysAgo,
+    }),
     async referrals() {
       requireAdmin()
       return { code: referralDemo.code, opens: referralDemo.opens, referrals: [...referralDemo.referrals] }

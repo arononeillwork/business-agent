@@ -65,6 +65,8 @@ names Easy Beans with the header, as the Worker does.
 - **Seeding rows in a migration:** one per business: `insert … select id, … from public.business`.
 - **An upsert:** the conflict target includes `business_id` (`onConflict: 'business_id,key'`).
 - **The Worker:** `businessDb`/`requestDb`, never `serviceClient`, for a business's rows.
+- **A trigger that refuses deleting a row:** first `if public.business_being_deleted(old.business_id) then
+  return old; end if;`, so the business can still be deleted with its rows ("Closing an account" below).
 
 `supabase/tests/zzzz_several_businesses.test.sql` fails if a table has no `business_scope` policy, a
 security definer function would see every business, or a unique key spans businesses; it also runs
@@ -130,3 +132,107 @@ changed: worth doing if people in several businesses become common.
 With several businesses, say which one: `select public.grant_complimentary('friends_family', 'Note', 7);`
 (the business number last), `select public.end_complimentary(7);`. For anything else, inside a
 transaction: `select set_config('app.business_id', '7', true);` first.
+
+HQ's admins do the usual ones from the app instead: on the Businesses page each business's menu makes it
+complimentary (founding account, or friends & family, with a note) or ends that (`hq_set_complimentary()`,
+`hq_end_complimentary()`, the `hq_actions` migration; not while a Stripe subscription runs, so that is
+cancelled in Stripe first), and gives a free trial 7, 14 or 30 days more (`worker/hq.ts`, through Stripe).
+
+Under the totals, the page's funnel (`hq_funnel()`, the `hq_funnel` migration; `shared/hqFunnel.ts`) counts the
+businesses that signed up, finished set-up, were active in week two, are on a trial, pay, and cancelled, each
+with its share of the sign-ups. Active in week two: someone in the business clocked in, added a shift or made
+a change the audit log keeps with who made it, from day 7 to day 14 after it was created; one younger than 14
+days is "not yet" and left out of that share. Cancelled: an owner asked to close the account, or its Stripe
+subscription was cancelled (ended or set to end; not a complimentary one), in the month of the earlier of the
+two. Stripe's date is kept in `billing.canceled_at`, copied by the Worker's sync.
+
+## Closing an account
+
+An owner closes the account on Billing (`worker/account.ts`, the `close_account` migration). It closes 30
+days after they ask (`business.closing_requested_at` and `closing_requested_by`); until then everything
+works as before, a banner says when it closes, and an owner can keep it with one click. Its subscription
+stops renewing at once (`cancel_at_period_end`, marked in Stripe so keeping the account renews it again):
+nothing more is charged and nothing is refunded. HQ's admins get a notification each time (`notify_hq()`),
+support@ an email when Cloudflare Email Sending is on, and the Businesses page shows when each closes. On
+the same card the owner downloads everything as CSV files in a zip (`export_tables()`, `export_part()`:
+the business's own rows only, without stored tokens, key and PIN hashes or the app's plumbing).
+
+Deleting the data once it has closed is HQ's, by hand, for now. The working-hours record (registro de
+jornada) must be kept for four years, and it hangs together with other rows: `time_entries` with their
+`breaks`, `time_entry_changes` and `correction_requests`, the `profiles`, `positions` and `break_types` they
+point to, and the `business` row, whose deletion deletes every row of the business. A nightly job that
+deleted everything else wasn't safe enough to write without a way to try it on real data. So, once a
+business has closed, HQ deletes it in two steps in the SQL editor (business 7 here):
+
+1. **Once it has closed.** Cancel its Stripe subscription at once if it still has one. Then delete every
+   row of it but the working-hours record, and switch its people off so nobody signs in. The transaction
+   names the business twice: `app.business_id`, as for anything by hand, and `app.deleting_business`,
+   which lets its rows past the checks meant for someone deleting one row (`business_being_deleted()`, the
+   `delete_business` migration; it counts in the SQL editor only, never from the app or the API). It
+   refuses a business that hasn't closed, and deletes nothing if a row is still pointed to.
+
+   ```sql
+   begin;
+   select set_config('app.business_id', '7', true), set_config('app.deleting_business', '7', true);
+   do $$
+   declare
+     v_business int := nullif(current_setting('app.deleting_business', true), '')::int;
+     -- The working-hours record, kept four years, and the rows it points to.
+     v_keep text[] := array['time_entries', 'breaks', 'time_entry_changes', 'correction_requests', 'profiles', 'positions', 'break_types'];
+     v_table regclass;
+     v_rows bigint;
+     v_gone bigint;
+     v_stuck text[];
+   begin
+     if v_business is null or v_business::text is distinct from current_setting('app.business_id', true) then
+       raise exception 'Name the business in this transaction: app.business_id and app.deleting_business';
+     end if;
+     if not exists (select 1 from public.business where id = v_business and closing_requested_at <= now() - interval '30 days') then
+       raise exception 'Business % hasn’t closed', v_business;
+     end if;
+     -- Every table with rows of it, round after round until one deletes nothing: a row that another one
+     -- still points to goes in a later round, once that one has gone.
+     loop
+       v_gone := 0;
+       v_stuck := '{}';
+       for v_table in
+         select c.oid::regclass from pg_class c
+          where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' and c.relname <> all (v_keep)
+            and exists (select 1 from pg_attribute a where a.attrelid = c.oid and a.attname = 'business_id' and not a.attisdropped)
+          order by c.relname
+       loop
+         begin
+           execute format('delete from %s where business_id = $1', v_table) using v_business;
+           get diagnostics v_rows = row_count;
+           v_gone := v_gone + v_rows;
+         exception when foreign_key_violation then
+           v_stuck := v_stuck || v_table::text;
+         end;
+       end loop;
+       exit when v_gone = 0;
+     end loop;
+     if cardinality(v_stuck) > 0 then
+       raise exception 'Nothing deleted: rows of % are still pointed to', array_to_string(v_stuck, ', ');
+     end if;
+     -- Its people switched off, so nobody signs in to it.
+     update public.profiles set active = false where business_id = v_business;
+   end $$;
+   commit;
+   ```
+
+2. **Four years after its last timecard** (`select max(clock_in) from public.time_entries where business_id = 7;`).
+   Delete the business row, which deletes everything left of it, and its people's accounts (an account
+   is in one business):
+
+   ```sql
+   begin;
+   create temp table closing_people on commit drop as select id from public.profiles where business_id = 7;
+   delete from public.business where id = 7;
+   delete from auth.users where id in (table closing_people);
+   commit;
+   ```
+
+While a business row is being deleted the same checks let its rows go, so step 2 alone deletes a business
+and everything of it in one go (one with no working hours to keep). Its photos, videos and camera video
+are in its own Google Drive or OneDrive, and stay there. `supabase/tests/zzzzzzzzzzzzzzz_delete_business.test.sql`
+runs both steps, and step 2 alone, on every business the tests made.

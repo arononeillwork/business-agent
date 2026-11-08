@@ -2,16 +2,18 @@ import { Autocomplete, Box, Stack, TextField } from '@mui/material'
 import { useMemo, useState } from 'react'
 import { locale, t } from '../i18n'
 import { CALLING_CODES, callingCode, flagEmoji, joinPhone, splitPhone } from '../../shared/phone'
+import { currentCountry } from '../../shared/country'
 
 interface Country { code: string; name: string; dial: string }
 
-/** Every country, named in the person's language, alphabetically (Spain first: it's where the café is). */
+/** Every country, named in the person's language, alphabetically (the business's own country first). */
 function useCountries(): Country[] {
   return useMemo(() => {
     let names: Intl.DisplayNames | null = null
     try { names = new Intl.DisplayNames([locale()], { type: 'region' }) } catch { /* older browser: codes only */ }
     const list = CALLING_CODES.map(([code, dial]) => ({ code, dial, name: names?.of(code) ?? code }))
-    return list.sort((a, b) => (a.code === 'ES' ? -1 : b.code === 'ES' ? 1 : a.name.localeCompare(b.name, locale())))
+    const home = currentCountry()
+    return list.sort((a, b) => (a.code === home ? -1 : b.code === home ? 1 : a.name.localeCompare(b.name, locale())))
   }, [])
 }
 
@@ -23,9 +25,9 @@ export function PhoneField({ label, value, onChange, helperText, error }: {
   label: string; value: string; onChange: (value: string) => void; helperText?: string; error?: boolean
 }) {
   const countries = useCountries()
-  const [country, setCountry] = useState(() => splitPhone(value).country)
+  const [country, setCountry] = useState(() => splitPhone(value, currentCountry()).country)
   // What's typed, spaces and all; follows the value when it changes from outside (Cancel).
-  const [typed, setTyped] = useState(() => splitPhone(value).number)
+  const [typed, setTyped] = useState(() => splitPhone(value, currentCountry()).number)
   const number = joinPhone(country, typed) === value ? typed : splitPhone(value, country).number
   const picked = countries.find(c => c.code === country) ?? countries[0]
   return (

@@ -3,8 +3,8 @@
 // colours and fonts the page really shows, and its logo, even on a site built in the browser); the
 // page's own HTML is read either way, for its structured data and links, and on its own when there's
 // no key or Firecrawl can't help. The logo and icon are fetched here and handed back as data: URLs,
-// the way the Brand page keeps them. A site read in the last hour is answered from the cache, so
-// asking again costs no Firecrawl credit. Nothing is saved: the guide saves what the owner ticks.
+// the way the Brand page keeps them. A site read in the last day is answered from the cache, so
+// asking again costs no Firecrawl credit (one a look-up; the live tests ask once a deploy). Nothing is saved: the guide saves what the owner ticks.
 import { Hono } from 'hono'
 import { bearer, type Env } from './supabase'
 import { signInCheck } from './signedIn'
@@ -17,7 +17,8 @@ const AGENT = 'Mozilla/5.0 (compatible; BusinessAgentSetup/1.0; +https://busines
 const MAX_HTML = 3 * 1024 * 1024
 /** Bytes: as base64 it stays under the Brand page's 700,000 characters. */
 const MAX_IMAGE = 450_000
-const CACHE_SECONDS = 3600
+/** A brand doesn't change by the hour, and Firecrawl is asked for a copy up to a day old too. */
+const CACHE_SECONDS = 86_400
 const FIRECRAWL = 'https://api.firecrawl.dev/v2/scrape'
 
 export class LookupError extends Error {}

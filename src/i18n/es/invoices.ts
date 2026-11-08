@@ -26,7 +26,7 @@ export default {
   'Invoices sent': 'Facturas emitidas',
   'Invoices': 'Facturas',
   'Loading…': 'Cargando…',
-  'Net plus IVA when left empty': 'Base más IVA si se deja vacío',
+  'Net plus VAT when left empty': 'Base más IVA si se deja vacío',
   'Net': 'Base',
   'No date yet': 'Sin fecha aún',
   'No invoices here yet.': 'Aún no hay facturas aquí.',

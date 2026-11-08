@@ -89,6 +89,9 @@ export function TermsPage() {
       <P>
         {tr('The business can stop using {service} and close its account at any time by writing to {support}. We may suspend or close an account that breaks these terms or puts the service or other users at risk; where we reasonably can, we will warn the business first and give it the chance to export its data.', { service, support })}
       </P>
+      <P>
+        {t('An account owner can also close the account on the Billing page. It closes 30 days after they ask; until then everything works as before and an owner can keep it. Its paid plan stops renewing straight away, so nothing more is charged, and what has been paid is not refunded. Once it has closed, we delete its data within 30 days, except what the law requires us to keep. Owners can download all of the business’s data, as CSV files, from the same page at any time.')}
+      </P>
 
       <H>{t('11. Intellectual property')}</H>
       <P>

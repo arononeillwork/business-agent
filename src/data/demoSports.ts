@@ -24,6 +24,12 @@ export function demoSports(from: string): { competitions: SportsCompetition[]; e
     comp('rugby-champions-cup', 'Champions Cup', 'rugby', 'Europe', 'cup', 76),
     comp('ufc', 'UFC', 'ufc', 'Fights', 'fight', 90),
     comp('boxing', 'Boxing', 'boxing', 'Fights', 'fight', 91),
+    // GAA, as the `ireland_screens` migration adds it: not followed until someone picks it.
+    comp('gaa-football-championship', 'All-Ireland Senior Football Championship', 'gaa', 'Ireland', 'cup', 100, false),
+    comp('gaa-hurling-championship', 'All-Ireland Senior Hurling Championship', 'gaa', 'Ireland', 'cup', 101, false),
+    comp('gaa-football-league', 'National Football League Division 1', 'gaa', 'Ireland', 'league', 102, false),
+    comp('gaa-hurling-league-1a', 'National Hurling League Division 1A', 'gaa', 'Ireland', 'league', 103, false),
+    comp('gaa-hurling-league-1b', 'National Hurling League Division 1B', 'gaa', 'Ireland', 'league', 104, false),
   ]
   const byCode = new Map(competitions.map(c => [c.code, c]))
   let n = 0

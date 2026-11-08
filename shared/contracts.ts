@@ -3,10 +3,13 @@
 // hours a week, the gross salary, the collective agreement (convenio) and the job (grupo profesional).
 // The salary is kept apart from the rest (the `employment_contracts` migration), so a shop manager runs
 // the contracts without seeing pay. Admins add, change and end them; everyone sees their own.
+// A business in Ireland has Ireland's kinds instead (IRISH_CONTRACT_KINDS) and no convenio.
 import { msg } from './i18n'
+import { currentCountry, type Country } from './country'
 
 export type ContractKind =
   | 'indefinido' | 'indefinido_parcial' | 'fijo_discontinuo' | 'temporal_produccion' | 'temporal_sustitucion' | 'formativo' | 'autonomo'
+  | 'permanent' | 'permanent_part_time' | 'fixed_term' | 'specified_purpose' | 'casual'
 
 /** The kinds of contract Spanish law has (since the 2022 labour reform), and working as a freelancer. */
 export const CONTRACT_KINDS: { id: ContractKind; label: string; summary: string; temporary: boolean }[] = [
@@ -25,7 +28,28 @@ export const CONTRACT_KINDS: { id: ContractKind; label: string; summary: string;
   { id: 'autonomo', label: msg('Freelance (autónomo)'), temporary: false,
     summary: msg('Not an employee: works for the business on their own account and invoices it.') },
 ]
-export const contractKind = (id: ContractKind) => CONTRACT_KINDS.find(k => k.id === id) ?? CONTRACT_KINDS[0]
+/**
+ * The kinds of contract in Ireland: permanent, full or part time; fixed-term and specified-purpose (the
+ * Protection of Employees (Fixed-Term Work) Act 2003); and casual work. None of them is freelance.
+ */
+export const IRISH_CONTRACT_KINDS: typeof CONTRACT_KINDS = [
+  { id: 'permanent', label: msg('Permanent full-time'), temporary: false,
+    summary: msg('No end date, for full-time hours.') },
+  { id: 'permanent_part_time', label: msg('Permanent part-time'), temporary: false,
+    summary: msg('No end date, for fewer hours than full-time. The hours a week go in the contract; pay and holidays are pro rata.') },
+  { id: 'fixed_term', label: msg('Fixed-term'), temporary: true,
+    summary: msg('Ends on a set date. Treated no less well than someone permanent; fixed-term contracts renewed past 4 years in all usually become permanent.') },
+  { id: 'specified_purpose', label: msg('Specified-purpose'), temporary: true,
+    summary: msg('Ends when a task is done or something happens, such as cover until someone comes back from leave. Say in the contract what ends it.') },
+  { id: 'casual', label: msg('Casual'), temporary: false,
+    summary: msg('Works as and when there are hours, with no set hours a week. Still gets a written statement, the minimum wage, breaks and paid holidays.') },
+]
+const ALL_KINDS = [...CONTRACT_KINDS, ...IRISH_CONTRACT_KINDS]
+/** The kinds of contract to choose from where the business is. */
+export const contractKinds = (country: Country = currentCountry()) => (country === 'IE' ? IRISH_CONTRACT_KINDS : CONTRACT_KINDS)
+/** The kind a new contract starts as: permanent. */
+export const defaultContractKind = (country: Country = currentCountry()): ContractKind => (country === 'IE' ? 'permanent' : 'indefinido')
+export const contractKind = (id: ContractKind) => ALL_KINDS.find(k => k.id === id) ?? CONTRACT_KINDS[0]
 
 /** How the gross salary is given: an hour, a month or a year. */
 export type SalaryPer = 'hour' | 'month' | 'year'
@@ -156,7 +180,7 @@ export const CONTRACT_LIMITS = { hours: 80, convenio: 200, jobTitle: 120, notes:
 /** What's wrong with a contract before it's saved (the database says the same), or null. */
 export function contractProblem(c: EmploymentContractInput & { profile_id?: string; starts_on?: string }): string | null {
   if (!c.profile_id) return msg('Choose whose contract it is')
-  if (!c.kind || !CONTRACT_KINDS.some(k => k.id === c.kind)) return msg('Choose the type of contract')
+  if (!c.kind || !ALL_KINDS.some(k => k.id === c.kind)) return msg('Choose the type of contract')
   if (!c.starts_on) return msg('Say when it starts')
   if (c.ends_on && c.ends_on < c.starts_on) return msg('It can’t end before it starts')
   if (c.trial_ends_on && c.trial_ends_on < c.starts_on) return msg('The trial period can’t end before the contract starts')

@@ -1,9 +1,9 @@
 import { createTheme } from '@mui/material/styles'
 
-// Easy Beans brand (Brand guidelines, Edition 01, April 2026, p.13–14).
-// Five colours: Rose Pink leads, Grey Limewash holds everything together, Rose Wash, Ube Lilac and
-// Matcha Green come in one at a time. Cream and white are the bases. Poppins for display,
-// Figtree for text.
+// The Business Agent's palette (it began as the founding café's brand guidelines). Five colours: Rose
+// Pink leads, Grey Limewash holds everything together, Rose Wash, Ube Lilac and Matcha Green come in one
+// at a time. Cream and white are the bases. Poppins for display, Figtree for text. A business with a main
+// colour of its own (Brand page) gets that as the accent in place of the rose (src/app/BrandAccent.tsx).
 export const brand = {
   rosePink: '#F79BA4',     // primary: headlines accents, buttons, the logo circle
   roseDeep: '#A85A68',     // the deep step of Rose Pink, for pink text on light grounds
@@ -167,7 +167,7 @@ export const theme = createTheme({
       },
       variants: [
         { props: { variant: 'contained', color: 'primary' },
-          style: { backgroundColor: brand.rosePink, color: '#2B2522', fontWeight: 500, '&:hover': { backgroundColor: '#F28893' } } },
+          style: { backgroundColor: tokens.rose, color: 'var(--eb-on-rose, #2B2522)', fontWeight: 500, '&:hover': { backgroundColor: tokens.roseHover } } },
       ],
     },
     MuiIconButton: { styleOverrides: { root: { borderRadius: 12 } } },
@@ -198,7 +198,7 @@ export const theme = createTheme({
     MuiRadio: { styleOverrides: { root: { '&.Mui-checked': { color: tokens.roseDeep } } } },
     MuiSwitch: {
       styleOverrides: {
-        switchBase: { '&.Mui-checked': { color: tokens.roseDeep, '& + .MuiSwitch-track': { backgroundColor: brand.rosePink, opacity: 1 } } },
+        switchBase: { '&.Mui-checked': { color: tokens.roseDeep, '& + .MuiSwitch-track': { backgroundColor: tokens.rose, opacity: 1 } } },
       },
     },
     MuiChip: { styleOverrides: { root: { borderRadius: 999, fontWeight: 500, fontSize: '0.78rem' }, sizeSmall: { height: 22 } } },

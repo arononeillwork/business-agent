@@ -15,7 +15,7 @@ export default {
   'Takings and team costs show to the business’s admins only, so here you see the costs and one-off lines.':
     'Las ventas y el coste del equipo solo los ven los administradores del negocio, así que aquí ves los gastos y las partidas puntuales.',
   'Income': 'Ingresos',
-  '{amount} with IVA from the till': '{amount} con IVA de la caja',
+  '{amount} with VAT from the till': '{amount} con IVA de la caja',
   'Gross profit': 'Margen bruto',
   '{percent} margin': 'margen del {percent}',
   'Operating profit': 'Resultado de explotación',
@@ -27,8 +27,8 @@ export default {
   'Same months last year': 'Mismos meses del año pasado',
   'Part of the month': 'Parte del mes',
   'Last year': 'Año pasado',
-  'An estimate from the app’s own figures (the till, Finances, timecards and the rota), to run the business by. The accounts your gestoría files are the official ones.':
-    'Una estimación con los datos de la app (la caja, Finanzas, los fichajes y el cuadrante) para llevar el negocio. Las cuentas oficiales son las que presenta tu gestoría.',
+  'An estimate from the app’s own figures (the till, Finances, timecards and the rota), to run the business by. The accounts your {adviser} files are the official ones.':
+    'Una estimación con los datos de la app (la caja, Finanzas, los fichajes y el cuadrante) para llevar el negocio. Las cuentas oficiales son las que presenta tu {adviser}.',
   '* Part of the month: this month so far, or the month the business opened.': '* Parte del mes: este mes hasta hoy, o el mes en que abrió el negocio.',
   'One-off income and costs': 'Ingresos y gastos puntuales',
   'Add a line': 'Añadir partida',
@@ -45,11 +45,11 @@ export default {
   'For example a grant paid out': 'Por ejemplo, una subvención cobrada',
   'For example Grinder repair': 'Por ejemplo, reparación del molino',
   'Stock and Supplies count as cost of sales; People as the team.': 'Existencias y Consumibles cuentan como coste de ventas; Personal, como el equipo.',
-  'Without IVA': 'Sin IVA',
-  'IVA is between 0% and 30%': 'El IVA va del 0% al 30%',
+  'Without VAT': 'Sin IVA',
+  'VAT is between 0% and 30%': 'El IVA va del 0% al 30%',
   'Social Security is between 0% and 60%': 'La Seguridad Social va del 0% al 60%',
   'How the figures are worked out': 'Cómo se calculan las cifras',
-  'IVA in the takings': 'IVA incluido en las ventas',
+  'VAT in the takings': 'IVA incluido en las ventas',
   '10% for food and drink served in a café': '10% para comida y bebida servida en una cafetería',
   'Employer’s Social Security on pay': 'Seguridad Social de la empresa sobre los sueldos',
   'About 31.5% in Spain. The rota and timecards use it too.': 'Alrededor del 31,5% en España. El cuadrante y los fichajes también la usan.',
@@ -59,7 +59,7 @@ export default {
 
   // The statement's lines
   'Margin': 'Margen',
-  'Takings, without IVA': 'Ventas sin IVA',
+  'Takings, without VAT': 'Ventas sin IVA',
   'From the till, less refunds': 'De la caja, menos devoluciones',
   'Total income': 'Total ingresos',
   'From Finances': 'De Finanzas',

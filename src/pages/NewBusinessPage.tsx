@@ -19,6 +19,9 @@ import { BackToBusinesses } from '../components/BusinessSwitcher'
 import { AgentMark, BA, Wordmark, display, glow, outlineBtn, primaryBtn } from './marketing/site'
 import { TRIAL_MONTHS } from './marketing/plans'
 import { msg, t, tr } from '../i18n'
+import { COUNTRIES, COUNTRY_CODES, countryFromTimeZone, type Country } from '../../shared/country'
+import type { SpanishRegion } from '../../shared/regions'
+import { RegionField } from '../components/RegionField'
 
 type Kind = 'cafe' | 'restaurant' | 'pub' | 'salon' | 'real_estate' | 'other'
 const KINDS: { kind: Kind; name: string; icon: ReactNode }[] = [
@@ -51,8 +54,13 @@ export function NewBusinessPage() {
   const navigate = useNavigate()
   const [name, setName] = useState('')
   const [kind, setKind] = useState<Kind | null>(null)
-  const [zone, setZone] = useState(ownZone)
-  const zones = useMemo(() => timeZones(ownZone()), [])
+  // Spain or Ireland: its rules, holidays and VAT follow it. A guess from the device's time zone to start.
+  const [country, setCountryChoice] = useState<Country>(() => countryFromTimeZone(ownZone()))
+  const [zone, setZone] = useState(() => (countryFromTimeZone(ownZone()) === 'IE' ? 'Europe/Dublin' : ownZone() === 'Atlantic/Canary' ? 'Atlantic/Canary' : 'Europe/Madrid'))
+  const zones = useMemo(() => timeZones(COUNTRIES[country].timezone).filter(z => country === 'IE' ? z === 'Europe/Dublin' : z !== 'Europe/Dublin'), [country])
+  const pickCountry = (c: Country) => { setCountryChoice(c); setZone(COUNTRIES[c].timezone) }
+  // In Spain, its region: its own public holidays too. Can be left for later (Business page).
+  const [region, setRegion] = useState<SpanishRegion | null>(null)
   // A code from a Business Agent rep or another business: kept from their link, or typed in.
   const [code, setCode] = useState(() => keptReferral() ?? '')
   const clean = cleanCode(code)
@@ -79,7 +87,8 @@ export function NewBusinessPage() {
   const create = (e: FormEvent) => {
     e.preventDefault()
     void run(async () => {
-      await api.createBusiness({ name: name.trim(), kind, timezone: zone, referral: known ? clean : null })
+      await api.createBusiness({ name: name.trim(), kind, timezone: zone, referral: known ? clean : null, country,
+        region: country === 'ES' ? region : null })
       forgetReferral()
       startGuide(kind)
       navigate('/setup', { replace: true })
@@ -114,6 +123,33 @@ export function NewBusinessPage() {
 
           <TextField label={t('Business name')} value={name} onChange={e => setName(e.target.value)} required autoFocus
             slotProps={{ htmlInput: { maxLength: 120 } }} />
+
+          <Box role="group" aria-labelledby="new-business-country">
+            <Typography id="new-business-country" variant="subtitle2" sx={{ mb: 1 }}>{t('Where is it?')}</Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.25 }}>
+              {COUNTRY_CODES.map(c => {
+                const on = country === c
+                return (
+                  <ButtonBase key={c} aria-pressed={on} onClick={() => pickCountry(c)}
+                    sx={{ justifyContent: 'flex-start', gap: 1.25, p: 1.5, borderRadius: '14px', textAlign: 'left',
+                      border: `2px solid ${on ? BA.roseDeep : BA.line}`, bgcolor: on ? BA.roseSoft : BA.card }}>
+                    <Box aria-hidden sx={{ fontSize: '1.5rem', lineHeight: 1 }}>{c === 'ES' ? '🇪🇸' : '🇮🇪'}</Box>
+                    <Typography sx={{ flex: 1, fontWeight: 500 }}>{t(COUNTRIES[c].name)}</Typography>
+                    {on && <CheckIcon sx={{ color: BA.roseDeep }} />}
+                  </ButtonBase>
+                )
+              })}
+            </Box>
+            <Typography variant="body2" sx={{ color: BA.soft, mt: 1 }}>
+              {country === 'IE'
+                ? t('Irish working-time rules, bank holidays and VAT rates, in Dublin time.')
+                : t('Spanish working-time rules, public holidays and IVA rates, and the registro de jornada.')}
+            </Typography>
+          </Box>
+
+          {country === 'ES' && (
+            <RegionField value={region} onChange={setRegion} helperText={t('Optional: its own public holidays go on your calendar too. You can add it later.')} />
+          )}
 
           <Box role="group" aria-labelledby="new-business-kind">
             <Typography id="new-business-kind" variant="subtitle2" sx={{ mb: 1 }}>{t('What kind of business is it?')}</Typography>

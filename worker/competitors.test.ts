@@ -49,7 +49,7 @@ beforeEach(() => {
   db.people.set('admin-token', { id: 'u-admin', role: 'admin' })
   db.people.set('staff-token', { id: 'u-staff', role: 'employee' })
   db.tables.profiles = [{ id: 'u-admin', role: 'admin', active: true }, { id: 'u-admin2', role: 'admin', active: true }, { id: 'u-staff', role: 'employee', active: true }]
-  db.table('business')[0] = { id: 1, name: 'Easy Beans Coffee', address: 'C. Pizarro, 8, 29670 San Pedro de Alcántara', opening_hours: {} }
+  db.table('business')[0] = { id: 1, name: 'Easy Beans Coffee', business_type: 'Specialty café, drinks-first, owner-run', address: 'C. Pizarro, 8, 29670 San Pedro de Alcántara', opening_hours: {} }
   db.tables.competitors = [{ id: 'self', is_self: true, name: 'Easy Beans Coffee', kind: 'specialty', threat: null, place_id: null, lat: null, lng: null,
     active: true, features: {}, google_features: {}, google_status: null, google_checked_at: null, address: null, website: null, maps_url: null }]
   db.tables.competitor_settings = [{ id: 1, radius_m: 1000, scan_weekly: true, scanned_at: null }]
@@ -102,7 +102,27 @@ describe('Competitors: Google', () => {
     expect(nearby.path).toBe('/v1/places:searchNearby')
     expect(nearby.body).toMatchObject({ rankPreference: 'DISTANCE', maxResultCount: 20, locationRestriction: { circle: { radius: 500 } } })
     expect(nearby.fields).not.toMatch(/outdoorSeating|regularOpeningHours|reviews/)
+    expect((nearby.body as { includedTypes: string[] }).includedTypes).toEqual(expect.arrayContaining(['cafe', 'coffee_shop']))
     expect(notified()).toEqual([]) // the first look finds what was always there
+  })
+
+  it('looks for places like the business: salons around a salon, estate agencies around an agency', async () => {
+    db.table('business')[0].business_type = 'Salon & beauty'
+    await post('/api/competitors/look', { radius_m: 500 })
+    db.table('business')[0].business_type = 'Real estate agency'
+    await post('/api/competitors/look', { radius_m: 500 })
+    const [salon, agency] = apis.places.searches.filter(x => x.path === '/v1/places:searchNearby').map(x => (x.body as { includedTypes: string[] }).includedTypes)
+    expect(salon).toEqual(expect.arrayContaining(['beauty_salon', 'hair_salon', 'barber_shop']))
+    expect(salon).not.toContain('cafe')
+    expect(agency).toEqual(['real_estate_agency'])
+  })
+
+  it('a business of another kind looks for places of its own type on Google', async () => {
+    db.table('business')[0].business_type = 'Bike repairs'
+    apis.places.own = { ...apis.places.own, primaryType: 'bicycle_store' }
+    await post('/api/competitors/look', { radius_m: 500 })
+    const nearby = apis.places.searches.find(x => x.path === '/v1/places:searchNearby')
+    expect((nearby?.body as { includedTypes: string[] }).includedTypes).toEqual(['bicycle_store'])
   })
 
   it('the weekly look tells every admin about a new place nearby, once; not one that was always there just further out, nor one followed', async () => {

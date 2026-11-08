@@ -16,12 +16,13 @@ import { ExportButton } from '../components/tables'
 import type { ExportTable } from '../lib/export'
 import { formatLocal, formatMoney, today } from '../../shared/time'
 import {
-  CAFE_PRESETS, LICENCE_CATEGORIES, STATUS_LABEL, daysUntil, renewalLabel, renewedUntil, statusOf, yearlyCost,
+  licencePresets, LICENCE_CATEGORIES, STATUS_LABEL, daysUntil, renewalLabel, renewedUntil, statusOf, yearlyCost,
   type Licence, type LicenceInput, type LicencePreset, type LicenceStatus,
 } from '../../shared/licences'
 import { taxFileProblem } from '../../shared/tax'
 import { tokens } from '../theme'
 import { t, tn } from '../i18n'
+import { currentCountry } from '../../shared/country'
 
 const day = (d: string | null) => (d ? formatLocal(`${d}T12:00:00Z`, 'd MMM yyyy') : '')
 const renewal = (months: number | null) => t(renewalLabel(months), { n: months ?? 0 })
@@ -60,7 +61,7 @@ export function LicencesPage({ tabs }: { tabs?: ReactNode }) {
   const soon = active.filter(l => statusOf(l, now) === 'due')
   const next = active.filter(l => l.expires_on && l.expires_on >= now).sort((a, b) => a.expires_on!.localeCompare(b.expires_on!))[0]
   const added = new Set(all.map(l => l.name.toLowerCase()))
-  const missing = CAFE_PRESETS.filter(p => !added.has(p.name.toLowerCase()))
+  const missing = licencePresets(currentCountry()).filter(p => !added.has(p.name.toLowerCase()))
 
   const renew = (l: Licence) => run(() => api.saveLicence({ id: l.id, name: l.name, expires_on: renewedUntil(l, now) }),
     t('Renewed until {date}', { date: day(renewedUntil(l, now)) }))
@@ -154,7 +155,9 @@ export function LicencesPage({ tabs }: { tabs?: ReactNode }) {
           <CardContent>
             <SectionTitle>{t('Usual for a café')}</SectionTitle>
             <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-              {t('What a café or bar in Spain usually needs. What applies, and how often, depends on the town hall and the business: check with your gestoría.')}
+              {currentCountry() === 'IE'
+                ? t('What a café or bar in Ireland usually needs. What applies, and how often, depends on the council and the business: check with your accountant or solicitor.')
+                : t('What a café or bar in Spain usually needs. What applies, and how often, depends on the town hall and the business: check with your gestoría.')}
             </Typography>
             <Stack spacing={1}>
               {missing.map(p => (

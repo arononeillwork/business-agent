@@ -8,6 +8,7 @@ import FootballIcon from '@mui/icons-material/SportsSoccerOutlined'
 import RugbyIcon from '@mui/icons-material/SportsRugbyOutlined'
 import FightIcon from '@mui/icons-material/SportsMmaOutlined'
 import BoxingIcon from '@mui/icons-material/SportsKabaddiOutlined'
+import GaaIcon from '@mui/icons-material/SportsOutlined'
 import TvIcon from '@mui/icons-material/LiveTvOutlined'
 import PlaceIcon from '@mui/icons-material/PlaceOutlined'
 import StarIcon from '@mui/icons-material/StarRounded'
@@ -23,12 +24,15 @@ import type { Sport, SportsCompetition, SportsEvent, SportsFavourite } from '../
 import { fonts, tokens } from '../theme'
 import { EventAlertButton } from '../components/NotificationBell'
 import { msg, t } from '../i18n'
+import { currentCountry } from '../../shared/country'
 
 const DAYS = 21
 
 /** The sport chips along the top (only sports with a followed competition show). */
 type SportFilter = 'all' | Sport
 const SPORT_ORDER: Sport[] = ['football', 'rugby', 'ufc', 'boxing']
+/** GAA where the business is: first in Ireland, after the rest elsewhere. */
+const sportOrder = (): Sport[] => (currentCountry() === 'IE' ? ['gaa', ...SPORT_ORDER] : [...SPORT_ORDER, 'gaa'])
 /** Football's second row: national teams, or one country's (or Europe's) competitions. */
 type Area = 'all' | 'national' | string
 
@@ -36,7 +40,7 @@ type Area = 'all' | 'national' | string
 const REGION: Record<string, string> = {
   'National teams': msg('National teams'), Spain: msg('Spain'), England: msg('England'), Scotland: msg('Scotland'),
   Netherlands: msg('Netherlands'), Germany: msg('Germany'), Italy: msg('Italy'), France: msg('France'), Portugal: msg('Portugal'),
-  Europe: msg('Europe'), Fights: msg('Fights'),
+  Europe: msg('Europe'), Fights: msg('Fights'), Ireland: msg('Ireland'),
 }
 const regionName = (r: string) => (REGION[r] ? t(REGION[r]) : r)
 
@@ -45,6 +49,7 @@ const SPORT: Record<Sport, { icon: ReactNode; fg: string; bg: string; label: str
   rugby: { icon: <RugbyIcon fontSize="small" />, fg: tokens.infoFg, bg: tokens.infoBg, label: msg('Rugby') },
   ufc: { icon: <FightIcon fontSize="small" />, fg: tokens.danger, bg: tokens.dangerSoft, label: 'UFC' },
   boxing: { icon: <BoxingIcon fontSize="small" />, fg: tokens.ubeDeep, bg: tokens.ubeSoft, label: msg('Boxing') },
+  gaa: { icon: <GaaIcon fontSize="small" />, fg: tokens.goodFg, bg: tokens.goodBg, label: 'GAA' },
 }
 
 const ago = (iso: string | null) => {
@@ -69,7 +74,8 @@ function SportsOff() {
         <CardContent>
           <Typography variant="h6" component="h2" sx={{ mb: 0.5 }}>{t('Sports is off')}</Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            {t('Football, rugby, UFC and boxing fixtures and big nights on Today are hidden, and nothing is fetched.')}
+            {currentCountry() === 'IE' ? t('GAA, football, rugby, UFC and boxing fixtures and big nights on Today are hidden, and nothing is fetched.')
+              : t('Football, rugby, UFC and boxing fixtures and big nights on Today are hidden, and nothing is fetched.')}
             {' '}{isAdmin ? t('Turn it back on with the switch above.') : t('An admin can turn it back on.')}
           </Typography>
         </CardContent>
@@ -97,12 +103,14 @@ function SportsSwitch({ on }: { on: boolean }) {
         <DialogTitle>{t('Turn on Sports?')}</DialogTitle>
         <DialogContent>
           <Typography variant="body2" sx={{ mb: 2 }}>
-            {t('Shows upcoming football, rugby, UFC and boxing, and big nights on Today, for the whole team. Fixtures update automatically every 6 hours.')}
+            {currentCountry() === 'IE' ? t('Shows upcoming GAA, football, rugby, UFC and boxing, and big nights on Today, for the whole team. Fixtures update automatically every 6 hours.')
+              : t('Shows upcoming football, rugby, UFC and boxing, and big nights on Today, for the whole team. Fixtures update automatically every 6 hours.')}
           </Typography>
-          <Alert severity="warning">
+          {/* Spain's internet providers block Cloudflare during LaLiga matches; Ireland's don't. */}
+          {currentCountry() !== 'IE' && <Alert severity="warning">
             <AlertTitle>{t('On match days')}</AlertTitle>
             {t("During LaLiga matches, Movistar, Vodafone, Orange, DIGI and Masmovil block large parts of Cloudflare, where this app runs, so the app may not load on those connections while a match is on. That happens whether Sports is on or off. If it won't load, use the free 1.1.1.1 app (WARP) or mobile data from another provider.")}
-          </Alert>
+          </Alert>}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5 }}>
           <Button onClick={() => setAsking(false)}>{t('Cancel')}</Button>
@@ -148,7 +156,7 @@ function Fixtures() {
 
   const comps = useMemo(() => new Map((data.data?.competitions ?? []).map(c => [c.code, c])), [data.data])
   const followed = (data.data?.competitions ?? []).filter(c => c.followed)
-  const sports = SPORT_ORDER.filter(s => followed.some(c => c.sport === s))
+  const sports = sportOrder().filter(s => followed.some(c => c.sport === s))
   // Football's areas, in catalogue order: national teams first, then each country, then Europe.
   const football = followed.filter(c => c.sport === 'football').sort((a, b) => a.sort - b.sort)
   const areas: Area[] = [
@@ -400,7 +408,7 @@ function EventCard({ e, c, fav, onFav }: { e: SportsEvent; c: SportsCompetition;
           </Typography>
           {e.time_tbc && e.status === 'scheduled' && (
             <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.25 }}>
-              {e.sport === 'football' || e.sport === 'rugby' ? t('kick-off') : t('start time')}
+              {e.sport === 'football' || e.sport === 'rugby' ? t('kick-off') : e.sport === 'gaa' ? t('throw-in') : t('start time')}
             </Typography>
           )}
           {e.status !== 'scheduled' && (
@@ -416,6 +424,7 @@ function EventCard({ e, c, fav, onFav }: { e: SportsEvent; c: SportsCompetition;
           <Star on={compFav} name={c.name} size={16} onClick={() => onFav({ kind: 'competition', ref: c.code }, !compFav, c.name)} />
           {e.round && e.sport === 'football' && Number(e.round) < 60 && <Tag>{t('Matchday {n}', { n: e.round })}</Tag>}
           {e.round && e.sport === 'rugby' && Number(e.round) < 60 && <Tag>{t('Round {n}', { n: e.round })}</Tag>}
+          {e.round && e.sport === 'gaa' && Number(e.round) < 20 && <Tag>{t('Round {n}', { n: e.round })}</Tag>}
           {e.big && <Tag fg={tokens.warnFg} bg={tokens.warnBg}>{t('Big night')}</Tag>}
         </Stack>
         {teams ? (
@@ -455,8 +464,8 @@ function EventCard({ e, c, fav, onFav }: { e: SportsEvent; c: SportsCompetition;
 function CompetitionsDialog({ competitions, onClose }: { competitions: SportsCompetition[]; onClose: () => void }) {
   const { api } = useApp()
   const run = useAction()
-  // By sport, then by region (Spain, England, National teams…) within it; the fights together.
-  const groups = (['football', 'rugby'] as Sport[]).flatMap(s => [...new Set(competitions.filter(c => c.sport === s).map(c => c.region))]
+  // By sport, then by region (Spain, England, National teams…) within it; the fights together. GAA first in Ireland.
+  const groups = sportOrder().filter(s => s !== 'ufc' && s !== 'boxing').flatMap(s => [...new Set(competitions.filter(c => c.sport === s).map(c => c.region))]
     .map(r => ({ key: `${s}:${r}`, title: `${t(SPORT[s].label)} · ${regionName(r)}`, list: competitions.filter(c => c.sport === s && c.region === r) })))
   const fights = competitions.filter(c => c.kind === 'fight')
   if (fights.length) groups.push({ key: 'fights', title: regionName('Fights'), list: fights })

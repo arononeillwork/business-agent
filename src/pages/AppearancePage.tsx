@@ -13,6 +13,7 @@ import { formatMoneyAs } from '../../shared/time'
 import type { Preferences } from '../../shared/types'
 import { fonts, tokens } from '../theme'
 import { t } from '../i18n'
+import { countryProfile } from '../../shared/country'
 
 /** Each person's own look: theme, text size and accessibility options. Saved to their account. */
 export function AppearancePage() {
@@ -93,7 +94,7 @@ export function AppearancePage() {
                 label={t('Decimal point')} preview={<NumberSample text={formatMoneyAs(1234.5, 'point')} />} />
             </Box>
             <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1.5 }}>
-              {t('How pay, costs and totals are shown to you. Payroll exports for the gestoría always use the Spanish comma.')}
+              {t('How pay, costs and totals are shown to you. Payroll exports for the {adviser} always use the Spanish comma.', { adviser: t(countryProfile().adviser) })}
             </Typography>
           </CardContent>
         </Card>

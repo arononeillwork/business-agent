@@ -2,6 +2,7 @@
 // exported from another app or a spreadsheet (Spanish Excel included) into new customers.
 import { msg } from './i18n'
 import type { Customer, CustomerInput, CustomerSource } from './types'
+import { currentCountry, type Country } from './country'
 
 /** Where people came from, in the order offered. Brand names are the same in every language. */
 export const SOURCES: { key: CustomerSource; label: string }[] = [
@@ -29,10 +30,11 @@ export function matchesSearch(c: Customer, q: string) {
 export const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 
 /**
- * A phone number as saved: "+34 600 000 000". A number without a country code is taken as Spanish;
+ * A phone number as saved: "+34 600 000 000". A number without a country code is taken as the
+ * business's country's (Spain's nine digits; in Ireland, a 0 then up to ten digits, the 0 dropped);
  * 00 in front means a country code follows. Returns null when there's nothing that looks like one.
  */
-export function cleanPhone(raw: string): string | null {
+export function cleanPhone(raw: string, country: Country = currentCountry()): string | null {
   // "(0)" is the UK's trunk zero, not dialled from abroad.
   let v = raw.trim().replace(/\(0\)/g, '').replace(/[().\-/]/g, ' ').replace(/\s+/g, ' ')
   if (v.startsWith('00')) v = `+${v.slice(2)}`
@@ -43,6 +45,12 @@ export function cleanPhone(raw: string): string | null {
     return digits.startsWith('34') && digits.length === 11 ? `+34 ${spaced(digits.slice(2))}` : `+${v.slice(1).replace(/[^\d ]/g, '').trim()}`
   }
   if (digits.startsWith('34') && digits.length === 11) return `+34 ${spaced(digits.slice(2))}`
+  if (country === 'IE') {
+    if (digits.startsWith('353') && digits.length >= 11) return `+353 ${digits.slice(3)}`
+    // 087 123 4567 → +353 87 123 4567; 01 234 5678 → +353 1 234 5678.
+    return digits.startsWith('0') && digits.length >= 9 && digits.length <= 10
+      ? `+353 ${digits.slice(1).replace(/^(8\d)(\d{3})(\d{4})$/, '$1 $2 $3')}` : null
+  }
   return digits.length === 9 ? `+34 ${spaced(digits)}` : null
 }
 const spaced = (nine: string) => nine.replace(/^(\d{3})(\d{3})(\d{3})$/, '$1 $2 $3')

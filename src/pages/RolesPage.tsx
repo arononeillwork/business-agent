@@ -26,6 +26,7 @@ import {
 import { ROLE_CATEGORIES, categoryOf, type RoleCategory } from '../../shared/roleTemplates'
 import { tokens } from '../theme'
 import { t, tc, tn } from '../i18n'
+import { countryProfile } from '../../shared/country'
 import { AgentsTab } from './RolesAgentsTab'
 import { OwnershipTab } from './RolesOwnershipTab'
 
@@ -34,7 +35,7 @@ function fromPreset(p: RolePreset, positions: Position[], roles: JobRole[], sort
   const lead = p.reportsTo ? roles.find(r => r.name.toLowerCase() === t(p.reportsTo!).toLowerCase()) : undefined
   return {
     name: t(p.name), summary: t(p.summary), position_id: presetPosition(p, positions), reports_to: lead?.id ?? null,
-    duties: p.duties.map(d => ({ when: d.when, text: t(d.text) })), sort, permissions: tidyPermissions(p.permissions), template: p.id ?? null,
+    duties: p.duties.map(d => ({ when: d.when, text: t(d.text, { adviser: t(countryProfile().adviser) }) })), sort, permissions: tidyPermissions(p.permissions), template: p.id ?? null,
   }
 }
 

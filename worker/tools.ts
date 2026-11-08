@@ -4,10 +4,9 @@
 import { z } from 'zod'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { shiftPaidMinutes, shiftWarnings } from '../shared/rules'
-import { addDays, localDate, localTime, today, weekStart, zonedIso, formatLocal } from '../shared/time'
+import { addDays, isTimeZone, localDate, localTime, today, weekStart, zonedIso, formatLocal } from '../shared/time'
 import { TIME_OFF_KINDS, type Business, type CalendarEvent, type Customer, type PartnerArea, type PayRate, type Position, type Profile, type Settings, type Shift, type TimeOff, type TimeOffKind } from '../shared/types'
 import { COUNTRY_NAME, ENTITLEMENTS, LAW_CHECKED, PAYER_LABEL, leaveYear, type Benefit, type LeaveAllowance } from '../shared/benefits'
-import { businessConfig } from '../shared/business.config'
 import { dutiesByWhen, sortRoles, type JobRole } from '../shared/roles'
 import { readState, rulesChangedAt, sortSections, type RuleSection, type RulesRead } from '../shared/staffRules'
 import { TEAM_ROLE_IDS, roleBlock, roleChange, teamRole, teamRoleOf } from '../shared/teamRoles'
@@ -234,11 +233,12 @@ export const ALL_TOOLS: ToolDef[] = [
     input: z.object({}),
     readOnly: true,
     async run({ sb, me }) {
-      const b = check(await sb.from('business').select('name, timezone').single())
+      const b = check(await sb.from('business').select('name, timezone, country').single()) as { name: string; timezone: string; country?: string }
       return { name: me.full_name, email: me.email, role: me.role, ...(teamRole(me) ? { team_role: teamRole(me) } : {}), can_see_pay: me.can_see_pay, business: b.name,
         ...(me.role === 'partner' ? { partner_company: me.partner_company, partner_can_see: ['business details', ...(me.partner_access ?? [])],
           partner_note: 'Read-only: you can look but not change anything.' } : {}),
-        timezone: b.timezone, today: today(), note: 'Dates are YYYY-MM-DD, times are 24-hour local (Europe/Madrid).' }
+        country: b.country === 'IE' ? 'Ireland' : 'Spain', timezone: b.timezone, today: today(isTimeZone(b.timezone) ? b.timezone : undefined),
+        note: `Dates are YYYY-MM-DD, times are 24-hour local (${b.timezone}).` }
     },
   }),
 
@@ -635,7 +635,8 @@ export const ALL_TOOLS: ToolDef[] = [
         sb.from('time_off').select('*').lte('starts_on', `${year}-12-31`).gte('ends_on', `${year}-01-01`).then(rowsAs<TimeOff[]>()),
         team(sb),
       ])
-      const country = businessConfig.country
+      const { data: where } = await sb.from('business').select('country').maybeSingle()
+      const country = (where as { country?: string } | null)?.country === 'IE' ? 'IE' : 'ES'
       const amountOf = (key: string, law: number | null) => key === 'holidays' ? settings.vacation_days_per_year : own.find(b => b.law_key === key)?.amount ?? law
       const who = me.role === 'employee' ? [me] : people.filter(p => p.active && (p.role === 'admin' || p.role === 'employee'))
       return {
@@ -899,10 +900,10 @@ export const ALL_TOOLS: ToolDef[] = [
   tool({
     name: 'list_sports_fixtures',
     title: 'Sports fixtures',
-    description: 'Upcoming football (leagues, cups, national teams), rugby, UFC and boxing from the competitions the café follows, in UTC. big = likely a busy night (put it on the TV, plan staff).',
+    description: 'Upcoming football (leagues, cups, national teams), rugby, GAA (gaelic football and hurling), UFC and boxing from the competitions the café follows, in UTC. big = likely a busy night (put it on the TV, plan staff).',
     input: z.object({
       from: z.string().describe('Start date YYYY-MM-DD'), to: z.string().describe('End date YYYY-MM-DD (inclusive)'),
-      sport: z.enum(['football', 'rugby', 'ufc', 'boxing']).optional(), big_only: z.boolean().default(false),
+      sport: z.enum(['football', 'rugby', 'gaa', 'ufc', 'boxing']).optional(), big_only: z.boolean().default(false),
     }),
     readOnly: true,
     async run({ sb }, a) {

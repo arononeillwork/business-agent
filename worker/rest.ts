@@ -26,9 +26,9 @@ export function openApi(origin: string) {
     info: {
       title: 'The Business Agent',
       version: '1.0.0',
-      description: 'The team app for a café: rota, clock-ins (registro de jornada), time off, calendar and business details. ' +
+      description: 'The team app of a business in Spain or Ireland: rota, clock-ins (the working-hours record), time off, calendar and business details. ' +
         'Every call acts as the person whose access key is used, with exactly their permissions; changes are logged. ' +
-        'Dates are YYYY-MM-DD and times 24-hour Europe/Madrid. Call whoami first.',
+        'Dates are YYYY-MM-DD and times 24-hour in the business\'s time zone (whoami says which). Call whoami first.',
     },
     servers: [{ url: `${origin}/api/v1` }],
     security: [{ accessKey: [] }],

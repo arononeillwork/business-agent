@@ -24,10 +24,11 @@ import { downloadBlob, type ExportTable } from '../lib/export'
 import { addDays, formatLocal, formatMoney, today } from '../../shared/time'
 import { EMAIL, decodeCsv } from '../../shared/customers'
 import {
-  COMPETITION_CHANNELS, COMPETITION_KINDS, DEFAULT_RULES, basesLegales, entriesFromCsv, entryProblems, parseComments, phaseOf, suggest, termsSummary, winnerMessage,
+  COMPETITION_CHANNELS, COMPETITION_KINDS, DEFAULT_RULES, basesLegales, entriesFromCsv, entryProblems, irishTerms, parseComments, phaseOf, suggest, termsSummary, winnerMessage,
   type Competition, type CompetitionEntry, type CompetitionIdea, type CompetitionInput, type CompetitionKind, type CompetitionChannel, type EntryInput, type Words,
 } from '../../shared/competitions'
 import type { Business, SocialNetwork } from '../../shared/types'
+import { currentCountry } from '../../shared/country'
 import { tokens } from '../theme'
 import { locale, msg, t, tc, tn } from '../i18n'
 
@@ -62,6 +63,8 @@ const full = (d: Draft) => ({
   how_to_enter: d.how_to_enter ?? [], rules: { ...DEFAULT_RULES, ...d.rules },
 })
 const legal = (b: Business | null) => ({ name: b?.name ?? '', tax_id: b?.tax_id, address: b?.address, email: b?.email, website: b?.website })
+/** A business in Ireland publishes English terms and conditions; one in Spain, the bases legales in Spanish. */
+const inIreland = () => currentCountry() === 'IE'
 
 /**
  * Competitions (Marketing): ideas worked out from the calendar, the quiet days, the big matches and
@@ -100,6 +103,8 @@ export function CompetitionsPage() {
     const d: Draft = { name: say(i.title), kind: i.kind, channels: i.channels, status: 'draft', starts_on: i.starts_on, ends_on: i.ends_on, draw_on: i.draw_on,
       prize: say(i.prize), prize_value: i.prize_value, prize_item_id: i.prize_item_id, winners: 1, reserves: 2, how_to_enter: i.how_to_enter.map(say),
       rules: { ...DEFAULT_RULES, marketing_signup: i.kind === 'email_draw' }, caption: i.caption, caption_es: i.caption_es, steps_es: i.how_to_enter_es }
+    // In Ireland: English terms from the steps and prize as shown, and no Spanish caption.
+    if (inIreland()) return { ...d, caption_es: null, steps_es: undefined, terms: irishTerms(full(d), legal(business)) }
     // The terms are published in Spanish: written from the idea's Spanish steps and prize.
     return { ...d, terms: basesLegales({ ...full(d), prize: i.prize_es, how_to_enter: i.how_to_enter_es }, legal(business)) }
   }
@@ -256,8 +261,10 @@ function CompetitionDialog({ draft, stock, onClose, onSaved }: {
   const rules = { ...DEFAULT_RULES, ...d.rules }
   const problems = entryProblems(full(d))
   const drawn = !!(draft as Competition).drawn_at
-  const termsFile = `Bases legales - ${(d.name || 'competition').replace(/[\\/:*?"<>|]/g, '-')}.txt`
-  const writeTerms = () => set({ terms: basesLegales({ ...full(d), how_to_enter: d.steps_es ?? steps }, legal(business)) })
+  const irish = inIreland()
+  const termsFile = `${irish ? 'Terms and conditions' : 'Bases legales'} - ${(d.name || 'competition').replace(/[\\/:*?"<>|]/g, '-')}.txt`
+  const writeTerms = () => set({ terms: irish ? irishTerms({ ...full(d), how_to_enter: steps }, legal(business))
+    : basesLegales({ ...full(d), how_to_enter: d.steps_es ?? steps }, legal(business)) })
 
   const save = async () => {
     let id = d.id ?? ''
@@ -322,7 +329,7 @@ function CompetitionDialog({ draft, stock, onClose, onSaved }: {
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField label={t('Prize')} value={d.prize ?? ''} onChange={e => set({ prize: e.target.value })} sx={{ flex: 2 }} />
-            <TextField label={t('Worth (each, IVA included)')} type="number" value={d.prize_value ?? ''} onChange={e => set({ prize_value: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })} sx={{ flex: 1 }} />
+            <TextField label={t('Worth (each, VAT included)')} type="number" value={d.prize_value ?? ''} onChange={e => set({ prize_value: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })} sx={{ flex: 1 }} />
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField select label={t('From the stock')} value={d.prize_item_id ?? ''} onChange={e => {
@@ -353,7 +360,7 @@ function CompetitionDialog({ draft, stock, onClose, onSaved }: {
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'center' }, flexWrap: 'wrap' }}>
             <TextField label={t('Minimum age')} type="number" value={rules.min_age} onChange={e => set({ rules: { ...rules, min_age: Math.max(0, Math.min(99, Number(e.target.value) || 0)) } })} sx={{ width: { sm: 140 } }} />
-            <FormControlLabel control={<Switch checked={rules.spain_only} onChange={e => set({ rules: { ...rules, spain_only: e.target.checked } })} />} label={t('Living in Spain only')} />
+            <FormControlLabel control={<Switch checked={rules.spain_only} onChange={e => set({ rules: { ...rules, spain_only: e.target.checked } })} />} label={irish ? t('Living in Ireland only') : t('Living in Spain only')} />
             <FormControlLabel control={<Switch checked={rules.one_entry_per_person} onChange={e => set({ rules: { ...rules, one_entry_per_person: e.target.checked } })} />} label={t('One entry each')} />
             <FormControlLabel control={<Switch checked={rules.marketing_signup} onChange={e => set({ rules: { ...rules, marketing_signup: e.target.checked } })} />} label={t('Entering signs them up for news')} />
           </Stack>
@@ -365,19 +372,22 @@ function CompetitionDialog({ draft, stock, onClose, onSaved }: {
             </Alert>
           )}
 
-          <Box component="section" aria-label={t('Bases legales')}>
+          <Box component="section" aria-label={irish ? t('Terms and conditions') : t('Bases legales')}>
             <SectionTitle action={<Button size="small" onClick={writeTerms}>{d.terms ? t('Write them again from the details') : t('Write the terms from the details')}</Button>}>
-              {t('Bases legales')}
+              {irish ? t('Terms and conditions') : t('Bases legales')}
             </SectionTitle>
             <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
-              {t('The terms a promotion in Spain needs, in Spanish. A careful draft, not legal advice: read them through, and ask your gestoría if anything is unusual.')}
+              {irish ? t('Terms and conditions for a promotion in Ireland, in English. A general draft, not legal advice: read them through and check them against how you run it, and ask your solicitor if anything is unusual.')
+                : t('The terms a promotion in Spain needs, in Spanish. A careful draft, not legal advice: read them through, and ask your gestoría if anything is unusual.')}
             </Typography>
             <TextField label={t('Terms')} value={d.terms ?? ''} onChange={e => set({ terms: e.target.value })} multiline minRows={6} maxRows={18} fullWidth />
             {d.terms && (
               <>
-                <Box component="ul" aria-label={t('What they say')} sx={{ m: 0, mt: 1, pl: 2.5, color: 'text.secondary', typography: 'caption' }}>
-                  {termsSummary(full(d)).map(x => <li key={x.text}>{say(x)}</li>)}
-                </Box>
+                {!irish && (
+                  <Box component="ul" aria-label={t('What they say')} sx={{ m: 0, mt: 1, pl: 2.5, color: 'text.secondary', typography: 'caption' }}>
+                    {termsSummary(full(d)).map(x => <li key={x.text}>{say(x)}</li>)}
+                  </Box>
+                )}
                 <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap', gap: 1 }}>
                   <Button size="small" startIcon={<CopyIcon />} onClick={() => void copy(d.terms!, t('Terms copied'))}>{t('Copy')}</Button>
                   <Button size="small" startIcon={<DownloadIcon />} onClick={() => downloadBlob(termsFile, new Blob([d.terms!], { type: 'text/plain;charset=utf-8' }))}>{t('Download')}</Button>
@@ -390,8 +400,10 @@ function CompetitionDialog({ draft, stock, onClose, onSaved }: {
           <Box component="section" aria-label={t('The post')}>
             <SectionTitle action={<Button size="small" startIcon={<SocialIcon />} onClick={() => void toPlanner()}>{t('Make a Social planner draft')}</Button>}>{t('The post')}</SectionTitle>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-              <TextField label={t('Caption in Spanish')} value={d.caption_es ?? ''} onChange={e => set({ caption_es: e.target.value })} multiline minRows={3} fullWidth
-                helperText={t('{n} of 2,200', { n: (d.caption_es ?? '').length })} />
+              {(!irish || !!d.caption_es) && (
+                <TextField label={t('Caption in Spanish')} value={d.caption_es ?? ''} onChange={e => set({ caption_es: e.target.value })} multiline minRows={3} fullWidth
+                  helperText={t('{n} of 2,200', { n: (d.caption_es ?? '').length })} />
+              )}
               <TextField label={t('Caption in English')} value={d.caption ?? ''} onChange={e => set({ caption: e.target.value })} multiline minRows={3} fullWidth
                 helperText={t('{n} of 2,200', { n: (d.caption ?? '').length })} />
             </Stack>
@@ -494,10 +506,12 @@ function CompetitionDetail({ c, stock, onEdit }: { c: Competition; stock: { id: 
                       <Typography variant="caption" sx={{ color: 'text.secondary' }}>{[e.handle && `@${e.handle}`, e.email, e.phone].filter(Boolean).join(' · ')}</Typography>
                       {!e.valid && <Box><Tag fg={tokens.badFg} bg={tokens.badBg}>{t('Left out')}{e.note ? `: ${e.note}` : ''}</Tag></Box>}
                     </Box>
-                    <Button size="small" startIcon={<CopyIcon />} onClick={() => void copy(winnerMessage(e, c, business?.name ?? '', 'es'))}
+                    <Button size="small" startIcon={<CopyIcon />} onClick={() => void copy(winnerMessage(e, c, business?.name ?? '', inIreland() ? 'en' : 'es'))}
                       aria-label={t('Copy the message for {name}', { name: who(e) })}>{t('Message')}</Button>
-                    <Button size="small" onClick={() => void copy(winnerMessage(e, c, business?.name ?? '', 'en'))}
-                      aria-label={t('Copy the message in English for {name}', { name: who(e) })}>{t('In English')}</Button>
+                    {!inIreland() && (
+                      <Button size="small" onClick={() => void copy(winnerMessage(e, c, business?.name ?? '', 'en'))}
+                        aria-label={t('Copy the message in English for {name}', { name: who(e) })}>{t('In English')}</Button>
+                    )}
                   </Stack>
                 )
               })}

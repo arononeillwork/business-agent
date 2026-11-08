@@ -4,7 +4,15 @@ import { businessConfig } from './business.config'
 import type { DayKey } from './types'
 import { DAY_KEYS } from './types'
 
-export const TZ = businessConfig.timezone
+/**
+ * The business's time zone: shifts, clock-ins and opening hours are in it. The app sets it when the
+ * business loads (setBusinessTimeZone), so a business in Ireland works in Dublin time; the Worker, which
+ * serves every business, passes each one's own where it matters.
+ */
+export let TZ: string = businessConfig.timezone
+export function setBusinessTimeZone(tz: string | null | undefined) {
+  if (isTimeZone(tz)) TZ = tz
+}
 
 /** yyyy-MM-dd of an instant, in business time (or the time zone given). */
 export const localDate = (iso: string | Date, tz = TZ) => formatInTimeZone(iso, tz, 'yyyy-MM-dd')

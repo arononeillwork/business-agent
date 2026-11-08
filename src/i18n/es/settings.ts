@@ -95,7 +95,7 @@ export default {
   'Decimal comma': 'Coma decimal',
   'Numbers: decimal point': 'Números: punto decimal',
   'Decimal point': 'Punto decimal',
-  'How pay, costs and totals are shown to you. Payroll exports for the gestoría always use the Spanish comma.': 'Cómo ves los sueldos, costes y totales. Las exportaciones de nóminas para la gestoría siempre usan la coma española.',
+  'How pay, costs and totals are shown to you. Payroll exports for the {adviser} always use the Spanish comma.': 'Cómo ves los sueldos, costes y totales. Las exportaciones de nóminas para la {adviser} siempre usan la coma española.',
   'Accessibility': 'Accesibilidad',
   'Higher contrast on': 'Más contraste activado',
   'Higher contrast off': 'Más contraste desactivado',

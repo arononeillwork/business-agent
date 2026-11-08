@@ -27,7 +27,7 @@ export default {
   'The till says {amount}': 'La caja dice {amount}',
   'Their share': 'Su parte',
   'Tips for {period}': 'Propinas de {period}',
-  'Tips paid through payroll are taxed like pay: ask your gestoría how yours are handled.': 'Las propinas pagadas en nómina tributan como sueldo: pregunta a tu gestoría cómo se gestionan las tuyas.',
+  'Tips paid through payroll are taxed like pay: ask your {adviser} how yours are handled.': 'Las propinas pagadas en nómina tributan como sueldo: pregunta a tu {adviser} cómo se gestionan las tuyas.',
   'Tips shared out': 'Propinas repartidas',
   'Tips this year': 'Propinas este año',
   'Use the till’s card tips: {amount}': 'Usar las propinas con tarjeta de la caja: {amount}',

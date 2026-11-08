@@ -26,6 +26,18 @@ import { checkTaxId } from '../../shared/taxId'
 import { formatLocal } from '../../shared/time'
 import { TEAM_SIZES } from '../../shared/brandLookup'
 import { tokens } from '../theme'
+import CountryIcon from '@mui/icons-material/PublicOutlined'
+import { COUNTRIES, COUNTRY_CODES, irishTaxId } from '../../shared/country'
+import RegionIcon from '@mui/icons-material/MapOutlined'
+import { spanishRegion } from '../../shared/regions'
+import { RegionField } from '../components/RegionField'
+
+/** A tax ID checked the way its country writes them: Spain's CIF/NIF/NIE, Ireland's VAT or CRO number. */
+function taxIdCheck(country: 'ES' | 'IE' | undefined | null, raw: string): { ok: true; value: string; kind?: string } | { ok: false; error: string } {
+  if (country !== 'IE') return checkTaxId(raw)
+  const v = irishTaxId(raw)
+  return v ? { ok: true, value: v } : { ok: false, error: msg('That isn’t an Irish VAT number (IE1234567T) or CRO number') }
+}
 
 const CHANNEL: Record<string, string> = { whatsapp: 'WhatsApp', slack: 'Slack', sms: msg('Text message') }
 
@@ -205,7 +217,11 @@ export function BusinessPage() {
           view={<>
             <InfoRow icon={<NameIcon fontSize="small" />} label={t('Business name')}>{b.name}</InfoRow>
             <InfoRow icon={<StoreIcon fontSize="small" />} label={t('Type of business')}>{b.business_type || '—'}</InfoRow>
-            <InfoRow icon={<BadgeIcon fontSize="small" />} label={'CIF / NIF'}>
+            <InfoRow icon={<CountryIcon fontSize="small" />} label={t('Country')}>{t(COUNTRIES[b.country ?? 'ES'].name)}</InfoRow>
+            {b.country !== 'IE' && (
+              <InfoRow icon={<RegionIcon fontSize="small" />} label={t('Region')}>{b.region ? t(spanishRegion(b.region)?.name ?? b.region) : t('Not set yet')}</InfoRow>
+            )}
+            <InfoRow icon={<BadgeIcon fontSize="small" />} label={t(COUNTRIES[b.country ?? 'ES'].taxIdLabel)}>
               <Box component="span" sx={{ fontVariantNumeric: 'tabular-nums', letterSpacing: '0.04em' }}>{b.tax_id || (isAdmin ? t('Not added yet') : '—')}</Box>
             </InfoRow>
             <InfoRow icon={<CurrencyIcon fontSize="small" />} label={t('Currency')}>{currencyLabel(b.currency ?? 'EUR')}</InfoRow>
@@ -216,13 +232,22 @@ export function BusinessPage() {
             )}
           </>}
           form={({ d, set }) => {
-            const tax = d.tax_id?.trim() ? checkTaxId(d.tax_id) : null
-            const taxHint = !tax ? t('Company CIF, or NIF/NIE if self-employed') : tax.ok ? t('Valid {kind}', { kind: tax.kind }) : t(tax.error)
+            const where = COUNTRIES[d.country ?? 'ES']
+            const tax = d.tax_id?.trim() ? taxIdCheck(d.country, d.tax_id) : null
+            const taxHint = !tax ? t(where.taxIdHelp) : tax.ok ? (tax.kind ? t('Valid {kind}', { kind: tax.kind }) : t('Looks right')) : t(tax.error)
             return <>
             <TextField label={t('Business name')} value={d.name} onChange={e => set({ name: e.target.value })}
               helperText={t('Shown at the top left of the app, next to your logo (the logo is set on the Brand page).')} />
             <TextField label={t('Type of business')} value={d.business_type ?? ''} onChange={e => set({ business_type: e.target.value })} />
-            <TextField label={'CIF / NIF'} value={d.tax_id ?? ''} placeholder={'B12345674'} helperText={taxHint}
+            <TextField select label={t('Country')} value={d.country ?? 'ES'} onChange={e => set({ country: e.target.value as 'ES' | 'IE' })}
+              helperText={t('Its labels, VAT rates and public holidays follow it. Working-time rules stay as set on Settings.')}
+              slotProps={{ select: { native: true } }}>
+              {COUNTRY_CODES.map(c => <option key={c} value={c}>{t(COUNTRIES[c].name)}</option>)}
+            </TextField>
+            {d.country !== 'IE' && (
+              <RegionField value={d.region} onChange={region => set({ region })} helperText={t('Its own public holidays go on your calendar too, with Spain’s.')} />
+            )}
+            <TextField label={t(where.taxIdLabel)} value={d.tax_id ?? ''} placeholder={where.code === 'IE' ? 'IE1234567T' : 'B12345674'} helperText={taxHint}
               error={!!d.tax_id?.trim() && !tax?.ok} onChange={e => set({ tax_id: e.target.value })}
               slotProps={{ htmlInput: { maxLength: 20, style: { textTransform: 'uppercase' } } }} />
             {/* The device's own list: opens the same way everywhere, phones included. */}
@@ -247,11 +272,13 @@ export function BusinessPage() {
               slotProps={{ inputLabel: { shrink: true } }} onChange={e => set({ opens_on: e.target.value || null })} />
           </>
           }}
-          onSave={save(['name', 'business_type', 'tax_id', 'currency', 'team_channel', 'team_size', 'opens_on'], p => {
+          onSave={save(['name', 'business_type', 'country', 'region', 'tax_id', 'currency', 'team_channel', 'team_size', 'opens_on'], p => {
             if (!p.name?.trim()) throw new Error(t('The business needs a name'))
             p.name = p.name.trim()
+            // A region is Spain's.
+            if (p.country === 'IE') p.region = null
             if (p.tax_id?.trim()) {
-              const tax = checkTaxId(p.tax_id)
+              const tax = taxIdCheck(p.country ?? b.country, p.tax_id)
               if (!tax.ok) throw new Error(t(tax.error))
               p.tax_id = tax.value
             } else p.tax_id = null

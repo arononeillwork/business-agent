@@ -171,7 +171,7 @@ export default {
   'Winner {n}': 'Ganador {n}',
   'Winners are told within 3 days and have 7 to answer, or it goes to the next reserve.': 'Se avisa a los ganadores en 3 días y tienen 7 para responder; si no, pasa al siguiente suplente.',
   'Winners': 'Ganadores',
-  'Worth (each, IVA included)': 'Valor (cada uno, IVA incluido)',
+  'Worth (each, VAT included)': 'Valor (cada uno, IVA incluido)',
   'Worth {amount}': 'Valen {amount}',
   'Write a caption first': 'Escribe primero el texto',
   'Write the terms from the details': 'Redactar las bases con estos datos',

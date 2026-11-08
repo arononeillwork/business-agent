@@ -19,6 +19,7 @@ import {
 } from '../../shared/tips'
 import { tokens } from '../theme'
 import { t, tn } from '../i18n'
+import { countryProfile } from '../../shared/country'
 
 const day = (d: string) => formatLocal(`${d}T12:00:00Z`, 'd MMM')
 const period = (p: Pick<TipPool, 'starts_on' | 'ends_on'>) => (p.starts_on === p.ends_on ? day(p.starts_on) : `${day(p.starts_on)} – ${formatLocal(`${p.ends_on}T12:00:00Z`, 'd MMM yyyy')}`)
@@ -123,7 +124,7 @@ export function TipsPage() {
                     </TableBody>
                   </Table>
                 </Box>}
-          <Typography variant="body2" sx={{ color: 'text.secondary', mt: 2 }}>{t('Tips paid through payroll are taxed like pay: ask your gestoría how yours are handled.')}</Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mt: 2 }}>{t('Tips paid through payroll are taxed like pay: ask your {adviser} how yours are handled.', { adviser: t(countryProfile().adviser) })}</Typography>
         </CardContent>
       </Card>
 

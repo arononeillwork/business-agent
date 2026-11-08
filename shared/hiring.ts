@@ -2,6 +2,7 @@
 // stage by stage until someone is hired (and added to the team). Spain/GDPR: applicants' details are
 // kept only while they're needed; a year after applying, people not hired should be removed.
 import { msg } from './i18n'
+import { currentCountry, type Country } from './country'
 
 export type OpeningStatus = 'open' | 'paused' | 'filled' | 'closed'
 export const OPENING_STATUSES: { id: OpeningStatus; label: string }[] = [
@@ -16,16 +17,31 @@ export const CONTRACTS: { id: ContractType; label: string }[] = [
   { id: 'seasonal', label: msg('Seasonal (fijo discontinuo)') }, { id: 'temporary', label: msg('Temporary') },
   { id: 'internship', label: msg('Internship') },
 ]
-export const contractLabel = (c: ContractType) => CONTRACTS.find(x => x.id === c)!.label
+/** Ireland's names for them: seasonal work there is just seasonal. */
+const IRISH_CONTRACT_LABELS: Partial<Record<ContractType, string>> = { seasonal: msg('Seasonal') }
+/** The contracts to choose from where the business is. */
+export const hiringContracts = (country: Country = currentCountry()) =>
+  (country === 'IE' ? CONTRACTS.map(c => ({ ...c, label: IRISH_CONTRACT_LABELS[c.id] ?? c.label })) : CONTRACTS)
+export const contractLabel = (c: ContractType, country: Country = currentCountry()) => hiringContracts(country).find(x => x.id === c)!.label
 
-export type JobBoard = 'infojobs' | 'indeed' | 'linkedin' | 'instagram' | 'window' | 'referral' | 'other'
+export type JobBoard = 'infojobs' | 'indeed' | 'linkedin' | 'instagram' | 'window' | 'referral' | 'other' | 'irishjobs' | 'jobsie' | 'jobsireland'
 /** Where a job is advertised and people apply from. Brand names are the same in every language. */
 export const JOB_BOARDS: { id: JobBoard; label: string }[] = [
   { id: 'infojobs', label: 'InfoJobs' }, { id: 'indeed', label: 'Indeed' }, { id: 'linkedin', label: 'LinkedIn' },
   { id: 'instagram', label: 'Instagram' }, { id: 'window', label: msg('Sign in the window') }, { id: 'referral', label: msg('Word of mouth') },
   { id: 'other', label: msg('Other') },
+  // Ireland's: IrishJobs.ie and Jobs.ie, and JobsIreland.ie, the State's free job board.
+  { id: 'irishjobs', label: 'IrishJobs.ie' }, { id: 'jobsie', label: 'Jobs.ie' }, { id: 'jobsireland', label: 'JobsIreland.ie' },
 ]
 export const boardLabel = (b: JobBoard) => JOB_BOARDS.find(x => x.id === b)!.label
+/** The boards to offer where the business is (Indeed is Indeed Ireland there), and any already picked (`keep`). */
+export function jobBoards(country: Country = currentCountry(), keep: JobBoard[] = []) {
+  const ids: JobBoard[] = country === 'IE'
+    ? ['irishjobs', 'jobsie', 'indeed', 'jobsireland', 'linkedin', 'instagram', 'window', 'referral', 'other']
+    : ['infojobs', 'indeed', 'linkedin', 'instagram', 'window', 'referral', 'other']
+  return JOB_BOARDS.filter(b => ids.includes(b.id) || keep.includes(b.id)).sort((a, b) => order(ids, a.id) - order(ids, b.id))
+}
+const order = (ids: JobBoard[], id: JobBoard) => (ids.includes(id) ? ids.indexOf(id) : ids.length)
 
 export type ApplicantStage = 'applied' | 'screening' | 'interview' | 'trial' | 'offer' | 'hired' | 'rejected'
 export const APPLICANT_STAGES: { id: ApplicantStage; label: string }[] = [

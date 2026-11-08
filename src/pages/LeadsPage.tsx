@@ -222,7 +222,7 @@ function EnquiryDialog({ enquiry, onClose }: { enquiry: EnquiryInput; onClose: (
           </Stack>
           {e.stage === 'lost' && <TextField label={t('Why it was lost')} value={e.lost_reason ?? ''} onChange={x => set({ lost_reason: x.target.value })} />}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <TextField label={t('Worth about (with IVA)')} type="number" value={e.value ?? ''} onChange={x => set({ value: x.target.value === '' ? null : Number(x.target.value) })} sx={{ flex: 1 }} />
+            <TextField label={t('Worth about (with VAT)')} type="number" value={e.value ?? ''} onChange={x => set({ value: x.target.value === '' ? null : Number(x.target.value) })} sx={{ flex: 1 }} />
             <TextField label={t('For the day')} type="date" value={e.wanted_on ?? ''} onChange={x => set({ wanted_on: x.target.value || null })} slotProps={{ inputLabel: { shrink: true } }} sx={{ flex: 1 }} />
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>

@@ -56,8 +56,14 @@ begin
                            'partner_can', 'tip_pool_out', 'handle_new_user', 'each_business', 'create_business', 'business_set_up',
                            -- Business Agent's own reps: a sign-up or a payment and HQ's list (the hq_reps migration).
                            'add_rep_code', 'rep_by_code', 'rep_introduction_sync', 'record_rep_commission', 'reverse_rep_commission',
+                           -- Whether a business is being deleted, whoever asks (the delete_business migration).
+                           'business_being_deleted',
                            -- The Business Agent's back-office: HQ's admins see every business (the hq_businesses migration).
-                           'hq_businesses');
+                           'hq_businesses',
+                           -- and its funnel: week two and cancellations, business by business (the hq_funnel migration).
+                           'hq_funnel',
+                           -- and make one complimentary (the hq_actions migration), see which are closing and hear about it (close_account).
+                           'hq_set_complimentary', 'hq_end_complimentary', 'hq_closures', 'notify_hq');
   assert v is null, 'Security definer functions that would see every business. After creating one: alter function ... owner to app_definer; — ' || v;
 
   -- Unique within a business: a unique index takes in business_id, or a column that's unique by itself
