@@ -41,9 +41,10 @@ export const COUNTRIES: Record<Country, CountryProfile> = {
     code: 'IE', name: msg('Ireland'), timezone: 'Europe/Dublin', locale: 'en-IE', callingCode: '353',
     vatRates: [0, 9, 13.5, 23], defaultVat: 13.5,
     taxIdLabel: msg('VAT or CRO number'), taxIdHelp: msg('A VAT number (IE1234567T) or the company’s CRO number'),
-    hoursRecord: { name: msg('Working time records'), law: msg('Organisation of Working Time (Records) Regulations 2001'), years: 3 },
+    // Kept 3 years: section 25 of the Act. S.I. 473/2001 (the Records (Prescribed Form and Exemptions) Regulations) sets their form.
+    hoursRecord: { name: msg('Working time records'), law: msg('Organisation of Working Time Act 1997, s.25'), years: 3 },
     adviser: msg('accountant'),
-    lawSource: { label: 'Citizens Information', url: 'https://www.citizensinformation.ie/en/employment/' },
+    lawSource: { label: 'Workplace Relations Commission', url: 'https://www.workplacerelations.ie/en/what_you_should_know/' },
   },
 }
 

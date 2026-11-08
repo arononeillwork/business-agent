@@ -34,6 +34,8 @@ export interface Business {
   country?: 'ES' | 'IE'
   /** In Spain, its autonomous community or Ceuta or Melilla (shared/regions.ts; the business_region migration): its public holidays go on the calendar too. */
   region?: SpanishRegion | null
+  /** In Spain, its town (municipio): its two local holidays a year go on the calendar (shared/townHolidays.ts; the town_holidays migration). */
+  town?: string | null
   /** ISO 4217 code, e.g. EUR. Money everywhere is shown in it. */
   currency: string
   /** Its tax ID, upper case, no spaces: in Spain a CIF (company) or NIF/NIE (self-employed); in Ireland a VAT or CRO number. */
@@ -238,6 +240,8 @@ export interface Preferences {
   calendarShow?: import('./routine').CalendarShow
   /** Dashboards → Reports: the reports, period and people they last sent a report to. */
   reports?: import('./reports').SavedReports
+  /** Admins: the years whose town local holidays they put off on Today ("Not now"; shared/townHolidays.ts). */
+  townHolidaysLater?: number[]
 }
 
 export interface Position {
@@ -314,6 +318,8 @@ export interface CalendarEvent {
   source: string
   confirmed: boolean
   visibility: 'all' | 'admins'
+  /** Who it came from: es-2027-01-01 the nightly import, local-2027-06-11 the town's local holidays (shared/townHolidays.ts). */
+  external_id?: string | null
 }
 
 export interface CorrectionRequest {
@@ -480,8 +486,10 @@ export interface AppNotification {
   id: number; title: string; body: string | null; link: string | null; created_at: string; read_at: string | null
   /** One with buttons: an Instagram mention (Repost / Ignore), data.mention its id. A review, a bank
    *  holiday coming up (data.event, data.date, data.days, data.name), or a test from the Notifications page. */
-  kind?: 'instagram_mention' | 'review' | 'bank_holiday' | 'test' | null
-  data?: { mention?: string; review?: string; event?: string; date?: string; days?: number; name?: string; category?: string; town?: string | null; offer?: string; item?: string }
+  kind?: 'instagram_mention' | 'review' | 'bank_holiday' | 'test' | 'town_holidays' | null
+  data?: { mention?: string; review?: string; event?: string; date?: string; days?: number; name?: string; category?: string; town?: string | null; offer?: string; item?: string
+    /** town_holidays: the year whose local holidays to add, for data.town (shared/townHolidays.ts). */
+    year?: number }
 }
 
 /** A holiday an admin left out of the reminders, or one that's been reminded about. */

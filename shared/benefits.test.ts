@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ENTITLEMENTS, allocated, awayOn, belowLaw, daysBetween, leaveYear, proRata } from './benefits'
+import { ENTITLEMENTS, LAW_CHECKED, allocated, awayOn, belowLaw, daysBetween, leaveYear, proRata } from './benefits'
 import { TIME_OFF_KINDS, type TimeOff } from './types'
 
 const off = (p: Partial<TimeOff>): TimeOff => ({ id: 'x', profile_id: 'julio', starts_on: '2026-08-03', ends_on: '2026-08-07', kind: 'vacation',
@@ -19,6 +19,32 @@ describe('staff benefits', () => {
     expect(new Set(ENTITLEMENTS.ES.map(e => e.key)).size).toBe(ENTITLEMENTS.ES.length)
     // Every kind it's recorded as exists on Time off, and a number goes with every {n}.
     for (const e of ENTITLEMENTS.ES) {
+      if (e.leave) expect(TIME_OFF_KINDS).toContain(e.leave)
+      expect(e.allowance.includes('{n}'), e.key).toBe(e.amount !== null)
+    }
+  })
+
+  it('lists Ireland’s as the Workplace Relations Commission gives them (checked 8 November 2026)', () => {
+    const ie = Object.fromEntries(ENTITLEMENTS.IE.map(e => [e.key, e]))
+    // 4 working weeks, counted as calendar days the way Time off counts them: 7 for each week off.
+    expect(ie.holidays.amount).toBe(28)
+    expect(ie.holidays.allowance).toMatch(/a week off counted as 7/)
+    expect(ie.holidays.detail).toMatch(/1,365 hours/)
+    expect(ie.public_holidays.amount).toBe(10)
+    // Statutory sick leave: still 5 days in 2026, at 70% up to €110 a day, the business then the State.
+    expect(ie.sick).toMatchObject({ amount: 5, payer: 'business_then_state' })
+    expect(ie.sick.pay).toBe('70% of their usual pay, up to €110 a day')
+    expect(ie.birth).toMatchObject({ amount: 26, payer: 'state' })
+    expect(ie.paternity.allowance).toMatch(/within 26 weeks/)
+    expect(ie.parents_leave.amount).toBe(9)
+    expect(ie.parental).toMatchObject({ amount: 26, payer: 'unpaid' })
+    expect(ie.adoptive.amount).toBe(24)
+    expect(ie.urgent).toMatchObject({ amount: 3, payer: 'business' })
+    expect(ie.medical_care).toMatchObject({ amount: 5, payer: 'unpaid', law: 'Work Life Balance and Miscellaneous Provisions Act 2023' })
+    expect(ie.domestic_violence).toMatchObject({ amount: 5, payer: 'business' })
+    expect(ie.carers).toMatchObject({ amount: 104, payer: 'unpaid' })
+    expect(LAW_CHECKED.IE).toMatchObject({ on: '2026-11-08', link: expect.stringMatching(/^https:\/\/www\.workplacerelations\.ie\//) })
+    for (const e of ENTITLEMENTS.IE) {
       if (e.leave) expect(TIME_OFF_KINDS).toContain(e.leave)
       expect(e.allowance.includes('{n}'), e.key).toBe(e.amount !== null)
     }

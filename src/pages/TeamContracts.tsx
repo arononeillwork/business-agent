@@ -134,7 +134,7 @@ export function TeamContracts({ tabs }: { tabs: ReactNode }) {
       </Typography>
       {irish && canEdit && (
         <Alert severity="info" sx={{ mb: 2, maxWidth: 760 }} aria-label={t('The written statement')}>
-          {t('The Terms of Employment (Information) Act: within 5 days of starting, give each person the five core terms in writing (both your names, the business’s address, how long the job lasts or its end date, the pay and how it’s worked out, and the hours expected a day and a week). The rest of the written statement follows within one month.')}
+          {t('The Terms of Employment (Information) Act, as amended in 2018 and 2022: within 5 days of starting, give each person in writing both your names, the business’s address, where they work, the job title, the start date, any probation, how long the job lasts or its end date, the pay and how it’s paid, the hours expected a day and a week and any overtime, and your policy on tips and service charges. The rest of the written statement follows within one month.')}
           {' '}{t('There’s no convenio in Ireland, but in some sectors a Sectoral Employment Order or an Employment Regulation Order sets the minimum pay: check whether one covers the job.')}
         </Alert>
       )}
@@ -354,7 +354,7 @@ function ContractDialog({ contract, people, setsPay, name, onClose }: {
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField fullWidth type="date" label={t('Trial period ends')} value={c.trial_ends_on ?? ''} onChange={e => set({ trial_ends_on: e.target.value || null })}
-              slotProps={{ inputLabel: { shrink: true } }} helperText={irish ? t('The probation, if it has one: 6 months at most, as a rule') : t('The periodo de prueba, if it has one')} />
+              slotProps={{ inputLabel: { shrink: true } }} helperText={irish ? t('The probation, if it has one: 6 months at most, or up to 12 in the exceptional cases the law allows') : t('The periodo de prueba, if it has one')} />
             <TextField fullWidth label={t('Hours a week')} value={hours} inputMode="decimal" onChange={e => setHours(e.target.value)} />
           </Stack>
           {setsPay && (

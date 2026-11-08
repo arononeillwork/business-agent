@@ -19,6 +19,8 @@ export const NOTIFY_TOPICS: { key: NotifyTopic; label: string; detail: string; a
 /** Which kind a notification is, from what it carries. */
 export function notificationTopic(n: Pick<AppNotification, 'kind' | 'link'>): NotifyTopic {
   if (n.kind === 'bank_holiday') return 'holidays'
+  // The town's local holidays to add for a year (shared/townHolidays.ts).
+  if (n.kind === 'town_holidays') return 'holidays'
   if (n.kind === 'review') return 'reviews'
   if (n.kind === 'instagram_mention') return 'mentions'
   if (n.link === '/licences') return 'licences'

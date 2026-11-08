@@ -2163,11 +2163,14 @@ test('a business in Ireland: asked at sign-up, then Irish labels, VAT rates, pho
   await expect(results.getByRole('button', { name: 'Grow Digital Voucher' })).toContainText('Later for you')
   const audit = results.getByRole('button', { name: 'SEAI energy audit voucher' })
   await expect(audit).toContainText('Confirm first')
+  // SEAI asks for tax compliance and an energy bill of €10,000 or more.
+  await answers.getByRole('group', { name: 'Does the business owe Revenue any tax it isn’t paying off?' }).getByRole('button', { name: 'No', exact: true }).click()
+  await expect(audit).toContainText('Confirm first')
   await answers.getByRole('group', { name: 'Does the business spend €10,000 or more a year on energy?' }).getByRole('button', { name: 'Yes', exact: true }).click()
   await expect(audit).toContainText('Eligible')
   await audit.click()
   await expect(results.getByRole('link', { name: 'Official page' }).first()).toHaveAttribute('href', /seai\.ie/)
-  await expect(results.getByText(/^Checked on 7 Nov 2026/).first()).toBeVisible()
+  await expect(results.getByText(/^Checked on 8 Nov 2026/).first()).toBeVisible()
 
   // Competitions: ideas on Ireland's calendar. Halloween runs into the October bank holiday, so it's drawn on the
   // Thursday before that long weekend.
@@ -2268,6 +2271,7 @@ test('a business in Ireland: Irish contract types, competition terms, the mileag
   const mileage = page.getByRole('region', { name: 'Mileage rate' })
   await expect(mileage).toContainText('Revenue lets you pay up to the civil service motor travel rates without tax')
   await expect(mileage).toContainText(/41[,.]8c a km for a car up to 1,200 cc/)
+  await expect(mileage).toContainText(/tax free for anyone’s first 5[,.]?500 business km in a year, whatever the car/)
   await expect(mileage.getByRole('link', { name: 'Revenue, civil service rates' })).toHaveAttribute('href', /^https:\/\/www\.revenue\.ie\//)
   await expect(mileage.getByRole('textbox', { name: 'Euros a km' })).toHaveValue('0.418')
 
@@ -2276,6 +2280,7 @@ test('a business in Ireland: Irish contract types, competition terms, the mileag
   await page.getByRole('tab', { name: 'Set up' }).click()
   const law = page.getByRole('alert', { name: 'Cameras and the law in Ireland' })
   await expect(law.getByLabel('The CCTV sign')).toContainText('Images are recorded by Cork Roast for the safety of staff and customers and to prevent crime.')
+  await expect(law).toContainText('why the recording is lawful')
   await expect(page.getByText('Cameras and the law in Spain')).toHaveCount(0)
 
   // Hiring: Ireland's job boards (Indeed as Indeed Ireland), no InfoJobs, and the pay written the Irish way.
@@ -11249,4 +11254,90 @@ test('@phone the account menu adds another business and switches back to the fir
   await page.getByRole('menuitem', { name: /aron@example\.com/ }).click()
   await page.getByRole('button', { name: /^Account menu/ }).click()
   await expect(page.getByRole('menuitem', { name: /maria@example\.com/ })).toBeVisible()
+})
+
+test('a Spanish business adds its town’s two local holidays: asked at sign-up, then a year at a time from Today, the bell and Business', async ({ page }) => {
+  // Sign-up, set-up, Today, the bell and Business in one go.
+  test.setTimeout(60_000)
+  await page.clock.install({ time: WED_0900 })
+  await page.goto('/?demo')
+  await page.getByRole('tab', { name: 'Create account' }).click()
+  await page.getByLabel('Your name').fill('Rocío Vega')
+  await page.getByRole('textbox', { name: 'Email' }).fill('rocio@bartriana.example')
+  await page.getByLabel('Password').fill('tinto-de-verano-3')
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await page.getByRole('textbox', { name: 'Business name' }).fill('Bar Triana')
+  // In Spain, its town (it can be left for later): Ireland has no local holidays.
+  const where = page.getByRole('group', { name: 'Where is it?' })
+  await where.getByRole('button', { name: 'Ireland' }).click()
+  await expect(page.getByRole('textbox', { name: 'Town' })).toHaveCount(0)
+  await where.getByRole('button', { name: 'Spain' }).click()
+  await expect(page.getByRole('textbox', { name: 'Town' })).toHaveValue('')
+  await page.getByRole('combobox', { name: 'Region' }).selectOption({ label: 'Andalusia' })
+  await page.getByRole('textbox', { name: 'Town' }).fill('Sevilla')
+  await page.getByRole('button', { name: 'Pub' }).click()
+  await page.getByRole('button', { name: 'Add my business' }).click()
+  await page.getByRole('button', { name: 'Skip this step' }).click()
+  await page.getByRole('button', { name: /^Use a ready-made setup/ }).click()
+  await page.getByRole('button', { name: 'Skip setup for now' }).click()
+  const nav = page.getByRole('navigation', { name: 'Main' })
+  await expect(nav).toContainText('Bar Triana')
+
+  // Today: this year's aren't in, so it asks, and adding them is one step.
+  await nav.getByRole('link', { name: 'Home: Today' }).click()
+  const prompt = page.getByRole('alert').filter({ hasText: 'Add Sevilla’s local holidays for 2026' })
+  await expect(prompt).toContainText('Its town hall sets two days off each year.')
+  await prompt.getByRole('button', { name: 'Add them' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Your town’s local holidays for 2026' })
+  await expect(dialog).toContainText('The two days Sevilla’s town hall set for 2026.')
+  // Not a day that's a public holiday already.
+  await dialog.getByLabel('First day').fill('2026-10-12')
+  await dialog.getByLabel('Second day').fill('2026-06-04')
+  await dialog.getByRole('button', { name: 'Save' }).click()
+  await toast(page, 'Monday 12 October is already a holiday: Fiesta Nacional de España')
+  await dialog.getByLabel('First day').fill('2026-04-21')
+  await dialog.getByRole('button', { name: 'Save' }).click()
+  await toast(page, 'Local holidays saved')
+  await expect(dialog).toHaveCount(0)
+  await expect(prompt).toHaveCount(0)
+
+  // The bell said so too, once, and opens that year's two days on Business.
+  await page.getByRole('button', { name: /Notifications, \d+ new/ }).first().click()
+  const bell = page.getByRole('region', { name: 'Notifications' })
+  await expect(bell.getByText('Add Sevilla’s local holidays for 2026')).toHaveCount(1)
+  await bell.getByText('Add Sevilla’s local holidays for 2026').click()
+  const again = page.getByRole('dialog', { name: 'Your town’s local holidays for 2026' })
+  await expect(again.getByLabel('First day')).toHaveValue('2026-04-21')
+  await expect(again.getByLabel('Second day')).toHaveValue('2026-06-04')
+  await again.getByRole('button', { name: 'Cancel' }).click()
+
+  // Business: the town next to the region, and each year's two days. Next year's are their own.
+  await expect(page.getByRole('region', { name: 'Company' })).toContainText('Town: Sevilla')
+  const local = page.getByRole('region', { name: 'Local holidays' })
+  await expect(local.getByRole('group', { name: '2026' })).toContainText('Tue 21 April · Thu 4 June')
+  await expect(local.getByRole('group', { name: '2027' })).toContainText('Not on the calendar yet')
+  await local.getByRole('group', { name: '2027' }).getByRole('button', { name: 'Add' }).click()
+  const next = page.getByRole('dialog', { name: 'Your town’s local holidays for 2027' })
+  await next.getByLabel('First day').fill('2027-05-27')
+  await next.getByLabel('Second day').fill('2027-04-13')
+  await next.getByRole('button', { name: 'Save' }).click()
+  await toast(page, 'Local holidays saved')
+  await expect(local.getByRole('group', { name: '2027' })).toContainText('Tue 13 April · Thu 27 May')
+  await expect(local.getByRole('group', { name: '2026' })).toContainText('Tue 21 April · Thu 4 June')
+
+  // A town moved to is asked about afresh, and "Not now" puts that year off.
+  const company = page.getByRole('region', { name: 'Company' })
+  await company.getByRole('button', { name: 'Edit' }).click()
+  await company.getByRole('textbox', { name: 'Town' }).fill('Dos Hermanas')
+  await company.getByRole('button', { name: 'Save' }).click()
+  await toast(page, /^Saved$/)
+  await expect(local.getByRole('group', { name: '2026' })).toContainText('Not on the calendar yet')
+  await nav.getByRole('link', { name: 'Home: Today' }).click()
+  const moved = page.getByRole('alert').filter({ hasText: 'Add Dos Hermanas’s local holidays for 2026' })
+  await moved.getByRole('button', { name: 'Not now' }).click()
+  await expect(moved).toHaveCount(0)
+  await nav.getByRole('link', { name: 'Calendar' }).click()
+  await nav.getByRole('link', { name: 'Home: Today' }).click()
+  await expect(page.getByRole('heading', { name: /Hola, Rocío/ })).toBeVisible()
+  await expect(moved).toHaveCount(0)
 })

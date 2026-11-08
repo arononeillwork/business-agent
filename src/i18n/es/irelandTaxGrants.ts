@@ -18,8 +18,6 @@ export default {
   'A sole trader, not a company': 'Autónomo, no una sociedad',
   'Income tax on Form 11, instead of Corporation Tax on the CT1.': 'Impuesto sobre la renta en el Form 11, en lugar del Corporation Tax en el CT1.',
   'Preliminary Corporation Tax': 'Pago a cuenta del Corporation Tax',
-  'Paid ahead each year from the second year (a new company with a small tax bill pays none in its first).':
-    'Se adelanta cada año desde el segundo (una sociedad nueva con poco impuesto no paga nada el primero).',
   'Sales to EU businesses': 'Ventas a empresas de la UE',
   'Goods or services sold to VAT-registered businesses elsewhere in the EU: the VIES listing.':
     'Bienes o servicios vendidos a empresas con IVA en otros países de la UE: la declaración VIES.',
@@ -29,15 +27,10 @@ export default {
   'Return of Trading Details': 'Return of Trading Details (resumen anual)',
   'The year’s sales and purchases by VAT rate, sent with the year’s last VAT3.': 'Las ventas y compras del año por tipo de IVA, enviadas con el último VAT3 del año.',
   'EU sales listing (VIES)': 'Declaración de ventas a la UE (VIES)',
-  'Sales to VAT-registered businesses elsewhere in the EU, for the quarter.':'Ventas a empresas con IVA en otros países de la UE, del trimestre.',
   'Payroll taxes (PAYE, PRSI and USC)': 'Impuestos de nómina (PAYE, PRSI y USC)',
   'Each payroll goes to Revenue on or before pay day; Revenue’s statement for the month is paid by the 23rd on ROS.':
     'Cada nómina se envía a Revenue el día de pago o antes; el extracto del mes de Revenue se paga antes del 23 en ROS.',
   'Income tax return (Form 11)': 'Declaración de la renta (Form 11)',
-  'The year’s income tax, with the balance for it and preliminary tax for the next year. Filing and paying on ROS usually gives until mid-November.':
-    'El impuesto sobre la renta del año, con lo que queda por pagar y el pago a cuenta del año siguiente. Presentando y pagando en ROS suele haber hasta mediados de noviembre.',
-  'Paid ahead on this year’s Corporation Tax, in its 11th month. A new company with a small tax bill pays none in its first year.':
-    'Un adelanto del Corporation Tax de este año, en su 11.º mes. Una sociedad nueva con poco impuesto no paga nada el primer año.',
   'Corporation Tax return (CT1)': 'Declaración del Corporation Tax (CT1)',
   'The year’s return, and any tax still to pay, 9 months after the year end.': 'La declaración del año, y lo que quede por pagar, 9 meses después del cierre.',
 
@@ -80,25 +73,15 @@ export default {
   'Checked against localenterprise.ie. The Trading Online Voucher (up to €2,500) it replaced is closed.':
     'Revisada con localenterprise.ie. El Trading Online Voucher (hasta 2.500 €) al que sustituyó está cerrado.',
   'Priming Grant (starting up)': 'Priming Grant (para empezar)',
-  'A start-up grant in the first 18 months for a small business that makes products, or sells services, beyond its local area, with room to grow and take on staff. Cafés, restaurants, shops and other local services aren’t covered.':
-    'Una ayuda para empezar, en los primeros 18 meses, para un pequeño negocio que fabrica productos o vende servicios fuera de su zona, con margen para crecer y contratar. No cubre cafeterías, restaurantes, tiendas ni otros servicios locales.',
   'Talk to a business adviser at your LEO about the project.': 'Habla del proyecto con un asesor de tu LEO.',
   'Write the business plan, with the costs and the jobs it creates.': 'Escribe el plan de negocio, con los costes y los empleos que crea.',
   'Apply to your LEO: its evaluation committee decides.': 'Solicítala a tu LEO: decide su comité de evaluación.',
   'Once approved, spend it and claim with the paid invoices.': 'Una vez aprobada, gástala y reclama con las facturas pagadas.',
   'Business Expansion Grant': 'Business Expansion Grant',
-  'For a small business past its first 18 months that’s growing: the same costs as the Priming Grant, and the same rule that local services like cafés, restaurants and shops aren’t covered.':
-    'Para un pequeño negocio que ya pasó sus primeros 18 meses y está creciendo: los mismos gastos que la Priming Grant, y la misma norma de que no cubre servicios locales como cafeterías, restaurantes y tiendas.',
   'Talk to a business adviser at your LEO about the expansion.': 'Habla de la ampliación con un asesor de tu LEO.',
   'Write the business plan, with the costs, the last accounts and the jobs it creates.': 'Escribe el plan de negocio, con los costes, las últimas cuentas y los empleos que crea.',
-  'Checked against localenterprise.ie. After a Priming Grant, it’s 18 months before you can apply.':
-    'Revisada con localenterprise.ie. Después de una Priming Grant, hay que esperar 18 meses para solicitarla.',
   'Lean for Business (was Lean for Micro)': 'Lean for Business (antes Lean for Micro)',
   'Up to 90% of a Lean consultant’s fee': 'Hasta el 90% de los honorarios de un consultor Lean',
-  'The LEO pays most of the consultant; the business pays its share, set by each LEO (often a few hundred euros).':
-    'La LEO paga la mayor parte del consultor; el negocio paga su parte, que fija cada LEO (a menudo unos cientos de euros).',
-  'A Lean consultant works with you for a few weeks on how the business runs: less waste, quicker service, lower costs. For businesses of any sector the LEO supports, trading for 6 months or more.':
-    'Un consultor Lean trabaja contigo unas semanas en cómo funciona el negocio: menos desperdicio, servicio más rápido, menos costes. Para negocios de cualquier sector que apoye la LEO, con 6 meses o más de actividad.',
   'An introduction to Lean workshop, then up to 5 half-day visits': 'Un taller de introducción a Lean y después hasta 5 visitas de media jornada',
   'Or a Lean consultant you choose, for a project of your own': 'O un consultor Lean que eliges tú, para un proyecto propio',
   'Take part in the visits, and send the LEO the results at the end.': 'Participa en las visitas y envía los resultados a la LEO al final.',
@@ -160,8 +143,6 @@ export default {
   'Microfinance Ireland business loan': 'Préstamo de Microfinance Ireland',
   'Microfinance Ireland': 'Microfinance Ireland',
   'A loan of €2,000 to €50,000': 'Un préstamo de 2.000 € a 50.000 €',
-  'Not a grant: a loan paid back monthly at a fixed rate (6.5% when checked), with no fees, over up to 5 years. Mentoring can come with it.':
-    'No es una ayuda: un préstamo que se devuelve cada mes a tipo fijo (6,5% al revisarlo), sin comisiones, en hasta 5 años. Puede venir con mentoría.',
   'Loans for small businesses that find it hard to borrow from a bank: starting up, equipment, stock or growing. Your LEO can help with the application.':
     'Préstamos para pequeños negocios a los que les cuesta que un banco les preste: para empezar, equipos, stock o crecer. Tu LEO puede ayudar con la solicitud.',
   'Equipment, stock and day-to-day costs': 'Equipos, stock y gastos del día a día',
@@ -172,7 +153,6 @@ export default {
   'Register your interest: they email you the application.': 'Regístrate como interesado: te envían la solicitud por email.',
   'Send it with a business plan, a cash-flow forecast and 6 months of bank statements.': 'Envíala con un plan de negocio, una previsión de tesorería y 6 meses de extractos bancarios.',
   'Microfinance Ireland checks the Central Credit Register and decides.': 'Microfinance Ireland consulta el Central Credit Register y decide.',
-  'Checked against microfinanceireland.ie.': 'Revisado con microfinanceireland.ie.',
   'Enterprise Ireland support for exporters': 'Apoyo de Enterprise Ireland para exportadores',
   'Enterprise Ireland': 'Enterprise Ireland',
   'Grants and investment sized to the project': 'Ayudas e inversión a la medida del proyecto',
@@ -192,15 +172,11 @@ export default {
   'SEAI energy audit voucher': 'Bono de auditoría energética de SEAI',
   'SEAI (Sustainable Energy Authority of Ireland)': 'SEAI (Sustainable Energy Authority of Ireland)',
   '€2,000 towards an energy audit': '2.000 € para una auditoría energética',
-  'A voucher for an SEAI-registered energy auditor, valid for 8 months. One per business.': 'Un bono para un auditor energético registrado en SEAI, válido 8 meses. Uno por negocio.',
-  'For a small or medium business that spends €10,000 or more a year on energy: an expert audit of where the energy goes and what to change. The audit also opens the LEO’s Energy Efficiency Grant.':
-    'Para una pequeña o mediana empresa que gasta 10.000 € o más al año en energía: una auditoría experta de en qué se va la energía y qué cambiar. La auditoría también da acceso a la Energy Efficiency Grant de la LEO.',
   'An energy audit by an SEAI-registered auditor': 'Una auditoría energética de un auditor registrado en SEAI',
   'Use the voucher within 8 months.': 'Usa el bono en un plazo de 8 meses.',
   'Apply for the voucher on seai.ie.': 'Solicita el bono en seai.ie.',
   'Choose an SEAI-registered energy auditor.': 'Elige un auditor energético registrado en SEAI.',
   'Get the audit report and act on it (the Energy Efficiency Grant can help).': 'Recibe el informe de la auditoría y aplícalo (la Energy Efficiency Grant puede ayudar).',
-  'From SEAI’s guide for small businesses: confirm the current terms on seai.ie.': 'De la guía de SEAI para pequeñas empresas: confirma las condiciones actuales en seai.ie.',
   'SEAI solar panels grant for businesses': 'Ayuda de SEAI para placas solares en negocios',
   'Set by the size of the system, for systems up to 1,000 kWp': 'Según el tamaño de la instalación, para instalaciones de hasta 1.000 kWp',
   'Paid once an SEAI-registered installer has finished and the work is checked. Get approval before the work starts.':
@@ -213,7 +189,6 @@ export default {
   'Get a quote from an SEAI-registered solar installer.': 'Pide presupuesto a un instalador solar registrado en SEAI.',
   'Apply on seai.ie and wait for approval.': 'Solicítala en seai.ie y espera la aprobación.',
   'Have the panels installed, then claim the grant.': 'Instala las placas y reclama la ayuda.',
-  'From SEAI’s published scheme terms: confirm the current amounts on seai.ie.': 'De las condiciones publicadas por SEAI: confirma los importes actuales en seai.ie.',
 
   // Ireland's grant documents
   'Tax clearance from Revenue (tax reference and access number)': 'Certificado de estar al corriente con Revenue (referencia fiscal y número de acceso)',
@@ -249,8 +224,6 @@ export default {
   'You can apply once the business has traded for 6 months, from around {date}.': 'Puedes solicitarla cuando el negocio lleve 6 meses operando, hacia el {date}.',
   'From around {date}.': 'Hacia el {date}.',
   'Makes products, or sells services, beyond the local area': 'Fabrica productos o vende servicios fuera de su zona',
-  'Cafés, restaurants, shops and other local services can’t get the LEO’s start-up and expansion grants. Its vouchers, training, mentoring and green supports are open to them. A separate business making food for shops elsewhere can be different: ask your LEO.':
-    'Las cafeterías, restaurantes, tiendas y otros servicios locales no pueden recibir las ayudas de la LEO para empezar y crecer. Sus bonos, formación, mentoría y apoyos verdes sí están abiertos a ellos. Un negocio aparte que elabore comida para tiendas de otras zonas puede ser distinto: pregunta a tu LEO.',
   'These grants are for businesses that can sell beyond their area and grow.': 'Estas ayudas son para negocios que pueden vender fuera de su zona y crecer.',
   '10 employees or fewer': '10 empleados o menos',
   'More than 10 only in some cases: ask your LEO.': 'Más de 10 solo en algunos casos: pregunta a tu LEO.',
@@ -261,10 +234,6 @@ export default {
   'After 18 months, the Business Expansion Grant is the one.': 'Pasados 18 meses, la que toca es la Business Expansion Grant.',
   'Trading for more than 18 months': 'Con más de 18 meses de actividad',
   'In the first 18 months, the Priming Grant is the one.': 'En los primeros 18 meses, la que toca es la Priming Grant.',
-  'Up to 10 employees (up to 50 in some cases)': 'Hasta 10 empleados (hasta 50 en algunos casos)',
-  'From 10 to 50 employees on a limited basis: ask your LEO.': 'De 10 a 50 empleados de forma limitada: pregunta a tu LEO.',
-  'In a sector the LEO supports': 'En un sector que apoya la LEO',
-  'Ask your LEO whether it takes businesses like yours.': 'Pregunta a tu LEO si acepta negocios como el tuyo.',
   'A new or established business in the LEO’s area': 'Un negocio nuevo o establecido en la zona de la LEO',
   'Starting out, or started in the last two years': 'Empezando, o empezó en los dos últimos años',
   'It’s for new businesses: the LEO’s other training is for established ones.': 'Es para negocios nuevos: la otra formación de la LEO es para los establecidos.',
@@ -282,7 +251,6 @@ export default {
   'With fewer than 10, start with your LEO, which passes businesses on as they grow.': 'Con menos de 10, empieza en tu LEO, que deriva los negocios a medida que crecen.',
   'Spends €10,000 or more a year on energy': 'Gasta 10.000 € o más al año en energía',
   'For a smaller energy bill, the LEO’s Green for Business is free.': 'Para una factura de energía menor, Green for Business de la LEO es gratis.',
-  'A small or medium business (under 250 employees)': 'Una pequeña o mediana empresa (menos de 250 empleados)',
   'Solar panels could go on the building': 'Se pueden poner placas solares en el edificio',
   'The work hasn’t started yet': 'La obra aún no ha empezado',
   'The grant has to be approved before the installation.': 'La ayuda tiene que estar aprobada antes de la instalación.',
@@ -303,7 +271,6 @@ export default {
   'Have you had a Green for Business or GreenStart report, or an SEAI energy audit?': '¿Tienes un informe de Green for Business o GreenStart, o una auditoría energética de SEAI?',
   'Does the business pay commercial rates on its premises?': '¿El negocio paga rates (impuesto municipal) por su local?',
   'Does the business spend €10,000 or more a year on energy?': '¿El negocio gasta 10.000 € o más al año en energía?',
-  'Electricity, gas and other fuels together.': 'Electricidad, gas y otros combustibles juntos.',
   'Could solar panels go on your building?': '¿Se podrían poner placas solares en tu edificio?',
   'On a roof you own, or one your landlord agrees to.': 'En un tejado tuyo, o en uno que acepte el propietario.',
 }

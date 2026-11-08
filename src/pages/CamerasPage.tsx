@@ -331,8 +331,10 @@ function Field({ label, value, mono = true }: { label: string; value: string; mo
 }
 
 /**
- * Ireland: the Data Protection Commission's CCTV guidance in short, with the business's own sign for the
- * entrances (who runs the cameras, what for, how to contact it) to copy.
+ * Ireland: the Data Protection Commission's CCTV guidance in short (Guidance on the Use of CCTV for Data
+ * Controllers, November 2023, checked 8 November 2026), with the business's own sign for the entrances
+ * (who runs the cameras, what for, how to contact it) to copy. The guidance says nothing of sound; the
+ * DPC's dash-cam and body-worn camera guidance asks for its own, very strong reason, hence turning it off.
  */
 function IrishCameraLaw() {
   const { business } = useApp()
@@ -352,7 +354,7 @@ function IrishCameraLaw() {
           <Button size="small" startIcon={<CopyIcon />} onClick={copy} sx={{ mt: 0.5 }}>{t('Copy the sign')}</Button>
         </Box>
         <Typography component="li" variant="body2">
-          {t('Keep the rest to hand, at the counter or on your website: how long video is kept, who it may be given to (the Gardaí, an insurer), how it’s kept safe, and people’s right to a copy and to complain to the Data Protection Commission.')}
+          {t('Keep the rest to hand, at the counter or on your website: why the recording is lawful (usually the business’s legitimate interest in keeping people and property safe), how long video is kept, who it may be given to (the Gardaí, an insurer), how it’s kept safe, and people’s right to a copy and to complain to the Data Protection Commission.')}
         </Typography>
         <Typography component="li" variant="body2">{t('Tell the team in writing before the cameras go on, and add them to the staff rules.')}</Typography>
         <Typography component="li" variant="body2">{t('No cameras in the toilets, changing room or staff rest area, and none pointing at the street.')}</Typography>

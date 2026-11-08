@@ -5,8 +5,10 @@ import { LANGUAGES, msg, type Language } from './i18n'
 import type { AppNotification, Preferences } from './types'
 import spanish from '../src/i18n/es/notifications'
 import regions from '../src/i18n/es/regions'
+import townHolidays from '../src/i18n/es/townHolidays'
+import { TOWN_HOLIDAYS_BODY, TOWN_HOLIDAYS_TITLE } from './townHolidays'
 
-const es = { ...spanish, ...regions } as Record<string, string>
+const es = { ...spanish, ...regions, ...townHolidays } as Record<string, string>
 const fill = (text: string, vars: Record<string, string | number> = {}) =>
   text.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m))
 const say = (lang: Language, text: string, vars?: Record<string, string | number>) => fill((lang === 'es' && es[text]) || text, vars)
@@ -37,6 +39,9 @@ export function pushText(n: Note, lang: Language): { title: string; body: string
       .format(new Date(`${d.date}T12:00:00Z`))
     const kind = say(lang, KIND_LABEL[d.category ?? ''] ?? msg('Local holiday')) + (d.town ? ` (${d.town})` : '')
     return { title, body: say(lang, msg('{date} · {kind}. Check the rota and the opening hours.'), { date, kind }) }
+  }
+  if (n.kind === 'town_holidays' && d.town && d.year) {
+    return { title: say(lang, TOWN_HOLIDAYS_TITLE, { town: d.town, year: d.year }), body: say(lang, TOWN_HOLIDAYS_BODY) }
   }
   if (n.kind === 'test') return { title: say(lang, msg('Test notification')), body: say(lang, msg('Notifications are working on this device.')) }
   const mention = n.kind === 'instagram_mention' ? /^(@\S+|Someone) (mentioned you in their story|tagged you in a post)$/.exec(n.title) : null

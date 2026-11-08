@@ -1,8 +1,9 @@
 // Ireland's grants (grantCatalogueIreland.ts): the rules that check each one against the answers, and
 // the questions that decide them, as grants.ts does for Spain's. The LEO's own rules come first: tax
 // clearance from Revenue, the number of employees, how long it's been trading, and its start-up and
-// expansion grants not going to local services (cafés, restaurants, shops). Types only from grants.ts,
-// which brings these in.
+// expansion grants not going to local services (its national criteria leave out domestically focused
+// retail, personal, professional and construction services, and projects that displace others, which
+// LEOs apply to cafés, restaurants and pubs). Types only from grants.ts, which brings these in.
 import { msg } from './i18n'
 import type { Business } from './types'
 import type { Answer, Condition, GrantProfile, Question, Rule, RuleResult, Text } from './grants'
@@ -45,7 +46,7 @@ function sixMonths(p: GrantProfile, today: string, r: RuleResult): Condition {
 const tradesWider = (p: GrantProfile) => {
   const label = msg('Makes products, or sells services, beyond the local area')
   if (localService(p)) {
-    return C(label, 'fail', msg('Cafés, restaurants, shops and other local services can’t get the LEO’s start-up and expansion grants. Its vouchers, training, mentoring and green supports are open to them. A separate business making food for shops elsewhere can be different: ask your LEO.'))
+    return C(label, 'fail', msg('Cafés, restaurants, shops and other local services usually can’t get the LEO’s start-up and expansion grants: its rules leave out businesses that sell locally and would take trade from others nearby. Its vouchers, training, mentoring and green supports are open to them. A separate business making food for shops elsewhere can be different: ask your LEO.'))
   }
   return C(label, yn(p.ieTrades), p.ieTrades === 'no' ? msg('These grants are for businesses that can sell beyond their area and grow.') : null)
 }
@@ -80,14 +81,10 @@ export const IE_RULES: Record<string, Rule> = {
       taxClearance(p)] }
   },
 
+  // Lean for Business is for every sector (localenterprise.ie's Lean pages): no sector or turnover test.
   ie_lean(p, _g, today) {
     const r: RuleResult = { conds: [] }
-    r.conds.push(
-      C(msg('Up to 10 employees (up to 50 in some cases)'), p.employees == null ? 'unknown' : p.employees <= 10 ? 'pass' : p.employees <= 50 ? 'unknown' : 'fail',
-        p.employees != null && p.employees > 10 && p.employees <= 50 ? msg('From 10 to 50 employees on a limited basis: ask your LEO.') : null),
-      C(msg('In a sector the LEO supports'), p.sector == null || localService(p) ? 'unknown' : 'pass',
-        localService(p) ? msg('Ask your LEO whether it takes businesses like yours.') : null),
-      over30k(p), sixMonths(p, today, r), taxClearance(p))
+    r.conds.push(upTo(p, 50, msg('Up to 50 employees')), sixMonths(p, today, r), taxClearance(p))
     return r
   },
 
@@ -132,7 +129,10 @@ export const IE_RULES: Record<string, Rule> = {
   ie_seai_energy_audit: p => ({ conds: [
     C(msg('Spends €10,000 or more a year on energy'), yn(p.ieEnergySpend),
       p.ieEnergySpend === 'no' ? msg('For a smaller energy bill, the LEO’s Green for Business is free.') : null),
-    upTo(p, 249, msg('A small or medium business (under 250 employees)')),
+    // A business that isn't industry, with under 250 employees, is far below 2.8 GWh (about €500,000 of energy a year).
+    C(msg('Uses less than 2.8 GWh of energy a year'), p.employees == null || p.employees >= 250 || p.sector == null || p.sector === 'industry' ? 'unknown' : 'pass',
+      p.sector === 'industry' || (p.employees ?? 0) >= 250 ? msg('Above that, the law asks the business for its own energy audit, and the voucher can’t pay for it: check your bills.') : null),
+    taxClearance(p),
   ] }),
 
   ie_seai_solar: p => ({ conds: [
@@ -161,7 +161,7 @@ export const IE_QUESTIONS: Question[] = [
   { key: 'ieTrades', label: msg('Do you make products, or sell services, beyond your local area?'),
     hint: msg('To shops elsewhere, online across Ireland, or to customers abroad.'), kind: 'choice', unknown: 'unsure', rules: ['ie_priming', 'ie_expansion'], options: YES_NO },
   { key: 'ieExports', label: msg('Do you sell outside Ireland, or plan to?'), kind: 'choice', unknown: 'unsure', rules: ['ie_enterprise_ireland'], options: YES_NO },
-  { key: 'ieTurnover', label: msg('Turnover last year, excluding VAT'), kind: 'choice', unknown: 'unsure', rules: ['ie_lean', 'ie_green_for_business', 'ie_microfinance'],
+  { key: 'ieTurnover', label: msg('Turnover last year, excluding VAT'), kind: 'choice', unknown: 'unsure', rules: ['ie_green_for_business', 'ie_microfinance'],
     options: [{ value: 'under30k', label: msg('Under €30,000') }, { value: 'to2m', label: msg('€30,000 to €2 million') }, { value: 'over2m', label: msg('Over €2 million') },
       { value: 'unsure', label: msg('Not sure') }] },
   { key: 'ieDigitalReport', label: msg('Have you done the LEO’s Digital for Business review in the last two years?'), kind: 'choice', unknown: 'unsure',
@@ -169,7 +169,7 @@ export const IE_QUESTIONS: Question[] = [
   { key: 'ieGreenReport', label: msg('Have you had a Green for Business or GreenStart report, or an SEAI energy audit?'), kind: 'choice', unknown: 'unsure',
     rules: ['ie_energy_efficiency'], options: YES_NO },
   { key: 'ieRates', label: msg('Does the business pay commercial rates on its premises?'), kind: 'choice', unknown: 'unsure', rules: ['ie_energy_efficiency'], options: YES_NO },
-  { key: 'ieEnergySpend', label: msg('Does the business spend €10,000 or more a year on energy?'), hint: msg('Electricity, gas and other fuels together.'),
+  { key: 'ieEnergySpend', label: msg('Does the business spend €10,000 or more a year on energy?'), hint: msg('Electricity, heating and other fuels at the premises together, not counting transport.'),
     kind: 'choice', unknown: 'unsure', rules: ['ie_seai_energy_audit'], options: YES_NO },
   { key: 'ieSolar', label: msg('Could solar panels go on your building?'), hint: msg('On a roof you own, or one your landlord agrees to.'),
     kind: 'choice', unknown: 'unsure', rules: ['ie_seai_solar'], options: YES_NO },
