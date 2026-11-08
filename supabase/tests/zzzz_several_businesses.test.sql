@@ -56,6 +56,8 @@ begin
                            'partner_can', 'tip_pool_out', 'handle_new_user', 'each_business', 'create_business', 'business_set_up',
                            -- Business Agent's own reps: a sign-up or a payment and HQ's list (the hq_reps migration).
                            'add_rep_code', 'rep_by_code', 'rep_introduction_sync', 'record_rep_commission', 'reverse_rep_commission',
+                           -- Whether a business is being deleted, whoever asks (the delete_business migration).
+                           'business_being_deleted',
                            -- The Business Agent's back-office: HQ's admins see every business (the hq_businesses migration).
                            'hq_businesses',
                            -- and its funnel: week two and cancellations, business by business (the hq_funnel migration).

@@ -65,6 +65,8 @@ names Easy Beans with the header, as the Worker does.
 - **Seeding rows in a migration:** one per business: `insert … select id, … from public.business`.
 - **An upsert:** the conflict target includes `business_id` (`onConflict: 'business_id,key'`).
 - **The Worker:** `businessDb`/`requestDb`, never `serviceClient`, for a business's rows.
+- **A trigger that refuses deleting a row:** first `if public.business_being_deleted(old.business_id) then
+  return old; end if;`, so the business can still be deleted with its rows ("Closing an account" below).
 
 `supabase/tests/zzzz_several_businesses.test.sql` fails if a table has no `business_scope` policy, a
 security definer function would see every business, or a unique key spans businesses; it also runs
@@ -160,6 +162,77 @@ jornada) must be kept for four years, and it hangs together with other rows: `ti
 `breaks`, `time_entry_changes` and `correction_requests`, the `profiles`, `positions` and `break_types` they
 point to, and the `business` row, whose deletion deletes every row of the business. A nightly job that
 deleted everything else wasn't safe enough to write without a way to try it on real data. So, once a
-business has closed: cancel its Stripe subscription at once if it still has one; in a transaction naming
-the business (`set_config('app.business_id', …, true)`), delete its rows from every other table; switch
-its people off so nobody signs in; and four years after its last timecard delete the business row.
+business has closed, HQ deletes it in two steps in the SQL editor (business 7 here):
+
+1. **Once it has closed.** Cancel its Stripe subscription at once if it still has one. Then delete every
+   row of it but the working-hours record, and switch its people off so nobody signs in. The transaction
+   names the business twice: `app.business_id`, as for anything by hand, and `app.deleting_business`,
+   which lets its rows past the checks meant for someone deleting one row (`business_being_deleted()`, the
+   `delete_business` migration; it counts in the SQL editor only, never from the app or the API). It
+   refuses a business that hasn't closed, and deletes nothing if a row is still pointed to.
+
+   ```sql
+   begin;
+   select set_config('app.business_id', '7', true), set_config('app.deleting_business', '7', true);
+   do $$
+   declare
+     v_business int := nullif(current_setting('app.deleting_business', true), '')::int;
+     -- The working-hours record, kept four years, and the rows it points to.
+     v_keep text[] := array['time_entries', 'breaks', 'time_entry_changes', 'correction_requests', 'profiles', 'positions', 'break_types'];
+     v_table regclass;
+     v_rows bigint;
+     v_gone bigint;
+     v_stuck text[];
+   begin
+     if v_business is null or v_business::text is distinct from current_setting('app.business_id', true) then
+       raise exception 'Name the business in this transaction: app.business_id and app.deleting_business';
+     end if;
+     if not exists (select 1 from public.business where id = v_business and closing_requested_at <= now() - interval '30 days') then
+       raise exception 'Business % hasn’t closed', v_business;
+     end if;
+     -- Every table with rows of it, round after round until one deletes nothing: a row that another one
+     -- still points to goes in a later round, once that one has gone.
+     loop
+       v_gone := 0;
+       v_stuck := '{}';
+       for v_table in
+         select c.oid::regclass from pg_class c
+          where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' and c.relname <> all (v_keep)
+            and exists (select 1 from pg_attribute a where a.attrelid = c.oid and a.attname = 'business_id' and not a.attisdropped)
+          order by c.relname
+       loop
+         begin
+           execute format('delete from %s where business_id = $1', v_table) using v_business;
+           get diagnostics v_rows = row_count;
+           v_gone := v_gone + v_rows;
+         exception when foreign_key_violation then
+           v_stuck := v_stuck || v_table::text;
+         end;
+       end loop;
+       exit when v_gone = 0;
+     end loop;
+     if cardinality(v_stuck) > 0 then
+       raise exception 'Nothing deleted: rows of % are still pointed to', array_to_string(v_stuck, ', ');
+     end if;
+     -- Its people switched off, so nobody signs in to it.
+     update public.profiles set active = false where business_id = v_business;
+   end $$;
+   commit;
+   ```
+
+2. **Four years after its last timecard** (`select max(clock_in) from public.time_entries where business_id = 7;`).
+   Delete the business row, which deletes everything left of it, and its people's accounts (an account
+   is in one business):
+
+   ```sql
+   begin;
+   create temp table closing_people on commit drop as select id from public.profiles where business_id = 7;
+   delete from public.business where id = 7;
+   delete from auth.users where id in (table closing_people);
+   commit;
+   ```
+
+While a business row is being deleted the same checks let its rows go, so step 2 alone deletes a business
+and everything of it in one go (one with no working hours to keep). Its photos, videos and camera video
+are in its own Google Drive or OneDrive, and stay there. `supabase/tests/zzzzzzzzzzzzzzz_delete_business.test.sql`
+runs both steps, and step 2 alone, on every business the tests made.
