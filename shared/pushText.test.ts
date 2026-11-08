@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { languageOf, pushText } from './pushText'
 
 const holiday = { title: 'Bank holiday tomorrow: Día de Andalucía', body: 'x', kind: 'bank_holiday' as const,
-  data: { event: 'e', date: '2027-02-28', days: 1, name: 'Día de Andalucía', category: 'regional', town: null } }
+  data: { event: 'e', date: '2027-02-28', days: 1, name: 'Día de Andalucía', category: 'regional', town: 'Andalucía' } }
 
 describe('push notifications in each person’s language', () => {
   it('follows the language they read the app in, else the team’s', () => {
@@ -14,9 +14,9 @@ describe('push notifications in each person’s language', () => {
 
   it('says a holiday reminder in English or Spanish', () => {
     expect(pushText(holiday, 'en')).toEqual({ title: 'Bank holiday tomorrow: Día de Andalucía',
-      body: 'Sunday 28 February · Andalucía holiday. Check the rota and the opening hours.' })
+      body: 'Sunday 28 February · Regional holiday (Andalucía). Check the rota and the opening hours.' })
     expect(pushText(holiday, 'es')).toEqual({ title: 'Festivo mañana: Día de Andalucía',
-      body: 'domingo, 28 de febrero · Festivo de Andalucía. Revisa los turnos y el horario.' })
+      body: 'domingo, 28 de febrero · Festivo autonómico (Andalucía). Revisa los turnos y el horario.' })
     expect(pushText({ ...holiday, data: { ...holiday.data, days: 7, category: 'local', town: 'Marbella' } }, 'es').title).toBe('Festivo dentro de 7 días: Día de Andalucía')
   })
 

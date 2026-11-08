@@ -29,6 +29,8 @@ on conflict (id) do update set (name, business_type, address, phone, email, inst
   excluded.address, excluded.phone, excluded.email, excluded.instagram, excluded.website, excluded.timezone,
   excluded.opening_hours, excluded.peak_hours, excluded.owners, excluded.suppliers, excluded.towns_followed, excluded.notes)
   where public.business.name = 'My business';
+-- In Andalucía: its holidays come each night with Spain's (the business_region migration; ids es-an-…, as below).
+update public.business set region = 'AN' where id = 1 and region is null and name = 'Easy Beans Coffee';
 
 insert into public.business_admin_notes (business_id, notes) values (1, null) on conflict (business_id) do nothing;
 insert into public.settings (business_id) values (1) on conflict (business_id) do nothing;
@@ -55,10 +57,10 @@ values
   ('2026-10-12', 'Fiesta Nacional de España', 'national', null, 'import', 'es-2026-10-12', true),
   ('2026-12-08', 'Inmaculada Concepción', 'national', null, 'import', 'es-2026-12-08', true),
   ('2026-12-25', 'Natividad del Señor', 'national', null, 'import', 'es-2026-12-25', true),
-  ('2026-02-28', 'Día de Andalucía', 'regional', 'Andalucía', 'import', 'an-2026-02-28', true),
-  ('2026-04-02', 'Jueves Santo', 'regional', 'Andalucía', 'import', 'an-2026-04-02', true),
-  ('2026-11-02', 'Todos los Santos (trasladado del domingo)', 'regional', 'Andalucía', 'import', 'an-2026-11-02', true),
-  ('2026-12-07', 'Día de la Constitución (trasladado del domingo)', 'regional', 'Andalucía', 'import', 'an-2026-12-07', true),
+  ('2026-02-28', 'Día de Andalucía', 'regional', 'Andalucía', 'import', 'es-an-2026-02-28', true),
+  ('2026-04-02', 'Jueves Santo', 'regional', 'Andalucía', 'import', 'es-an-2026-04-02', true),
+  ('2026-11-02', 'Todos los Santos (trasladado del domingo)', 'regional', 'Andalucía', 'import', 'es-an-2026-11-02', true),
+  ('2026-12-07', 'Día de la Constitución (trasladado del domingo)', 'regional', 'Andalucía', 'import', 'es-an-2026-12-07', true),
   ('2026-06-11', 'San Bernabé', 'local', 'Marbella', 'import', 'marbella-2026-06-11', true),
   ('2026-10-19', 'San Pedro de Alcántara', 'local', 'Marbella', 'import', 'marbella-2026-10-19', true),
   ('2026-05-15', 'San Isidro Labrador', 'area', 'Estepona', 'import', 'estepona-2026-05-15', false),

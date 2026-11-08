@@ -4,8 +4,9 @@
 import { LANGUAGES, msg, type Language } from './i18n'
 import type { AppNotification, Preferences } from './types'
 import spanish from '../src/i18n/es/notifications'
+import regions from '../src/i18n/es/regions'
 
-const es = spanish as Record<string, string>
+const es = { ...spanish, ...regions } as Record<string, string>
 const fill = (text: string, vars: Record<string, string | number> = {}) =>
   text.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m))
 const say = (lang: Language, text: string, vars?: Record<string, string | number>) => fill((lang === 'es' && es[text]) || text, vars)
@@ -19,7 +20,7 @@ export function languageOf(p: Preferences | null | undefined, team: readonly str
 }
 
 const KIND_LABEL: Record<string, string> = {
-  national: msg('National holiday'), regional: msg('Andalucía holiday'), local: msg('Local holiday'), area: msg('Nearby town holiday'),
+  national: msg('National holiday'), regional: msg('Regional holiday'), local: msg('Local holiday'), area: msg('Nearby town holiday'),
 }
 
 type Note = Pick<AppNotification, 'title' | 'body' | 'kind' | 'data'>

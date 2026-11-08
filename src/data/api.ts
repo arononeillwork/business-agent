@@ -206,7 +206,9 @@ export interface Api {
    * Signed in and in no business yet: create mine and run it (admin, first owner, Free plan). `kind`
    * picks its first positions; `referral` is another business's referral code. Returns its number.
    */
-  createBusiness(b: { name: string; kind: 'cafe' | 'restaurant' | 'pub' | 'salon' | 'real_estate' | 'other' | null; timezone: string; referral?: string | null; country?: 'ES' | 'IE' }): Promise<number>
+  createBusiness(b: { name: string; kind: 'cafe' | 'restaurant' | 'pub' | 'salon' | 'real_estate' | 'other' | null; timezone: string; referral?: string | null; country?: 'ES' | 'IE'
+    /** In Spain, its region (shared/regions.ts), when picked. */
+    region?: Business['region'] }): Promise<number>
   /** Set-up guide, "already open" (admins): the logo, colours, fonts and details read from a website. Nothing is saved. */
   lookUpBrand(website: string): Promise<FoundBrand>
   /**

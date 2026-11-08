@@ -1,0 +1,28 @@
+// Spanish for a business's region in Spain: the communities and Ceuta and Melilla (shared/regions.ts),
+// asked when a business is added and on Business, and their holidays on the Calendar.
+export default {
+  'Region': 'Comunidad autónoma',
+  'Optional: its own public holidays go on your calendar too. You can add it later.':
+    'Opcional: sus festivos propios también se añaden a tu calendario. Puedes elegirla más tarde.',
+  'Its own public holidays go on your calendar too, with Spain’s.': 'Sus festivos propios también se añaden a tu calendario, con los de España.',
+  'Regional holiday': 'Festivo autonómico',
+  'Andalusia': 'Andalucía',
+  'Aragon': 'Aragón',
+  'Asturias': 'Asturias',
+  'Balearic Islands': 'Islas Baleares',
+  'Canary Islands': 'Canarias',
+  'Cantabria': 'Cantabria',
+  'Castilla-La Mancha': 'Castilla-La Mancha',
+  'Castile and León': 'Castilla y León',
+  'Catalonia': 'Cataluña',
+  'Extremadura': 'Extremadura',
+  'Galicia': 'Galicia',
+  'Madrid': 'Comunidad de Madrid',
+  'Murcia': 'Región de Murcia',
+  'Navarre': 'Navarra',
+  'Basque Country': 'País Vasco',
+  'La Rioja': 'La Rioja',
+  'Valencian Community': 'Comunidad Valenciana',
+  'Ceuta': 'Ceuta',
+  'Melilla': 'Melilla',
+}

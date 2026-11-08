@@ -486,7 +486,7 @@ export default {
           await watchCompetitors(env, b).catch(e => console.error('competitors failed', id, e))
           // Outside services' answers kept over two days (provider_cache).
           await clearOldCache(b).catch(e => console.error('cache clear failed', id, e))
-          // Spain's national holidays for this year and next, for a business that has none of them yet.
+          // Its country's public holidays for this year and next, and in Spain its region's, where it has none of them yet.
           await addNationalHolidays(b).catch(e => console.error('national holidays failed', id, e))
         })
       })())
