@@ -207,6 +207,8 @@ export interface Api {
    * picks its first positions; `referral` is another business's referral code. Returns its number.
    */
   createBusiness(b: { name: string; kind: 'cafe' | 'restaurant' | 'pub' | 'salon' | 'real_estate' | 'other' | null; timezone: string; referral?: string | null; country?: 'ES' | 'IE'
+    /** In Spain, its town (shared/townHolidays.ts), when typed. */
+    town?: string | null
     /** In Spain, its region (shared/regions.ts), when picked. */
     region?: Business['region'] }): Promise<number>
   /** Set-up guide, "already open" (admins): the logo, colours, fonts and details read from a website. Nothing is saved. */
@@ -261,6 +263,10 @@ export interface Api {
   // calendar
   saveEvent(event: EventInput): Promise<void>
   deleteEvent(id: string): Promise<void>
+  /** Spain: the town's local holidays (shared/townHolidays.ts) from one year to another, as added. */
+  townHolidays(fromYear: number, toYear: number): Promise<CalendarEvent[]>
+  /** Admins: a year's two local holidays of the business's town, in place of that year's (the town_holidays migration). */
+  setTownHolidays(year: number, days: string[]): Promise<void>
 
   // business, team
   updateBusiness(patch: Partial<Business>): Promise<void>

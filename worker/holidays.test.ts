@@ -4,6 +4,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { addNationalHolidays, businessHolidays, easter, irelandPublicHolidays, spainNationalHolidays } from './holidays'
+import { remindTownHolidays } from './holidays'
 import { SPAIN_FIESTAS, type FiestasYear } from './regionalHolidays'
 import { FakeSupabase } from './test/fakeSupabase'
 
@@ -154,5 +155,68 @@ describe('a Spanish business’s region', () => {
     await addNationalHolidays(client(), new Date('2026-11-09T02:00:00Z'))
     expect(dates('es-md-')).toEqual(['2026-05-02'])
     expect(rows('es-2027-')).toHaveLength(9)
+  })
+})
+
+describe('a Spanish town’s two local holidays', () => {
+  const NIGHT = new Date('2026-11-08T01:15:00Z')
+  const town = (date: string, place = 'Marbella', id = `local-${date}`) =>
+    ({ id: `t-${date}`, starts_on: date, title: 'Fiesta local', category: 'local', town: place, source: 'admin', external_id: id, confirmed: true })
+  const notes = () => db.tables.notifications
+
+  it('the nightly import adds no national or regional day on one of their dates, and never touches them', async () => {
+    db.tables.business[0].region = 'AN'
+    // An unlikely town that picked Epifanía and Jueves Santo for 2027.
+    db.tables.calendar_events.push(town('2027-01-06'), town('2027-03-25'))
+    expect(await addNationalHolidays(client(), NIGHT)).toBe(8 + 4 + 8 + 2)
+    expect(db.tables.calendar_events.filter(e => e.starts_on === '2027-01-06')).toEqual([town('2027-01-06')])
+    expect(db.tables.calendar_events.filter(e => e.starts_on === '2027-03-25')).toEqual([town('2027-03-25')])
+    // A region changed, the next night: the town's days stay as they are.
+    db.tables.business[0].region = 'MD'
+    await addNationalHolidays(client(), new Date('2026-11-09T01:15:00Z'))
+    expect(db.tables.calendar_events.filter(e => String(e.external_id).startsWith('local-'))).toEqual([town('2027-01-06'), town('2027-03-25')])
+  })
+
+  it('a year without them: its admins are told once, this year’s any time and next year’s from December', async () => {
+    db.tables.business[0].town = 'Marbella'
+    expect(await remindTownHolidays(client(), NIGHT)).toEqual([2026])
+    expect(notes().map(n => n.profile_id)).toEqual(['admin-1', 'admin-2'])
+    expect(notes()[0]).toMatchObject({ title: 'Add Marbella’s local holidays for 2026', link: '/business?local-holidays=2026',
+      kind: 'town_holidays', data: { year: 2026, town: 'Marbella' } })
+    expect(notes()[0].body).toBe('Its town hall sets two days off each year. Add them so the rota and holiday pay know them.')
+    // Not every night after.
+    expect(await remindTownHolidays(client(), new Date('2026-11-09T01:15:00Z'))).toEqual([])
+    // December: next year's too, once.
+    expect(await remindTownHolidays(client(), new Date('2026-12-01T01:15:00Z'))).toEqual([2027])
+    expect(await remindTownHolidays(client(), new Date('2026-12-02T01:15:00Z'))).toEqual([])
+    expect(notes()).toHaveLength(4)
+  })
+
+  it('a year whose days are in isn’t asked about; a local holiday added by hand doesn’t count', async () => {
+    db.tables.business[0].town = 'Marbella'
+    db.tables.calendar_events.push(town('2026-06-11'), town('2026-10-19'), town('2027-06-11', 'Marbella', 'marbella-2027-06-11'))
+    expect(await remindTownHolidays(client(), NIGHT)).toEqual([])
+    expect(await remindTownHolidays(client(), new Date('2026-12-01T01:15:00Z'))).toEqual([2027])
+    db.tables.calendar_events.push(town('2027-10-19'))
+    db.tables.notifications = []
+    expect(await remindTownHolidays(client(), new Date('2026-12-02T01:15:00Z'))).toEqual([])
+  })
+
+  it('a town moved to is asked about afresh: another town’s days aren’t its own', async () => {
+    db.tables.business[0].town = 'Marbella'
+    db.tables.calendar_events.push(town('2026-06-11'))
+    expect(await remindTownHolidays(client(), NIGHT)).toEqual([])
+    db.tables.business[0].town = 'Sevilla'
+    expect(await remindTownHolidays(client(), NIGHT)).toEqual([2026])
+    expect(notes()[0]).toMatchObject({ title: 'Add Sevilla’s local holidays for 2026', data: { year: 2026, town: 'Sevilla' } })
+  })
+
+  it('no town yet, or a business in Ireland: nothing to ask', async () => {
+    expect(await remindTownHolidays(client(), NIGHT)).toEqual([])
+    db.tables.business[0].town = '  '
+    expect(await remindTownHolidays(client(), NIGHT)).toEqual([])
+    Object.assign(db.tables.business[0], { country: 'IE', town: 'Cork' })
+    expect(await remindTownHolidays(client(), NIGHT)).toEqual([])
+    expect(notes()).toEqual([])
   })
 })

@@ -808,6 +808,16 @@ region's, as the Ministry of Labour's yearly resolution in the BOE lists them (`
 2026 and 2027 for now; each October's resolution for the next year is one more table there). A national
 day the region replaced isn't added. The town's two local days the owner adds on the Calendar.
 
+A business in Spain also says its town (asked when it's added, and on Business next to the region), and an
+admin adds each year's two local holidays (fiestas locales) in one go: Business → Local holidays, or the
+prompt on Today (`shared/townHolidays.ts`, `src/components/TownHolidays.tsx`). Each town hall sets its own
+and each community's bulletin publishes them, with no national list, so they're asked for rather than
+imported: this year's at any time and next year's from December, with one notification to the admins (the
+nightly `remindTownHolidays`, `worker/holidays.ts`) and a prompt on Today that "Not now" puts off for that
+year. They're local holidays with ids of their own (`local-2027-06-11`; `set_town_holidays()`, the
+town_holidays migration), which the nightly import never touches and puts no national or regional day on.
+Easy Beans' (Marbella) 2026 and 2027 days are in, from the BOJA (the migration says which issues).
+
 ## Gift cards
 
 Loyalty & gift cards has two tabs: **Loyalty** (the stamp card and its members) and **Gift cards**

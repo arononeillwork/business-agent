@@ -7,13 +7,17 @@
 // region decides whether to move it to the Monday, as it does its own holidays. A business with a region
 // (business.region) also gets that region's, from the Ministry of Labour's list in the BOE
 // (worker/regionalHolidays.ts), and of the national days only those its region keeps. Its town's two
-// local days the owner adds on the Calendar (Easy Beans' seed has Marbella's).
+// local days an admin adds each year (shared/townHolidays.ts): this import never touches them, adds no
+// day of its own on their dates, and reminds the admins once when a year's aren't in (remindTownHolidays).
 // Ireland: the ten public holidays (Organisation of Working Time Act 1997, as amended for St Brigid's
 // Day), on their own dates; one on a weekend still gives staff a day's pay or a day off, but no other day
 // becomes the holiday.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { isSpanishRegion, spanishRegion } from '../shared/regions.ts'
 import { regionFiestas, SPAIN_FIESTAS, type FiestasYear } from './regionalHolidays.ts'
+import {
+  TOWN_HOLIDAY_PREFIX, TOWN_HOLIDAYS_BODY, townHolidaysLink, townHolidaysMissing, townHolidaysTitle, townHolidaysToTell, townHolidayYears,
+} from '../shared/townHolidays.ts'
 
 export interface Holiday { date: string; title: string }
 
@@ -133,13 +137,18 @@ export async function addNationalHolidays(db: SupabaseClient, now = new Date(), 
   })
   const kept = given.filter(e => !stale.includes(e))
   const taken = new Set(kept.map(e => e.starts_on))
+  // The town's local holidays these years: no national or regional day goes on one of their dates.
+  const { data: local, error: localError } = await db.from('calendar_events').select('starts_on').eq('category', 'local')
+    .like('external_id', `${TOWN_HOLIDAY_PREFIX}%`).gte('starts_on', `${years[0].year}-01-01`)
+  if (localError) throw new Error(localError.message)
+  const townDays = new Set(((local ?? []) as { starts_on: string }[]).map(e => e.starts_on))
   const has = (p: string, year: number) => given.some(e => e.external_id.startsWith(`${p}-${year}-`))
   const row = (p: string, category: 'national' | 'regional', town: string | null) => (h: Holiday) => ({
     starts_on: h.date, title: h.title, category, town, source: 'import', external_id: `${p}-${h.date}`, confirmed: true,
   })
   const rows = years.flatMap(({ year, national, regional }) => [
-    ...(has(national.prefix, year) ? [] : national.days.map(row(national.prefix, 'national', null))),
-    ...(!regional || has(regional.prefix, year) ? [] : regional.days.filter(h => !taken.has(h.date)).map(row(regional.prefix, 'regional', regional.town))),
+    ...(has(national.prefix, year) ? [] : national.days.filter(h => !townDays.has(h.date)).map(row(national.prefix, 'national', null))),
+    ...(!regional || has(regional.prefix, year) ? [] : regional.days.filter(h => !taken.has(h.date) && !townDays.has(h.date)).map(row(regional.prefix, 'regional', regional.town))),
   ])
   if (rows.length) {
     const { error: insertError } = await db.from('calendar_events').insert(rows)
@@ -150,4 +159,35 @@ export async function addNationalHolidays(db: SupabaseClient, now = new Date(), 
     if (deleteError) throw new Error(deleteError.message)
   }
   return rows.length
+}
+
+/**
+ * A Spanish business with a town: its admins hear once (for that town) about each year whose local
+ * holidays aren't on the calendar, this year's at any time and next year's from December, in the
+ * notifications they get for public holidays. Returns the years they were told about.
+ */
+export async function remindTownHolidays(db: SupabaseClient, now = new Date()): Promise<number[]> {
+  const { data: biz } = await db.from('business').select('country, town').maybeSingle()
+  const { country, town } = (biz ?? {}) as { country?: string; town?: string | null }
+  if (country === 'IE' || !town?.trim()) return []
+  const today = now.toISOString().slice(0, 10)
+  const years = townHolidayYears(today)
+  const { data: days, error } = await db.from('calendar_events').select('category, external_id, starts_on, town').eq('category', 'local')
+    .like('external_id', `${TOWN_HOLIDAY_PREFIX}%`).gte('starts_on', `${years[0]}-01-01`).lte('starts_on', `${years.at(-1)}-12-31`)
+  if (error) throw new Error(error.message)
+  const missing = townHolidaysMissing(today, town, (days ?? []) as { category: string; external_id: string; starts_on: string; town: string | null }[])
+  if (!missing.length) return []
+  // Once a year for a town, whatever was done with that notification.
+  const { data: sent, error: sentError } = await db.from('notifications').select('data').eq('kind', 'town_holidays').in('data->>year', missing.map(String))
+  if (sentError) throw new Error(sentError.message)
+  const due = townHolidaysToTell(missing, town, ((sent ?? []) as { data: { year?: number; town?: string } | null }[]).map(n => n.data ?? {}))
+  if (!due.length) return []
+  const { data: admins } = await db.from('profiles').select('id').eq('role', 'admin').eq('active', true)
+  if (!admins?.length) return []
+  const { error: insertError } = await db.from('notifications').insert(due.flatMap(year => admins.map(a => ({
+    profile_id: a.id, title: townHolidaysTitle(town, year), body: TOWN_HOLIDAYS_BODY, link: townHolidaysLink(year),
+    kind: 'town_holidays', data: { year, town: town.trim() },
+  }))))
+  if (insertError) throw new Error(insertError.message)
+  return due
 }

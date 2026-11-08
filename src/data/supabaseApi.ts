@@ -67,6 +67,8 @@ import type { TipPool } from '../../shared/tips'
 import type { FoundBrand } from '../../shared/brandLookup'
 import { addDays, zonedIso } from '../../shared/time'
 import { forget, keep, opened, readKept, shownAccounts, smallLogo, writeKept, type KeptSession } from './deviceAccounts'
+import type { CalendarEvent } from '../../shared/types'
+import { TOWN_HOLIDAY_PREFIX } from '../../shared/townHolidays'
 
 const PROFILE_COLUMNS = 'id, business_id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access, preferences, on_rota, on_people'
 
@@ -251,6 +253,8 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
       const id = check(await sb.rpc('create_business', { p_name: b.name, p_kind: b.kind, p_timezone: b.timezone, p_referral: b.referral ?? null, p_country: b.country ?? null })) as number
       // Its region (Spain), saved as any change to the business is, now that it's theirs.
       if (b.region && b.country !== 'IE') check(await sb.from('business').update({ region: b.region }).eq('id', id))
+      // And its town (Spain): its local holidays are asked for each year.
+      if (b.town?.trim() && b.country !== 'IE') check(await sb.from('business').update({ town: b.town.trim() }).eq('id', id))
       return id
     },
     async signIn(email, password) {
@@ -437,6 +441,13 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
     },
     async deleteEvent(id) {
       check(await sb.from('calendar_events').delete().eq('id', id))
+    },
+    async townHolidays(fromYear, toYear) {
+      return check(await sb.from('calendar_events').select('*').eq('category', 'local').like('external_id', `${TOWN_HOLIDAY_PREFIX}%`)
+        .gte('starts_on', `${fromYear}-01-01`).lte('starts_on', `${toYear}-12-31`).order('starts_on')) as CalendarEvent[]
+    },
+    async setTownHolidays(year, days) {
+      check(await sb.rpc('set_town_holidays', { p_year: year, p_days: days }))
     },
 
     async updateBusiness(patch) {

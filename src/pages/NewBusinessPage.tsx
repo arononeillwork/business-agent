@@ -61,6 +61,8 @@ export function NewBusinessPage() {
   const pickCountry = (c: Country) => { setCountryChoice(c); setZone(COUNTRIES[c].timezone) }
   // In Spain, its region: its own public holidays too. Can be left for later (Business page).
   const [region, setRegion] = useState<SpanishRegion | null>(null)
+  // And its town: its two local holidays a year. Can be left for later too.
+  const [town, setTown] = useState('')
   // A code from a Business Agent rep or another business: kept from their link, or typed in.
   const [code, setCode] = useState(() => keptReferral() ?? '')
   const clean = cleanCode(code)
@@ -88,6 +90,7 @@ export function NewBusinessPage() {
     e.preventDefault()
     void run(async () => {
       await api.createBusiness({ name: name.trim(), kind, timezone: zone, referral: known ? clean : null, country,
+        town: country === 'ES' ? town.trim() || null : null,
         region: country === 'ES' ? region : null })
       forgetReferral()
       startGuide(kind)
@@ -149,6 +152,11 @@ export function NewBusinessPage() {
 
           {country === 'ES' && (
             <RegionField value={region} onChange={setRegion} helperText={t('Optional: its own public holidays go on your calendar too. You can add it later.')} />
+          )}
+          {country === 'ES' && (
+            <TextField label={t('Town')} value={town} onChange={e => setTown(e.target.value)} placeholder={t('e.g. Marbella')}
+              helperText={t('Optional: its two local holidays a year go on your calendar. You can add it later.')}
+              slotProps={{ htmlInput: { maxLength: 80 } }} />
           )}
 
           <Box role="group" aria-labelledby="new-business-kind">
