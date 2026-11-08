@@ -8,7 +8,7 @@ describe('whose a key is', () => {
     expect(ownerOf('easybeanscafe@gmail.com')).toBe('easy-beans')
     expect(ownerOf('thebusinesssagent@gmail.com')).toBe('business-agent') // The Business Agent's own Gmail
     expect(ownerOf('Business Agent')).toBe('business-agent')
-    expect(ownerOf('BusinessAgent', 'hello@businesssagent.com')).toBe('business-agent')
+    expect(ownerOf('BusinessAgent', 'noreply@businesssagent.com')).toBe('business-agent')
     expect(ownerOf("Aron O'Neill")).toBe('personal')
     expect(ownerOf("arononeill's org")).toBe('personal')
     expect(ownerOf('Default Directory')).toBe('personal')

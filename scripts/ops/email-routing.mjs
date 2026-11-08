@@ -3,7 +3,7 @@
 // same addresses through Gmail's "Send mail as", so this also lets Google send for the domain (SPF)
 // and adds a DMARC policy. Each part says what's missing and the deploy carries on without it.
 //
-// Needs: the Gmail address (thebusinesssagent@gmail.com, or the repo secret EMAIL_FORWARD_TO), and on the Cloudflare token
+// Only with the repo secret EMAIL_FORWARD_TO (the inbox), and on the Cloudflare token
 // "Zone: Email Routing Rules: Edit" and "Account: Email Routing Addresses: Edit" (it already has
 // "Zone: DNS: Edit"). The first time, Cloudflare emails that Gmail to confirm it may forward there:
 // open it and press "Verify email address"; mail is delivered from then on.
@@ -12,9 +12,9 @@ import { appendFileSync } from 'node:fs'
 
 const DOMAIN = process.env.APP_DOMAIN ?? 'businesssagent.com'
 const BOXES = ['hello', 'sales', 'support', 'privacy']
-// The Business Agent's own Gmail, unless the repo secret EMAIL_FORWARD_TO names another (it's an inbox, not a secret).
-const DEFAULT_FORWARD_TO = 'thebusinesssagent@gmail.com'
-const to = (process.env.EMAIL_FORWARD_TO?.trim() || DEFAULT_FORWARD_TO).toLowerCase()
+// Off unless the repo secret EMAIL_FORWARD_TO names an inbox: The Business Agent's contact address is
+// its Gmail, thebusinesssagent@gmail.com (shared/legal.ts, shared/plans.ts), so nothing needs forwarding.
+const to = (process.env.EMAIL_FORWARD_TO ?? '').trim().toLowerCase()
 const { CLOUDFLARE_API_TOKEN: token, CLOUDFLARE_ACCOUNT_ID: account } = process.env
 const summary = msg => { console.log(msg); if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${msg}\n`) }
 
@@ -29,7 +29,7 @@ const denied = r => r.status === 403 || r.body?.errors?.some(e => [10000, 9109].
 
 if (!token || !account) { summary('Business email: skipped (no Cloudflare account ID yet).'); process.exit(0) }
 if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) {
-  summary(`Business email: add the repo secret **EMAIL_FORWARD_TO** (the Gmail address that should receive ${BOXES.map(b => `${b}@${DOMAIN}`).join(', ')}), then deploy again.`)
+  summary('Business email: off. The contact address is thebusinesssagent@gmail.com; no addresses on the domain are set up.')
   process.exit(0)
 }
 const zones = await cf(`/zones?name=${DOMAIN}&account.id=${account}`)

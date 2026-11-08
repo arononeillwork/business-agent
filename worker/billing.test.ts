@@ -506,7 +506,7 @@ describe('closing the account: the subscription stops renewing, and starts again
     const withEmail = { ...env, EMAIL: { send } } as unknown as Env
     await call('/api/account/close', 'admin-token', withEmail)
     expect(send).toHaveBeenCalledWith(expect.objectContaining({
-      from: { email: 'noreply@businesssagent.com', name: 'The Business Agent' }, to: 'support@businesssagent.com',
+      from: { email: 'noreply@businesssagent.com', name: 'The Business Agent' }, to: 'thebusinesssagent@gmail.com',
       subject: 'Account closing: Easy Beans (#1)', replyTo: 'aron@example.com' }))
     expect((send.mock.calls[0] as unknown as [{ text: string }])[0].text).toMatch(/^Aron asked to close Easy Beans \(#1\) on The Business Agent\. It closes on 2026-12-07/)
     await call('/api/account/keep', 'admin-token', withEmail)

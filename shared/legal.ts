@@ -9,9 +9,9 @@ export const LEGAL = {
   /** Registered address of that company. */
   address: '',
   /** Where privacy requests go (set up forwarding to a real inbox, e.g. Cloudflare Email Routing). */
-  contactEmail: 'privacy@businesssagent.com',
+  contactEmail: 'thebusinesssagent@gmail.com',
   /** Where everything else goes (questions, account closure). */
-  supportEmail: 'support@businesssagent.com',
+  supportEmail: 'thebusinesssagent@gmail.com',
   /** Date of this version of the privacy policy. */
   updated: '2026-11-07',
   /** Date of this version of the terms of service. */

@@ -25,7 +25,8 @@ export const BA = {
 export const display = '"Fraunces", Georgia, serif'
 /** Prices and big figures: the body sans, so numbers read at a glance. */
 export const figures = { fontFamily: '"Figtree", system-ui, sans-serif', fontWeight: 600, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' } as const
-export const CONTACT = { hello: 'hello@businesssagent.com', sales: ENTERPRISE.email, support: 'support@businesssagent.com' }
+// The Business Agent's one address, for sales, support and everything else.
+export const CONTACT = { email: ENTERPRISE.email }
 
 /** Soft glows of the three brand colours, for hero backgrounds; without the grey one along the bottom (`floor`), no edge shows where the next section starts. */
 export const glow = (x = '80%', y = '-160px', floor = true) =>
@@ -161,7 +162,7 @@ function SiteFooter() {
         </Stack>
         {col(t('Product'), [[t('Demos'), '/demos'], [t('Features'), '/#features'], [t('Pricing'), '/pricing'], [t('Compare'), '/compare'], [ENTERPRISE.name, '/pricing#enterprise']])}
         {col(t('Account'), [[t('Log in'), '/#account'], [t('Start free trial'), '/#start']])}
-        {col(t('Contact'), [[CONTACT.hello, `mailto:${CONTACT.hello}`], [CONTACT.sales, `mailto:${CONTACT.sales}`], [CONTACT.support, `mailto:${CONTACT.support}`]])}
+        {col(t('Contact'), [[CONTACT.email, `mailto:${CONTACT.email}`]])}
         {col(t('Legal'), [[t('Privacy policy'), '/privacy'], [t('Terms of service'), '/terms']])}
       </Container>
       <Container maxWidth="lg" sx={{ py: 2.5, borderTop: `1px solid ${BA.line}` }}>

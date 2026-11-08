@@ -118,14 +118,14 @@ if (site) {
 const after = Object.keys(patch).length ? await api('PATCH', patch) : current
 // Who sends for people outside a business with a mailbox: HQ's mailbox, or (until HQ connects one) the founding business's.
 const fallback = hqMailbox
-  ? `The Business Agent HQ's ${hqMailbox.account_label ?? 'mailbox'}`
+  ? `from The Business Agent HQ's ${hqMailbox.account_label ?? 'mailbox'}`
   : mailbox
-  ? `still ${mailbox.account_label ?? 'the founding business’s mailbox'}, until The Business Agent HQ connects thebusinesssagent@gmail.com (switch to HQ → Connections → Gmail), then deploy`
+  ? 'still from the founding business’s mailbox until The Business Agent HQ connects thebusinesssagent@gmail.com (switch to HQ → Connections → Gmail), then deploy'
   : null
 console.log(after.hook_send_email_enabled && sending
   ? `Sign-in emails: sent from noreply@businesssagent.com (Cloudflare Email Sending)${fallback ? `; if that fails, from each business's own mailbox, else ${fallback}` : ''}`
   : after.hook_send_email_enabled
-  ? `Sign-in emails: sent from each business's own Gmail or Outlook; for everyone else, from ${fallback}`
+  ? `Sign-in emails: sent from each business's own Gmail or Outlook; for everyone else, ${fallback}`
   : "Sign-in emails: sent by Supabase (connect thebusinesssagent@gmail.com on The Business Agent HQ's Connections page, then deploy)")
 console.log(after.hook_before_user_created_enabled
   ? 'Sign-up check: on (Cloudflare Turnstile on the sign-up form)'
