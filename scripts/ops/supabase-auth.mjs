@@ -129,7 +129,7 @@ console.log(after.hook_send_email_enabled && sending
   : "Sign-in emails: sent by Supabase (connect thebusinesssagent@gmail.com on The Business Agent HQ's Connections page, then deploy)")
 console.log(after.hook_before_user_created_enabled
   ? 'Sign-up check: on (Cloudflare Turnstile on the sign-up form)'
-  : 'Sign-up check: off (add the TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY repo secrets, then deploy, to switch it on)')
+  : 'Sign-up check: off (no Turnstile keys yet: the "Sign-up check" step above says what it needs)')
 console.log(`Leaked-password protection: ${after.password_hibp_enabled ? 'on' : 'off (Supabase refused it: it needs the Pro plan)'}`)
 console.log(`Supabase Auth: site ${after.site_url}`)
 console.log(`Redirects allowed: ${after.uri_allow_list}`)
