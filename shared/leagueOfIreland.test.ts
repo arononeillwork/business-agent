@@ -1,7 +1,7 @@
 // The League of Ireland on the Sports page: the Premier Division, the First Division and the FAI Cup in the
 // catalogue (the league_of_ireland migration, and the demo's), offered first in Ireland after the GAA, with
 // the last round and the FAI Cup final as the big nights.
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { fromSportsDb, homeFirst, isBigEvent, type SportsCompetition } from './sports'
@@ -13,7 +13,9 @@ const cup = { code: 'ie-fai-cup', sport: 'football' as const, kind: 'cup' as con
 const match = (round: string | null, home = 'Shelbourne', away = 'Shamrock Rovers') => ({ sport: 'football' as const, title: `${home} vs ${away}`, home, away, round })
 
 describe('the League of Ireland in the catalogue', () => {
-  const migration = readFileSync(join(import.meta.dirname, '../supabase/migrations/20261108000194_league_of_ireland.sql'), 'utf8')
+  // Found by name, so it still matches when the merge queue gives the migration another number.
+  const dir = join(import.meta.dirname, '../supabase/migrations')
+  const migration = readFileSync(join(dir, readdirSync(dir).filter(f => f.endsWith('_league_of_ireland.sql')).sort().pop()!), 'utf8')
   const rows = [...migration.matchAll(/\('(ie-[a-z-]+)',\s*'(\d+)',\s*'([^']+)',\s*'(league|cup)',\s*(\d+)\)/g)]
     .map(([, code, id, name, kind, sort]) => ({ code, source_id: id, name, kind, sort: Number(sort) }))
 
