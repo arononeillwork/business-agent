@@ -3,7 +3,7 @@
 // same addresses through Gmail's "Send mail as", so this also lets Google send for the domain (SPF)
 // and adds a DMARC policy. Each part says what's missing and the deploy carries on without it.
 //
-// Needs: the repo secret EMAIL_FORWARD_TO (the Gmail address), and on the Cloudflare token
+// Needs: the Gmail address (thebusinesssagent@gmail.com, or the repo secret EMAIL_FORWARD_TO), and on the Cloudflare token
 // "Zone: Email Routing Rules: Edit" and "Account: Email Routing Addresses: Edit" (it already has
 // "Zone: DNS: Edit"). The first time, Cloudflare emails that Gmail to confirm it may forward there:
 // open it and press "Verify email address"; mail is delivered from then on.
@@ -12,7 +12,9 @@ import { appendFileSync } from 'node:fs'
 
 const DOMAIN = process.env.APP_DOMAIN ?? 'businesssagent.com'
 const BOXES = ['hello', 'sales', 'support', 'privacy']
-const to = (process.env.EMAIL_FORWARD_TO ?? '').trim().toLowerCase()
+// The Business Agent's own Gmail, unless the repo secret EMAIL_FORWARD_TO names another (it's an inbox, not a secret).
+const DEFAULT_FORWARD_TO = 'thebusinesssagent@gmail.com'
+const to = (process.env.EMAIL_FORWARD_TO?.trim() || DEFAULT_FORWARD_TO).toLowerCase()
 const { CLOUDFLARE_API_TOKEN: token, CLOUDFLARE_ACCOUNT_ID: account } = process.env
 const summary = msg => { console.log(msg); if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${msg}\n`) }
 

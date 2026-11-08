@@ -585,7 +585,7 @@ built-in **AI connector** so owners can run it by talking to Claude.
   grows wider and the top-right buttons grow with it. On the To Do List, "All" is the brand's rose.
 - People: a login that isn't a person (the business's own shared login) is left off People by a switch on
   its Team panel ("On the People page"; the `people_page_and_pets` migration). At Easy Beans that's
-  "Owner" (easybeanscafe@gmail.com): the owners on People are Aron and Mark. Yoda and Cooper, with their
+  its shared "Owner" login: the owners on People are Aron and Mark. Yoda and Cooper, with their
   photos, are Mark's.
 - Suppliers: each has an **Invoices** link beside its phone and email, opening Invoices for that supplier
   (`/invoices?supplier=…`) with its emails that have files, searched over the last year by its email,

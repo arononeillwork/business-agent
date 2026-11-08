@@ -3,13 +3,15 @@
 // the deploy: scripts/ops/supabase-auth.mjs) and sends nothing itself.
 // - With Cloudflare Email Sending on (the EMAIL binding; scripts/ops/email-sending.mjs), everyone gets
 //   them from noreply@businesssagent.com, with replies going to support@.
-// - Without it, or if it fails, they go out as before: from the person's business's own Gmail or
-//   Outlook, or, for someone in no business yet or whose business has no mailbox, through the founding
-//   business's mailbox.
+// - Without it, or if it fails, from the person's business's own Gmail or Outlook; for anyone else
+//   (no business yet, or a business without a mailbox), from The Business Agent HQ's mailbox
+//   (thebusinesssagent@gmail.com, connected on HQ's Connections page), never another business's. Only
+//   while HQ has none connected is the founding business's the last resort, so email sign-ups still work.
 //
 // Supabase signs each call (Standard Webhooks). The shared secret is derived from the service key,
 // which both the Worker and the deploy already have, so there is no extra secret to manage.
 import { Hono } from 'hono'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { SECRETS_BUSINESS_ID, businessDb, serviceClient, type Env } from './supabase'
 import { sendEmail } from './integrations'
 
@@ -122,6 +124,24 @@ export const hookError = (status: number, message: string) =>
 
 export const authEmail = new Hono<{ Bindings: Env }>()
 
+const hasMailbox = async (db: SupabaseClient) => {
+  const { data } = await db.from('integrations').select('provider').in('provider', ['gmail', 'outlook']).eq('status', 'connected').limit(1)
+  return !!data?.length
+}
+
+/**
+ * Whose mailbox a sign-in email goes from when Cloudflare Email Sending can't send it: the person's own
+ * business's, else The Business Agent HQ's, never another business's. The founding business's (Easy Beans)
+ * is the last resort only while HQ has no mailbox connected.
+ */
+export async function senderMailbox(env: Env, ownDb: SupabaseClient | null) {
+  if (ownDb && await hasMailbox(ownDb)) return ownDb
+  const { data: hq } = await serviceClient(env).from('business').select('id').eq('is_hq', true).limit(1).maybeSingle()
+  const hqDb = hq?.id ? businessDb(env, hq.id as number) : null
+  if (hqDb && await hasMailbox(hqDb)) return hqDb
+  return businessDb(env, SECRETS_BUSINESS_ID)
+}
+
 authEmail.post('/api/auth/send-email', async c => {
   const body = await c.req.text()
   if (!c.env.SUPABASE_SERVICE_ROLE_KEY || !await verifyHook(c.env.SUPABASE_SERVICE_ROLE_KEY, c.req.raw.headers, body)) {
@@ -134,10 +154,6 @@ authEmail.post('/api/auth/send-email', async c => {
   const own = (person?.business_id as number | null | undefined) ?? null
   const ownDb = own ? businessDb(c.env, own) : null
   const { data: biz } = ownDb ? await ownDb.from('business').select('name').maybeSingle() : { data: null }
-  const { data: box } = ownDb
-    ? await ownDb.from('integrations').select('provider').in('provider', ['gmail', 'outlook']).eq('status', 'connected').limit(1)
-    : { data: [] }
-  const db = ownDb && box?.length ? ownDb : businessDb(c.env, SECRETS_BUSINESS_ID)
   const message = authMessage(c.env, (biz?.name as string | undefined) ?? null, payload)
   if (!message) return hookError(400, `This kind of email isn't supported: ${payload.email_data.email_action_type}`)
   // From The Business Agent's own address when Cloudflare Email Sending is on.
@@ -151,7 +167,7 @@ authEmail.post('/api/auth/send-email', async c => {
     }
   }
   try {
-    await sendEmail(c.env, db, { to: payload.user.email, subject: message.subject, text: message.text })
+    await sendEmail(c.env, await senderMailbox(c.env, ownDb), { to: payload.user.email, subject: message.subject, text: message.text })
   } catch (e) {
     // Shown to the person who asked (invite, reset…): say what's wrong, not "error sending email".
     return hookError(503, `The email couldn't be sent from the business's mailbox: ${e instanceof Error ? e.message : String(e)}`)

@@ -1339,6 +1339,51 @@ describe('Sign-in emails from The Business Agent (Supabase send-email hook)', ()
     expect(readGmail(apis.google.sent.at(-1)!).subject).toBe('Reset your password for The Business Agent')
   })
 
+  /** The Business Agent HQ (business 3) with an Outlook of its own, and Easy Beans (business 1) on Gmail. */
+  async function hqWithOutlook() {
+    db.table('business').push({ id: 3, name: 'The Business Agent HQ', timezone: 'Europe/Madrid', is_hq: true })
+    // HQ's Outlook: connected the usual way, then its rows copied to business 3 (connecting Easy Beans' Gmail
+    // next switches Easy Beans' own Outlook off).
+    await connect('outlook')
+    const copies = ['integrations', 'integration_secrets'].map(t => [t, db.table(t).filter(r => r.provider === 'outlook').map(r => ({ ...structuredClone(r), business_id: 3 }))] as const)
+    await connect('gmail')
+    for (const [t, rows] of copies) db.table(t).push(...rows)
+    apis.microsoft.sent.length = 0
+    return apis.google.sent.length
+  }
+
+  it('someone in no business yet gets theirs from The Business Agent HQ’s mailbox, not Easy Beans’', async () => {
+    const gmailBefore = await hqWithOutlook()
+    const res = await hook({ ...email('signup'), user: { id: 'new-1', email: 'new@example.com', user_metadata: { full_name: 'Ana Gil' } } })
+    expect(res.status).toBe(200)
+    expect(apis.microsoft.sent).toEqual([{ to: 'new@example.com', subject: 'Confirm your email for The Business Agent' }])
+    expect(apis.google.sent).toHaveLength(gmailBefore)
+  })
+
+  it('someone in another business without a mailbox gets theirs from HQ’s, never Easy Beans’', async () => {
+    const gmailBefore = await hqWithOutlook()
+    db.table('business').push({ id: 2, name: 'Bar Sol', timezone: 'Europe/Madrid' })
+    db.table('profiles').push({ id: 'sol-1', business_id: 2, full_name: 'Sol', email: 'sol@example.com', role: 'employee', active: true })
+    expect((await hook({ ...email('recovery'), user: { id: 'sol-1', email: 'sol@example.com', user_metadata: { full_name: 'Sol' } } })).status).toBe(200)
+    expect(apis.microsoft.sent).toEqual([{ to: 'sol@example.com', subject: 'Reset your password for The Business Agent' }])
+    expect(apis.google.sent).toHaveLength(gmailBefore)
+  })
+
+  it('Easy Beans’ own people still get theirs from Easy Beans’ mailbox', async () => {
+    const gmailBefore = await hqWithOutlook()
+    expect((await hook(email('recovery'))).status).toBe(200)
+    expect(apis.google.sent).toHaveLength(gmailBefore + 1)
+    expect(apis.microsoft.sent).toEqual([])
+  })
+
+  it('while HQ has no mailbox, the founding business’s stays the last resort, so sign-ups still go', async () => {
+    db.table('business').push({ id: 3, name: 'The Business Agent HQ', timezone: 'Europe/Madrid', is_hq: true })
+    await connect('gmail')
+    const before = apis.google.sent.length
+    expect((await hook({ ...email('signup'), user: { id: 'new-2', email: 'new2@example.com', user_metadata: { full_name: 'Leo' } } })).status).toBe(200)
+    expect(apis.google.sent).toHaveLength(before + 1)
+  })
+
   it('names and links in the HTML are escaped', async () => {
     const cf = cloudflare()
     await hookWith(cf.EMAIL, { ...email('recovery'), user: { email: 'x@example.com', user_metadata: { full_name: '<b>Eve</b> X' } } })

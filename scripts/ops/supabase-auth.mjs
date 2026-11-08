@@ -83,22 +83,26 @@ if (AZURE_CLIENT_ID && AZURE_CLIENT_SECRET) Object.assign(patch, {
 })
 // Sign-in emails (invites, codes, resets) through the Worker (worker/authEmail.ts): from
 // noreply@businesssagent.com once Cloudflare Email Sending is on (EMAIL_SENDING=true, from the
-// "Email sending" step: scripts/ops/email-sending.mjs), else from a business's own Gmail/Outlook once
-// one is connected; with neither, Supabase sends them itself. The hook's secret is derived from the
-// service key, which the Worker has too.
+// "Email sending" step: scripts/ops/email-sending.mjs), else from the person's business's own
+// Gmail/Outlook, and for everyone else from The Business Agent HQ's (thebusinesssagent@gmail.com, on
+// HQ's Connections page); with no mailbox anywhere, Supabase sends them itself. The hook's secret is
+// derived from the service key, which the Worker has too.
 const sending = process.env.EMAIL_SENDING === 'true'
 // The sign-up check needs both Turnstile keys (the site key for the form, the secret for the Worker).
 const captcha = !!(process.env.TURNSTILE_SITE_KEY?.trim() && process.env.TURNSTILE_SECRET_KEY?.trim())
 let mailbox = null
+let hqMailbox = null
 if (site) {
   const keys = await fetch(`https://api.supabase.com/v1/projects/${REF}/api-keys?reveal=true`, { headers: { authorization: `Bearer ${token}` } })
     .then(r => r.ok ? r.json() : []).catch(() => [])
   const serviceKey = keys.find(k => k.type === 'secret')?.api_key ?? keys.find(k => k.name === 'service_role')?.api_key
   if (serviceKey) {
-    const rows = await fetch(`https://${REF}.supabase.co/rest/v1/integrations?select=provider,account_label&status=eq.connected&provider=in.(gmail,outlook)`, {
-      headers: { apikey: serviceKey, authorization: `Bearer ${serviceKey}` },
-    }).then(r => r.ok ? r.json() : []).catch(() => [])
-    mailbox = rows[0] ?? null
+    const read = path => fetch(`https://${REF}.supabase.co/rest/v1/${path}`, { headers: { apikey: serviceKey, authorization: `Bearer ${serviceKey}` } })
+      .then(r => r.ok ? r.json() : []).catch(() => [])
+    const rows = await read('integrations?select=business_id,provider,account_label&status=eq.connected&provider=in.(gmail,outlook)')
+    const [hq] = await read('business?select=id&is_hq=eq.true&limit=1')
+    hqMailbox = rows.find(r => hq && r.business_id === hq.id) ?? null
+    mailbox = hqMailbox ?? rows[0] ?? null
     const { createHmac } = await import('node:crypto')
     const secret = `v1,whsec_${createHmac('sha256', serviceKey).update('business-agent:send-email-hook').digest('base64')}`
     Object.assign(patch, sending || mailbox
@@ -112,11 +116,17 @@ if (site) {
   }
 }
 const after = Object.keys(patch).length ? await api('PATCH', patch) : current
+// Who sends for people outside a business with a mailbox: HQ's mailbox, or (until HQ connects one) the founding business's.
+const fallback = hqMailbox
+  ? `The Business Agent HQ's ${hqMailbox.account_label ?? 'mailbox'}`
+  : mailbox
+  ? `still ${mailbox.account_label ?? 'the founding business’s mailbox'}, until The Business Agent HQ connects thebusinesssagent@gmail.com (switch to HQ → Connections → Gmail), then deploy`
+  : null
 console.log(after.hook_send_email_enabled && sending
-  ? `Sign-in emails: sent from noreply@businesssagent.com (Cloudflare Email Sending)${mailbox ? `; if that fails, from ${mailbox.account_label ?? 'a connected mailbox'}` : ''}`
+  ? `Sign-in emails: sent from noreply@businesssagent.com (Cloudflare Email Sending)${fallback ? `; if that fails, from each business's own mailbox, else ${fallback}` : ''}`
   : after.hook_send_email_enabled
-  ? `Sign-in emails: sent from the business's ${mailbox?.provider === 'outlook' ? 'Outlook' : 'Gmail'} (${mailbox?.account_label ?? 'connected mailbox'})`
-  : "Sign-in emails: sent by Supabase (connect Gmail or Outlook on the Connections page, then deploy, to send them from the business's own mailbox)")
+  ? `Sign-in emails: sent from each business's own Gmail or Outlook; for everyone else, from ${fallback}`
+  : "Sign-in emails: sent by Supabase (connect thebusinesssagent@gmail.com on The Business Agent HQ's Connections page, then deploy)")
 console.log(after.hook_before_user_created_enabled
   ? 'Sign-up check: on (Cloudflare Turnstile on the sign-up form)'
   : 'Sign-up check: off (add the TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY repo secrets, then deploy, to switch it on)')

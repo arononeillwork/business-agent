@@ -9,7 +9,7 @@ describe('the service role over every business is only used to find which busine
   // or touch accounts (auth), never read or change a business's rows for it.
   const ALLOWED: Record<string, number> = {
     'apiKeys.ts': 1,      // an access key's owner, by the key's hash
-    'authEmail.ts': 1,    // the business of whoever the email is for
+    'authEmail.ts': 2,    // the business of whoever the email is for, and which business is HQ (its mailbox sends for everyone else)
     'billing.ts': 2,      // the business of a Stripe customer; AI music still to charge, each on its business
     'calendarFeed.ts': 1, // a feed link's owner, by its hash
     'cameras.ts': 1,      // a camera's business, by its username on the upload server

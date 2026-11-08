@@ -4,16 +4,15 @@ The website shows **hello@**, **sales@** (Enterprise: "Contact sales") and **sup
 businesssagent.com. They all arrive in one Gmail inbox, and you reply *as* those addresses from
 Gmail. It costs nothing: Cloudflare Email Routing receives the mail, Gmail sends it.
 
-## 1. A Gmail for Business Agent (5 minutes)
+## 1. A Gmail for Business Agent (done)
 
-Create a Gmail account for the business, for example `businessagent.hq@gmail.com`
-(<https://accounts.google.com/signup>). Turn on **2-Step Verification** (Google Account →
-Security): Gmail needs it to send as your own addresses.
+The business's Gmail is **thebusinesssagent@gmail.com**. Turn on **2-Step Verification** (Google
+Account → Security): Gmail needs it to send as your own addresses.
 
-## 2. Tell the deploy where to forward (1 minute)
+## 2. Where the deploy forwards (nothing to do)
 
-GitHub → the repository → Settings → Secrets and variables → Actions → **New repository secret**:
-name `EMAIL_FORWARD_TO`, value the Gmail address.
+The deploy forwards to thebusinesssagent@gmail.com (`scripts/ops/email-routing.mjs`). To use another
+inbox, set the repository secret `EMAIL_FORWARD_TO` to it.
 
 ## 3. Let the deploy set up Email Routing (2 minutes)
 
@@ -65,3 +64,20 @@ the top. Until it's set up, they go out as before, from a business's own Gmail o
 
 If Cloudflare refuses an email (the plan lapsed, a sending limit), that one still goes, from the
 mailbox, and the Worker's log says why. Sent emails show in Cloudflare → Email Sending → Activity.
+
+## Sign-in emails while Cloudflare Email Sending is off
+
+Until Email Sending is on (above), sign-in emails go from a connected mailbox
+(`worker/authEmail.ts`): the person's own business's Gmail or Outlook, and for everyone else (a new
+sign-up with no business yet, or a business without a mailbox) The Business Agent HQ's, never
+another business's. To make that thebusinesssagent@gmail.com:
+
+1. Google Cloud → the app's **OAuth consent screen** → **Test users** → add thebusinesssagent@gmail.com
+   (only while the app is in testing).
+2. In the app, switch to **The Business Agent HQ** (account menu → Switch business) → **Connections**
+   → **Gmail** → Connect, and sign in as thebusinesssagent@gmail.com.
+3. Run **Actions → Deploy**: its summary says "for everyone else, from The Business Agent HQ's
+   thebusinesssagent@gmail.com".
+
+Until HQ has a mailbox, the founding business's stays the last resort so email sign-ups keep working.
+
