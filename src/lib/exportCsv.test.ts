@@ -2,7 +2,7 @@
 // always was, and Ireland's (commas, decimal points, dates day first), with the person's own decimal mark.
 import { afterEach, describe, expect, it } from 'vitest'
 import { setCountry } from '../../shared/country'
-import { csvContent, csvStyle, toCsv, type ExportTable } from './export'
+import { csvContent, csvStyle, toCsv, tsvContent, type ExportTable } from './export'
 
 afterEach(() => setCountry('ES'))
 
@@ -41,5 +41,21 @@ describe('CSV for a business in Ireland', () => {
     expect(csvStyle('IE', 'comma')).toEqual({ separator: ';', decimal: ',', dayFirst: true })
     expect(csvStyle('IE', 'point')).toEqual(csvStyle('IE'))
     expect(toCsv([['Rent', 1530.5, '2026-11-01']], csvStyle('IE', 'comma'))).toBe('"Rent";"1530,5";"01/11/2026"')
+  })
+})
+
+describe('text that would run as a formula', () => {
+  const row = ['=HYPERLINK("http://x.example","Click")', '+34 600 000 000', '-5% off', '@ana', '\tTab first', '\rReturn first', -12.5, 'Ana = boss', '–']
+
+  it('gets a leading quote in either country; numbers, negative ones too, stay numbers', () => {
+    expect(toCsv([row], csvStyle('ES'))).toBe(
+      `"'=HYPERLINK(""http://x.example"",""Click"")";"'+34 600 000 000";"'-5% off";"'@ana";"'\tTab first";"'\rReturn first";"-12,5";"Ana = boss";"–"`)
+    expect(toCsv([row], csvStyle('IE'))).toBe(
+      `"'=HYPERLINK(""http://x.example"",""Click"")","'+34 600 000 000","'-5% off","'@ana","'\tTab first","'\rReturn first","-12.5","Ana = boss","–"`)
+  })
+
+  it('and in the cells copied for Google Sheets', () => {
+    expect(tsvContent({ title: 't', filename: 'f', columns: ['Name', 'Amount'], rows: [['=1+1', -3], ['-x', 4.5]] }))
+      .toBe("Name\tAmount\n'=1+1\t-3\n'-x\t4.5")
   })
 })

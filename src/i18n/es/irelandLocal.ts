@@ -1,6 +1,6 @@
 // Spanish for a business in Ireland: competition ideas on Ireland's calendar (its bank holidays, Mothering
-// Sunday, back to school, Halloween, the All-Ireland finals) and the Hiring page's Irish wording. Irish names
-// stay as they're known there (All-Ireland, Indeed Ireland).
+// Sunday, back to school, Halloween, the All-Ireland finals), Appearance's decimal point there, and the Hiring
+// page's Irish wording. Irish names stay as they're known there (All-Ireland, Indeed Ireland).
 export default {
   // Competitions: Ireland's moments
   'St Brigid’s Day bank holiday': 'festivo de Santa Brígida',
@@ -24,6 +24,10 @@ export default {
     'Halloween es muy grande en Irlanda, y el puente de octubre (el lunes {holiday}) va de la mano: con el sorteo el jueves antes, el premio llega a tiempo para el puente, y un sorteo de miedo se comparte.',
   '{moment} is on {date} ({match}): the counties in it will be watching, and a giveaway in the run-up gets shared.':
     'El {date} es {moment} ({match}): los condados que juegan estarán pendientes, y un sorteo en los días de antes se comparte.',
+
+  // Appearance: Ireland's decimal point until someone chooses
+  'How pay, costs and totals are shown to you. Until you choose, it’s the decimal point, as in Ireland. CSV exports use the decimal point and commas, unless you choose the decimal comma here.':
+    'Cómo se te muestran los sueldos, los costes y los totales. Mientras no elijas, es el punto decimal, como en Irlanda. Las exportaciones CSV usan el punto decimal y comas, salvo que elijas aquí la coma decimal.',
 
   // Hiring: Irish thousands, and Indeed Ireland
   '€1,350 gross a month': '1.350 € brutos al mes',

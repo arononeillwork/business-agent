@@ -2193,6 +2193,19 @@ test('a business in Ireland: asked at sign-up, then Irish labels, VAT rates, pho
   expect(rows[0]).toBe('"Competition","Kind","Status","Starts","Entries close","Draw","Prize","Prize value","Winners","Entries","Prize given"')
   expect(rows.find(r => r.startsWith('"Halloween giveaway"'))).toMatch(/^"Halloween giveaway","Instagram giveaway","[^"]+","09\/10\/2026","21\/10\/2026","22\/10\/2026","[^"]+","12\.5","1","0",""$/)
   expect(rows.find(r => r.startsWith('"Opening week giveaway"'))).toMatch(/"25\/03\/2026","05\/04\/2026","06\/04\/2026",.*"09\/04\/2026"$/)
+
+  // Numbers on screen: Ireland's decimal point until she chooses, ticked on Appearance as what she gets; a choice wins.
+  await nav.getByRole('link', { name: 'Team', exact: true }).click()
+  const maria = page.getByRole('row', { name: /Maria/ })
+  await expect(maria).toContainText('€8.80/h')
+  await fromAccountMenu(page, 'Appearance')
+  await expect(page.getByRole('radio', { name: 'Decimal point' })).toHaveAttribute('aria-checked', 'true')
+  await expect(page.getByRole('radio', { name: 'Decimal comma' })).toHaveAttribute('aria-checked', 'false')
+  await expect(page.getByText('Until you choose, it’s the decimal point, as in Ireland.', { exact: false })).toBeVisible()
+  await page.getByRole('radio', { name: 'Decimal comma' }).click()
+  await toast(page, 'Numbers: decimal comma')
+  await nav.getByRole('link', { name: 'Team', exact: true }).click()
+  await expect(maria).toContainText('€8,80/h')
 })
 
 test('a business in Ireland: Irish contract types, competition terms, the mileage rate, the CCTV sign, job boards, GAA in sports and an accountant', async ({ page }) => {
@@ -2215,6 +2228,8 @@ test('a business in Ireland: Irish contract types, competition terms, the mileag
 
   // Contracts: Ireland's five kinds, the written statement's deadlines, and a sectoral order instead of a convenio.
   await nav.getByRole('link', { name: 'Team', exact: true }).click()
+  // Pay with Ireland's decimal point, nobody having chosen one.
+  await expect(page.getByRole('row', { name: /Maria/ })).toContainText('€8.80/h')
   await page.getByRole('tab', { name: 'Contracts' }).click()
   await expect(page.getByText('Each person’s employment contract under Irish law')).toBeVisible()
   await expect(page.getByRole('alert', { name: 'The written statement' })).toContainText('within 5 days of starting')

@@ -37,10 +37,18 @@ export function csvStyle(country: Country = currentCountry(), chosen?: NumberFor
   return chosen === 'comma' ? { separator: ';', decimal: ',', dayFirst: true } : { separator: ',', decimal: '.', dayFirst: true }
 }
 
+/**
+ * Text a spreadsheet would run as a formula (starting with =, +, -, @, a tab or a return: a customer's name,
+ * a note, a phone number) gets a ' in front, as the data export does (csvField in shared/dataExport.ts), so
+ * opening the file never runs anything. Numbers, negative ones too, are numbers and stay as they are.
+ */
+const FORMULA = /^[=+\-@\t\r]/
+const safeText = (s: string) => (FORMULA.test(s) ? `'${s}` : s)
+
 /** A date (2026-10-21) or a date and time (2026-10-21 08:30) day first: 21/10/2026, 21/10/2026 08:30. */
 const ISO_DAY = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}:\d{2}(?::\d{2})?))?$/
 const csvCell = (c: Cell, s: CsvStyle) => (typeof c === 'number' ? (s.decimal === ',' ? String(c).replace('.', ',') : String(c))
-  : s.dayFirst ? text(c).replace(ISO_DAY, (_, y, m, d, time) => `${d}/${m}/${y}${time ? ` ${time}` : ''}`) : text(c))
+  : safeText(s.dayFirst ? text(c).replace(ISO_DAY, (_, y, m, d, time) => `${d}/${m}/${y}${time ? ` ${time}` : ''}`) : text(c)))
 
 /** CSV in the business's country's style (csvStyle): Spain's is semicolons and decimal commas. */
 export const toCsv = (rows: Cell[][], style: CsvStyle = csvStyle()) =>
@@ -68,9 +76,12 @@ export function exportXlsx(t: ExportTable) {
   downloadBlob(`${t.filename}.xlsx`, new Blob([xlsx(t)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }))
 }
 
-/** Tab-separated, which pastes into Google Sheets, Numbers or Excel as cells. */
+/** Tab-separated, which pastes into Google Sheets, Numbers or Excel as cells (text that looks like a formula stays text). */
+export const tsvContent = (t: ExportTable) =>
+  allRows(t).map(r => r.map(c => (typeof c === 'number' ? text(c) : safeText(text(c))).replace(/[\t\n]/g, ' ')).join('\t')).join('\n')
+
 export async function copyTsv(t: ExportTable) {
-  await navigator.clipboard.writeText(allRows(t).map(r => r.map(c => text(c).replace(/[\t\n]/g, ' ')).join('\t')).join('\n'))
+  await navigator.clipboard.writeText(tsvContent(t))
 }
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')

@@ -105,8 +105,14 @@ const money = (f: NumberFormat) => {
 let eur = money('comma')
 let decimal = new Intl.NumberFormat(LOCALES.comma, { maximumFractionDigits: 2, useGrouping: 'always' })
 let current: NumberFormat = 'comma'
-/** Switch the decimal mark for everything formatted from here on (set from the signed-in person's preferences). */
-export function setNumberFormat(f: NumberFormat = 'comma') {
+/** The decimal mark someone has until they choose one: Ireland's point in a business there, else Spain's comma. */
+export const defaultNumberFormat = (country?: string | null): NumberFormat => (country === 'IE' ? 'point' : 'comma')
+/**
+ * Switch the decimal mark for everything formatted from here on: the signed-in person's choice, or, when
+ * they haven't made one, their business's country's (defaultNumberFormat).
+ */
+export function setNumberFormat(chosen?: NumberFormat, country?: string | null) {
+  const f = chosen ?? defaultNumberFormat(country)
   if (f === current) return
   current = f
   eur = money(f)
