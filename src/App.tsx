@@ -101,6 +101,8 @@ const QrCodesPrintPage = page(() => import('./pages/QrCodesPrintPage'), 'QrCodes
 const PrivacyPage = page(() => import('./pages/PrivacyPage'), 'PrivacyPage')
 const TermsPage = page(() => import('./pages/TermsPage'), 'TermsPage')
 const DataDeletionPage = page(() => import('./pages/DataDeletionPage'), 'DataDeletionPage')
+const LegalNoticePage = page(() => import('./pages/LegalNoticePage'), 'LegalNoticePage')
+const DpaPage = page(() => import('./pages/DpaPage'), 'DpaPage')
 const TikTokTermsPage = page(() => import('./pages/TikTokTermsPage'), 'TikTokTermsPage')
 const TikTokPrivacyPage = page(() => import('./pages/TikTokPrivacyPage'), 'TikTokPrivacyPage')
 const BillingPage = page(() => import('./pages/BillingPage'), 'BillingPage')
@@ -132,6 +134,8 @@ function Routed() {
   if (pathname === '/privacy') return <PrivacyPage />
   if (pathname === '/terms') return <TermsPage />
   if (pathname === '/data-deletion') return <DataDeletionPage />
+  if (pathname === '/legal-notice') return <LegalNoticePage />
+  if (pathname === '/dpa') return <DpaPage />
   if (pathname === '/tiktok/terms') return <TikTokTermsPage />
   if (pathname === '/tiktok/privacy') return <TikTokPrivacyPage />
   if (pathname === '/pricing') return <PricingPage />
