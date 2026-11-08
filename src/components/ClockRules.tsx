@@ -59,27 +59,32 @@ export function ClockRulesCard() {
 
 function RulesEditDialog({ onClose, onSave, children }: { onClose: () => void; onSave: () => Promise<unknown>; children: ReactNode }) {
   const run = useAction()
+  // Closes once the saved rules are back, so the card behind it shows them; busy until then.
+  const [busy, setBusy] = useState(false)
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>{t('Clock-in rules')}</DialogTitle>
       <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>{children}</Stack></DialogContent>
       <DialogActions sx={{ px: 3, pb: 2.5 }}>
         <Button onClick={onClose}>{t('Cancel')}</Button>
-        <Button variant="contained" onClick={async () => { if (await run(onSave, t('Saved'))) onClose() }}>{t('Save')}</Button>
+        <Button variant="contained" disabled={busy} onClick={async () => {
+          setBusy(true)
+          try { if (await run(onSave, t('Saved'), { fresh: true })) onClose() } finally { setBusy(false) }
+        }}>{t('Save')}</Button>
       </DialogActions>
     </Dialog>
   )
 }
 
 function RulesDialog({ onClose }: { onClose: () => void }) {
-  const { api, settings, refresh } = useApp()
+  const { api, settings } = useApp()
   const [s, setS] = useState<Settings>(settings!)
   const num = (key: keyof Settings, label: string, unit: string) => (
     <TextField type="number" label={label} value={s[key] as number} onChange={e => setS({ ...s, [key]: Number(e.target.value) })}
       slotProps={{ input: { endAdornment: <InputAdornment position="end">{unit}</InputAdornment> } }} />
   )
   return (
-    <RulesEditDialog onClose={onClose} onSave={async () => { await api.updateSettings(s); await refresh() }}>
+    <RulesEditDialog onClose={onClose} onSave={() => api.updateSettings(s)}>
       {num('early_clock_in_minutes', t('Earliest clock-in before shift'), t('min'))}
       <TextField select label={t('Clock-in without a shift')} value={s.unscheduled_clock_in}
         onChange={e => setS({ ...s, unscheduled_clock_in: e.target.value as Settings['unscheduled_clock_in'] })}>

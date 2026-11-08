@@ -71,14 +71,14 @@ export function useRoutineItems() {
 
 /** What this person shows on their calendar, kept in their preferences (shown on screen straight away while it saves). */
 export function useCalendarShow(): [CalendarShow, (next: CalendarShow) => void] {
-  const { api, me, refresh } = useApp()
+  const { api, me } = useApp()
   const run = useAction()
   const saved = me?.preferences?.calendarShow
   const [show, setShow] = useState<CalendarShow>(saved ?? {})
   useEffect(() => { setShow(saved ?? {}) }, [saved])
   return [show, (next: CalendarShow) => {
     setShow(next)
-    if (me) void run(async () => { await api.updateProfile(me.id, { preferences: { ...me.preferences, calendarShow: next } }); await refresh() })
+    if (me) void run(() => api.updateProfile(me.id, { preferences: { ...me.preferences, calendarShow: next } }))
   }]
 }
 
@@ -389,7 +389,7 @@ export function TodayThemeCard() {
 
 /** Calendar → Routine: the week day by day, every activity (switched-off ones too). Admins add, change and switch them off. */
 export function RoutineTab() {
-  const { api, business, isAdmin, profiles, jobRoles, settings, refresh } = useApp()
+  const { api, business, isAdmin, profiles, jobRoles, settings } = useApp()
   const run = useAction()
   const items = useRoutineItems()
   const [editing, setEditing] = useState<RoutineItem | 'new' | null>(null)
@@ -418,7 +418,7 @@ export function RoutineTab() {
                 </Typography>
               </Box>
               <Switch checked={onCalendar} slotProps={{ input: { 'aria-label': t('Show the routine on the calendar') } }}
-                onChange={e => { const on = e.target.checked; setOnCalendar(on, () => run(async () => { await api.updateSettings({ routine_on_calendar: on }); await refresh() },
+                onChange={e => { const on = e.target.checked; setOnCalendar(on, () => run(() => api.updateSettings({ routine_on_calendar: on }),
                   on ? t('The routine is back on the calendar for everyone') : t('The routine is off the calendar for everyone'))) }} />
             </Stack>
           </CardContent>

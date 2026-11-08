@@ -27,11 +27,11 @@ import { countryProfile } from '../../shared/country'
  * migration's nightly job). Admins switch it here; everyone sees whether it's on.
  */
 function AutoTrackingCard() {
-  const { api, settings, refresh, isAdmin } = useApp()
+  const { api, settings, isAdmin } = useApp()
   const run = useAction()
   if (!settings) return null
   const on = settings.auto_timecards_from_rota
-  const toggle = (next: boolean) => run(async () => { await api.updateSettings({ auto_timecards_from_rota: next }); await refresh() },
+  const toggle = (next: boolean) => run(() => api.updateSettings({ auto_timecards_from_rota: next }),
     next ? t('Automatic tracking is on') : t('Automatic tracking is off'))
   return (
     <Card component="section" aria-label={t('Automatic tracking')} sx={{ mb: 2.5 }}>

@@ -114,7 +114,8 @@ function EditableCard({ title, business, canEdit, view, form, onSave }: {
           <Box component="form" onSubmit={async e => {
             e.preventDefault()
             setBusy(true)
-            try { if (await run(() => onSave(draft!), t('Saved'))) setEditing(false) } finally { setBusy(false) }
+            // "Saved" as soon as it is; the card goes back to showing the details once they're back with the change.
+            try { if (await run(() => onSave(draft!), t('Saved'), { fresh: true })) setEditing(false) } finally { setBusy(false) }
           }}>
             <Stack spacing={2} sx={{ pt: 1 }}>{form({ d: draft!, set: patch => setDraft({ ...draft!, ...patch }) })}</Stack>
             <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end', mt: 2.5 }}>
@@ -129,7 +130,7 @@ function EditableCard({ title, business, canEdit, view, form, onSave }: {
 }
 
 export function BusinessPage() {
-  const { api, business: b, isAdmin, refresh, can } = useApp()
+  const { api, business: b, isAdmin, can } = useApp()
   // Admins: the connected Instagram account and mailbox, which fill in the handle and the email
   // (both can still be changed here).
   const integ = useAsync('integrations', () => (isAdmin ? api.integrations() : Promise.resolve(null)), [isAdmin])
@@ -144,7 +145,6 @@ export function BusinessPage() {
     const patch = Object.fromEntries(keys.map(k => [k, d[k]])) as Partial<Business>
     check(patch)
     await api.updateBusiness(patch)
-    await refresh()
   }
   // No email of its own yet: the connected mailbox is the business's email.
   const email = b.email || mailbox || null

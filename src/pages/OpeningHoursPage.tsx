@@ -18,9 +18,11 @@ const DAY_LABELS: Record<DayKey, string> = {
 
 /** When the café is open, week by week (closures live in the Calendar). */
 export function OpeningHoursPage() {
-  const { api, business: b, isAdmin, refresh } = useApp()
+  const { api, business: b, isAdmin } = useApp()
   const run = useAction()
   const [hours, setHours] = useState<OpeningHours | null>(b?.opening_hours ?? null)
+  // Saving until the business is back with them (the hours reset from it), so they're saved once.
+  const [saving, setSaving] = useState(false)
   useEffect(() => { setHours(b?.opening_hours ?? null) }, [b])
   const google = useAsync('opening-google', () => (isAdmin ? api.integrations() : Promise.resolve(null)), [isAdmin])
   if (!b || !hours) return null
@@ -75,10 +77,11 @@ export function OpeningHoursPage() {
               </Stack>
               {isAdmin && (
                 <Stack direction="row" spacing={1} sx={{ mt: 2, alignItems: 'center' }}>
-                  <Button variant="contained" disabled={!changed || invalid} onClick={() => run(async () => {
-                    await api.updateBusiness({ opening_hours: hours }); await refresh()
-                  }, t('Opening hours saved'))}>{t('Save hours')}</Button>
-                  {changed && <Button onClick={() => setHours(b.opening_hours)}>{t('Undo changes')}</Button>}
+                  <Button variant="contained" disabled={saving || !changed || invalid} onClick={() => {
+                    setSaving(true)
+                    void run(() => api.updateBusiness({ opening_hours: hours }), t('Opening hours saved'), { fresh: true }).finally(() => setSaving(false))
+                  }}>{t('Save hours')}</Button>
+                  {changed && <Button disabled={saving} onClick={() => setHours(b.opening_hours)}>{t('Undo changes')}</Button>}
                   {invalid && <Typography variant="body2" sx={{ color: 'error.main' }}>{t('Closing time must be after opening time.')}</Typography>}
                 </Stack>
               )}

@@ -122,11 +122,11 @@ export function LanguagePicker() {
  * switch between them, and the app keeps each person's own choice.
  */
 export function TeamLanguages() {
-  const { api, settings, refresh } = useApp()
+  const { api, settings } = useApp()
   const run = useAction()
   const team = (settings?.languages ?? []) as Language[]
   const save = (next: Language[]) =>
-    void run(async () => { await api.updateSettings({ languages: LANGUAGES.map(l => l.code).filter(c => next.includes(c)) }); await refresh() }, t('Saved'))
+    void run(() => api.updateSettings({ languages: LANGUAGES.map(l => l.code).filter(c => next.includes(c)) }), t('Saved'))
   return (
     <TextField select fullWidth label={t('The team’s languages')} value={team}
       helperText={team.length > 1 ? t('Everyone can switch between them with the flags at the top right; each person’s choice is kept.')

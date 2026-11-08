@@ -31,7 +31,7 @@ interface Answers { business: Partial<Business>; brand: Partial<Omit<Brand, 'upd
  * owner to keep what they tick. Saved to the Business and Brand pages, where all of it can be changed.
  */
 export function BusinessSteps({ step, go, onDone }: { step: BusinessStep; go: (step: BusinessStep) => void; onDone: () => void }) {
-  const { api, business, refresh } = useApp()
+  const { api, business } = useApp()
   const run = useAction()
   const [stage, setStage] = useState<'new' | 'open' | null>(business?.stage ?? null)
   const [teamSize, setTeamSize] = useState<TeamSize | null>(business?.team_size ?? null)
@@ -45,8 +45,7 @@ export function BusinessSteps({ step, go, onDone }: { step: BusinessStep; go: (s
       const ok = await run(async () => {
         if (Object.keys(patch).length) await api.updateBusiness(patch)
         if (Object.keys(a.brand).length) await api.saveBrand(a.brand)
-        await refresh()
-      }, Object.keys(a.brand).length || Object.keys(a.business).length ? t('Saved') : undefined)
+      }, Object.keys(a.brand).length || Object.keys(a.business).length ? t('Saved') : undefined, { fresh: true })
       if (ok) onDone()
     } finally { setBusy(false) }
   }

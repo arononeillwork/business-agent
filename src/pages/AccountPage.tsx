@@ -19,7 +19,7 @@ import type { ContactMethod } from '../../shared/types'
 import { DEFAULT_WHATSAPP_RETENTION, RETENTION_LABEL, WHATSAPP_RETENTION_DAYS, isRetention, type WhatsAppRetention } from '../../shared/messages'
 
 export function AccountPage() {
-  const { api, me, refresh, isPartner, isAdmin, business, jobRoles } = useApp()
+  const { api, me, isPartner, isAdmin, business, jobRoles } = useApp()
   const run = useAction()
   const [name, setName] = useState(me?.full_name ?? '')
   const [phone, setPhone] = useState(me?.phone ?? '')
@@ -28,6 +28,8 @@ export function AccountPage() {
   // Typed twice, so a slip of the finger can't lock them out.
   const [again, setAgain] = useState('')
   const [pin, setPin] = useState(false)
+  // Saving until the details are back saved, so Save can't be pressed twice meanwhile.
+  const [saving, setSaving] = useState(false)
   const signOut = useSignOutLabel()
   if (!me) return null
   // Said while typing the second one only once it can't be the start of the first.
@@ -66,10 +68,10 @@ export function AccountPage() {
             )}
             <Stack direction="row" spacing={1} sx={{ mt: 2, justifyContent: 'flex-end' }}>
               {dirty && <Button onClick={() => { setName(me.full_name ?? ''); setPhone(me.phone ?? ''); setMethod(me.contact_method ?? null) }}>{t('Cancel')}</Button>}
-              <Button variant="contained" disabled={!dirty || !name.trim()} onClick={() => run(async () => {
+              <Button variant="contained" disabled={saving || !dirty || !name.trim()} onClick={() => { setSaving(true); void run(async () => {
                 if (phone && phone.replace(/\D/g, '').length < 8) throw new Error(t('Enter the full mobile number'))
-                await api.updateProfile(me.id, { full_name: name, phone: phone || null, ...(isPartner ? {} : { contact_method: method, whatsapp_opt_in: method === 'whatsapp' || method === 'sms' }) }); await refresh()
-              }, t('Saved'))}>{t('Save')}</Button>
+                await api.updateProfile(me.id, { full_name: name, phone: phone || null, ...(isPartner ? {} : { contact_method: method, whatsapp_opt_in: method === 'whatsapp' || method === 'sms' }) })
+              }, t('Saved'), { fresh: true }).finally(() => setSaving(false)) }}>{t('Save')}</Button>
             </Stack>
           </CardContent>
         </Card>
@@ -150,19 +152,24 @@ export function AccountPage() {
  * deletes what's now too old straight away (after asking); a longer one keeps future messages longer.
  */
 function DataRetention() {
-  const { api, settings, refresh } = useApp()
+  const { api, settings } = useApp()
   const run = useAction()
   const notify = useNotify()
   const saved = isRetention(settings?.whatsapp_retention_days) ? settings.whatsapp_retention_days : DEFAULT_WHATSAPP_RETENTION
   // A shorter time waits for a yes: it deletes messages.
   const [shorter, setShorter] = useState<WhatsAppRetention | null>(null)
-  const apply = (days: WhatsAppRetention) => run(async () => {
-    const { deleted } = await api.setWhatsappRetention(days)
-    await refresh()
-    setShorter(null)
-    const kept = t('WhatsApp messages are now kept for {time}.', { time: t(RETENTION_LABEL[days]) })
-    notify(deleted ? `${kept} ${tn(deleted, '{n} older message deleted.', '{n} older messages deleted.')}` : kept, 'success')
-  })
+  const [busy, setBusy] = useState(false)
+  // Said as soon as it's done; the question closes once the setting is back, showing the new time.
+  const apply = async (days: WhatsAppRetention) => {
+    setBusy(true)
+    const ok = await run(async () => {
+      const { deleted } = await api.setWhatsappRetention(days)
+      const kept = t('WhatsApp messages are now kept for {time}.', { time: t(RETENTION_LABEL[days]) })
+      notify(deleted ? `${kept} ${tn(deleted, '{n} older message deleted.', '{n} older messages deleted.')}` : kept, 'success')
+    }, undefined, { fresh: true })
+    setBusy(false)
+    if (ok) setShorter(null)
+  }
   const choose = (days: WhatsAppRetention) => {
     if (days === saved) return
     if (days < saved) setShorter(days)
@@ -201,7 +208,7 @@ function DataRetention() {
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setShorter(null)}>{t('Cancel')}</Button>
-            <Button variant="contained" color="error" onClick={() => void apply(shorter)}>{t('Delete older messages')}</Button>
+            <Button variant="contained" color="error" disabled={busy} onClick={() => void apply(shorter)}>{t('Delete older messages')}</Button>
           </DialogActions>
         </Dialog>
       )}

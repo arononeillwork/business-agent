@@ -17,7 +17,7 @@ import { countryProfile } from '../../shared/country'
 
 /** Each person's own look: theme, text size and accessibility options. Saved to their account. */
 export function AppearancePage() {
-  const { api, me, refresh } = useApp()
+  const { api, me } = useApp()
   const run = useAction()
   // The page keeps its own copy so quick changes in a row never overwrite each other.
   const [prefs, setPrefs] = useState<Preferences>(me?.preferences ?? {})
@@ -30,7 +30,7 @@ export function AppearancePage() {
     const next = { ...prefs, ...patch, navOrder: me.preferences?.navOrder, navPins: me.preferences?.navPins }
     setPrefs(next)
     applyPreferences(next) // feel it straight away
-    run(async () => { await api.updateProfile(me.id, { preferences: next }); await refresh() }, note ?? t('Saved'))
+    run(() => api.updateProfile(me.id, { preferences: next }), note ?? t('Saved'))
   }
 
   return (

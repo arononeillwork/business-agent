@@ -42,14 +42,14 @@ export function WagesHint({ amount }: { amount: number }) {
  * fails. Only an owner changes it (the database says so too).
  */
 export function useOwnerPay() {
-  const { api, refresh, settings } = useApp()
+  const { api, settings } = useApp()
   const run = useAction()
   const saved = settings?.owner_pay !== false
   const [pending, setPending] = useState<boolean | null>(null)
   useEffect(() => setPending(null), [saved])
   const set = async (on: boolean) => {
     setPending(on)
-    const ok = await run(async () => { await api.updateSettings({ owner_pay: on }); await refresh() },
+    const ok = await run(() => api.updateSettings({ owner_pay: on }),
       on ? t('Owners are paid for their hours on the rota') : t('Owners’ hours on the rota aren’t wages now (breakeven still counts them)'))
     if (!ok) setPending(null)
   }
@@ -79,7 +79,7 @@ export function OwnerPaySwitch({ disabled, explain }: { disabled?: boolean; expl
  * Finances set to the rota's figure in one press. A missing pay rate is typed in here.
  */
 export function StaffWagesDialog({ expense, canEdit, onClose }: { expense: Expense; canEdit: boolean; onClose: () => void }) {
-  const { api, profiles, refresh, settings, rates } = useApp()
+  const { api, profiles, settings, rates } = useApp()
   const [ownerPay] = useOwnerPay()
   const isOwner = (id: string) => { const p = profiles.find(x => x.id === id); return !!p && owner(p) }
   const run = useAction()
@@ -94,13 +94,13 @@ export function StaffWagesDialog({ expense, canEdit, onClose }: { expense: Expen
   const setRate = (id: string, value: string) => {
     const v = Number(value)
     if (value === '' || !Number.isFinite(v) || v < 0) return
-    void run(async () => { await api.setPayRate(id, v); await refresh() }, t('Pay rate saved'))
+    void run(() => api.setPayRate(id, v), t('Pay rate saved'))
   }
-  const useRota = () => run(async () => {
-    await api.saveExpense({ ...expense, amount: Math.round((rota!.cost + (ownerPay ? 0 : owners)) * 100) / 100 })
-    await refresh()
-    onClose()
-  }, t('Staff wages set to {amount} from the rota', { amount: formatMoney(rota!.cost) }))
+  // Finances' list shows the new figure as soon as it's reloaded, after this closes.
+  const useRota = async () => {
+    if (await run(() => api.saveExpense({ ...expense, amount: Math.round((rota!.cost + (ownerPay ? 0 : owners)) * 100) / 100 }),
+      t('Staff wages set to {amount} from the rota', { amount: formatMoney(rota!.cost) }))) onClose()
+  }
 
   // The weeks of the month (Monday to Sunday), with the one that costs most marked.
   const weeks = new Map<string, { hours: number; cost: number }>()

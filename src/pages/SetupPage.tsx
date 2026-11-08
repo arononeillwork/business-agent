@@ -82,7 +82,7 @@ const TINTS = [tokens.roseSoft, tokens.roseWash, tokens.ubeSoft, tokens.matchaSo
  * Connecting is the Connections page's own (useConnect, ConnectorDialog), so it works the same.
  */
 export function SetupPage() {
-  const { api, me, refresh } = useApp()
+  const { api, me } = useApp()
   const run = useAction()
   const navigate = useNavigate()
   const data = useAsync('integrations', () => api.integrations(), [])
@@ -103,13 +103,13 @@ export function SetupPage() {
     const queue = ids.filter(id => findApp(id) && !settled(data.data, id))
     set(queue.length ? { queue, total: queue.length, after, step: 'connect' } : { step: after })
   }
-  /** Finished or skipped: Today stops suggesting the guide. */
-  const finish = (to: string) => run(async () => {
-    await api.updateBusiness({ setup_completed_at: new Date().toISOString() })
-    try { sessionStorage.removeItem(KEY) } catch { /* storage unavailable */ }
-    await refresh()
-    navigate(to)
-  })
+  /** Finished or skipped: Today stops suggesting the guide (it's there once the business is back with it). */
+  const finish = async (to: string) => {
+    if (await run(async () => {
+      await api.updateBusiness({ setup_completed_at: new Date().toISOString() })
+      try { sessionStorage.removeItem(KEY) } catch { /* storage unavailable */ }
+    }, undefined, { fresh: true })) navigate(to)
+  }
   const preset = PRESETS.find(p => p.kind === g.kind) ?? null
   const toConnect = g.picked.filter(id => !settled(data.data, id))
   const group = SETUP_GROUPS.find(x => x.key === g.groups[g.at]) ?? null

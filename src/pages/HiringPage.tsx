@@ -444,17 +444,19 @@ function ApplicantDialog({ applicant, openings, files, onClose }: { applicant: A
 
 /** Hired: invite them to the app as an employee (as on Team), and mark them hired. */
 function AddToTeamDialog({ applicant, onClose }: { applicant: JobApplicant; onClose: () => void }) {
-  const { api, refresh } = useApp()
+  const { api } = useApp()
   const run = useAction()
   const [email, setEmail] = useState(applicant.email ?? '')
+  const [busy, setBusy] = useState(false)
   const add = async () => {
+    setBusy(true)
     const ok = await run(async () => {
       const address = email.trim().toLowerCase()
       await api.invite(address, applicant.full_name, 'employee', undefined, { phone: applicant.phone })
       const profile = (await api.profiles()).find(p => p.email?.toLowerCase() === address)
       await api.saveApplicant({ id: applicant.id, opening_id: applicant.opening_id, full_name: applicant.full_name, stage: 'hired', profile_id: profile?.id ?? null })
-      await refresh()
     }, t('{name} is on the team: an invite is on its way', { name: applicant.full_name }))
+    setBusy(false)
     if (ok) onClose()
   }
   return (
@@ -469,7 +471,7 @@ function AddToTeamDialog({ applicant, onClose }: { applicant: JobApplicant; onCl
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>{t('Cancel')}</Button>
-        <Button variant="contained" onClick={() => void add()} disabled={!email.trim()}>{t('Send the invite')}</Button>
+        <Button variant="contained" onClick={() => void add()} disabled={busy || !email.trim()}>{t('Send the invite')}</Button>
       </DialogActions>
     </Dialog>
   )

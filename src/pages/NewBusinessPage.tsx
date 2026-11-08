@@ -49,9 +49,11 @@ const ownZone = () => {
  * in The Business Agent's own look, like the sign-up card they came from.
  */
 export function NewBusinessPage() {
-  const { api, me, refresh } = useApp()
+  const { api, me } = useApp()
   const run = useAction()
   const navigate = useNavigate()
+  // Busy until the app is back with the new business, which takes them on to the guide (so it's made once).
+  const [busy, setBusy] = useState(false)
   const [name, setName] = useState('')
   const [kind, setKind] = useState<Kind | null>(null)
   // Spain or Ireland: its rules, holidays and VAT follow it. A guess from the device's time zone to start.
@@ -88,6 +90,7 @@ export function NewBusinessPage() {
 
   const create = (e: FormEvent) => {
     e.preventDefault()
+    setBusy(true)
     void run(async () => {
       await api.createBusiness({ name: name.trim(), kind, timezone: zone, referral: known ? clean : null, country,
         town: country === 'ES' ? town.trim() || null : null,
@@ -95,8 +98,7 @@ export function NewBusinessPage() {
       forgetReferral()
       startGuide(kind)
       navigate('/setup', { replace: true })
-      await refresh()
-    })
+    }, undefined, { fresh: true }).finally(() => setBusy(false))
   }
 
   return (
@@ -185,7 +187,7 @@ export function NewBusinessPage() {
             helperText={unknown ? t('That code isn’t one we know. Check it, or leave it empty.') : known ? null : t('If someone gave you a code, put it here: your first month is free.')}
             slotProps={{ htmlInput: { maxLength: 16, autoCapitalize: 'characters', spellCheck: false } }} />
 
-          <Button type="submit" variant="contained" size="large" disabled={!name.trim()} sx={{ ...primaryBtn, py: 1.4 }}>
+          <Button type="submit" variant="contained" size="large" disabled={busy || !name.trim()} sx={{ ...primaryBtn, py: 1.4 }}>
             {t('Add my business')}
           </Button>
 

@@ -205,14 +205,14 @@ function Preference({ person, integrations }: { person: Profile; integrations: R
 
 /** The side panel with everything an admin can change about one person. */
 function PersonPanel({ person: p, onClose }: { person: Profile; onClose: () => void }) {
-  const { api, canSeePay, rates, me, profiles, refresh } = useApp()
+  const { api, canSeePay, rates, me, profiles } = useApp()
   const run = useAction()
   const [pinFor, setPinFor] = useState<Profile | null>(null)
   const [passwordFor, setPasswordFor] = useState<Profile | null>(null)
   const [emailFor, setEmailFor] = useState<Profile | null>(null)
   const integrations = useReachData(true)
   const reach = integrations ? howReached(p, integrations) : null
-  const update = (patch: Partial<Profile>, toast = t('Saved')) => run(async () => { await api.updateProfile(p.id, patch); await refresh() }, toast)
+  const update = (patch: Partial<Profile>, toast = t('Saved')) => run(() => api.updateProfile(p.id, patch), toast)
   const self = p.id === me?.id
   const role = teamRole(p) ?? 'employee'
   const blocked = (r: TeamRole) => (me ? roleBlock(me, p, r, profiles) : null)
@@ -269,7 +269,7 @@ function PersonPanel({ person: p, onClose }: { person: Profile; onClose: () => v
               slotProps={{ input: { endAdornment: <InputAdornment position="end">{t('{currency}/h', { currency: currencySymbol() })}</InputAdornment> }, htmlInput: { step: 0.05, min: 0 } }}
               onBlur={e => {
                 const v = Number(e.target.value)
-                if (e.target.value !== '' && v !== rates.get(p.id)) run(async () => { await api.setPayRate(p.id, v); await refresh() }, t('Pay rate saved'))
+                if (e.target.value !== '' && v !== rates.get(p.id)) run(() => api.setPayRate(p.id, v), t('Pay rate saved'))
               }} />
           </Box>
         )}
@@ -288,7 +288,7 @@ function PersonPanel({ person: p, onClose }: { person: Profile; onClose: () => v
           <Typography variant="overline" sx={{ color: 'text.secondary' }}>{t('Contact')}</Typography>
           <Typography sx={{ mt: 0.5, mb: 1.5 }}>{p.phone ?? t('No phone number')}{p.email ? ` · ${p.email}` : ''}</Typography>
           <ContactMethodField value={p.contact_method ?? null} label={t('Prefers to be contacted by')} helperText={t('How the café reaches them about shifts and changes')}
-            onChange={v => run(async () => { await api.updateProfile(p.id, { contact_method: v }); await refresh() }, t('Contact preference saved'))} />
+            onChange={v => run(() => api.updateProfile(p.id, { contact_method: v }), t('Contact preference saved'))} />
           <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>{p.whatsapp_opt_in ? t('WhatsApp messages on (they choose this on My account)') : t('WhatsApp messages off (they choose this on My account)')}</Typography>
           {reach && <Alert severity={reach.ok ? 'success' : 'warning'} sx={{ mt: 1.5 }} role="status" aria-label={t('How alerts reach them')}>
             <b>{t('Shift alerts reach them by:')}</b> {reach.text}
@@ -303,9 +303,10 @@ function PersonPanel({ person: p, onClose }: { person: Profile; onClose: () => v
 }
 
 export function InviteDialog({ onClose }: { onClose: () => void }) {
-  const { api, me, refresh } = useApp()
+  const { api, me } = useApp()
   const run = useAction()
   const notify = useNotify()
+  const [busy, setBusy] = useState(false)
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [role, setRole] = useState<TeamRole | 'kiosk'>('employee')
@@ -339,17 +340,23 @@ export function InviteDialog({ onClose }: { onClose: () => void }) {
       <DialogActions>
         {done ? <Button variant="contained" onClick={onClose}>{t('Done')}</Button> : <>
           <Button onClick={onClose}>{t('Cancel')}</Button>
-          <Button variant="contained" disabled={!email.trim() || !name.trim()} onClick={() => run(async () => {
-            if (!EMAIL_ADDRESS.test(email.trim())) throw new Error(t('Enter a full email address, like name@example.com'))
-            const contact = role === 'kiosk' ? undefined : { phone: phone.trim() || null, contact_method: method }
-            const { joined } = await api.invite(email.trim(), name.trim(), role, setup.how === 'password' ? setup.password : undefined, contact)
-            await refresh()
-            // Already had an account (signed up on their own): on the team now, with their own password.
-            if (joined) notify(t('{email} already had an account: they’re on the team now', { email: email.trim() }), 'success')
-            else notify(setup.how === 'password' ? t('Account created for {name}', { name: name.trim() }) : t('Invite sent to {email}', { email: email.trim() }), 'success')
-            if (setup.how === 'password' && !joined) setDone(setup.password)
-            else onClose()
-          })}>
+          <Button variant="contained" disabled={busy || !email.trim() || !name.trim()} onClick={async () => {
+            // Said as soon as the account exists, and the password shown with it; the dialog closes on its own
+            // once the team is back with them (busy until then, so nobody is invited twice).
+            let shown = false
+            setBusy(true)
+            const ok = await run(async () => {
+              if (!EMAIL_ADDRESS.test(email.trim())) throw new Error(t('Enter a full email address, like name@example.com'))
+              const contact = role === 'kiosk' ? undefined : { phone: phone.trim() || null, contact_method: method }
+              const { joined } = await api.invite(email.trim(), name.trim(), role, setup.how === 'password' ? setup.password : undefined, contact)
+              // Already had an account (signed up on their own): on the team now, with their own password.
+              if (joined) notify(t('{email} already had an account: they’re on the team now', { email: email.trim() }), 'success')
+              else notify(setup.how === 'password' ? t('Account created for {name}', { name: name.trim() }) : t('Invite sent to {email}', { email: email.trim() }), 'success')
+              if (setup.how === 'password' && !joined) { setDone(setup.password); shown = true }
+            }, undefined, { fresh: true })
+            setBusy(false)
+            if (ok && !shown) onClose()
+          }}>
             {setup.how === 'password' ? t('Create account') : t('Send invite')}
           </Button>
         </>}
@@ -360,30 +367,35 @@ export function InviteDialog({ onClose }: { onClose: () => void }) {
 
 /** Change the email someone signs in with (owners and shop managers; only an owner changes an owner's). */
 function EmailDialog({ person, onClose }: { person: Profile; onClose: () => void }) {
-  const { api, refresh } = useApp()
+  const { api } = useApp()
   const run = useAction()
   const [email, setEmail] = useState(person.email ?? '')
+  const [busy, setBusy] = useState(false)
   const next = email.trim().toLowerCase()
   const same = next === (person.email ?? '').toLowerCase()
-  const save = () => run(async () => {
-    if (!EMAIL_ADDRESS.test(next)) throw new Error(t('Enter a full email address, like name@example.com'))
-    await api.setEmail(person.id, next)
-    await refresh()
-    onClose()
-  }, t('{name} signs in with {email} now', { name: person.full_name, email: next }))
+  // Closes once the team is back with the new address (busy until then).
+  const save = async () => {
+    setBusy(true)
+    const ok = await run(async () => {
+      if (!EMAIL_ADDRESS.test(next)) throw new Error(t('Enter a full email address, like name@example.com'))
+      await api.setEmail(person.id, next)
+    }, t('{name} signs in with {email} now', { name: person.full_name, email: next }), { fresh: true })
+    setBusy(false)
+    if (ok) onClose()
+  }
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="xs">
       <DialogTitle>{t('Change email for {name}', { name: person.full_name })}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
           <TextField label={t('New email')} type="email" value={email} autoFocus autoComplete="off"
-            onChange={e => setEmail(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && next && !same) { e.preventDefault(); void save() } }}
+            onChange={e => setEmail(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && next && !same && !busy) { e.preventDefault(); void save() } }}
             helperText={t('They sign in with the new address from now on, with the same password. The app’s emails go there too.')} />
         </Stack>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>{t('Cancel')}</Button>
-        <Button variant="contained" disabled={!next || same} onClick={() => void save()}>{t('Save email')}</Button>
+        <Button variant="contained" disabled={busy || !next || same} onClick={() => void save()}>{t('Save email')}</Button>
       </DialogActions>
     </Dialog>
   )
