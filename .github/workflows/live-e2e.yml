@@ -16,7 +16,7 @@ on:
     inputs:
       url:
         description: App address
-        default: https://business-agent.arononeillwork.workers.dev
+        default: https://businesssagent.com
 
 concurrency:
   group: live-e2e
@@ -28,7 +28,7 @@ jobs:
     timeout-minutes: 20
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      E2E_BASE_URL: ${{ inputs.url || 'https://business-agent.arononeillwork.workers.dev' }}
+      E2E_BASE_URL: ${{ inputs.url || 'https://businesssagent.com' }}
       E2E_LIVE: '1'
       CI: true
     steps:

@@ -115,13 +115,18 @@ describe('refreshAll', () => {
     const client = new QueryClient()
     let appReads = 0
     let billingReads = 0
+    let inboxReads = 0
+    let connectionReads = 0
     const watch = (queryKey: string[], queryFn: () => Promise<unknown>) => new QueryObserver(client, { queryKey, queryFn }).subscribe(() => {})
     const stop = [
       watch([SHARED_KEY, 'live'], () => later(5, ++appReads)),
       watch(['billing'], () => later(400, ++billingReads)),
+      // The outside inboxes and the connections (the outside_reads change, #161) refresh in the background too.
+      watch(['instagram-inbox'], () => later(400, ++inboxReads)),
+      watch(['integrations'], () => later(400, ++connectionReads)),
     ]
     await later(450, null)
-    expect([appReads, billingReads]).toEqual([1, 1])
+    expect([appReads, billingReads, inboxReads, connectionReads]).toEqual([1, 1, 1, 1])
 
     const started = Date.now()
     await refreshAll(client)
@@ -129,6 +134,9 @@ describe('refreshAll', () => {
     expect(appReads).toBe(2)
     expect(billingReads).toBe(2)                    // asked again, still on its way
     expect(client.getQueryState(['billing'])?.fetchStatus).toBe('fetching')
+    expect([inboxReads, connectionReads]).toEqual([2, 2])
+    expect(client.getQueryState(['instagram-inbox'])?.fetchStatus).toBe('fetching')
+    expect(client.getQueryState(['integrations'])?.fetchStatus).toBe('fetching')
     stop.forEach(s => s())
   })
 })
