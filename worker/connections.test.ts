@@ -1315,7 +1315,7 @@ describe('Sign-in emails from The Business Agent (Supabase send-email hook)', ()
     expect(cf.sent).toHaveLength(1)
     const m = cf.sent[0]
     expect(m).toMatchObject({ from: { email: 'noreply@businesssagent.com', name: 'The Business Agent' }, to: 'eva@example.com',
-      replyTo: 'support@businesssagent.com', subject: 'Your sign-in code for The Business Agent' })
+      replyTo: 'thebusinesssagent@gmail.com', subject: 'Your sign-in code for The Business Agent' })
     expect(m.text).toContain('123456')
     expect(m.text).toContain('Easy Beans on The Business Agent')
     expect(m.html).toContain('https://app.test/icon-192.png')

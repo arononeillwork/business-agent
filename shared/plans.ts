@@ -88,7 +88,7 @@ export const ENTERPRISE = {
   name: 'Enterprise',
   blurb: msg('For groups, franchises and multi-site operators.'),
   price: msg('Tailored to your group'),
-  email: 'sales@businesssagent.com',
+  email: 'thebusinesssagent@gmail.com',
   includes: [
     msg('Everything in Business, with limits set for you'),
     msg('Each venue its own branded app, one contract and one invoice'),

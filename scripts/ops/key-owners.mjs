@@ -319,7 +319,7 @@ async function github() {
 async function forwarding() {
   const to = val('EMAIL_FORWARD_TO')
   return {
-    account: 'Business email: hello@, sales@, support@ forwarded to',
+    account: 'Business email forwarding (off unless set)',
     keys: ['EMAIL_FORWARD_TO'], role: 'infra', set: !!to,
     owner: to ? ownerOf(to) : 'unknown', detail: to ? maskEmail(to) : '',
     fix: 'Forward to a mailbox The Business Agent keeps, not a café’s.',

@@ -2340,7 +2340,7 @@ test('pricing: four plans, a simple feature table, Enterprise at the foot, and "
   // Enterprise, at the foot: by conversation with sales.
   const enterprise = page.getByRole('region', { name: 'Enterprise plan' })
   await expect(enterprise).toContainText('For groups, franchises and multi-site operators.')
-  await expect(enterprise.getByRole('link', { name: 'Contact sales' })).toHaveAttribute('href', /^mailto:sales@businesssagent\.com\?subject=The%20Business%20Agent%20Enterprise/)
+  await expect(enterprise.getByRole('link', { name: 'Contact sales' })).toHaveAttribute('href', /^mailto:thebusinesssagent@gmail\.com\?subject=The%20Business%20Agent%20Enterprise/)
   const table = page.getByRole('table', { name: 'Plan comparison' })
   await expect(table.getByRole('row', { name: /Custom MCP connection/ }).getByLabel('Included')).toHaveCount(4)
   await expect(table.getByRole('row', { name: /Scheduled posts per month/ }).getByRole('cell')).toHaveText(['Scheduled posts per month', '1', '12', '60', 'Unlimited'])

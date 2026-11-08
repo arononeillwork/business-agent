@@ -10,7 +10,7 @@ Business Agent is sold in four plans (`shared/plans.ts`), prices in euros exclud
 | Business | €129 | €1,290 | Unlimited | 3 | Unlimited |
 
 **Enterprise** (groups, franchises, several venues) isn't self-serve: "Contact sales" on the pricing
-page writes to sales@businesssagent.com (docs/business-email.md), and the terms are agreed case by case.
+page writes to thebusinesssagent@gmail.com (docs/business-email.md), and the terms are agreed case by case.
 Stripe prices follow `shared/plans.ts`: a changed amount gets a new Stripe price the next time someone
 checks out (looked up by its lookup key); existing subscriptions keep the price they started on.
 

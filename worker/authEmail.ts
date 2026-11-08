@@ -2,7 +2,7 @@
 // Agent instead of from Supabase. Supabase Auth calls this through its "send email" hook (switched on by
 // the deploy: scripts/ops/supabase-auth.mjs) and sends nothing itself.
 // - With Cloudflare Email Sending on (the EMAIL binding; scripts/ops/email-sending.mjs), everyone gets
-//   them from noreply@businesssagent.com, with replies going to support@.
+//   them from noreply@businesssagent.com, with replies going to thebusinesssagent@gmail.com.
 // - Without it, or if it fails, from the person's business's own Gmail or Outlook; for anyone else
 //   (no business yet, or a business without a mailbox), from The Business Agent HQ's mailbox
 //   (thebusinesssagent@gmail.com, connected on HQ's Connections page), never another business's. Only
@@ -17,7 +17,7 @@ import { sendEmail } from './integrations'
 
 /** Who the emails come from, and where replies go (Cloudflare Email Sending; docs/business-email.md). */
 export const SENDER = { email: 'noreply@businesssagent.com', name: 'The Business Agent' }
-export const REPLY_TO = 'support@businesssagent.com'
+export const REPLY_TO = 'thebusinesssagent@gmail.com'
 const PRODUCT = 'The Business Agent'
 
 const enc = new TextEncoder()

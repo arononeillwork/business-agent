@@ -129,7 +129,7 @@ export function demoBackOfficeApi(w: Who): BackOfficeApi {
     async keepAccount() {
       needOwner()
       const asked = w.business.closing_requested_at
-      if (asked && !canStillKeep(asked)) throw new Error('The account has closed. Write to support@businesssagent.com about it.')
+      if (asked && !canStillKeep(asked)) throw new Error('The account has closed. Write to thebusinesssagent@gmail.com about it.')
       Object.assign(w.business, { closing_requested_at: null, closing_requested_by: null })
       if (stoppedRenewal) w.billing.cancel_at_period_end = false
       stoppedRenewal = false
