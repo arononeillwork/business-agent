@@ -85,7 +85,7 @@ describe('asking Gmail', () => {
   })
 
   it('opens a conversation in the café’s own Gmail account', () => {
-    expect(gmailLink('18f2a', 'easybeanscafe@gmail.com')).toBe('https://mail.google.com/mail/?authuser=easybeanscafe%40gmail.com#all/18f2a')
+    expect(gmailLink('18f2a', 'thebusinesssagent@gmail.com')).toBe('https://mail.google.com/mail/?authuser=thebusinesssagent%40gmail.com#all/18f2a')
     expect(gmailLink('18f2a')).toBe('https://mail.google.com/mail/u/0/#all/18f2a')
   })
 })

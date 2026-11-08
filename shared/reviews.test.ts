@@ -50,7 +50,7 @@ describe('reviews', () => {
   it('suggests a reply in the review’s language: thanks for good ones, an apology and a way to talk for poor ones', () => {
     expect(suggestedReply({ rating: 5, reviewer: 'Lucía Pérez', language: 'es' }, 'Easy Beans Coffee')).toMatch(/^¡Hola, Lucía! Muchísimas gracias.*Easy Beans Coffee/)
     expect(suggestedReply({ rating: 5, reviewer: 'Tom', language: 'en' }, 'Easy Beans Coffee')).toMatch(/^Hi Tom, thank you so much/)
-    expect(suggestedReply({ rating: 2, reviewer: 'Tom Hughes', language: 'en' }, 'Easy Beans', 'easybeanscafe@gmail.com')).toMatch(/very sorry.*easybeanscafe@gmail\.com/)
+    expect(suggestedReply({ rating: 2, reviewer: 'Tom Hughes', language: 'en' }, 'Easy Beans', 'hola@example.com')).toMatch(/very sorry.*hola@example\.com/)
     expect(suggestedReply({ rating: 1, reviewer: '', language: 'es' }, 'Easy Beans')).toMatch(/^Hola\. Sentimos mucho/)
     expect(suggestedReply({ rating: 3, reviewer: 'Ana', language: 'es' }, 'Easy Beans')).toMatch(/otra oportunidad/)
   })

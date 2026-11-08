@@ -6,6 +6,7 @@ describe('whose a key is', () => {
   it('reads the owner from the names a provider gives back', () => {
     expect(ownerOf('Easy Beans Coffee')).toBe('easy-beans')
     expect(ownerOf('easybeanscafe@gmail.com')).toBe('easy-beans')
+    expect(ownerOf('thebusinesssagent@gmail.com')).toBe('business-agent') // The Business Agent's own Gmail
     expect(ownerOf('Business Agent')).toBe('business-agent')
     expect(ownerOf('BusinessAgent', 'hello@businesssagent.com')).toBe('business-agent')
     expect(ownerOf("Aron O'Neill")).toBe('personal')

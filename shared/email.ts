@@ -73,7 +73,7 @@ export interface EmailQuery {
 
 export interface EmailState {
   mailbox: 'gmail' | 'outlook' | null
-  /** The mailbox's address (easybeanscafe@gmail.com). */
+  /** The mailbox's address (thebusinesssagent@gmail.com, say). */
   account: string | null
   /** False until the admin allows reading the mailbox (it's connected to send email only at first). */
   can_read: boolean
