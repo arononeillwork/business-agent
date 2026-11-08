@@ -31,6 +31,8 @@ on conflict (id) do update set (name, business_type, address, phone, email, inst
   where public.business.name = 'My business';
 -- In Andalucía: its holidays come each night with Spain's (the business_region migration; ids es-an-…, as below).
 update public.business set region = 'AN' where id = 1 and region is null and name = 'Easy Beans Coffee';
+-- In Marbella: its two local holidays a year, as the BOJA publishes them (the town_holidays migration; ids local-…, as below).
+update public.business set town = 'Marbella' where id = 1 and town is null and name = 'Easy Beans Coffee';
 
 insert into public.business_admin_notes (business_id, notes) values (1, null) on conflict (business_id) do nothing;
 insert into public.settings (business_id) values (1) on conflict (business_id) do nothing;
@@ -46,7 +48,7 @@ insert into public.break_types (name, minutes, paid)
 select * from (values ('Rest 15 min (paid)', 15, true), ('Lunch 30 min (unpaid)', 30, false)) v(name, minutes, paid)
 where not exists (select 1 from public.break_types);
 
--- 2026 holidays: 8 national, 4 Andalucía, 2 Marbella local; nearby towns as "area" (to confirm).
+-- 2026 holidays: 8 national, 4 Andalucía, 2 Marbella local (and Marbella's 2027 two); nearby towns as "area" (to confirm).
 insert into public.calendar_events (starts_on, title, category, town, source, external_id, confirmed)
 values
   ('2026-01-01', 'Año Nuevo', 'national', null, 'import', 'es-2026-01-01', true),
@@ -61,8 +63,10 @@ values
   ('2026-04-02', 'Jueves Santo', 'regional', 'Andalucía', 'import', 'es-an-2026-04-02', true),
   ('2026-11-02', 'Todos los Santos (trasladado del domingo)', 'regional', 'Andalucía', 'import', 'es-an-2026-11-02', true),
   ('2026-12-07', 'Día de la Constitución (trasladado del domingo)', 'regional', 'Andalucía', 'import', 'es-an-2026-12-07', true),
-  ('2026-06-11', 'San Bernabé', 'local', 'Marbella', 'import', 'marbella-2026-06-11', true),
-  ('2026-10-19', 'San Pedro de Alcántara', 'local', 'Marbella', 'import', 'marbella-2026-10-19', true),
+  ('2026-06-11', 'San Bernabé', 'local', 'Marbella', 'import', 'local-2026-06-11', true),
+  ('2026-10-19', 'San Pedro de Alcántara', 'local', 'Marbella', 'import', 'local-2026-10-19', true),
+  ('2027-06-11', 'San Bernabé', 'local', 'Marbella', 'import', 'local-2027-06-11', true),
+  ('2027-10-19', 'San Pedro de Alcántara', 'local', 'Marbella', 'import', 'local-2027-10-19', true),
   ('2026-05-15', 'San Isidro Labrador', 'area', 'Estepona', 'import', 'estepona-2026-05-15', false),
   ('2026-07-16', 'Virgen del Carmen', 'area', 'Estepona', 'import', 'estepona-2026-07-16', false),
   ('2026-08-17', 'Fiesta local', 'area', 'Benahavís', 'import', 'benahavis-2026-08-17', false),

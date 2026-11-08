@@ -13,6 +13,10 @@ import type {
   Shift, TimeEntry, TimeEntryChange, Todo, TodoCategory, CafeTrack, MusicPlayerState,
 } from '../../shared/types'
 import { TIME_OFF_AFTER_THE_FACT } from '../../shared/types'
+import {
+  isTownHoliday, TOWN_HOLIDAY_TITLE, TOWN_HOLIDAYS_BODY, townHolidayId, townHolidaysLink, townHolidaysMissing, townHolidaysProblem,
+  townHolidaysTitle, townHolidaysToTell, townHolidayYearsToSet,
+} from '../../shared/townHolidays'
 import { mentionTitle, mentionsIn, type InstagramMention } from '../../shared/mentions'
 import { demoSports } from './demoSports'
 import { demoInbox, demoMessenger, demoWhatsApp } from './demoMessages'
@@ -127,6 +131,8 @@ export function createDemoApi(): Api {
     timezone: 'Europe/Madrid',
     // San Pedro de Alcántara, Marbella: Andalucía's public holidays too.
     region: 'AN',
+    // And Marbella's two local holidays a year.
+    town: 'Marbella',
     currency: 'EUR',
     tax_id: 'B12345674',
     opening_hours: {
@@ -1509,6 +1515,12 @@ export function createDemoApi(): Api {
     category: category as CalendarEvent['category'], town: (town as string) ?? null, competition: null,
     source: 'import', confirmed: confirmed !== false, visibility: 'all' as const,
   }))
+  // Marbella's local holidays are the town's, 2026's and 2027's, as the BOJA publishes them (the town_holidays migration).
+  for (const e of events) if (e.category === 'local' && e.town === 'Marbella') e.external_id = townHolidayId(e.starts_on)
+  events.push(...[['2027-06-11', 'San Bernabé'], ['2027-10-19', 'San Pedro de Alcántara']].map(([starts_on, title]) => ({
+    id: uid(), starts_on, ends_on: null, starts_at: null, title, category: 'local' as const, town: 'Marbella', competition: null,
+    source: 'import', confirmed: true, visibility: 'all' as const, external_id: townHolidayId(starts_on),
+  })))
   events.push(
     { id: uid(), starts_on: '2026-10-16', ends_on: '2026-10-20', starts_at: null, title: 'Feria de San Pedro',
       category: 'event', town: 'San Pedro', competition: null, source: 'admin', confirmed: true, visibility: 'all' },
@@ -2183,6 +2195,20 @@ export function createDemoApi(): Api {
       }
     } })
 
+  // A year whose town local holidays aren't in: the Worker tells the admins once, at night (worker/holidays.ts); the demo when the bell looks.
+  const toldTownHolidays: { year: number; town: string }[] = []
+  const townHolidayNews = () => {
+    const town = business.country === 'IE' ? null : business.town?.trim()
+    if (!town) return
+    for (const year of townHolidaysToTell(townHolidaysMissing(today(), town, events), town, toldTownHolidays)) {
+      toldTownHolidays.push({ year, town })
+      for (const a of profiles.filter(x => x.role === 'admin' && x.active)) {
+        notes.push({ id: notes.length + 1, profile_id: a.id, title: townHolidaysTitle(town, year), body: TOWN_HOLIDAYS_BODY, link: townHolidaysLink(year),
+          kind: 'town_holidays', data: { year, town }, created_at: nowIso(), read_at: null })
+      }
+    }
+  }
+
   const api: Api = {
     mode: 'demo',
     async currentUserId() { return currentUser },
@@ -2247,6 +2273,8 @@ export function createDemoApi(): Api {
         timezone: b.timezone || 'Europe/Madrid', country: b.country ?? 'ES', setup_completed_at: null })
       // Its region, in Spain: picked, or none yet.
       business.region = b.country === 'IE' ? null : b.region ?? null
+      // And its town, its local holidays asked for each year.
+      business.town = b.country === 'IE' ? null : b.town?.trim() || null
       // As the database does (the pages_by_kind migration): pages that don't fit its kind start hidden.
       settings.hidden_pages = [...(KIND_HIDDEN_PAGES[(b.kind ?? 'other') as BusinessKind] ?? []), ...COUNTRY_HIDDEN_PAGES[b.country ?? 'ES']]
       // And Ireland's working-time rules (the country migration).
@@ -2445,6 +2473,33 @@ export function createDemoApi(): Api {
       requireUpdate('calendar')
       const i = events.findIndex(e => e.id === id)
       if (i >= 0) events.splice(i, 1)
+    },
+    async townHolidays(fromYear, toYear) {
+      const year = (e: CalendarEvent) => Number(e.starts_on.slice(0, 4))
+      return clone(events.filter(e => isTownHoliday(e) && year(e) >= fromYear && year(e) <= toYear)).sort((a, b) => a.starts_on.localeCompare(b.starts_on))
+    },
+    async setTownHolidays(year, days) {
+      requireAdmin()
+      // As set_town_holidays() does (the town_holidays migration).
+      if (business.country === 'IE') throw new Error('Local holidays are for a business in Spain')
+      const town = business.town?.trim()
+      if (!town) throw new Error('Add your town on the Business page first')
+      if (!townHolidayYearsToSet(today()).includes(year)) throw new Error('Only this year’s or next year’s local holidays can be added')
+      const problem = townHolidaysProblem(year, days, events)
+      if (problem) {
+        throw new Error(problem.text.replace('{year}', String(year)).replace('{name}', problem.holiday?.name ?? '')
+          .replace('{date}', problem.holiday?.date.split('-').reverse().join('/') ?? ''))
+      }
+      const drop = (keep: (e: CalendarEvent) => boolean) => { for (let i = events.length - 1; i >= 0; i--) if (!keep(events[i])) events.splice(i, 1) }
+      // That year's on other dates go; a day kept stays as it was; one added by hand that day becomes the town's.
+      drop(e => !(isTownHoliday(e) && e.starts_on.startsWith(`${year}-`) && !days.includes(e.starts_on)))
+      for (const day of days) {
+        const own = events.filter(e => e.category === 'local' && e.starts_on === day).sort((a, b) => Number(isTownHoliday(b)) - Number(isTownHoliday(a)))[0]
+        drop(e => e === own || e.external_id !== townHolidayId(day))
+        if (own) Object.assign(own, { external_id: townHolidayId(day), town, ends_on: null, starts_at: null, confirmed: true, visibility: 'all' })
+        else events.push({ id: uid(), starts_on: day, ends_on: null, starts_at: null, title: TOWN_HOLIDAY_TITLE, category: 'local', town,
+          competition: null, source: 'admin', confirmed: true, visibility: 'all', external_id: townHolidayId(day) })
+      }
     },
 
     async updateBusiness(patch) {
@@ -5237,6 +5292,7 @@ export function createDemoApi(): Api {
       demoMentions()
       runLastDayOffers()
       highlights.news()
+      townHolidayNews()
       return clone(notes.filter(n => n.profile_id === currentUser).map(({ profile_id: _p, ...n }) => n).reverse())
     },
     async markNotificationsRead() {

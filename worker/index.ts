@@ -54,6 +54,7 @@ import { EMAIL_ADDRESS, accessOf, emailBlock, teamRoleOf } from '../shared/teamR
 import type { Profile } from '../shared/types'
 import { signInCheck } from './signedIn'
 import { addNationalHolidays } from './holidays'
+import { remindTownHolidays } from './holidays'
 import { hq } from './hq'
 import { account } from './account'
 
@@ -488,6 +489,8 @@ export default {
           await clearOldCache(b).catch(e => console.error('cache clear failed', id, e))
           // Its country's public holidays for this year and next, and in Spain its region's, where it has none of them yet.
           await addNationalHolidays(b).catch(e => console.error('national holidays failed', id, e))
+          // In Spain, its town's two local holidays: admins are told once when a year's aren't in yet.
+          await remindTownHolidays(b).catch(e => console.error('town holiday reminder failed', id, e))
         })
       })())
       return

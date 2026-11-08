@@ -20,6 +20,14 @@ describe('push notifications in each person’s language', () => {
     expect(pushText({ ...holiday, data: { ...holiday.data, days: 7, category: 'local', town: 'Marbella' } }, 'es').title).toBe('Festivo dentro de 7 días: Día de Andalucía')
   })
 
+  it('says the reminder to add a town’s local holidays in English or Spanish', () => {
+    const note = { title: 'Add Marbella’s local holidays for 2027', body: 'x', kind: 'town_holidays' as const, data: { year: 2027, town: 'Marbella' } }
+    expect(pushText(note, 'en')).toEqual({ title: 'Add Marbella’s local holidays for 2027',
+      body: 'Its town hall sets two days off each year. Add them so the rota and holiday pay know them.' })
+    expect(pushText(note, 'es')).toEqual({ title: 'Añade las fiestas locales de Marbella de 2027',
+      body: 'Su ayuntamiento fija dos festivos cada año. Añádelos para que los turnos y la paga de los festivos los tengan en cuenta.' })
+  })
+
   it('translates mentions and tests, and leaves other text as written', () => {
     expect(pushText({ title: '@cafe tagged you in a post', body: 'Hola', kind: 'instagram_mention' }, 'es')).toEqual({ title: '@cafe te ha etiquetado en una publicación', body: 'Hola' })
     expect(pushText({ title: 'Test notification', body: 'x', kind: 'test' }, 'es').title).toBe('Notificación de prueba')
