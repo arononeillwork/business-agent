@@ -1,29 +1,24 @@
 import { Alert, Portal, Snackbar, useMediaQuery, useTheme } from '@mui/material'
 import { useQueryClient } from '@tanstack/react-query'
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
+import { runAction } from './query'
 
 type Kind = 'success' | 'error' | 'info' | 'warning'
 const Ctx = createContext<(msg: string, kind?: Kind) => void>(() => {})
 export const useNotify = () => useContext(Ctx)
 
 /**
- * Wraps a write: shows the error message from our SQL functions, or a success note, and on
- * success refreshes every cached read so all screens show the new state.
+ * Wraps a write: shows the error message from our SQL functions, or the success note as soon as the
+ * write is done, then refreshes every cached read so all screens show the new state (runAction).
+ * `fn` is the write alone: the reload is run's, so it doesn't call refresh(). With `{ fresh: true }`
+ * it resolves once the app's own data (useApp) shows the change, for a dialog that closes onto it or
+ * a form that resets from it; without, straight away.
  */
 export function useAction() {
   const notify = useNotify()
   const client = useQueryClient()
-  return useCallback(async (fn: () => Promise<unknown>, success?: string) => {
-    try {
-      await fn()
-      if (success) notify(success, 'success')
-      void client.invalidateQueries()
-      return true
-    } catch (e) {
-      notify(e instanceof Error ? e.message : String(e), 'error')
-      return false
-    }
-  }, [notify, client])
+  return useCallback((fn: () => Promise<unknown>, success?: string, options?: { fresh?: boolean }) =>
+    runAction(client, notify, fn, success, options), [notify, client])
 }
 
 export function NotifyProvider({ children }: { children: ReactNode }) {

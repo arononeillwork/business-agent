@@ -86,14 +86,13 @@ function SportsOff() {
 
 /** On/off for the whole business. Turning it on explains match days first. */
 function SportsSwitch({ on }: { on: boolean }) {
-  const { api, refresh } = useApp()
+  const { api } = useApp()
   const run = useAction()
   const [asking, setAsking] = useState(false)
   const set = (enabled: boolean) => run(async () => {
     await api.updateBusiness({ sports_enabled: enabled })
     if (enabled) await api.refreshSports().catch(() => 0)
     setAsking(false)
-    await refresh()
   }, enabled ? t('Sports is on') : t('Sports is off'))
   return (
     <>

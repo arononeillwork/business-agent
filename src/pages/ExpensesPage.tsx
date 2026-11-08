@@ -39,7 +39,7 @@ const kmRate = (r: number) => (Math.round(r * 1000) % 10 ? `${formatNumber(Math.
  * a gestoría with finances access reads. The database enforces who does what.
  */
 export function ExpensesPage() {
-  const { api, me, profiles, canSeePay, isPartner, settings, refresh } = useApp()
+  const { api, me, profiles, canSeePay, isPartner, settings } = useApp()
   const list = useAsync('expense-claims', () => api.expenseClaims(), [])
   const run = useAction()
   const [show, setShow] = useState<Show>('all')
@@ -65,7 +65,6 @@ export function ExpensesPage() {
     const n = Number(rateText.replace(',', '.'))
     if (!(n >= 0 && n <= 5)) throw new Error(t('A rate a kilometre is between 0 and 5'))
     await api.updateSettings({ mileage_rate: n })
-    await refresh()
   }, t('Saved'))
 
   const table = (): ExportTable => ({

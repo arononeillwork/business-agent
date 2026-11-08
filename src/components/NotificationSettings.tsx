@@ -109,13 +109,12 @@ const CHANNELS: { value: NotifyChannel; label: string }[] = [
 
 /** How each kind of notification reaches this person. */
 export function NotificationChoices() {
-  const { api, me, isAdmin, refresh } = useApp()
+  const { api, me, isAdmin } = useApp()
   const run = useAction()
   if (!me) return null
   const topics = NOTIFY_TOPICS.filter(k => isAdmin || !k.admins)
   const choose = (key: string, value: NotifyChannel | null) => value && run(async () => {
     await api.updateProfile(me.id, { preferences: { ...me.preferences, notify: { ...me.preferences?.notify, [key]: value } } })
-    await refresh()
   })
   return (
     <Card component="section" aria-label={t('How you’re told')}>
@@ -148,7 +147,7 @@ const HOLIDAY_KINDS = ['national', 'regional', 'local', 'area'] as const
 
 /** Bank holiday reminders (admins): on or off, how far ahead, which holidays, and each one coming up. */
 export function HolidayReminders() {
-  const { api, settings, refresh } = useApp()
+  const { api, settings } = useApp()
   const run = useAction()
   const from = today(), to = addDays(from, 120)
   const events = useAsync(`holiday-events-${from}`, () => api.events(from, to), [from])
@@ -158,7 +157,7 @@ export function HolidayReminders() {
   const days = settings.holiday_reminder_days ?? 7
   const kinds = settings.holiday_reminder_kinds ?? ['national', 'regional', 'local']
   const dayBefore = settings.holiday_reminder_day_before !== false
-  const save = (patch: Partial<Settings>, done?: string) => run(async () => { await api.updateSettings(patch); await refresh() }, done)
+  const save = (patch: Partial<Settings>, done?: string) => run(() => api.updateSettings(patch), done)
   const upcoming = (events.data ?? [])
     .filter((e: CalendarEvent) => e.confirmed && (HOLIDAY_KINDS as readonly string[]).includes(e.category) && e.starts_on >= from)
     .sort((a, b) => a.starts_on.localeCompare(b.starts_on))

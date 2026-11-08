@@ -22,7 +22,7 @@ import { t, tn } from '../i18n'
  * search, and still opens from a link.
  */
 export function PagesPage() {
-  const { isAdmin, isPartner, canSeePay, partnerCan, me, settings, api, refresh } = useApp()
+  const { isAdmin, isPartner, canSeePay, partnerCan, me, settings, api } = useApp()
   const run = useAction()
   // Kept on screen straight away while it saves (as the menu's pins are).
   const [mine, setMineNow] = useState<string[]>(me?.preferences?.navHidden ?? [])
@@ -44,25 +44,21 @@ export function PagesPage() {
     const next = show ? mine.filter(k => k !== key) : [...new Set([...mine, key])]
     setMineNow(next)
     await savePrefs({ navHidden: next })
-    await refresh()
   })
   const reorder = (keys: string[] | undefined) => run(async () => {
     setOrderNow(keys)
     await savePrefs({ navSections: keys })
-    await refresh()
   }, keys ? undefined : t('The menu’s sections are in their usual order again'))
   const setTeam = (key: string, show: boolean) => run(async () => {
     const next = show ? team.filter(k => k !== key) : [...new Set([...team, key])]
     setTeamNow(next)
     await api.updateSettings({ hidden_pages: next })
-    await refresh()
   })
   const showAll = () => run(async () => {
     setMineNow([])
     if (admin) setTeamNow([])
     if (me && mine.length) await savePrefs({ navHidden: [] })
     if (admin && team.length) await api.updateSettings({ hidden_pages: [] })
-    await refresh()
   }, t('Every page is in the menu again'))
 
   const row = (n: NavItem) => {

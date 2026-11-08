@@ -26,17 +26,14 @@ const PAGES = new Map(SECTIONS.flatMap(s => s.items.flatMap(n => [n, ...(n.child
  * own, go back to the usual ones, and switch to one right here. Kept for the business (settings.agent_views).
  */
 export function AgentsTab() {
-  const { api, settings, refresh } = useApp()
+  const { api, settings } = useApp()
   const run = useAction()
   const agents = useAgents()
   const current = useAgentView()
   const choose = useChooseAgent()
   const navigate = useNavigate()
   const [editing, setEditing] = useState<Agent | null>(null)
-  const save = (next: Agent[], done = t('Saved')) => run(async () => {
-    await api.updateSettings({ agent_views: viewsFrom(next) })
-    await refresh()
-  }, done)
+  const save = (next: Agent[], done = t('Saved')) => run(() => api.updateSettings({ agent_views: viewsFrom(next) }), done, { fresh: true })
   const viewAs = (a: Agent) => { choose(a.key); navigate('/') }
   const pageNames = (a: Agent) => a.pages.flatMap(k => { const n = PAGES.get(k); return n ? [navLabel(n)] : [] }).join(' · ')
   const add = () => setEditing({ key: newAgentKey(), name: '', description: '', icon: 'custom', pages: [], focus: [], on: true, custom: true })
@@ -49,7 +46,7 @@ export function AgentsTab() {
       <Stack direction="row" sx={{ gap: 1, mb: 2, flexWrap: 'wrap' }}>
         <Button variant="contained" startIcon={<AddIcon />} onClick={add}>{t('Add an agent')}</Button>
         {settings?.agent_views != null && (
-          <Button onClick={() => void run(async () => { await api.updateSettings({ agent_views: null }); await refresh() }, t('The agents are the usual ones again'))}>
+          <Button onClick={() => void run(() => api.updateSettings({ agent_views: null }), t('The agents are the usual ones again'))}>
             {t('Back to the usual agents')}
           </Button>
         )}
@@ -100,15 +97,23 @@ function AgentDialog({ agent, isNew, onClose, onSave, onRemove }: {
   const [description, setDescription] = useState(agent.description ? t(agent.description) : '')
   const [pages, setPages] = useState<string[]>(agent.pages)
   const [removing, setRemoving] = useState(false)
+  // Saving closes it once the agents are back with the change (onSave waits for them); busy until then.
+  const [busy, setBusy] = useState(false)
   const toggle = (keys: string[], on: boolean) => setPages(p => (on ? [...new Set([...p, ...keys])] : p.filter(k => !keys.includes(k))))
   // A usual agent's own words stay as they are (and so in each person's language) unless they were changed.
   const own = (typed: string, english: string | undefined) => (english !== undefined && typed.trim() === t(english) ? english : typed.trim())
   const save = async () => {
     const problem = agentProblem({ name, pages })
     if (problem) { await run(() => Promise.reject(new Error(t(problem)))); return }
-    if (await onSave({ ...agent, name: own(name, usual?.name), description: own(description, usual?.description), pages })) onClose()
+    setBusy(true)
+    try {
+      if (await onSave({ ...agent, name: own(name, usual?.name), description: own(description, usual?.description), pages })) onClose()
+    } finally { setBusy(false) }
   }
-  const remove = async () => { if (await onRemove()) onClose() }
+  const remove = async () => {
+    setBusy(true)
+    try { if (await onRemove()) onClose() } finally { setBusy(false) }
+  }
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="md" aria-labelledby="agent-title">
       <DialogTitle id="agent-title">{isNew ? t('Add an agent') : t(agent.name)}</DialogTitle>
@@ -150,7 +155,7 @@ function AgentDialog({ agent, isNew, onClose, onSave, onRemove }: {
         {agent.custom && !isNew && (removing ? (
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mr: 'auto' }}>
             <Typography variant="body2">{t('Remove {name}?', { name: agent.name })}</Typography>
-            <Button size="small" color="error" variant="contained" onClick={() => void remove()}>{t('Remove')}</Button>
+            <Button size="small" color="error" variant="contained" disabled={busy} onClick={() => void remove()}>{t('Remove')}</Button>
             <Button size="small" onClick={() => setRemoving(false)}>{t('Keep')}</Button>
           </Stack>
         ) : (
@@ -162,7 +167,7 @@ function AgentDialog({ agent, isNew, onClose, onSave, onRemove }: {
           </Button>
         )}
         <Button onClick={onClose}>{t('Cancel')}</Button>
-        <Button variant="contained" onClick={() => void save()}>{t('Save')}</Button>
+        <Button variant="contained" disabled={busy} onClick={() => void save()}>{t('Save')}</Button>
       </DialogActions>
     </Dialog>
   )

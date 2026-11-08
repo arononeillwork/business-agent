@@ -345,7 +345,7 @@ function LineDialog({ line, months, onClose }: { line: Partial<PnlLine>; months:
 
 /** The IVA taken off the takings, and the employer's Social Security on top of pay (the same the rota and timecards use). */
 function Rates({ vat, multiplier, canEdit }: { vat: number; multiplier: number; canEdit: boolean }) {
-  const { api, refresh } = useApp()
+  const { api } = useApp()
   const run = useAction()
   const [vatDraft, setVat] = useState(String(vat))
   const ss = Math.round((multiplier - 1) * 1000) / 10
@@ -356,7 +356,7 @@ function Rates({ vat, multiplier, canEdit }: { vat: number; multiplier: number; 
     if (!(s >= 0 && s <= 60)) { await run(async () => { throw new Error(t('Social Security is between 0% and 60%')) }); return }
     await run(async () => {
       if (v !== vat) await api.savePnlSettings({ vat_rate: v })
-      if (s !== ss) { await api.updateSettings({ employer_cost_multiplier: Math.round((1 + s / 100) * 1000) / 1000 }); await refresh() }
+      if (s !== ss) await api.updateSettings({ employer_cost_multiplier: Math.round((1 + s / 100) * 1000) / 1000 })
     }, t('Saved'))
   }
   return (

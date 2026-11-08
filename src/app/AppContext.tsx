@@ -37,6 +37,7 @@ export interface AppData {
   /** Whether their roles (or being an admin) let them read or update an area: `can('rota', 'update')`. */
   can: (area: RoleArea, level?: Exclude<RoleLevel, 'none'>) => boolean
   loading: boolean
+  /** Every read refreshed; resolves once this data is back (refreshAll). A save in useAction's run needs none: run reloads. */
   refresh: () => Promise<void>
 }
 

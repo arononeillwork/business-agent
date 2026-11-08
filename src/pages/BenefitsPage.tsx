@@ -251,21 +251,24 @@ export function BenefitsPage() {
 
 /** Admins: what the business gives for one of the law's (never less than the law), and a note for the team. */
 function EntitlementDialog({ entitlement: e, amount, own, onClose }: { entitlement: Entitlement; amount: number | null; own?: Benefit; onClose: () => void }) {
-  const { api, refresh, business } = useApp()
+  const { api, business } = useApp()
   const run = useAction()
+  const [busy, setBusy] = useState(false)
   const [n, setN] = useState(amount === null ? '' : String(amount))
   const [details, setDetails] = useState(own?.details ?? '')
   const value = n === '' ? e.amount : Number(n)
   const low = belowLaw(e, value)
   const save = async () => {
+    setBusy(true)
     const ok = await run(async () => {
       if (low) throw new Error(t('It can’t be less than the law: {allowance}', { allowance: allowanceText(e, e.amount) }))
       // Holidays are the business's allowance in Settings: Time off checks requests against it.
-      if (e.key === 'holidays') { await api.updateSettings({ vacation_days_per_year: value ?? 30 }); await refresh() }
+      if (e.key === 'holidays') await api.updateSettings({ vacation_days_per_year: value ?? 30 })
       const patch = { amount: e.key === 'holidays' || value === e.amount ? null : value, details: details.trim() || null }
       if (own) await api.saveBenefit({ id: own.id, ...patch })
       else if (patch.amount !== null || patch.details) await api.saveBenefit({ law_key: e.key, ...patch })
-    }, t('Saved'))
+    }, t('Saved'), { fresh: e.key === 'holidays' }) // the page shows the allowance from the settings
+    setBusy(false)
     if (ok) onClose()
   }
   return (
@@ -285,7 +288,7 @@ function EntitlementDialog({ entitlement: e, amount, own, onClose }: { entitleme
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>{t('Cancel')}</Button>
-        <Button variant="contained" onClick={() => void save()}>{t('Save')}</Button>
+        <Button variant="contained" disabled={busy} onClick={() => void save()}>{t('Save')}</Button>
       </DialogActions>
     </Dialog>
   )

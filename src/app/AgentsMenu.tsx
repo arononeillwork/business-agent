@@ -59,15 +59,15 @@ export function useAgentView(): Agent | null {
 
 /** Switch to an agent (null: back to everything), kept on the owner's account. */
 export function useChooseAgent() {
-  const { api, me, refresh } = useApp()
+  const { api, me } = useApp()
   const run = useAction()
   return (key: string | null) => {
     setChosen({ key })
     if (!me) return
+    // The choice stays on screen until the account is back with it, or saving failed.
     void run(async () => {
       await api.updateProfile(me.id, { preferences: { ...me.preferences, agentView: key } })
-      await refresh()
-    }).finally(() => setChosen(undefined))
+    }, undefined, { fresh: true }).finally(() => setChosen(undefined))
   }
 }
 

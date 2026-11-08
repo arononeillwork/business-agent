@@ -100,13 +100,12 @@ const CONNECT_NAME: Record<Source, string> = { instagram: 'Instagram', facebook:
 /** Not connected yet: the same Connect as on Connections, coming back here afterwards (WhatsApp: set up there). */
 function ConnectCard({ provider, row, configured }: { provider: Source; row?: Integration; configured: boolean }) {
   if (provider === 'whatsapp') return <WhatsAppCard row={row} />
-  const { api, refresh } = useApp()
+  const { api } = useApp()
   const run = useAction()
   const name = CONNECT_NAME[provider]
   const connect = () => run(async () => {
     if (provider === 'instagram') await api.connectInstagram('messages')
     else await api.connectApp('facebook', 'messages')
-    await refresh()
   })
   return (
     <Card component="section" aria-label={t('Connect {app}', { app: name })}>

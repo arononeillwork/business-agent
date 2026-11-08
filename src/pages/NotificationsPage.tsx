@@ -98,7 +98,7 @@ function MyNotifications() {
 
 /** Instagram tags and story mentions: the switch, a check now, and each one to repost or ignore. */
 function InstagramMentions() {
-  const { api, settings, refresh } = useApp()
+  const { api, settings } = useApp()
   const run = useAction()
   const integ = useAsync('integrations', () => api.integrations(), [])
   const ig = integ.data?.integrations.find(i => i.provider === 'instagram')
@@ -125,7 +125,7 @@ function InstagramMentions() {
             </Typography>
           </Box>
           <Switch checked={on} slotProps={{ input: { 'aria-label': t('Instagram tags and mentions') } }}
-            onChange={e => run(async () => { await api.updateSettings({ alert_instagram_mentions: e.target.checked }); await refresh() },
+            onChange={e => run(() => api.updateSettings({ alert_instagram_mentions: e.target.checked }),
               e.target.checked ? t('{title}: switched on', { title: t('Instagram tags and mentions') }) : t('{title}: switched off', { title: t('Instagram tags and mentions') }))} />
         </Stack>
         {integ.data && ig?.status !== 'connected' && (
@@ -141,7 +141,7 @@ function InstagramMentions() {
 
 /** Team alerts on WhatsApp: what gets sent, and the latest sent. */
 function TeamAlerts() {
-  const { api, settings, profiles, refresh } = useApp()
+  const { api, settings, profiles } = useApp()
   const run = useAction()
   const log = useAsync('sent-alerts', () => api.sentAlerts(50), [])
   const integ = useAsync('integrations', () => api.integrations(), [])
@@ -187,7 +187,7 @@ function TeamAlerts() {
                       <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('{when} · to {who}', { when: t(k.when), who: t(k.who).toLowerCase() })}</Typography>
                     </Box>
                     <Switch checked={!!settings[k.key]} slotProps={{ input: { 'aria-label': t(k.title) } }}
-                      onChange={e => run(async () => { await api.updateSettings({ [k.key]: e.target.checked }); await refresh() },
+                      onChange={e => run(() => api.updateSettings({ [k.key]: e.target.checked }),
                         e.target.checked ? t('{title}: switched on', { title: t(k.title) }) : t('{title}: switched off', { title: t(k.title) }))} />
                   </Stack>
                 ))}

@@ -21,7 +21,7 @@ const deviceZone = () => { try { return Intl.DateTimeFormat().resolvedOptions().
  * until they choose); it's saved at once, like the language.
  */
 export function TimeZoneField() {
-  const { api, me, refresh, business } = useApp()
+  const { api, me, business } = useApp()
   const run = useAction()
   const cafeTz = business?.timezone
   const cafe = isTimeZone(cafeTz) ? cafeTz : TZ
@@ -34,9 +34,8 @@ export function TimeZoneField() {
   const chosen = isTimeZone(mine) ? mine : cafe
   const device = deviceZone()
   const value = zones.find(z => z.tz === chosen) ?? { tz: chosen, label: chosen.replace(/_/g, ' ') }
-  const save = (tz: string) => run(async () => {
-    await api.updateProfile(me.id, { preferences: { ...me.preferences, timeZone: tz } }); await refresh()
-  }, t('Time zone set to {zone}', { zone: zoneCity(tz) }))
+  const save = (tz: string) => run(() => api.updateProfile(me.id, { preferences: { ...me.preferences, timeZone: tz } }),
+    t('Time zone set to {zone}', { zone: zoneCity(tz) }))
 
   return (
     <Stack spacing={1.5} sx={{ maxWidth: 420 }}>
