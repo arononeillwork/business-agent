@@ -33,13 +33,17 @@ export const JOB_BOARDS: { id: JobBoard; label: string }[] = [
   // Ireland's: IrishJobs.ie and Jobs.ie, and JobsIreland.ie, the State's free job board.
   { id: 'irishjobs', label: 'IrishJobs.ie' }, { id: 'jobsie', label: 'Jobs.ie' }, { id: 'jobsireland', label: 'JobsIreland.ie' },
 ]
-export const boardLabel = (b: JobBoard) => JOB_BOARDS.find(x => x.id === b)!.label
+/** Indeed is Indeed Ireland (ie.indeed.com) for a business there; the rest are called the same everywhere. */
+const IRISH_BOARD_LABELS: Partial<Record<JobBoard, string>> = { indeed: 'Indeed Ireland' }
+export const boardLabel = (b: JobBoard, country: Country = currentCountry()) =>
+  (country === 'IE' ? IRISH_BOARD_LABELS[b] : undefined) ?? JOB_BOARDS.find(x => x.id === b)!.label
 /** The boards to offer where the business is (Indeed is Indeed Ireland there), and any already picked (`keep`). */
 export function jobBoards(country: Country = currentCountry(), keep: JobBoard[] = []) {
   const ids: JobBoard[] = country === 'IE'
     ? ['irishjobs', 'jobsie', 'indeed', 'jobsireland', 'linkedin', 'instagram', 'window', 'referral', 'other']
     : ['infojobs', 'indeed', 'linkedin', 'instagram', 'window', 'referral', 'other']
   return JOB_BOARDS.filter(b => ids.includes(b.id) || keep.includes(b.id)).sort((a, b) => order(ids, a.id) - order(ids, b.id))
+    .map(b => ({ ...b, label: boardLabel(b.id, country) }))
 }
 const order = (ids: JobBoard[], id: JobBoard) => (ids.includes(id) ? ids.indexOf(id) : ids.length)
 

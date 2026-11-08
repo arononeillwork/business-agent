@@ -5,8 +5,10 @@
 // English terms and conditions instead (irishTerms) and Ireland's warnings.
 // The terms and warnings are a careful starting point, not legal advice: each says to check.
 import { msg } from './i18n'
-import { currentCountry } from './country'
+import { currentCountry, type Country } from './country'
 import { EMAIL, cleanPhone, mapHeadings, parseCsv, type ImportField } from './customers'
+// Easter and Ireland's bank holidays as the team calendar has them: plain date sums, nothing of the Worker's.
+import { easter, irelandPublicHolidays } from '../worker/holidays.ts'
 
 export type CompetitionKind = 'instagram_giveaway' | 'email_draw' | 'photo_contest' | 'name_a_drink' | 'in_cafe' | 'quiz' | 'referral' | 'sports_prediction' | 'custom'
 export const COMPETITION_KINDS: { id: CompetitionKind; label: string }[] = [
@@ -143,17 +145,99 @@ export function spanishMoments(from: string) {
   return out.filter(m => m.date > from).sort((a, b) => a.date.localeCompare(b.date))
 }
 
+/** A moment a promotion is built around: the day, its name, and in Spanish and English for the captions. */
+export interface Moment {
+  key: string
+  date: string
+  name: Words
+  es: string
+  en: string
+  /** When it's drawn, if not the day before (a long weekend's, the Thursday before it starts). */
+  draw?: string
+  /** Why now, where the usual words don't fit. */
+  why?: Words
+}
+
+/** The Thursday before a long weekend that starts on `day` (a bank holiday Monday, Easter Sunday, a Friday holiday). */
+const thursdayBefore = (day: string) => plusDays(day, -((weekday(day) + 4) % 7 || 7))
+/** The last weekday (0 Monday … 6 Sunday) of a month. */
+const lastWeekday = (year: number, month: number, day: number) => {
+  const fourth = nthWeekday(year, month, day, 4)
+  return plusDays(fourth, 7).slice(5, 7) === fourth.slice(5, 7) ? plusDays(fourth, 7) : fourth
+}
+/** An All-Ireland senior final on Sports (TheSportsDB numbers the final 200), and which. */
+const ALL_IRELAND_FINALS: Record<string, { key: string; name: string; es: string }> = {
+  'gaa-hurling-championship': { key: 'allireland-hurling', name: msg('All-Ireland hurling final'), es: 'la final del All-Ireland de hurling' },
+  'gaa-football-championship': { key: 'allireland-football', name: msg('All-Ireland football final'), es: 'la final del All-Ireland de fútbol gaélico' },
+}
+const allIrelandFinal = (m: BigMatch) =>
+  (m.round === '200' || /^final$/i.test(m.round ?? '')) && m.competition ? ALL_IRELAND_FINALS[m.competition] : undefined
+
+/**
+ * Moments a café in Ireland builds a promotion around, the next time each comes round from `from`: St Brigid's
+ * Day, Valentine's, St Patrick's, Mother's Day (Mothering Sunday, the fourth Sunday of Lent: three weeks before
+ * Easter), Easter, the May, June and August bank holidays, Father's Day (the third Sunday of June), back to school
+ * (the last week of August), Halloween with the October bank holiday, Black Friday and Christmas; and an All-Ireland
+ * final the business follows on Sports (the GAA sets those dates each year). A long weekend's is drawn on the
+ * Thursday before it, so the prize is there for the weekend.
+ */
+export function irishMoments(from: string, bigMatches: BigMatch[] = []): Moment[] {
+  const out: Moment[] = []
+  const y = Number(from.slice(0, 4))
+  const longWeekend = msg('The {moment} is on {date}: a long weekend people make plans for. Drawn on the Thursday before, the prize is there for the weekend, and the giveaway gets shared.')
+  for (const year of [y, y + 1]) {
+    const easterDay = easter(year)
+    const holidays = irelandPublicHolidays(year)
+    // Each month's bank holiday (February's is St Brigid's Day).
+    const bank = (month: string) => holidays.find(h => h.date.slice(5, 7) === month)!.date
+    const weekend = (key: string, name: string, es: string, en: string, date: string): Moment =>
+      ({ key, date, name: w(name), es, en, draw: thursdayBefore(date), why: w(longWeekend, { moment: name, date }) })
+    const school = lastWeekday(year, 8, 0)
+    out.push(
+      weekend('brigid', msg('St Brigid’s Day bank holiday'), 'el puente de Santa Brígida', 'St Brigid’s Day', bank('02')),
+      { key: 'valentines', date: `${year}-02-14`, name: w(msg('Valentine’s Day')), es: 'San Valentín', en: 'Valentine’s Day' },
+      { key: 'patrick', date: `${year}-03-17`, name: w(msg('St Patrick’s Day')), es: 'San Patricio', en: 'St Patrick’s Day' },
+      { key: 'mothers', date: plusDays(easterDay, -21), name: w(msg('Mother’s Day')), es: 'el Día de la Madre', en: 'Mother’s Day' },
+      { key: 'easter', date: easterDay, name: w(msg('Easter')), es: 'Semana Santa', en: 'Easter', draw: thursdayBefore(easterDay) },
+      weekend('may', msg('May bank holiday'), 'el puente de mayo', 'May bank holiday', bank('05')),
+      weekend('june', msg('June bank holiday'), 'el puente de junio', 'June bank holiday', bank('06')),
+      { key: 'fathers', date: nthWeekday(year, 6, 6, 3), name: w(msg('Father’s Day')), es: 'el Día del Padre', en: 'Father’s Day' },
+      weekend('august', msg('August bank holiday'), 'el puente de agosto', 'August bank holiday', bank('08')),
+      { key: 'school', date: school, name: w(msg('Back to school')), es: 'la vuelta al cole', en: 'Back to school',
+        why: w(msg('Schools go back the week of {date}: parents on the school run and students are looking for their coffee stop, and a giveaway in the two weeks before gets shared.'), { date: school }) },
+      { key: 'halloween', date: `${year}-10-31`, name: w(msg('Halloween')), es: 'Halloween', en: 'Halloween', draw: thursdayBefore(bank('10')),
+        why: w(msg('Halloween is big in Ireland, and the October bank holiday weekend (Monday {holiday}) runs into it: drawn on the Thursday before, the prize is there for the long weekend, and a spooky giveaway gets shared.'), { holiday: bank('10') }) },
+      { key: 'blackfriday', date: plusDays(nthWeekday(year, 11, 3, 4), 1), name: w(msg('Black Friday')), es: 'el Black Friday', en: 'Black Friday' },
+      { key: 'christmas', date: `${year}-12-25`, name: w(msg('Christmas and St Stephen’s Day')), es: 'Navidad y San Esteban', en: 'Christmas' },
+    )
+  }
+  for (const m of bigMatches) {
+    const final = allIrelandFinal(m)
+    const date = m.starts_at.slice(0, 10)
+    if (final && !out.some(x => x.key === final.key && x.date === date)) {
+      out.push({ key: final.key, date, name: w(final.name), es: final.es, en: 'All-Ireland final',
+        why: w(msg('{moment} is on {date} ({match}): the counties in it will be watching, and a giveaway in the run-up gets shared.'), { moment: final.name, date, match: m.title }) })
+    }
+  }
+  return out.filter(m => m.date > from).sort((a, b) => a.date.localeCompare(b.date))
+}
+
 // ---------------------------------------------------------------------------------------------
 // Smart suggestions
 // ---------------------------------------------------------------------------------------------
 
+/** A big match coming up on Sports (its competition and round tell an All-Ireland final). */
+export interface BigMatch { starts_at: string; title: string; competition?: string; round?: string | null }
+
 export interface SuggestInput {
   today: string
   business: { name: string; instagram?: string | null }
+  /** Whose calendar the moments come from: Spain's or Ireland's (the business's country, unless given). */
+  country?: Country
   /** The team calendar from today on (holidays, closures, local fiestas, events). */
   events?: { starts_on: string; title: string; category: string }[]
   /** Big matches coming up (Sports). */
-  bigMatches?: { starts_at: string; title: string }[]
+  bigMatches?: BigMatch[]
   /** Takings per day, the last weeks (Sales). */
   takings?: { date: string; gross: number }[]
   /** Stock and shop items, for prize ideas. */
@@ -213,9 +297,9 @@ function alreadyPlanned(input: SuggestInput, kind: CompetitionKind, from: string
 }
 
 /**
- * Ideas for the next competitions, best first: a Spanish calendar moment or a local fiesta coming
- * up, a quiet weekday to fill, a big match, a monthly sign-up draw like the website's, a photo
- * contest and naming the newest drink. Each says why, when, the prize and how to enter.
+ * Ideas for the next competitions, best first: a calendar moment (Spain's, or Ireland's for a business
+ * there) or a local fiesta coming up, a quiet weekday to fill, a big match, a monthly sign-up draw like
+ * the website's, a photo contest and naming the newest drink. Each says why, when, the prize and how to enter.
  */
 export function suggest(input: SuggestInput): CompetitionIdea[] {
   const t0 = input.today
@@ -226,16 +310,20 @@ export function suggest(input: SuggestInput): CompetitionIdea[] {
   const followEs = `Sigue a ${tag} en Instagram`
   const comment = w(msg('Comment on the post: who would you bring?'))
 
-  // 1. A Spanish calendar moment in the next 7 weeks: two weeks running up to it, drawn the day before.
-  for (const m of spanishMoments(t0).filter(x => daysFrom(t0, x.date) >= 5 && daysFrom(t0, x.date) <= 49).slice(0, 2)) {
-    const start = daysFrom(t0, m.date) > 16 ? plusDays(m.date, -14) : t0
-    const end = plusDays(m.date, -2)
+  // 1. A calendar moment in the next 7 weeks: two weeks running up to it, drawn the day before (a long
+  //    weekend's, the Thursday before it). Spain's calendar, or Ireland's for a business there.
+  const moments: Moment[] = (input.country ?? currentCountry()) === 'IE' ? irishMoments(t0, input.bigMatches) : spanishMoments(t0)
+  const drawOf = (m: Moment) => m.draw ?? plusDays(m.date, -1)
+  for (const m of moments.filter(x => daysFrom(t0, drawOf(x)) >= 4 && daysFrom(t0, x.date) <= 49).slice(0, 2)) {
+    const draw = drawOf(m)
+    const start = daysFrom(t0, draw) > 15 ? plusDays(draw, -13) : t0
+    const end = plusDays(draw, -1)
     if (alreadyPlanned(input, 'instagram_giveaway', start, end)) continue
-    const p = prizeIdea(input, m.key === 'navidad' || m.key === 'reyes' ? 25 : 15)
+    const p = prizeIdea(input, m.key === 'navidad' || m.key === 'reyes' || m.key === 'christmas' ? 25 : 15)
     ideas.push({
       key: `moment-${m.key}-${m.date.slice(0, 4)}`, kind: 'instagram_giveaway',
       title: w(msg('{moment} giveaway'), { moment: m.name.text }),
-      why: w(msg('{moment} is on {date}: people are already looking for plans and presents, and a giveaway in the two weeks before gets shared.'), { moment: m.name.text, date: m.date }),
+      why: m.why ?? w(msg('{moment} is on {date}: people are already looking for plans and presents, and a giveaway in the two weeks before gets shared.'), { moment: m.name.text, date: m.date }),
       channels: ['instagram'], starts_on: start, ends_on: end, draw_on: plusDays(end, 1),
       prize: p.name, prize_es: p.es, prize_value: p.value, prize_item_id: p.item,
       how_to_enter: [follow, w(msg('Like the post')), comment],

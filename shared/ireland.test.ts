@@ -140,7 +140,7 @@ describe('the CCTV sign in Ireland', () => {
 
 describe('hiring in Ireland', () => {
   it('Ireland’s job boards first, Spain’s InfoJobs only in Spain, and one already picked kept', () => {
-    expect(jobBoards('IE').map(b => b.label)).toEqual(['IrishJobs.ie', 'Jobs.ie', 'Indeed', 'JobsIreland.ie', 'LinkedIn', 'Instagram', 'Sign in the window', 'Word of mouth', 'Other'])
+    expect(jobBoards('IE').map(b => b.label)).toEqual(['IrishJobs.ie', 'Jobs.ie', 'Indeed Ireland', 'JobsIreland.ie', 'LinkedIn', 'Instagram', 'Sign in the window', 'Word of mouth', 'Other'])
     expect(jobBoards('ES').map(b => b.id)).toEqual(['infojobs', 'indeed', 'linkedin', 'instagram', 'window', 'referral', 'other'])
     expect(jobBoards('IE', ['infojobs']).map(b => b.id).at(-1)).toBe('infojobs')
     expect(jobBoards('ES', ['jobsie']).map(b => b.id)).toContain('jobsie')

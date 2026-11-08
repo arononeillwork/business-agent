@@ -9,11 +9,11 @@ import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { PageHeader, SectionTitle } from '../components/common'
 import { TEXT_SIZES, applyPreferences } from '../app/Appearance'
-import { formatMoneyAs } from '../../shared/time'
+import { defaultNumberFormat, formatMoneyAs } from '../../shared/time'
 import type { Preferences } from '../../shared/types'
 import { fonts, tokens } from '../theme'
 import { t } from '../i18n'
-import { countryProfile } from '../../shared/country'
+import { countryProfile, currentCountry } from '../../shared/country'
 
 /** Each person's own look: theme, text size and accessibility options. Saved to their account. */
 export function AppearancePage() {
@@ -88,13 +88,16 @@ export function AppearancePage() {
           <CardContent>
             <SectionTitle>{t('Numbers')}</SectionTitle>
             <Box role="radiogroup" aria-label={t('Decimal mark')} sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' } }}>
-              <Choice selected={(prefs.numberFormat ?? 'comma') === 'comma'} onClick={() => save({ numberFormat: 'comma' }, t('Numbers: decimal comma'))}
+              {/* Until someone chooses, the one their business's country uses is the one ticked: it's what they see. */}
+              <Choice selected={(prefs.numberFormat ?? defaultNumberFormat(currentCountry())) === 'comma'} onClick={() => save({ numberFormat: 'comma' }, t('Numbers: decimal comma'))}
                 label={t('Decimal comma')} preview={<NumberSample text={formatMoneyAs(1234.5, 'comma')} />} />
-              <Choice selected={prefs.numberFormat === 'point'} onClick={() => save({ numberFormat: 'point' }, t('Numbers: decimal point'))}
+              <Choice selected={(prefs.numberFormat ?? defaultNumberFormat(currentCountry())) === 'point'} onClick={() => save({ numberFormat: 'point' }, t('Numbers: decimal point'))}
                 label={t('Decimal point')} preview={<NumberSample text={formatMoneyAs(1234.5, 'point')} />} />
             </Box>
             <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1.5 }}>
-              {t('How pay, costs and totals are shown to you. Payroll exports for the {adviser} always use the Spanish comma.', { adviser: t(countryProfile().adviser) })}
+              {currentCountry() === 'IE'
+                ? t('How pay, costs and totals are shown to you. Until you choose, it’s the decimal point, as in Ireland. CSV exports use the decimal point and commas, unless you choose the decimal comma here.')
+                : t('How pay, costs and totals are shown to you. Payroll exports for the {adviser} always use the Spanish comma.', { adviser: t(countryProfile().adviser) })}
             </Typography>
           </CardContent>
         </Card>

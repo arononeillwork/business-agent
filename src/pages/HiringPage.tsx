@@ -220,7 +220,7 @@ export function HiringPage() {
 
       <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
         {currentCountry() === 'IE'
-          ? t('Post your jobs on IrishJobs.ie, Jobs.ie, Indeed or JobsIreland.ie (the State’s free job board), then add who applies here.')
+          ? t('Post your jobs on IrishJobs.ie, Jobs.ie, Indeed Ireland or JobsIreland.ie (the State’s free job board), then add who applies here.')
           : t('Posting jobs to InfoJobs, Indeed and LinkedIn from the app is coming (Connections). Until then, post them there and add who applies here.')}
       </Typography>
 
@@ -339,7 +339,7 @@ function OpeningDialog({ opening, onClose }: { opening: OpeningInput; onClose: (
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField label={t('Hours a week')} type="number" value={o.hours_per_week ?? ''} onChange={e => set({ hours_per_week: e.target.value === '' ? null : Number(e.target.value) })} sx={{ flex: 1 }} />
-            <TextField label={t('Pay')} value={o.pay ?? ''} onChange={e => set({ pay: e.target.value })} placeholder={t('€1.350 gross a month')} sx={{ flex: 2 }} />
+            <TextField label={t('Pay')} value={o.pay ?? ''} onChange={e => set({ pay: e.target.value })} placeholder={currentCountry() === 'IE' ? t('€1,350 gross a month') : t('€1.350 gross a month')} sx={{ flex: 2 }} />
           </Stack>
           <TextField label={t('About the job')} value={o.description ?? ''} multiline minRows={3} onChange={e => set({ description: e.target.value })}
             helperText={t('The days and hours, what they’ll do, what you’re looking for')} />

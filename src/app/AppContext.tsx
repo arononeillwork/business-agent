@@ -118,8 +118,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AppData | null>(() => {
     if (!api) return null
     const me = state.me
-    // Set before any page renders, so every amount on screen uses this person's decimal mark.
-    setNumberFormat(me?.preferences?.numberFormat)
+    // Set before any page renders, so every amount on screen uses this person's decimal mark (or, until
+    // they choose one, their business's country's).
+    setNumberFormat(me?.preferences?.numberFormat, state.business?.country)
     setCurrency(state.business?.currency)
     // The business's own time zone and country (Spain or Ireland): its shifts, rules and labels.
     setBusinessTimeZone(state.business?.timezone)

@@ -2082,6 +2082,7 @@ test('self-serve: a new business signs up, creates its business and goes on to t
 })
 
 test('a business in Ireland: asked at sign-up, then Irish labels, VAT rates, phone numbers and pages', async ({ page }) => {
+  test.setTimeout(90_000)
   // The dates the Tax and Grants pages work out are the same whenever the test runs.
   await page.clock.install({ time: WED_0900 })
   await page.goto('/?demo')
@@ -2170,10 +2171,48 @@ test('a business in Ireland: asked at sign-up, then Irish labels, VAT rates, pho
   await audit.click()
   await expect(results.getByRole('link', { name: 'Official page' }).first()).toHaveAttribute('href', /seai\.ie/)
   await expect(results.getByText(/^Checked on 8 Nov 2026/).first()).toBeVisible()
+
+  // Competitions: ideas on Ireland's calendar. Halloween runs into the October bank holiday, so it's drawn on the
+  // Thursday before that long weekend.
+  await nav.getByRole('link', { name: 'Competitions' }).click()
+  const ideas = page.getByRole('region', { name: 'Ideas for you' })
+  const halloween = ideas.getByRole('article', { name: 'Halloween giveaway' })
+  await expect(halloween).toContainText('Halloween is big in Ireland, and the October bank holiday weekend (Monday 26 Oct 2026) runs into it')
+  await expect(halloween).toContainText('9 Oct 2026 to 21 Oct 2026 · drawn 22 Oct 2026')
+  await ideas.getByRole('button', { name: 'Use this idea: Halloween giveaway' }).click()
+  const idea = page.getByRole('dialog', { name: 'New competition' })
+  await expect(idea.getByLabel('Draw on')).toHaveValue('2026-10-22')
+  await expect(idea.getByRole('textbox', { name: 'Caption in English' })).toHaveValue(/^🎁 Halloween giveaway!/)
+  await idea.getByLabel('Worth (each, VAT included)').fill('12.5')
+  await idea.getByRole('button', { name: 'Save' }).click()
+  await toast(page, /^Saved$/)
+  // Its CSV as Excel in Ireland reads it: commas between fields, decimal points, dates day first; the byte-order mark kept.
+  await page.getByRole('group', { name: 'Page actions' }).getByRole('button', { name: 'Export' }).click()
+  const download = page.waitForEvent('download')
+  await page.getByRole('menuitem', { name: /CSV/ }).click()
+  const bytes = new Uint8Array(await new Response((await (await download).createReadStream()) as unknown as ReadableStream).arrayBuffer())
+  expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf])
+  const rows = new TextDecoder().decode(bytes).split('\r\n')
+  expect(rows[0]).toBe('"Competition","Kind","Status","Starts","Entries close","Draw","Prize","Prize value","Winners","Entries","Prize given"')
+  expect(rows.find(r => r.startsWith('"Halloween giveaway"'))).toMatch(/^"Halloween giveaway","Instagram giveaway","[^"]+","09\/10\/2026","21\/10\/2026","22\/10\/2026","[^"]+","12\.5","1","0",""$/)
+  expect(rows.find(r => r.startsWith('"Opening week giveaway"'))).toMatch(/"25\/03\/2026","05\/04\/2026","06\/04\/2026",.*"09\/04\/2026"$/)
+
+  // Numbers on screen: Ireland's decimal point until she chooses, ticked on Appearance as what she gets; a choice wins.
+  await nav.getByRole('link', { name: 'Team', exact: true }).click()
+  const maria = page.getByRole('row', { name: /Maria/ })
+  await expect(maria).toContainText('€8.80/h')
+  await fromAccountMenu(page, 'Appearance')
+  await expect(page.getByRole('radio', { name: 'Decimal point' })).toHaveAttribute('aria-checked', 'true')
+  await expect(page.getByRole('radio', { name: 'Decimal comma' })).toHaveAttribute('aria-checked', 'false')
+  await expect(page.getByText('Until you choose, it’s the decimal point, as in Ireland.', { exact: false })).toBeVisible()
+  await page.getByRole('radio', { name: 'Decimal comma' }).click()
+  await toast(page, 'Numbers: decimal comma')
+  await nav.getByRole('link', { name: 'Team', exact: true }).click()
+  await expect(maria).toContainText('€8,80/h')
 })
 
 test('a business in Ireland: Irish contract types, competition terms, the mileage rate, the CCTV sign, job boards, GAA in sports and an accountant', async ({ page }) => {
-  test.setTimeout(60_000)
+  test.setTimeout(90_000)
   await page.goto('/?demo')
   await page.getByRole('tab', { name: 'Create account' }).click()
   await page.getByLabel('Your name').fill('Niamh Kelly')
@@ -2192,6 +2231,8 @@ test('a business in Ireland: Irish contract types, competition terms, the mileag
 
   // Contracts: Ireland's five kinds, the written statement's deadlines, and a sectoral order instead of a convenio.
   await nav.getByRole('link', { name: 'Team', exact: true }).click()
+  // Pay with Ireland's decimal point, nobody having chosen one.
+  await expect(page.getByRole('row', { name: /Maria/ })).toContainText('€8.80/h')
   await page.getByRole('tab', { name: 'Contracts' }).click()
   await expect(page.getByText('Each person’s employment contract under Irish law')).toBeVisible()
   await expect(page.getByRole('alert', { name: 'The written statement' })).toContainText('within 5 days of starting')
@@ -2242,24 +2283,34 @@ test('a business in Ireland: Irish contract types, competition terms, the mileag
   await expect(law).toContainText('why the recording is lawful')
   await expect(page.getByText('Cameras and the law in Spain')).toHaveCount(0)
 
-  // Hiring: Ireland's job boards, and no InfoJobs.
+  // Hiring: Ireland's job boards (Indeed as Indeed Ireland), no InfoJobs, and the pay written the Irish way.
   await nav.getByRole('link', { name: 'Hiring' }).click()
-  await expect(page.getByText('Post your jobs on IrishJobs.ie, Jobs.ie, Indeed or JobsIreland.ie')).toBeVisible()
+  await expect(page.getByText('Post your jobs on IrishJobs.ie, Jobs.ie, Indeed Ireland or JobsIreland.ie')).toBeVisible()
   await page.getByRole('button', { name: 'Add a vacancy' }).first().click()
   const vacancy = page.getByRole('dialog', { name: 'Add a vacancy' })
-  for (const board of ['IrishJobs.ie', 'Jobs.ie', 'Indeed', 'JobsIreland.ie']) await expect(vacancy.getByRole('checkbox', { name: board, exact: true })).toBeVisible()
+  for (const board of ['IrishJobs.ie', 'Jobs.ie', 'Indeed Ireland', 'JobsIreland.ie']) await expect(vacancy.getByRole('checkbox', { name: board, exact: true })).toBeVisible()
+  await expect(vacancy.getByRole('checkbox', { name: 'Indeed', exact: true })).toHaveCount(0)
   await expect(vacancy.getByRole('checkbox', { name: 'InfoJobs' })).toHaveCount(0)
+  await expect(vacancy.getByRole('textbox', { name: 'Pay' })).toHaveAttribute('placeholder', '€1,350 gross a month')
   await vacancy.getByRole('button', { name: 'Cancel' }).click()
 
-  // Sports: the GAA offered first, and its chip first once followed.
+  // Sports: the GAA offered first, and its chip first once followed; the League of Ireland and the FAI Cup next to it.
   await nav.getByRole('link', { name: 'Sports' }).click()
   await page.getByRole('button', { name: 'Competitions', exact: true }).click()
   const follow = page.getByRole('dialog', { name: 'Competitions to follow' })
   await expect(follow.getByText(/^(GAA|Football|Rugby) · /).first()).toHaveText('GAA · Ireland')
+  await expect(follow.getByText(/^(GAA|Football|Rugby) · /).nth(1)).toHaveText('Football · Ireland')
+  for (const name of ['League of Ireland Premier Division', 'League of Ireland First Division', 'FAI Cup']) await expect(follow.getByRole('checkbox', { name })).not.toBeChecked()
   await follow.getByRole('checkbox', { name: 'All-Ireland Senior Hurling Championship' }).check()
   await toast(page, 'Following All-Ireland Senior Hurling Championship')
+  await follow.getByRole('checkbox', { name: 'League of Ireland Premier Division' }).check()
+  await toast(page, 'Following League of Ireland Premier Division')
   await follow.getByRole('button', { name: 'Done' }).click()
   await expect(page.getByRole('group', { name: 'Sport' }).getByRole('button')).toHaveText(['All', 'GAA', 'Football', 'Rugby', 'UFC', 'Boxing'])
+  // Football: Ireland's own first.
+  await page.getByRole('group', { name: 'Sport' }).getByRole('button', { name: 'Football' }).click()
+  await expect(page.getByRole('group', { name: 'Which football' }).getByRole('button'))
+    .toHaveText(['All football', 'Ireland', 'National teams', 'Spain', 'England', 'Netherlands', 'Europe'])
 
   // Who does the books: the accountant, not the gestoría.
   await nav.getByRole('link', { name: 'Profit & loss' }).click()

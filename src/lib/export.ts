@@ -1,6 +1,8 @@
 // Tables out of the app: CSV, Excel (.xlsx), a printable page (save it as PDF) and tab-separated
 // text for pasting into Google Sheets or Numbers. No library: an .xlsx is a few XML files in a zip.
 import { currentLanguage } from '../i18n'
+import { currentCountry, type Country } from '../../shared/country'
+import type { NumberFormat } from '../../shared/time'
 
 export type Cell = string | number | null | undefined
 export interface ExportTable {
@@ -20,9 +22,37 @@ export interface ExportTable {
 
 const text = (c: Cell) => (c === null || c === undefined ? '' : String(c))
 
-/** Spanish Excel's CSV: semicolons, decimal commas, and a byte-order mark so accents survive. */
-export const toCsv = (rows: Cell[][]) =>
-  rows.map(r => r.map(c => `"${(typeof c === 'number' ? String(c).replace('.', ',') : text(c)).replace(/"/g, '""')}"`).join(';')).join('\r\n')
+/** How a CSV is written: what goes between fields, the decimal mark, and whether dates go day first. */
+export interface CsvStyle { separator: ';' | ','; decimal: ',' | '.'; dayFirst: boolean }
+
+/**
+ * The CSV that Excel opens straight into columns where the business is. Spain's Excel: semicolons and
+ * decimal commas, dates as the app keeps them (2026-10-21), the same for everyone, as always. Ireland's:
+ * commas, decimal points and dates day first (21/10/2026). Someone in Ireland who picked the decimal comma
+ * for themselves (Appearance, `chosen`) has a spreadsheet set up that way: semicolons and decimal commas for
+ * them, dates still day first, which that Excel reads too.
+ */
+export function csvStyle(country: Country = currentCountry(), chosen?: NumberFormat): CsvStyle {
+  if (country !== 'IE') return { separator: ';', decimal: ',', dayFirst: false }
+  return chosen === 'comma' ? { separator: ';', decimal: ',', dayFirst: true } : { separator: ',', decimal: '.', dayFirst: true }
+}
+
+/**
+ * Text a spreadsheet would run as a formula (starting with =, +, -, @, a tab or a return: a customer's name,
+ * a note, a phone number) gets a ' in front, as the data export does (csvField in shared/dataExport.ts), so
+ * opening the file never runs anything. Numbers, negative ones too, are numbers and stay as they are.
+ */
+const FORMULA = /^[=+\-@\t\r]/
+const safeText = (s: string) => (FORMULA.test(s) ? `'${s}` : s)
+
+/** A date (2026-10-21) or a date and time (2026-10-21 08:30) day first: 21/10/2026, 21/10/2026 08:30. */
+const ISO_DAY = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}:\d{2}(?::\d{2})?))?$/
+const csvCell = (c: Cell, s: CsvStyle) => (typeof c === 'number' ? (s.decimal === ',' ? String(c).replace('.', ',') : String(c))
+  : safeText(s.dayFirst ? text(c).replace(ISO_DAY, (_, y, m, d, time) => `${d}/${m}/${y}${time ? ` ${time}` : ''}`) : text(c)))
+
+/** CSV in the business's country's style (csvStyle): Spain's is semicolons and decimal commas. */
+export const toCsv = (rows: Cell[][], style: CsvStyle = csvStyle()) =>
+  rows.map(r => r.map(c => `"${csvCell(c, style).replace(/"/g, '""')}"`).join(style.separator)).join('\r\n')
 
 export function downloadBlob(filename: string, blob: Blob) {
   const url = URL.createObjectURL(blob)
@@ -35,19 +65,23 @@ export function downloadBlob(filename: string, blob: Blob) {
 
 const allRows = (t: ExportTable) => [t.columns, ...t.rows, ...(t.footer ? [t.footer] : [])]
 
-export const csvContent = (t: ExportTable) => '﻿' + toCsv(allRows(t))
+/** The file: a byte-order mark first, so accents survive, then the CSV. */
+export const csvContent = (t: ExportTable, style: CsvStyle = csvStyle()) => '﻿' + toCsv(allRows(t), style)
 
-export function exportCsv(t: ExportTable) {
-  downloadBlob(`${t.filename}.csv`, new Blob([csvContent(t)], { type: 'text/csv;charset=utf-8' }))
+export function exportCsv(t: ExportTable, style: CsvStyle = csvStyle()) {
+  downloadBlob(`${t.filename}.csv`, new Blob([csvContent(t, style)], { type: 'text/csv;charset=utf-8' }))
 }
 
 export function exportXlsx(t: ExportTable) {
   downloadBlob(`${t.filename}.xlsx`, new Blob([xlsx(t)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }))
 }
 
-/** Tab-separated, which pastes into Google Sheets, Numbers or Excel as cells. */
+/** Tab-separated, which pastes into Google Sheets, Numbers or Excel as cells (text that looks like a formula stays text). */
+export const tsvContent = (t: ExportTable) =>
+  allRows(t).map(r => r.map(c => (typeof c === 'number' ? text(c) : safeText(text(c))).replace(/[\t\n]/g, ' ')).join('\t')).join('\n')
+
 export async function copyTsv(t: ExportTable) {
-  await navigator.clipboard.writeText(allRows(t).map(r => r.map(c => text(c).replace(/[\t\n]/g, ' ')).join('\t')).join('\n'))
+  await navigator.clipboard.writeText(tsvContent(t))
 }
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')

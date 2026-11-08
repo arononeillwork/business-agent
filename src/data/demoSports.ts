@@ -30,6 +30,10 @@ export function demoSports(from: string): { competitions: SportsCompetition[]; e
     comp('gaa-football-league', 'National Football League Division 1', 'gaa', 'Ireland', 'league', 102, false),
     comp('gaa-hurling-league-1a', 'National Hurling League Division 1A', 'gaa', 'Ireland', 'league', 103, false),
     comp('gaa-hurling-league-1b', 'National Hurling League Division 1B', 'gaa', 'Ireland', 'league', 104, false),
+    // The League of Ireland and the FAI Cup, as the `league_of_ireland` migration adds them: not followed yet either.
+    comp('ie-premier-division', 'League of Ireland Premier Division', 'football', 'Ireland', 'league', 105, false),
+    comp('ie-first-division', 'League of Ireland First Division', 'football', 'Ireland', 'league', 106, false),
+    comp('ie-fai-cup', 'FAI Cup', 'football', 'Ireland', 'cup', 107, false),
   ]
   const byCode = new Map(competitions.map(c => [c.code, c]))
   let n = 0

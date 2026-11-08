@@ -2,6 +2,7 @@ import { useColorScheme } from '@mui/material/styles'
 import { useEffect } from 'react'
 import type { Preferences } from '../../shared/types'
 import { setNumberFormat } from '../../shared/time'
+import { currentCountry } from '../../shared/country'
 import { useApp } from './AppContext'
 import { msg } from '../i18n'
 
@@ -32,7 +33,8 @@ export function applyPreferences(p: Preferences) {
   const tint = p.background && /^#[0-9a-f]{6}$/i.test(p.background) ? p.background : null
   set('data-eb-bg', tint ? 'tint' : null)
   if (tint) root.style.setProperty('--eb-bg-tint', tint); else root.style.removeProperty('--eb-bg-tint')
-  setNumberFormat(p.numberFormat)
+  // No choice made: the business's country's decimal mark (set when the business loads; Spain's before that).
+  setNumberFormat(p.numberFormat, currentCountry())
   if (p.font === 'readable' && !document.getElementById('eb-readable-font')) {
     const link = Object.assign(document.createElement('link'), { id: 'eb-readable-font', rel: 'stylesheet',
       href: 'https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap' })
