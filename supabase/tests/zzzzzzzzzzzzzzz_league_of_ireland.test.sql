@@ -29,9 +29,9 @@ begin
 end $$;
 
 insert into auth.users (email, raw_user_meta_data) values
-  ('galway@test', '{"full_name":"Orla"}'), ('malaga@test', '{"full_name":"Lola"}');
+  ('galway-league@test', '{"full_name":"Orla"}'), ('malaga-league@test', '{"full_name":"Lola"}');
 
-select pg_temp.act_as('galway@test');
+select pg_temp.act_as('galway-league@test');
 do $$
 declare
   v_id int := public.create_business('The Salthill Cup', 'cafe', null, null, 'IE');
@@ -45,7 +45,7 @@ begin
   assert (select followed from public.sports_competitions where code = 'ie-premier-division'), 'an admin follows the Premier Division';
 end $$;
 
-select pg_temp.act_as('malaga@test');
+select pg_temp.act_as('malaga-league@test');
 do $$
 declare
   v_id int := public.create_business('Café La Malagueta', 'cafe', null, null, 'ES');
