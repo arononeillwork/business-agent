@@ -1,7 +1,7 @@
 import { Box, Link, Table, TableBody, TableCell, TableHead, TableRow } from '@mui/material'
 import { Link as RouterLink } from 'react-router-dom'
 import { LEGAL } from '../../shared/legal'
-import { H, LegalPage, Mail, P, Ul, operatorLine } from '../components/legal'
+import { H, LegalPage, Mail, P, Processors, Ul, operatorLine } from '../components/legal'
 import { msg, t, tr } from '../i18n'
 
 // The public privacy policy (no sign-in needed). Google, Meta and TikTok check it before approving
@@ -42,6 +42,11 @@ export function PrivacyPage() {
             service: L.service,
             controller: <b>{t('data controller')}</b>,
             processor: <b>{t('data processor')}</b>,
+          })}
+        </P>
+        <P>
+          {tr('Our {dpa} sets out how we process that data for the business.', {
+            dpa: <Link component={RouterLink} to="/dpa">{t('data processing agreement')}</Link>,
           })}
         </P>
 
@@ -92,14 +97,7 @@ export function PrivacyPage() {
         </P>
 
         <H>{t('Where data is stored and who processes it')}</H>
-        <Ul items={[
-          tr('{name}: database and sign-in, hosted in the European Union (Ireland).', { name: <b>{'Supabase'}</b> }),
-          tr('{name}: hosting of the app and of photos for posts, our email addresses, and the check on the sign-up form.', { name: <b>{'Cloudflare'}</b> }),
-          tr('{name}: payments for subscriptions, and their invoices. We never see full card numbers.', { name: <b>{'Stripe'}</b> }),
-          tr('{name}: the in-app assistant. A question, and what the assistant looks up in the app to answer it, is sent to Anthropic’s API, whose commercial terms don’t allow it to be used to train its models.', { name: <b>{'Anthropic'}</b> }),
-          tr('{name}: AI images for the menu and AI music for posts, only when the business makes one.', { name: <b>{'Higgsfield, ElevenLabs'}</b> }),
-          tr('{name}: only when you connect them, to do what the connection is for.', { name: <b>{t('Google, Microsoft, Meta, TikTok and Spotify')}</b> }),
-        ]} />
+        <Processors />
         <P>
           {t('Where a provider handles data outside the European Economic Area, the transfer is covered by the European Commission’s standard contractual clauses or an adequacy decision.')}
         </P>
