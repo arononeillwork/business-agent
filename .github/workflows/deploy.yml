@@ -49,8 +49,7 @@ jobs:
     if: ${{ !cancelled() && needs.tested.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Only the deploy itself waits its turn, not the live tests after the previous one (they have
-    # their own queue); a newer push replaces one that's waiting.
+    # Only the deploy itself waits its turn; a newer push replaces one that's waiting.
     concurrency:
       group: deploy
       cancel-in-progress: false
@@ -216,11 +215,6 @@ jobs:
     uses: ./.github/workflows/sports-sync.yml
     secrets: inherit
 
-  # The whole app, every role, against the version just deployed.
-  live:
-    needs: deploy
-    if: ${{ !cancelled() && needs.deploy.result == 'success' }}
-    uses: ./.github/workflows/live-e2e.yml
-    with:
-      url: https://business-agent.arononeillwork.workers.dev
-    secrets: inherit
+  # The full live tests (every page, every role) no longer run after each deploy: they load the
+  # customers' database for about ten minutes, which is what tipped it into freezing. The smoke test
+  # above checks each deploy; live-e2e.yml runs the full set once a night (docs/supabase-freezes.md).
