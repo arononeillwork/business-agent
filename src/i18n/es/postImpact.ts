@@ -58,4 +58,8 @@ export default {
   'Who posted it': 'Quién la publicó',
   'Day it went out': 'Día en que salió',
   'Added. @{who} is waiting for your OK on Sales reps & rewards.': 'Añadida. @{who} espera tu OK en Comerciales y recompensas.',
+  'your Facebook Page': 'tu página de Facebook',
+  'your Instagram': 'tu Instagram',
+  'Meta only shares collab reels for the Instagram account linked to your Facebook Page, and {account} isn’t linked to {page} yet. In the Instagram app: Edit profile → Page → choose {page}. The reels then come in the next time you open Sales reps & rewards, and by themselves from then on.':
+    'Meta solo comparte los reels en colaboración de la cuenta de Instagram vinculada a tu página de Facebook, y {account} aún no está vinculada a {page}. En la app de Instagram: Editar perfil → Página → elige {page}. Los reels llegarán la próxima vez que abras Comerciales y recompensas, y solos a partir de entonces.',
 }

@@ -11,6 +11,7 @@ import { Empty, ErrorBox, Loading, SectionTitle, StatGrid, StatTile } from '../c
 import { Freshness } from '../components/Freshness'
 import { msg, t } from '../i18n'
 import { addDays, formatLocal, formatNumber, today } from '../../shared/time'
+import { collabsBlocked } from '../../shared/mentions'
 import {
   METRIC_LABELS, SOCIAL_NAMES, type PostColumn, type SocialDay, type SocialMetric, type SocialMetricId, type SocialReport, type SocialSource,
 } from '../../shared/socialAnalytics'
@@ -120,7 +121,7 @@ export function SocialAnalytics({ source, days, periodName, vs, frame }: {
         </Card>
       )}
       {r.impact && <PostImpactCard impact={r.impact} followerDays={r.follower_days} from={r.from} to={r.to} periodName={periodName}
-        collabsListed={!!row.external.collabs_via || row.external.can_list_collabs !== false} />}
+        collabs={collabsBlocked(row, integ.data?.integrations.find(i => i.provider === 'facebook'))} />}
       {r.post_columns.length > 0 && <TopPosts report={r} />}
     </>
   )

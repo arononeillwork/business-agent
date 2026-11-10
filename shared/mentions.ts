@@ -2,6 +2,7 @@
 // reel or post with it as a collaborator), as the Worker notices them every 15 minutes and the demo
 // shows them. See worker/mentions.ts.
 import type { InboxConversation, TaggedPost } from './messages'
+import type { Integration } from './types'
 
 export type MentionKind = 'story' | 'post' | 'collab'
 
@@ -130,4 +131,21 @@ export function peopleToPutForward(mentions: Pick<Mention, 'id' | 'kind' | 'user
       picture: who?.picture?.startsWith('https://') ? who.picture : null })
   }
   return [...out.values()]
+}
+
+// ---- Why collab reels don't come in ----------------------------------------------------------------
+
+/**
+ * Why the collab reels don't come in, from the Instagram and Facebook connections (null: they do, or
+ * Instagram isn't connected). 'connect': Facebook isn't connected with access to Instagram. 'link':
+ * it is, but no way through it reads the café's Instagram, as when the Instagram isn't linked to the
+ * Page (Meta lists a Page's collab reels only for the Instagram account linked to it).
+ */
+export function collabsBlocked(ig: Pick<Integration, 'status' | 'external'> | undefined, fb: Pick<Integration, 'status' | 'external'> | undefined):
+  { fix: 'connect' } | { fix: 'link'; account: string | null; page: string | null } | null {
+  if (ig?.status !== 'connected' || ig.external.collabs_via || ig.external.can_list_collabs !== false) return null
+  if (fb?.status === 'connected' && fb.external.instagram && fb.external.instagram_id === null) {
+    return { fix: 'link', account: ig.external.username ?? null, page: fb.external.page_name ?? null }
+  }
+  return { fix: 'connect' }
 }

@@ -22,6 +22,8 @@ import type { AccountFigures } from '../../shared/mentions'
 import { formatReach, type RepReward, type SalesRep } from '../../shared/reps'
 import { CASHBACK_MIN, cashbackDue, cashbackFor, isCashback, type CashbackRates } from '../../shared/cashback'
 import { fonts, tokens } from '../theme'
+import { CollabsNotice } from './PostImpact'
+import type { collabsBlocked } from '../../shared/mentions'
 
 /** People shown before Show all. */
 const SHOWN = 10
@@ -219,8 +221,10 @@ function Person({ c, place, rep, ledger, rates, onAdd, onReward }: {
 }
 
 /** Everyone who posted about the café, best first, each with their posts. */
-export function PostersBoard({ creators, reps, ledger, rates, onAdd, onReward }: {
+export function PostersBoard({ creators, reps, ledger, rates, collabs = null, onAdd, onReward }: {
   creators: Creator[] | null; reps: SalesRep[]; ledger: RepReward[]; rates: CashbackRates
+  /** Why collab reels don't come in (null: they do). */
+  collabs?: ReturnType<typeof collabsBlocked>
   onAdd: (username: string) => void; onReward: (rep: SalesRep, post: PostImpact) => void
 }) {
   const [all, setAll] = useState(false)
@@ -231,6 +235,7 @@ export function PostersBoard({ creators, reps, ledger, rates, onAdd, onReward }:
     <Card component="section" aria-label={title} sx={{ mb: 3 }}>
       <CardContent>
         <SectionTitle>{title}</SectionTitle>
+        <CollabsNotice blocked={collabs} />
         {!list.length
           ? <Empty>{creators ? t('Nobody has posted about the café yet. Collab reels and tags come in by themselves; add one Instagram missed on Analytics → Instagram.') : t('Loading…')}</Empty>
           : <>

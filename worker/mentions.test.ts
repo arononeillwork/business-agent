@@ -7,7 +7,7 @@
 //   - a post Instagram doesn't list can be added by its link (admins), and taken off again
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { integrations } from './integrations'
-import { checkMentions, putForward, readPostWindow } from './mentions'
+import { checkMentions, lookIfDue, putForward, readPostWindow } from './mentions'
 import { businessDb, type Env } from './supabase'
 import { FakeSupabase, type Row } from './test/fakeSupabase'
 import { FakeProviders } from './test/fakeProviders'
@@ -267,6 +267,24 @@ describe('Posts about the café', () => {
     expect(why).toContain('Page Easy Beans Coffee: no Instagram linked to it')
     expect(why).toContain('business_management')
     expect(why).toContain('Meta Ads')
+  })
+
+  it('an owner who has just linked the Instagram to the Page sees its collab reels on opening Sales reps & rewards, not hours later', async () => {
+    await connectInstagram()
+    apis.instagram.noCollabs = true
+    apis.facebook.granted = [...apis.facebook.granted, 'instagram_basic']
+    apis.facebook.instagram = null
+    await connectFacebook()
+    await check()
+    // Linked now. The scheduled look waits its six hours…
+    apis.facebook.instagram = { id: '17841400000000001', username: 'easy.beans.coffee' }
+    apis.facebook.collabs = [reel('c1', 'nora.eats.mbl', 'DfNora0001', '2026-10-17T18:30:00+0000')]
+    await check()
+    expect(mentions().some(m => m.id === 'collab:DfNora0001')).toBe(false)
+    // …opening the page a few minutes on tries again.
+    await lookIfDue(env, businessDb(env, 1), Date.now() + 6 * 60_000)
+    expect(mentions().some(m => m.id === 'collab:DfNora0001')).toBe(true)
+    expect(db.integration('facebook').external).toMatchObject({ instagram_id: '17841400000000001', instagram_via: 'page' })
   })
 
   it('FACEBOOK_COLLABS=off: connecting Facebook doesn’t ask for instagram_basic', async () => {
