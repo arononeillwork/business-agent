@@ -7,7 +7,7 @@
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { bearer, requestDb, secretPlaceId, type Env } from './supabase'
-import { explain, googleSession, lasting, markBroken } from './connections'
+import { explain, googleSession, lasting, markBroken, myBusinessApiOff } from './connections'
 import { cached } from './cache'
 import * as google from './providers/google'
 import { placeReviews } from './providers/places'
@@ -57,7 +57,8 @@ async function readFeed(env: Env, db: SupabaseClient): Promise<Feed> {
       return { feed: 'business_profile', list, google_rating: null, google_count: null, problem: null }
     } catch (e) {
       problem = explain('google_business', e)
-      if (lasting('google_business', e)) await markBroken(db, 'google_business', problem)
+      // Reviews' own API being off leaves Google Maps working (hours): the page says so, the connection stays.
+      if (lasting('google_business', e) && !myBusinessApiOff(e)) await markBroken(db, 'google_business', problem)
     }
   }
   if (placesOn(env, db)) {
@@ -166,7 +167,7 @@ reviews.put('/api/reviews/reply', async c => {
     return c.json({ ok: true })
   } catch (e) {
     const why = explain('google_business', e)
-    if (lasting('google_business', e)) await markBroken(db, 'google_business', why)
+    if (lasting('google_business', e) && !myBusinessApiOff(e)) await markBroken(db, 'google_business', why)
     return c.json({ error: why }, 502)
   }
 })

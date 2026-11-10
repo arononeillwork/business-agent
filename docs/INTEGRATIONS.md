@@ -72,7 +72,7 @@ low-privilege test account to also test a real sign-in.
 ## 2. Google Maps opening hours, closures and posts (Google Business Profile)
 
 1. Same Google Cloud project → enable **My Business Business Information API**,
-   **My Business Account Management API** and **Google My Business API** (posts).
+   **My Business Account Management API** and **Google My Business API** (reviews, posts and the menu).
 2. Request API access: <https://developers.google.com/my-business/content/prereqs> (Google
    approves Business Profile API access; allow a few days).
 3. Credentials → the same (or a new) Web OAuth client → add redirect URI
