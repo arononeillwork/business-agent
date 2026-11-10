@@ -13,6 +13,7 @@ export default {
   '{who} tagged you in a post': '{who} te ha etiquetado en una publicación',
   '{who} posted a reel with you': '{who} ha publicado un reel contigo',
   '{who} posted with you': '{who} ha publicado contigo',
+  'Post cashback for {rep}: {amount} to approve': 'Cashback por publicación para {rep}: {amount} por aprobar',
   '{name} posted about the café: waiting for your OK as a rep': '{name} ha publicado sobre la cafetería: espera tu OK como comercial',
   'See all notifications': 'Ver todas las notificaciones',
   'Instagram tags and mentions': 'Etiquetas y menciones en Instagram',

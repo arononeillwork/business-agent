@@ -127,6 +127,13 @@ built-in **AI connector** so owners can run it by talking to Claude.
   posts the café is a collaborator on, Facebook Login does with `instagram_basic`, which connecting Facebook asks for (unless
   `FACEBOOK_COLLABS` is off). The Instagram check reads them through the Page whenever Instagram can't, after a one-time
   setup ([docs/INTEGRATIONS.md](docs/INTEGRATIONS.md), section 7).
+- Cashback for posts (Sales reps & rewards): a rep's post about the café on Instagram earns from what it did, so much per
+  1,000 views, per new follower over the usual in its days and per 100 likes, up to a most per post (€0.50, €0.10, €0.20, up to
+  €15 to start; an admin changes them). Worked out nightly once a post's three days are in (or a week on), for posts of the
+  last 30 days, each post once (a post's cashback is its reward), as credit for customers and commission for the team and
+  ambassadors, waiting for an owner's OK unless the café says otherwise (the `post_cashback` migration, `pay_post_cashback()`;
+  `shared/cashback.ts` says the same for the page). Nothing is sent to the people who post: the owners see it to approve, and
+  Posts about us has a button that opens a chat with someone on Instagram, for whoever wants to write.
 - Business Agent's own reps ([docs/REPS_PLAN.md](docs/REPS_PLAN.md)): people who know business owners sell Business
   Agent for us, run as a business of its own in the app, **Business Agent HQ**, on its Sales reps & rewards page. Each rep has
   a code (Julio, for cafés: JULIO27) and leads kinds of business (café, restaurant & bar, pub, salon & beauty, real estate,

@@ -19,4 +19,5 @@ export default {
   'Hide their posts': 'Ocultar sus publicaciones',
   'Add as a rep': 'Añadir como comercial',
   'Add {name} as a rep': 'Añadir a {name} como comercial',
+  'Message {name} on Instagram': 'Escribir a {name} en Instagram',
 }

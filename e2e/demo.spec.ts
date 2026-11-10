@@ -7031,6 +7031,9 @@ test.describe('sales reps and rewards', () => {
     const ibra = waiting.getByRole('group', { name: /^Ibra Diallo/ })
     await expect(ibra).toContainText('Sent from their own page')
     await ibra.getByRole('button', { name: 'Turn down' }).click()
+    // Nora, a rep now: her reel's cashback waits for an OK too.
+    await waiting.getByRole('group', { name: '@nora.eats.mbl: Cashback for a post' }).getByRole('button', { name: 'Approve' }).click()
+    await toast(page, /Approved: .* for @nora\.eats\.mbl/)
     await expect(waiting).toHaveCount(0)
 
     const reps = page.getByRole('region', { name: 'Reps' })
@@ -7194,7 +7197,9 @@ test.describe('sales reps and rewards', () => {
     await add.getByRole('textbox', { name: 'Name' }).fill('Costa del Sol Food')
     await add.getByRole('button', { name: 'Save' }).click()
     await toast(page, 'Costa del Sol Food is a rep')
-    await expect(stories.getByRole('article', { name: '@costa.del.sol.food' }).getByRole('button', { name: 'Reward Costa del Sol Food' })).toBeVisible()
+    // A rep now, their post's cashback rewards it (each post once), waiting for an OK.
+    await expect(page.getByRole('region', { name: 'Waiting for approval' }).getByRole('group', { name: 'Costa del Sol Food: Cashback for a post' })).toBeVisible()
+    await expect(stories.getByRole('article', { name: '@costa.del.sol.food' })).toHaveCount(0)
     await expect(page.getByRole('region', { name: 'Reps' }).getByRole('article', { name: 'Costa del Sol Food' })).toContainText(/COSTA\d{2}/)
 
     // Someone who has messaged the café: their followers come from Instagram.
@@ -7221,16 +7226,42 @@ test.describe('sales reps and rewards', () => {
     await expect(nora).toContainText('Collab reel')
     await expect(nora.getByRole('link', { name: 'See it' })).toHaveAttribute('href', 'https://www.instagram.com/reel/DemoCollab1/')
     await expect(board.getByRole('listitem', { name: /\. @sanpedro\.eats$/ })).toContainText('Rep')
+    // Nothing goes to them by itself: a button opens a chat with them on Instagram.
+    await expect(nora.getByRole('link', { name: 'Message @nora.eats.mbl on Instagram' })).toHaveAttribute('href', 'https://ig.me/m/nora.eats.mbl')
 
     // Saying yes makes them a rep on the board too; someone said no to can still be added from it.
     const waiting = page.getByRole('region', { name: 'Waiting for approval' })
     await waiting.getByRole('group', { name: '@nora.eats.mbl: new rep' }).getByRole('button', { name: 'Say yes' }).click()
     await toast(page, '@nora.eats.mbl is a rep')
     await expect(nora.getByText('Rep', { exact: true })).toBeVisible()
+    // Her reel's three days are in: its cashback waits for an OK (the most a post earns, €15).
+    const cashback = waiting.getByRole('group', { name: '@nora.eats.mbl: Cashback for a post' })
+    await expect(cashback).toContainText('14,200 views')
+    await expect(cashback).toContainText(/€\d+,\d\d/)
+    await expect(nora).toContainText(/€\d+,\d\d cashback, waiting for your OK/)
     await waiting.getByRole('group', { name: '@tomas.runs: new rep' }).getByRole('button', { name: 'Say no' }).click()
     await toast(page, '@tomas.runs isn’t a rep')
     await board.getByRole('button', { name: 'Add @tomas.runs as a rep' }).click()
     await expect(page.getByRole('dialog', { name: 'Add someone' }).getByRole('textbox', { name: 'Instagram' })).toHaveValue('tomas.runs')
+  })
+
+  test('cashback for posts: the café’s rates, changed by an admin, with an example worked out as they type', async ({ page }) => {
+    await open(page, '/sales-reps')
+    const block = page.getByRole('region', { name: 'Cashback for posts about the café' })
+    await expect(block).toContainText('On')
+    await expect(block).toContainText('per 1,000 views')
+    await expect(block).toContainText('earns €14,66')
+    await block.getByRole('button', { name: 'Change' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Cashback for posts' })
+    await expect(dialog.getByRole('textbox', { name: 'Per 1,000 views' })).toHaveValue('0,50')
+    await dialog.getByRole('textbox', { name: 'Per 1,000 views' }).fill('1')
+    await dialog.getByRole('textbox', { name: 'The most a post earns' }).fill('25')
+    await expect(dialog).toContainText('earns €21,76')
+    await dialog.getByRole('switch', { name: 'An admin approves each one' }).click()
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+    await expect(block).toContainText('counts straight away')
+    await expect(block).toContainText('up to €25,00')
   })
 
   test('admins add a usual reward to the list, and print business cards with each rep’s code', async ({ page }) => {

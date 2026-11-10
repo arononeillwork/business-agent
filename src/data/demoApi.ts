@@ -20,6 +20,7 @@ import {
 import { collabId, collabMentions, isRecent, mentionTitle, mentionsIn, peopleToPutForward, shortcodeOf, type InstagramMention } from '../../shared/mentions'
 import { followerDays, ownPost, postAbout, postImpacts } from '../../shared/postImpact'
 import { creatorBoard } from '../../shared/creators'
+import { CASHBACK_DEFAULTS, CASHBACK_MIN, cashbackDue, cashbackFor, cashbackRates, followersOver } from '../../shared/cashback'
 import { demoSports } from './demoSports'
 import { demoInbox, demoMessenger, demoWhatsApp } from './demoMessages'
 import { demoEmailPage, demoEmails } from './demoEmail'
@@ -174,6 +175,38 @@ export function createDemoApi(): Api {
     }
     putForward()
     return mentions
+  }
+  /**
+   * As the database's pay_post_cashback() (nightly, the post_cashback migration): approved reps' posts
+   * about the café of the last 30 days whose days are in earn their cashback, each once. Here, whenever
+   * the reps or rewards are looked at.
+   */
+  const payCashback = () => {
+    const rates = cashbackRates(repSettings)
+    if (!rates.cashback_on) return
+    const now = today()
+    const row = integ.integrations.find(i => i.provider === 'instagram')!
+    const days = row.status === 'connected' ? demoSocialReport('instagram', addDays(now, -30), addDays(now, -1), now, row).follower_days ?? [] : []
+    const paid = new Set(rewardList.map(r => r.mention_id).filter(Boolean))
+    for (const p of postImpacts(demoMentions().filter(m => m.username).map(postAbout), followerDays(days, null))) {
+      if (paid.has(p.id) || p.at.slice(0, 10) < addDays(now, -30) || !cashbackDue(p, now)) continue
+      const rep = repList.find(r => r.active && r.approved && r.instagram === p.username)
+      if (!rep) continue
+      const { amount } = cashbackFor(p, rates)
+      if (amount < CASHBACK_MIN) continue
+      const over = followersOver(p)
+      const note = [p.views ? `${p.views.toLocaleString('en')} views` : null, over ? `+${over.toLocaleString('en')} followers over the usual` : null,
+        p.likes ? `${p.likes.toLocaleString('en')} likes` : null].filter(Boolean).join(' · ') || null
+      const status = rates.cashback_needs_approval ? 'pending' as const : 'approved' as const
+      rewardList.push(...withBonus(repReward(rep.id, null, amount, p.at.slice(0, 10), { kind: 'earn', label: 'Cashback for a post', status, mention_id: p.id,
+        proof_url: p.url, note, source: `cashback:${p.id}`, logged_by: null, created_at: nowIso() })))
+      if (status === 'pending') {
+        for (const a of profiles.filter(x => x.role === 'admin' && x.can_see_pay && x.active)) {
+          notes.push({ id: notes.length + 1, profile_id: a.id, title: `Post cashback for ${rep.name}: €${amount.toFixed(2)} to approve`, body: note,
+            link: '/sales-reps', created_at: nowIso(), read_at: null })
+        }
+      }
+    }
   }
   /** As worker/mentions.ts putForward: the people who posted about the café, waiting for an owner's OK. */
   const putForward = () => {
@@ -1868,7 +1901,7 @@ export function createDemoApi(): Api {
   const lastMonth = addMonths(thisMonth, -1)
   /** A day this month (never after today) or in an earlier month. */
   const dayIn = (month: string, d: number) => `${month}-${String(month === thisMonth ? Math.min(d, Number(today().slice(8, 10))) : d).padStart(2, '0')}`
-  let repSettings: RepSettings = { welcome_offer: '10% off your first drink', crew_share: 10, boost_by_reach: true, pitch: null }
+  let repSettings: RepSettings = { welcome_offer: '10% off your first drink', crew_share: 10, boost_by_reach: true, pitch: null, ...CASHBACK_DEFAULTS }
   const rewardRuleList: RewardRule[] = [
     // Customers' credit kept small; reps (a coach, a hotel, the team) earn more as commission.
     { id: 'rule-story', name: 'Reposted our story', who: 'customers', basis: 'fixed', amount: 0.5, needs_approval: false, monthly_limit: 4, scales_with_reach: true, sort: 1, active: true },
@@ -4235,6 +4268,7 @@ export function createDemoApi(): Api {
       for (const r of rewardList) if (r.rule_id === id) r.rule_id = null
     },
     async repRewards() {
+      if (isStaff()) payCashback()
       return clone(rewardList.filter(seesReward)).sort((a, b) => b.occurred_on.localeCompare(a.occurred_on) || b.created_at.localeCompare(a.created_at))
     },
     async logReward({ rep_id, rule_id, sale_amount, note, proof_url, mention_id, occurred_on }) {

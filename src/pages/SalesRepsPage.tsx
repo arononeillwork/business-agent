@@ -40,6 +40,8 @@ import {
 } from '../../shared/reps'
 import type { Mention } from '../../shared/mentions'
 import { PostersBoard } from './PostersBoard'
+import { CashbackBlock } from './Cashback'
+import { CASHBACK_LABEL, cashbackRates, isCashback } from '../../shared/cashback'
 import { customerName } from '../../shared/customers'
 import { formatLocal, formatMoney, formatNumber, today } from '../../shared/time'
 import { fonts, tokens } from '../theme'
@@ -65,7 +67,7 @@ const KIND_PITCH: Record<RepKind, string> = {
 
 const day = (d: string) => formatLocal(`${d}T12:00:00Z`, 'd MMM')
 /** A ledger line's words: the list's names are as typed; the database's own words are translated. */
-const lineLabel = (r: RepReward) => (r.bonus_for ? t('Crew bonus: {name}', { name: bonusFrom(r) }) : r.kind === 'earn' ? r.label : t(r.label))
+const lineLabel = (r: RepReward) => (r.bonus_for ? t('Crew bonus: {name}', { name: bonusFrom(r) }) : isCashback(r) ? t(CASHBACK_LABEL) : r.kind === 'earn' ? r.label : t(r.label))
 const HOW_KEY = 'eb-reps-how-hidden'
 
 /**
@@ -300,7 +302,7 @@ export function SalesRepsPage() {
         </CardContent>
       </Card>
 
-      {isAdmin && <PostersBoard creators={posters.data} reps={allReps}
+      {isAdmin && <PostersBoard creators={posters.data} reps={allReps} ledger={ledger} rates={cashbackRates(set)}
         onAdd={username => setEditing({ name: `@${username}`, kind: 'customer', instagram: username, active: true })} />}
 
       <Card component="section" aria-label={t('Top sellers this month')} sx={{ mb: 3 }}>
@@ -329,6 +331,7 @@ export function SalesRepsPage() {
             : <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' } }}>
                 {allRules.map(r => <RuleCard key={r.id} rule={r} boost={set.boost_by_reach} onEdit={isAdmin ? () => setRule(r) : undefined} />)}
               </Box>}
+          {settings.data && <CashbackBlock rates={cashbackRates(set)} isAdmin={isAdmin} />}
           <Box sx={{ mt: 2.5 }}>
             <Typography variant="body2" sx={{ fontWeight: 600 }}>{t('The bigger their reach, the bigger the reward')}</Typography>
             <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.25 }}>
