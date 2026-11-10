@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { minutesWorked, myTips, splitTips, type TipPool } from './tips'
+import { minutesWorked, myTips, splitTips, tipsByPerson, type MemberTips, type TipPool } from './tips'
 
 describe('tips', () => {
   it('by hours worked, to the cent, always adding up to the total', () => {
@@ -31,5 +31,24 @@ describe('tips', () => {
     expect(mine.total).toBe(52.5)
     expect(mine.unpaid).toBe(12.5)
     expect(mine.list).toHaveLength(2)
+  })
+
+  it('tips on Square: owners get everyone linked and what nobody here took; anyone else only their own', () => {
+    const byMember: Record<string, MemberTips> = {
+      TM_julio: { tips: 3.5, tipped: 3, days: { '2026-09-29': { tips: 2, tipped: 2 }, '2026-09-28': { tips: 1.5, tipped: 1 } } },
+      TM_aron: { tips: 1, tipped: 1, days: { '2026-09-28': { tips: 1, tipped: 1 } } },
+      '': { tips: 0.25, tipped: 1, days: { '2026-09-29': { tips: 0.25, tipped: 1 } } },
+    }
+    // Maria is linked but left no tips; Aron's Square login isn't linked to him.
+    const links = [{ profile_id: 'maria', team_member_id: 'TM_maria' }, { profile_id: 'julio', team_member_id: 'TM_julio' }]
+    const owner = tipsByPerson(byMember, links, { me: 'aron', everyone: true })
+    expect(owner.status).toBe('ok')
+    expect(owner.people.map(p => [p.profile_id, p.tips, p.tipped])).toEqual([['julio', 3.5, 3], ['maria', 0, 0]])
+    expect(owner.people[0].days).toEqual([{ date: '2026-09-28', tips: 1.5, tipped: 1 }, { date: '2026-09-29', tips: 2, tipped: 2 }])
+    expect(owner.unlinked).toEqual({ tips: 1.25, tipped: 2 })
+    const julio = tipsByPerson(byMember, links, { me: 'julio', everyone: false })
+    expect(julio.people.map(p => p.profile_id)).toEqual(['julio'])
+    expect(julio.unlinked).toBeNull()
+    expect(tipsByPerson(byMember, links, { me: 'aron', everyone: false })).toEqual({ status: 'not_linked', people: [], unlinked: null })
   })
 })

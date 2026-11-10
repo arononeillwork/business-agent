@@ -8736,6 +8736,39 @@ test.describe('tips', () => {
     await expect(page.getByRole('button', { name: 'Share out tips' })).toHaveCount(0)
     await expect(mine).not.toContainText('Julio')
   })
+
+  test('tips on Square: the till’s tips by who took each payment; owners pick a person, everyone else sees their own', async ({ page }) => {
+    await open(page, '/tips')
+    const square = page.getByRole('region', { name: 'Tips on Square' })
+    await expect(square).toContainText('Connect Square on Connections')
+    await square.getByRole('link', { name: 'Connections' }).click()
+    const payments = page.getByRole('region', { name: 'Payments and sales' })
+    await payments.getByRole('button', { name: 'Connect Square' }).click()
+    await expect(payments.getByRole('article', { name: 'Square' })).toContainText('Connected')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Tips' }).first().click()
+
+    // This month, everyone: Maria, Julio and Aron by their Square logins, and Sofía's Sundays (nobody here).
+    const everyone = square.getByRole('table', { name: 'Tips on Square by person' })
+    await expect(everyone.getByRole('row').filter({ hasText: 'Maria' })).toContainText('€258,92')
+    await expect(everyone.getByRole('row').filter({ hasText: 'Someone not linked to anyone here' })).toContainText('€134,66')
+    await expect(everyone.getByRole('row').filter({ hasText: 'Total' })).toContainText('€691,92')
+    // One person, day by day; then last week only.
+    await square.getByRole('combobox', { name: 'Person' }).click()
+    await page.getByRole('option', { name: 'Maria' }).click()
+    const hers = square.getByRole('table', { name: 'Tips on Square for Maria' })
+    await expect(hers.getByRole('row').filter({ hasText: 'Wed 30 Sep' })).toContainText('€7,74')
+    await expect(hers.getByRole('row').filter({ hasText: 'Total' })).toContainText('€258,92')
+    await square.getByRole('button', { name: 'Last week' }).click()
+    await expect(hers.getByRole('row').filter({ hasText: 'Wed 30 Sep' })).toHaveCount(0)
+    await expect(hers.getByRole('row').filter({ hasText: 'Sat 26 Sep' })).toContainText('€18,60')
+
+    // Maria's own Square login is linked: she sees her tips, and nobody else's.
+    await signInAs(page, 'maria@example.com')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Tips' }).first().click()
+    await expect(square.getByRole('table', { name: 'Tips on Square for Maria' }).getByRole('row').filter({ hasText: 'Total' })).toContainText('€258,92')
+    await expect(square.getByRole('combobox', { name: 'Person' })).toHaveCount(0)
+    await expect(square).not.toContainText('Julio')
+  })
 })
 
 test.describe('UI round: business page, header, to do list, stock and suppliers', () => {

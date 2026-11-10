@@ -2875,6 +2875,7 @@ export function createDemoApi(): Api {
       team: () => profiles, entries: () => entries.map(totals), shifts: () => shifts, ticks: day => checklistApi.checklistTicks(day),
       squareOn, takingsOnPlan: () => planById(effectivePlan(demoBilling)).features.includes('takings'),
       sales: (from, to) => demoSales(from, to, 'square').days, today: () => today(), nowIso,
+      me: () => me()?.id ?? null,
     }, P),
     // Square PINs (Leaderboard): Aron's, Julio's and Maria's saved; owners see all, anyone else their own.
     ...demoSquarePinsApi({ isStaff: () => isStaff() && !!me()?.active, isOwner: () => isAdmin() && !!me()?.active && !!me()?.can_see_pay,

@@ -38,4 +38,20 @@ export default {
   '{n} pools shared out': '{n} repartos hechos',
   '{name} shares them': '{name} participa',
   '{total} shared among {n}': '{total} repartidos entre {n}',
+
+  // Tips on Square
+  'Tips on Square': 'Propinas en Square',
+  'Tips on Square for {name}': 'Propinas en Square de {name}',
+  'Tips on Square by person': 'Propinas en Square por persona',
+  'Payments with a tip': 'Pagos con propina',
+  'Someone not linked to anyone here': 'Alguien que no está vinculado a nadie aquí',
+  'No tips on Square for {name} in this period.': 'No hay propinas en Square de {name} en este periodo.',
+  'Connect Square on Connections to bring in the tips left at the till, by who took each payment.':
+    'Conecta Square en Conexiones para traer las propinas que dejan en caja, según quién cobró cada pago.',
+  'Link yourself to your own Square login to see the tips on the payments you take.':
+    'Vincúlate a tu propio usuario de Square para ver las propinas de los pagos que cobras.',
+  'Your Square login isn’t linked yet. Once an owner links it on the Team page, the tips on the payments you take show here.':
+    'Tu usuario de Square aún no está vinculado. Cuando un propietario lo vincule en la página Equipo, aquí verás las propinas de los pagos que cobras.',
+  'Link each person to their own Square login to see whose tips are whose.':
+    'Vincula a cada persona con su propio usuario de Square para ver de quién es cada propina.',
 }

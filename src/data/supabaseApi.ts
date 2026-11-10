@@ -1475,6 +1475,7 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
       return check(await sb.rpc('team_leaderboard', { p_from: from, p_to: to })) as ClockStats[]
     },
     leaderboardTill: (from, to) => worker(`/api/leaderboard/till?${new URLSearchParams({ from, to })}`),
+    tillTips: (from, to) => worker(`/api/tips/till?${new URLSearchParams({ from, to })}`),
     squareTeam: () => worker('/api/square-team'),
     async linkSquareMember(profileId, teamMemberId) {
       await worker('/api/square-team/link', { method: 'POST', body: JSON.stringify({ profile_id: profileId, team_member_id: teamMemberId }) })
