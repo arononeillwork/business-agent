@@ -4,7 +4,7 @@
 //   - a business has at most one app per group (Gmail or Outlook, Drive or OneDrive…)
 //   - when a working connection stops working, it says why and admins are told (once)
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { drainOutbox, integrations, setTikTokWait, syncGoogleBothWays } from './integrations'
+import { drainOutbox, integrations, setTikTokWait, syncGoogle, syncGoogleBothWays } from './integrations'
 import { fromGoogleHours, sameHours, toGoogleHours } from './providers/google'
 import type { OpeningHours } from '../shared/types'
 import { calendarFeeds } from './calendarFeed'
@@ -1245,6 +1245,68 @@ describe('SumUp, LinkedIn and Search Console: connected once they really work', 
     await nightly()
     expect(db.integration('search_console')).toMatchObject({ status: 'error',
       last_error: 'www.easybeanscoffee.com is no longer in this Google account’s Search Console. Choose another website or connect again.' })
+  })
+})
+
+describe('A business’s own days: Dublin’s for a business in Ireland, Madrid’s in Spain, at the midnight edge', () => {
+  const inIreland = () => Object.assign(db.table('business')[0], { country: 'IE', timezone: 'Europe/Dublin' })
+  const inSpain = () => Object.assign(db.table('business')[0], { country: 'ES', timezone: 'Europe/Madrid' })
+  afterEach(() => vi.useRealTimers())
+
+  it('takings: a payment at 23:30 in Dublin is that day’s in Ireland, and the next day’s in Spain (00:30 in Madrid)', async () => {
+    await connectOwn('square')
+    inIreland()
+    const sales = await (await get('/api/integrations/payments/sales?from=2026-09-28&to=2026-09-29')).json() as { days: { date: string; gross: number; payments: number; hours: number[] }[] }
+    expect(sales.days).toEqual([expect.objectContaining({ date: '2026-09-28', gross: 24.5, payments: 3 })])
+    expect(sales.days[0].hours[23]).toBe(9)  // 22:30 UTC is 23:30 in Dublin (summer time)
+    expect(sales.days[0].hours[9]).toBe(3.5) // 08:15 UTC is 09:15 there
+    later()
+    inSpain()
+    const spain = await (await get('/api/integrations/payments/sales?from=2026-09-28&to=2026-09-29')).json() as { days: { date: string; gross: number }[] }
+    expect(spain.days.map(d => [d.date, d.gross])).toEqual([['2026-09-28', 15.5], ['2026-09-29', 9]])
+  })
+
+  it('the calendar feed: two weeks back from today where the business is, in its time zone', async () => {
+    vi.useFakeTimers({ now: Date.parse('2026-11-10T23:30:00Z'), toFake: ['Date'] }) // 23:30 in Dublin, 00:30 on the 11th in Madrid
+    db.tables.calendar_events = [{ id: 'party', title: 'Staff party', starts_on: '2026-10-27', ends_on: null, category: 'business', town: null, visibility: 'all', confirmed: true }]
+    const { feed } = await (await post('/api/integrations/calendar/google_calendar/choose')).json() as { feed: string }
+    const ics = async () => (await calendarFeeds.request(feed, { headers: { 'user-agent': 'Mozilla/5.0' } }, env, ctx())).text()
+    inIreland()
+    const irish = await ics()
+    expect(irish).toContain('X-WR-TIMEZONE:Europe/Dublin')
+    expect(irish).toContain('SUMMARY:Staff party') // 14 days before the 10th
+    inSpain()
+    const spanish = await ics()
+    expect(spanish).toContain('X-WR-TIMEZONE:Europe/Madrid')
+    expect(spanish).not.toContain('Staff party') // 14 days before the 11th starts on the 28th
+  })
+
+  it('Google Maps: a closure today is sent while it’s still today where the business is', async () => {
+    vi.useFakeTimers({ now: Date.parse('2026-11-10T23:30:00Z'), toFake: ['Date'] })
+    await connectOwn('google')
+    const open = { open: '08:00', close: '18:00' }
+    db.table('business')[0].opening_hours = { mon: open, tue: open, wed: open, thu: open, fri: open, sat: open, sun: null }
+    db.tables.calendar_events = [{ id: 'shut', title: 'Closed for the staff party', starts_on: '2026-11-10', ends_on: null, category: 'business', confirmed: true, visibility: 'all' }]
+    const closures = () => ((apis.google.edits.at(-1) as { specialHours?: { specialHourPeriods: unknown[] } }).specialHours?.specialHourPeriods ?? [])
+    inIreland()
+    await syncGoogle(env, businessDb(env, 1))
+    expect(closures()).toEqual([expect.objectContaining({ startDate: { year: 2026, month: 11, day: 10 }, closed: true })])
+    inSpain()
+    await syncGoogle(env, businessDb(env, 1))
+    expect(closures()).toEqual([]) // it's the 11th in Madrid
+  })
+
+  it('a calendar app that stopped fetching says since when, on the business’s own day', async () => {
+    vi.useFakeTimers({ now: Date.parse('2026-11-10T12:00:00Z'), toFake: ['Date'] })
+    const stale = () => Object.assign(db.integration('google_calendar'), { status: 'connected', last_error: null, last_sync_at: '2026-11-05T23:30:00Z' })
+    inIreland()
+    stale()
+    await nightly()
+    expect(db.integration('google_calendar').last_error).toBe('Google Calendar hasn’t fetched the team calendar since 5 Nov. Check the calendar is still added in Google Calendar.')
+    inSpain()
+    stale()
+    await nightly()
+    expect(db.integration('google_calendar').last_error).toBe('Google Calendar hasn’t fetched the team calendar since 6 Nov. Check the calendar is still added in Google Calendar.')
   })
 })
 

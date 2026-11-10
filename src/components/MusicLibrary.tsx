@@ -24,7 +24,7 @@ import { PromptError, type AiTrackResult, type MusicStatus } from '../data/api'
 import { analyzeAudio } from '../lib/media'
 import { INSTRUMENTS, MAX_AUDIO_BYTES, MOODS, MOOD_IDS, aiPrompt, aiSeconds, energyOf, formatTime, isMood, namesArtist } from '../../shared/music'
 import type { MusicTrack, PostKind } from '../../shared/types'
-import { formatLocal, ownTimeZone } from '../../shared/time'
+import { formatEuros, formatLocal, ownTimeZone } from '../../shared/time'
 import { tokens } from '../theme'
 import { msg, t, tc, tn } from '../i18n'
 
@@ -421,7 +421,8 @@ export function MoodChips({ value, onChange, label, max = 5 }: { value: string[]
 // ---------------------------------------------------------------------------------------------
 /** "Free (the last free one this month)", "€0.99", "2 uses · €1.98". */
 export function priceWords(q: { price_cents: number; uses: number; free: number; free_left: number }) {
-  const euros = (c: number) => `€${(c / 100).toFixed(2)}`
+  // The Business Agent's own price, in euros with the reader's decimal mark ("€0.99", "€0,99").
+  const euros = (c: number) => formatEuros(c / 100)
   const after = q.free_left - q.free
   if (q.price_cents === 0) return after > 0 ? tn(after, 'Free (1 more free this month)', 'Free ({n} more free this month)') : t('Free (the last free one this month)')
   return q.uses > 1 ? t('{uses} uses · {price}', { uses: q.uses, price: euros(q.price_cents) }) : euros(q.price_cents)
@@ -487,7 +488,7 @@ export function CreateWithAiDialog({ seconds: clip, kind, caption, postId, onClo
         {made ? (
           <Stack spacing={1.5} sx={{ pt: 0.5 }}>
             <Alert severity="success">
-              {made.generation.price_cents ? t('Two versions, made for you. {price} added to your monthly bill.', { price: `€${(made.generation.price_cents / 100).toFixed(2)}` })
+              {made.generation.price_cents ? t('Two versions, made for you. {price} added to your monthly bill.', { price: formatEuros(made.generation.price_cents / 100) })
                 : t('Two versions, made for you. This one was free.')}
             </Alert>
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('Listen to both and keep the one you like. The other stays out of your library.')}</Typography>
@@ -555,7 +556,7 @@ export function CreateWithAiDialog({ seconds: clip, kind, caption, postId, onClo
         {made
           ? <Button onClick={() => { setMade(null); player.stop() }}>{t('Try again')}</Button>
           : <Button variant="contained" startIcon={<SparkleIcon />} disabled={making || !q || !!q.reason || artist || !chosenMoods.length && !describe.trim()} onClick={make}>
-              {q ? t('Make 2 versions · {price}', { price: q.price_cents ? `€${(q.price_cents / 100).toFixed(2)}` : t('Free') }) : t('Make 2 versions')}
+              {q ? t('Make 2 versions · {price}', { price: q.price_cents ? formatEuros(q.price_cents / 100) : t('Free') }) : t('Make 2 versions')}
             </Button>}
       </DialogActions>
     </Dialog>

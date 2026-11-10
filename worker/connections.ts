@@ -34,6 +34,7 @@ import { base64url, mimeMessage } from '../shared/alertText'
 import { calendarAppFromAgent, optionName } from '../shared/connections'
 import type { CalendarApp, IntegrationProvider } from '../shared/types'
 import { businessConfig } from '../shared/business.config'
+import { zoneOf } from './zone'
 
 export type Provider = IntegrationProvider
 /** Signed in with Google or Microsoft: one refresh token each. */
@@ -689,7 +690,8 @@ export async function calendarSeen(db: SupabaseClient, app: CalendarApp) {
 }
 
 const newest = (...ts: (string | null | undefined)[]) => ts.filter((t): t is string => !!t).sort().at(-1) ?? null
-const day = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/Madrid' })
+/** "3 Nov", the day where the business is (`tz`: Dublin's for a business in Ireland; Madrid's when not known). */
+const day = (iso: string, tz = 'Europe/Madrid') => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: tz })
 
 /** Does a connection that was working still work? Returns fields to update (e.g. a re-made folder). */
 async function stillWorks(env: Env, db: SupabaseClient, row: Row): Promise<Partial<Row>> {
@@ -731,7 +733,7 @@ async function stillWorks(env: Env, db: SupabaseClient, row: Row): Promise<Parti
     const last = newest(row.last_sync_at, await calendarSeen(db, p))
     if (!last) throw new Error(`${optionName(p)} hasn’t fetched the team calendar yet. Add it again from the Connections page.`)
     if (Date.now() - Date.parse(last) > CALENDAR_STALE_DAYS * 86_400_000) {
-      throw new Error(`${optionName(p)} hasn’t fetched the team calendar since ${day(last)}. Check the calendar is still added in ${optionName(p)}.`)
+      throw new Error(`${optionName(p)} hasn’t fetched the team calendar since ${day(last, await zoneOf(db))}. Check the calendar is still added in ${optionName(p)}.`)
     }
     return last === row.last_sync_at ? {} : { last_sync_at: last }
   }
@@ -780,7 +782,7 @@ async function stillWorks(env: Env, db: SupabaseClient, row: Row): Promise<Parti
       const external: LinkedInExternal = { ...s.external, member, page_name: name, expires_at: s.expiresAt }
       // No silent renewal for most apps: admins hear a week before the 60 days are up (once).
       if (!s.refreshable && Date.parse(s.expiresAt) - Date.now() < LINKEDIN_WARN_MS && !s.external.expiry_warned) {
-        await tellAdmins(db, 'LinkedIn needs connecting again soon', `LinkedIn only allows access for 60 days. Connect it again before ${day(s.expiresAt)} to keep posting.`)
+        await tellAdmins(db, 'LinkedIn needs connecting again soon', `LinkedIn only allows access for 60 days. Connect it again before ${day(s.expiresAt, await zoneOf(db))} to keep posting.`)
         external.expiry_warned = true
       }
       return { account_label: name, external: external as Record<string, unknown> }
@@ -790,7 +792,7 @@ async function stillWorks(env: Env, db: SupabaseClient, row: Row): Promise<Parti
       const external: AdsExternal = { ...s.external, accounts: stillThere(await metaAds.adAccounts(s.graphVersion, s.token), s.external) }
       // Meta gives no refresh: admins hear a week before the 60 days are up (once).
       if (Date.parse(s.expiresAt) - Date.now() < ADS_WARN_MS && !s.external.expiry_warned) {
-        await tellAdmins(db, 'Meta Ads needs connecting again soon', `Meta only allows access for 60 days. Connect Meta Ads again before ${day(s.expiresAt)} to keep seeing your ads.`)
+        await tellAdmins(db, 'Meta Ads needs connecting again soon', `Meta only allows access for 60 days. Connect Meta Ads again before ${day(s.expiresAt, await zoneOf(db))} to keep seeing your ads.`)
         external.expiry_warned = true
       }
       return { external: external as Record<string, unknown> }

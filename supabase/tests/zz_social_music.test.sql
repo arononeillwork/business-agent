@@ -92,10 +92,10 @@ begin
   assert (s->>'price_cents')::int = 99 and (select status from public.music_generations where id = (s->>'id')::uuid) = 'working', 'reserved';
   assert (select count(*) from public.music_generations where prompt = 'Stuck' and status = 'failed') = 1, 'the stuck one was closed';
   q := public.ai_music_quote(30);
-  assert (q->>'spent_cents')::int = 99 and q->>'reason' like '%over this month''s limit of €1.50%', 'the limit holds: ' || (q->>'reason');
+  assert (q->>'spent_cents')::int = 99 and q->>'reason' like '%over this month''s limit of €1,50%', 'the limit holds: ' || (q->>'reason');
 end $$;
-select pg_temp.expect_error($q$select public.ai_music_start('One more', 30)$q$, 'limit of €1.50');
-select pg_temp.expect_error($q$select public.set_ai_music_limit(-1)$q$, 'between €0 and €1,000');
+select pg_temp.expect_error($q$select public.ai_music_start('One more', 30)$q$, 'limit of €1,50');
+select pg_temp.expect_error($q$select public.set_ai_music_limit(-1)$q$, 'between €0 and €1.000');
 select pg_temp.expect_error($q$select public.ai_music_finish((select id from public.music_generations limit 1), 'done')$q$, 'permission denied');
 select pg_temp.expect_error($q$update public.music_generations set price_cents = 0$q$, 'permission denied');
 -- Made: two versions, one kept; then charged once on Stripe.

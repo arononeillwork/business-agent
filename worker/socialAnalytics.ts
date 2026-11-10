@@ -20,6 +20,7 @@ import {
 } from '../shared/socialAnalytics'
 import { minutesFor } from './refresh'
 import { addDays, today } from '../shared/time'
+import { zoneOf } from './zone'
 import { signInCheck, signedInUser } from './signedIn'
 
 export const socialAnalytics = new Hono<{ Bindings: Env; Variables: { userId: string } }>()
@@ -125,13 +126,13 @@ async function readSource(env: Env, db: SupabaseClient, source: SocialSource, ro
   switch (source) {
     case 'instagram':
       if (!instagramOAuth(env, '')) throw new Error('Instagram is not set up')
-      return readInstagram(await instagramSession(env, db), from, to)
+      return readInstagram(await instagramSession(env, db), from, to, today(await zoneOf(db)))
     case 'tiktok':
       return readTikTok(await tiktokSession(env, db), typeof ext.username === 'string' ? ext.username : null, from, to)
     case 'linkedin': {
       const s = await linkedinSession(env, db)
       const id = s.external.page_id!
-      return readLinkedIn(s.cfg.version, s.token, { id, name: s.external.page_name ?? row.account_label ?? `Page ${id}` }, from, to)
+      return readLinkedIn(s.cfg.version, s.token, { id, name: s.external.page_name ?? row.account_label ?? `Page ${id}` }, from, to, today(await zoneOf(db)))
     }
     case 'facebook':
       return readFacebook(await facebookSession(env, db), from, to)

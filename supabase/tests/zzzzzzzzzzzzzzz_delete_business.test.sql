@@ -181,7 +181,7 @@ begin
   perform pg_temp.expect_error(format('delete from public.menu_designs where business_id = %s', p_business), 'TV menu is on the screen “Counter TV”. Take it off that screen first.');
   perform pg_temp.expect_error(format('delete from public.food_safety_points where business_id = %s', p_business), 'It has checks recorded, which are kept: switch it off instead');
   perform pg_temp.expect_error(format('delete from public.kitty_entries where business_id = %s', p_business),
-    case when p_who = 'worker' then 'permission denied for function kitty_balance' else 'That money has been spent: the kitty has €20.00' end);
+    case when p_who = 'worker' then 'permission denied for function kitty_balance' else 'That money has been spent: the kitty has €20,00' end);
   if p_who = 'app' then
     perform pg_temp.expect_error(format('delete from public.cameras where business_id = %s', p_business), 'permission denied for table cameras');
     perform pg_temp.expect_error(format('update public.social_posts set caption = ''edited'' where business_id = %s', p_business), 'This post has already gone out. Make a new post instead.');

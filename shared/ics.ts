@@ -31,10 +31,11 @@ const nextDay = (d: string) => {
   return t.toISOString().slice(0, 10)
 }
 
-export function buildIcs(name: string, events: IcsEvent[], now = new Date().toISOString()) {
+/** The calendar, named, in the business's time zone (Madrid's unless given: Dublin's for a business in Ireland). */
+export function buildIcs(name: string, events: IcsEvent[], now = new Date().toISOString(), timeZone = 'Europe/Madrid') {
   const lines = [
     'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//The Business Agent//Team app//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
-    `X-WR-CALNAME:${icsEscape(name)}`, 'X-WR-TIMEZONE:Europe/Madrid', 'REFRESH-INTERVAL;VALUE=DURATION:PT1H', 'X-PUBLISHED-TTL:PT1H',
+    `X-WR-CALNAME:${icsEscape(name)}`, `X-WR-TIMEZONE:${timeZone}`, 'REFRESH-INTERVAL;VALUE=DURATION:PT1H', 'X-PUBLISHED-TTL:PT1H',
   ]
   for (const e of events) {
     lines.push('BEGIN:VEVENT', `UID:${e.uid}`, `DTSTAMP:${stamp(now)}`)

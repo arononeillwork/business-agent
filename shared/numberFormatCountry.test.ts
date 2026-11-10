@@ -1,7 +1,7 @@
 // The decimal mark someone has before choosing one on Appearance follows their business's country: Ireland's
 // point (and comma thousands), Spain's comma (and point thousands), as before. A choice wins in either.
 import { afterEach, describe, expect, it } from 'vitest'
-import { currentNumberFormat, defaultNumberFormat, formatMoney, formatNumber, formatNumberAs, moneyText, numberFormatOf, setNumberFormat } from './time'
+import { currentNumberFormat, defaultNumberFormat, formatEuroAmount, formatEuros, formatMoney, formatNumber, formatNumberAs, moneyText, numberFormatOf, setCurrency, setNumberFormat } from './time'
 
 afterEach(() => setNumberFormat('comma'))
 
@@ -57,5 +57,30 @@ describe('numbers written for someone away from the screen (the Worker’s messa
     // What's on screen stays as it was.
     expect(formatMoney(15)).toBe('€15,00')
     expect(currentNumberFormat()).toBe('comma')
+  })
+})
+
+describe('The Business Agent’s own prices (plans, AI music)', () => {
+  afterEach(() => setCurrency())
+  it('are euros with the reader’s decimal mark: an Irish business’s point, a Spanish one’s comma, a choice either way', () => {
+    setNumberFormat(undefined, 'IE')
+    expect(formatEuros(0.99)).toBe('€0.99')
+    expect(formatEuros(0)).toBe('€0.00')
+    expect(formatEuros(65.83, { whole: true })).toBe('€65.83')
+    expect(formatEuros(79, { whole: true })).toBe('€79')
+    expect(formatEuroAmount(1088.28)).toBe('1,088.28')
+    setNumberFormat(undefined, 'ES')
+    expect(formatEuros(0.99)).toBe('€0,99')
+    expect(formatEuros(65.83, { whole: true })).toBe('€65,83')
+    expect(formatEuroAmount(790, { whole: true })).toBe('790')
+    expect(formatEuroAmount(1088.28)).toBe('1.088,28')
+    setNumberFormat('point', 'ES')
+    expect(formatEuros(0.99)).toBe('€0.99')
+  })
+
+  it('stay in euros for a business that sells in another currency', () => {
+    setNumberFormat(undefined, 'IE')
+    setCurrency('GBP')
+    expect(formatEuros(0.99)).toBe('€0.99')
   })
 })

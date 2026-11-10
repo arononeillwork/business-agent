@@ -13,6 +13,7 @@ import {
   suggestedThreat, type Competitor, type GoogleStatus, type NearbyPlace,
 } from '../shared/localCompetitors'
 import { today } from '../shared/time'
+import { zoneOf } from './zone'
 import { kindOfBusiness, nearbyTypes } from '../shared/businessKind'
 import { signInCheck } from './signedIn'
 
@@ -58,7 +59,9 @@ async function keepDetails(db: SupabaseClient, row: Competitor, d: PlaceDetails,
     ...(!row.is_self && at && d.location ? { distance_m: distanceM(at, d.location) } : {}),
   }).eq('id', row.id)
   if (error) throw new Error(error.message)
-  await db.from('competitor_snapshots').upsert({ competitor_id: row.id, taken_on: today(), rating: rating1(d.rating), review_count: d.count }, { onConflict: 'competitor_id,taken_on' })
+  // The day where the business is (Dublin's for a business in Ireland).
+  await db.from('competitor_snapshots').upsert({ competitor_id: row.id, taken_on: today(await zoneOf(db)), rating: rating1(d.rating), review_count: d.count },
+    { onConflict: 'competitor_id,taken_on' })
   if (!row.is_self && status && status !== 'open' && status !== row.google_status) {
     await tellAdmins(db, status === 'closed_permanently' ? `${row.name} has closed for good, says Google` : `${row.name} is closed for now, says Google`,
       row.active ? 'Stop following it on Competitors if it’s gone.' : null)

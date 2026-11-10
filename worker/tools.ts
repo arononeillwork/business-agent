@@ -37,7 +37,7 @@ import { OFFER_TOOLS } from './offerTools'
 import { CONTACT_TOOLS } from './contactTools'
 import { PAGE_TOOLS } from './pageTools'
 import type { Env } from './supabase'
-import { inTimeZone } from './zone'
+import { inTimeZone, zoneOf } from './zone'
 import { shows, type FEATURES as APP_PARTS } from '../src/app/features'
 
 export interface ToolContext {
@@ -1770,15 +1770,5 @@ export async function runTool(t: ToolDef, ctx: ToolContext, raw: unknown) {
   if (!parsed.success) throw new Error(parsed.error.issues.map(i => `${i.path.join('.') || 'input'}: ${i.message}`).join('; '))
   // In the business's own time zone: the dates and times a tool reads and writes are the business's (Dublin's
   // for a business in Ireland, as whoami says), not the Worker's.
-  return inTimeZone(ctx.timeZone ?? await businessTimeZone(ctx.sb), () => t.run(ctx, parsed.data))
-}
-
-/** The business's time zone, as whoever is asking can read it; none when it can't be read (the Worker's own then). */
-async function businessTimeZone(sb: SupabaseClient): Promise<string | undefined> {
-  try {
-    const { data } = await sb.from('business').select('timezone').maybeSingle()
-    return (data as { timezone?: string } | null)?.timezone
-  } catch {
-    return undefined
-  }
+  return inTimeZone(ctx.timeZone ?? await zoneOf(ctx.sb), () => t.run(ctx, parsed.data))
 }

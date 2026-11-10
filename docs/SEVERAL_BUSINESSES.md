@@ -50,6 +50,8 @@ names Easy Beans with the header, as the Worker does.
 - Links and webhooks find their business first: a screen's token, a calendar feed's owner, a Stripe
   customer, a Square merchant, an AI image, a referral code, whoever started a connection.
 - The minute and nightly jobs run for each business (`forEach` in `worker/index.ts`).
+- Each business's turn in the jobs, and each AI tool's run, is in its own time zone (`worker/zone.ts`), and a
+  route that works out a day or a range for one business reads its zone (`zoneOf`): Dublin's days in Ireland.
 - `serviceClient(env)`, over every business, is only for finding which business something is and for
   accounts; `scripts/ci/business-scope.test.ts` lists where, so a new use is a choice.
 - Business Agent's own accounts in the Worker's secrets, the WhatsApp number and Google place
@@ -156,6 +158,10 @@ nothing more is charged and nothing is refunded. HQ's admins get a notification 
 support@ an email when Cloudflare Email Sending is on, and the Businesses page shows when each closes. On
 the same card the owner downloads everything as CSV files in a zip (`export_tables()`, `export_part()`:
 the business's own rows only, without stored tokens, key and PIN hashes or the app's plumbing).
+
+How long the law asks for the working-hours record depends on the business's country: Spain's for four years
+(registro de jornada), Ireland's for three (working time records, Organisation of Working Time Act 1997, s.25).
+The steps below keep every business's for four; an Irish one's going after three is the owner's decision.
 
 Deleting the data once it has closed is HQ's, by hand, for now. The working-hours record (registro de
 jornada) must be kept for four years, and it hangs together with other rows: `time_entries` with their

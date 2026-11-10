@@ -14,6 +14,7 @@ import { adjustProblem, giftCardAmountProblem, type GiftCards, type LoyaltyState
 import { minutesFor } from './refresh'
 import { addDays, today, zonedIso } from '../shared/time'
 import { signInCheck } from './signedIn'
+import { zoneOf } from './zone'
 
 export const loyaltyRoutes = new Hono<{ Bindings: Env }>()
 
@@ -48,11 +49,14 @@ async function failure(db: SupabaseClient, e: unknown) {
   return why
 }
 
-/** ?from=YYYY-MM-DD&to=YYYY-MM-DD (inclusive, Madrid days; the last 60 days when not given) as instants. */
-function range(q: (k: string) => string | undefined) {
-  const to = q('to') ?? today(), from = q('from') ?? addDays(to, -59)
+/**
+ * ?from=YYYY-MM-DD&to=YYYY-MM-DD (inclusive, the business's days, in `tz`: Dublin's for a business in Ireland;
+ * the last 60 days to today there when not given) as instants.
+ */
+export function range(q: (k: string) => string | undefined, tz?: string) {
+  const to = q('to') ?? today(tz), from = q('from') ?? addDays(to, -59)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) throw new LoyaltyError('Give from and to dates (YYYY-MM-DD)')
-  return { fromIso: zonedIso(from, '00:00'), toIso: zonedIso(addDays(to, 1), '00:00') }
+  return { fromIso: zonedIso(from, '00:00', tz), toIso: zonedIso(addDays(to, 1), '00:00', tz) }
 }
 
 /** Names for Square customer ids: the app's Customers first (linked by square_id). */
@@ -67,7 +71,7 @@ async function names(db: SupabaseClient, ids: string[]) {
 loyaltyRoutes.get('/api/loyalty', async c => {
   const db = await requestDb(c)
   try {
-    const { fromIso, toIso } = range(k => c.req.query(k))
+    const { fromIso, toIso } = range(k => c.req.query(k), await zoneOf(db))
     const { data, fetched_at } = await cached(db, `loyalty:${fromIso}:${toIso}`, minutesFor(db, 'loyalty'), async (): Promise<LoyaltyState> => {
       const s = await squareSession(c.env, db)
       const program = await loyalty.program(s.sandbox, s.token)
@@ -115,7 +119,7 @@ loyaltyRoutes.post('/api/loyalty/adjust', async c => {
 loyaltyRoutes.get('/api/giftcards', async c => {
   const db = await requestDb(c)
   try {
-    const { fromIso, toIso } = range(k => c.req.query(k))
+    const { fromIso, toIso } = range(k => c.req.query(k), await zoneOf(db))
     const { data, fetched_at } = await cached(db, `giftcards:book:${fromIso}:${toIso}`, minutesFor(db, 'loyalty'), async (): Promise<GiftCards> => {
       const s = await squareSession(c.env, db)
       const { currency, cards, activities } = await loyalty.giftCardBook(s.sandbox, s.token, fromIso, toIso)

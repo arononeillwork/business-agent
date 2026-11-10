@@ -8,6 +8,7 @@ import {
   type FixtureDownloadMatch, type SportsCompetition, type SportsDbEvent, type SportsEvent, isBigEvent, seasonFor,
 } from '../shared/sports'
 import { addDays, today } from '../shared/time'
+import { zoneOf } from './zone'
 import { COUNTRY_FLAGS, findCrest, flagUrl, searchNamesFor, type TsdbTeam } from '../shared/crests'
 
 // The free test key (the old "3" was switched off by TheSportsDB).
@@ -158,7 +159,8 @@ export function parseUfcTable(text: string, c: Pick<SportsCompetition, 'code' | 
 export async function refreshCompetition(db: SupabaseClient, c: SportsCompetition): Promise<number> {
   const now = new Date().toISOString()
   try {
-    const { events, complete } = await fetchCompetition(c)
+    // Today where the business is (Dublin's for a business in Ireland): the season, and the fights' days, from it.
+    const { events, complete } = await fetchCompetition(c, today(await zoneOf(db)))
     const keep = events.filter(e => Date.parse(e.starts_at) > Date.now() - 2 * 86_400_000)
     if (keep.length) {
       const { error } = await db.from('sports_events').upsert(keep.map(e => ({ ...e, updated_at: now })), { onConflict: 'business_id,id' })
