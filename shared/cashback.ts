@@ -23,8 +23,8 @@ export const CASHBACK_DEFAULTS: CashbackRates = {
 }
 export const CASHBACK_KEYS = Object.keys(CASHBACK_DEFAULTS) as (keyof CashbackRates)[]
 
-/** Less than this isn't logged. */
-export const CASHBACK_MIN = 0.5
+/** Less than this isn't logged: every cent a post earns is kept. */
+export const CASHBACK_MIN = 0.01
 
 /** The ledger's words for it (written by the database in English). */
 export const CASHBACK_LABEL = msg('Cashback for a post')

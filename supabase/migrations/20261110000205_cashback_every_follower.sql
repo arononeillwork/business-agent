@@ -2,8 +2,8 @@
 -- the post's days (the day it went out and the two after), every one of them rather than those over a
 -- usual three days; and for every post of an approved rep, however old (a customer's reel from the
 -- summer earns its cashback too, by its views and likes when its days' followers aren't known: Instagram
--- keeps them for 30 days). The rates, the most a post earns and the owner's OK stay as the post_cashback
--- migration set them. shared/cashback.ts says the same for the page.
+-- keeps them for 30 days), down to a cent rather than from 50 cents. The rates, the most a post earns and
+-- the owner's OK stay as the post_cashback migration set them. shared/cashback.ts says the same for the page.
 
 create or replace function public.pay_post_cashback() returns int
 language plpgsql security definer set search_path = ''
@@ -38,7 +38,8 @@ begin
     continue when v_in < 3 and m.day0 > v_today - 7;
     v_followers := case when v_in = 3 then v_gained end;
     v_amount := public.post_cashback(m.views, m.likes, v_followers, s);
-    continue when v_amount < 0.5;
+    -- Every cent a post earns is kept (an old post may earn only a little, by its views and likes).
+    continue when v_amount < 0.01;
     v_status := case when s.cashback_needs_approval then 'pending' else 'approved' end;
     v_note := concat_ws(' · ',
       case when m.views > 0 then to_char(m.views, 'FM999,999,999,990') || ' views' end,
