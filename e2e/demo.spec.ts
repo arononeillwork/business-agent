@@ -6100,8 +6100,11 @@ test.describe('menu, menu design and screens', () => {
   test('a screen’s own link plays its slides with no sign-in; an old link says so', async ({ page }) => {
     await page.clock.install({ time: WED_0900 })
     await page.goto('/display/c0ffee00beef00c0ffee00beef00cafe?demo')
-    // Today's last-day offer first, for 15 seconds, then the slides.
+    // Today's last-day offer first, for 15 seconds, then the slides. Its price the way the business's country
+    // writes it (Spain's decimal comma), with nobody signed in.
     await expect(page.getByText('Butter croissants')).toBeVisible()
+    await expect(page.getByRole('img', { name: 'Butter croissants · €1,68' })).toBeVisible()
+    await expect(page.getByRole('img', { name: 'Butter croissants · €1,68' }).locator('s')).toHaveText('€2,40')
     await page.clock.fastForward('00:00:16')
     await expect(page.getByText('Iced matcha latte')).toBeVisible()
     // Its diet badges, from what goes into it on Menu costing (vegan, dairy free).

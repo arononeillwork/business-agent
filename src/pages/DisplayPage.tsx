@@ -45,7 +45,7 @@ export function DisplayPage() {
 
   useEffect(() => { if (feed) document.title = feed.screen.name }, [feed])
   // Nobody signs in on a TV: its prices are written the way the business's country writes them (Ireland's
-  // "€3.20", Spain's "€3,20"), set before the slides draw.
+  // "€3.20", Spain's "€3,20") and its times are the business's, set before the slides draw.
   if (feed) playAs(feed.business)
 
   // Keep the screen from going to sleep (asked again whenever the page comes back into view).
