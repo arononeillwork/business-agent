@@ -20,10 +20,12 @@ import type { InboxConversation, TaggedPost } from '../shared/messages'
 
 /**
  * Look for new mentions and tell every admin about each one. Returns how many were new.
- * A scheduled run may make only 50 outside requests (worker/schedule.ts). Looking up all 25 people in
- * the latest chats, each a request of its own, used the run up before anything was kept; so only the
- * people who matter are looked up (someone who mentioned the café in a story, or a rep), and chats that
- * can't be read don't stop the collabs and tags being kept.
+ * A scheduled run may make only 50 outside requests (worker/schedule.ts), and this comes after the
+ * minute's other jobs. So it goes cheapest and surest first: tags and collabs kept and their posters
+ * put forward, the day's new followers kept, and only then the chats (story mentions), with only the
+ * people who matter looked up (someone who mentioned the café in a story, or a rep): looking up all
+ * 25 used the run up before anything was kept. What a look found is noted at its end
+ * (provider_cache 'instagram:mentions-check'), so a look that didn't finish shows.
  */
 export async function checkMentions(env: Env, db: SupabaseClient): Promise<number> {
   const [{ data: row }, { data: set }] = await Promise.all([
@@ -34,10 +36,21 @@ export async function checkMentions(env: Env, db: SupabaseClient): Promise<numbe
   const ext = (row.external ?? {}) as { user_id?: string; username?: string; can_see_insights?: boolean; can_list_collabs?: boolean }
   const cfg = await instagramSession(env, db)
   const business = businessIdOf(db)
-  // Tagged posts need "Manage comments"; collabs are asked for on their own. Instagram Login doesn't list
-  // them (collaborative_media is Facebook Login's): once Instagram has said so, it isn't asked again
-  // until Instagram is connected again (which starts the connection's notes afresh), and Analytics says
-  // to add collabs by their link. HQ hears why, once.
+  const self = ext.username ?? null
+  const tell = async (added: Mention[]) => {
+    if (!added.length || set?.alert_instagram_mentions === false) return
+    const { data: admins } = await db.from('profiles').select('id').eq('role', 'admin').eq('active', true)
+    if (!admins?.length) return
+    await db.from('notifications').insert(added.flatMap(m => admins.map(a => ({
+      profile_id: a.id, title: mentionTitle(m), body: m.caption ? String(m.caption).slice(0, 140) : null,
+      link: '/notifications', kind: 'instagram_mention', data: { mention: m.id },
+    }))))
+  }
+
+  // 1. Tags and collabs. Tagged posts need "Manage comments"; collabs are asked for on their own.
+  //    Instagram Login doesn't list them (collaborative_media is Facebook Login's): once Instagram has
+  //    said so, it isn't asked again until Instagram is connected again (which starts the connection's
+  //    notes afresh), and Analytics says to add collabs by their link. HQ hears why, once.
   let listed = ext.can_list_collabs !== false
   const [tagged, collabs] = await Promise.all([
     instagram.tagged(cfg).catch(() => [] as TaggedPost[]),
@@ -45,27 +58,30 @@ export async function checkMentions(env: Env, db: SupabaseClient): Promise<numbe
       : Promise.resolve([] as CollabMedia[]),
   ])
   if (ext.can_list_collabs !== listed) await db.from('integrations').update({ external: { ...ext, can_list_collabs: listed } }).eq('provider', 'instagram')
-  // Story mentions arrive as messages. Without the chats, the tags and collabs are still kept.
+  const posts = await keepMentions(db, mentionsIn([], tagged), collabMentions(collabs))
+  await tell(posts)
+  await putForward(db, self).catch(e => reportError(env, 'instagram: putting posters forward as reps', e, { business }))
+
+  // 2. Once a day: new followers, kept for What each post did (Analytics).
+  if (ext.can_see_insights !== false) await refreshFollowerDays(db, cfg).catch(e => reportError(env, 'instagram: keeping new followers', e, { business }))
+
+  // 3. Story mentions arrive as messages: the chats, last. Reps among these people get their followers
+  //    as Instagram says now (Sales reps & rewards).
   const reps = new Set(((await db.from('sales_reps').select('instagram').not('instagram', 'is', null)).data ?? []).map(r => String(r.instagram)))
   const matters = (c: InboxConversation) => reps.has(c.with.username.toLowerCase()) || c.recent.some(m => m.kind === 'story_mention' && !m.fromMe)
   const chats = await instagram.conversations(cfg, { id: ext.user_id ?? '', username: ext.username }, matters)
-    .catch(async e => { await reportError(env, 'instagram mentions: chats', e, { business }); return [] as InboxConversation[] })
-  // Reps among these people: their followers as Instagram says now (Sales reps & rewards).
-  await syncRepFollowers(db, chats).catch(() => 0)
-  const added = await keepMentions(db, mentionsIn(chats, tagged), collabMentions(collabs, chats))
-  if (added.length && set?.alert_instagram_mentions !== false) {
-    const { data: admins } = await db.from('profiles').select('id').eq('role', 'admin').eq('active', true)
-    if (admins?.length) {
-      await db.from('notifications').insert(added.flatMap(m => admins.map(a => ({
-        profile_id: a.id, title: mentionTitle(m), body: m.caption ? String(m.caption).slice(0, 140) : null,
-        link: '/notifications', kind: 'instagram_mention', data: { mention: m.id },
-      }))))
-    }
+    .catch(async e => { await reportError(env, 'instagram mentions: chats', e, { business }); return null })
+  let stories: Mention[] = []
+  if (chats) {
+    await syncRepFollowers(db, chats).catch(() => 0)
+    stories = await keepMentions(db, mentionsIn(chats, []), [])
+    await tell(stories)
+    if (stories.length) await putForward(db, self, chats).catch(e => reportError(env, 'instagram: putting posters forward as reps', e, { business }))
   }
-  await putForward(db, ext.username ?? null, chats).catch(e => reportError(env, 'instagram: putting posters forward as reps', e, { business }))
-  // Once a day: new followers, kept for What each post did (Analytics).
-  if (ext.can_see_insights !== false) await refreshFollowerDays(db, cfg).catch(e => reportError(env, 'instagram: keeping new followers', e, { business }))
-  return added.length
+  await db.from('provider_cache').upsert({ key: 'instagram:mentions-check', fetched_at: new Date().toISOString(),
+    data: { tagged: tagged.length, collabs: listed ? collabs.length : null, chats: chats?.length ?? null, new: posts.length + stories.length } },
+  { onConflict: 'business_id,key' })
+  return posts.length + stories.length
 }
 
 /**

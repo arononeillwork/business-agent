@@ -68,6 +68,8 @@ describe('Posts about the café', () => {
     expect(told).toContain('@nora.eats.mbl posted a reel with you')
     expect(told.some(t => String(t).startsWith('@tomas.runs'))).toBe(false)
     expect(added).toBe(3)
+    // What the look found is noted at its end, so a look that didn't finish shows.
+    expect(db.tables.provider_cache.find(c => c.key === 'instagram:mentions-check')!.data).toEqual({ tagged: 1, collabs: 2, chats: 1, new: 3 })
 
     // Everyone who posted a post or reel is waiting for an owner's OK; Lucía's story (followers unknown) isn't put forward.
     expect(reps().map(r => r.instagram).sort()).toEqual(['nora.eats.mbl', 'sanpedro.eats', 'tomas.runs'])
