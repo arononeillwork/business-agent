@@ -185,7 +185,7 @@ export function StockPage() {
                   <SortCell sort={sort} id="par" align="right" sx={hide('lg')}>{t('Par level')}</SortCell>
                   <SortCell sort={sort} id="value" align="right" sx={hide('md')}>{t('Worth')}</SortCell>
                   <SortCell sort={sort} id="location" sx={hide('xl')}>{t('Location')}</SortCell>
-                  {canRecord && <TableCell sx={{ width: 1 }}><Box component="span" sx={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>{t('Record')}</Box></TableCell>}
+                  {canRecord && <TableCell sx={{ width: 1, position: 'relative' }}><Box component="span" sx={{ position: 'absolute', width: '1px', height: '1px', m: '-1px', overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>{t('Record')}</Box></TableCell>}
                 </TableRow>
               </TableHead>
               <TableBody>

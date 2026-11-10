@@ -110,7 +110,7 @@ export function TeamContracts({ tabs }: { tabs: ReactNode }) {
   const columns = 5 + (showPay ? 1 : 0) + (canEdit ? 1 : 0)
   const personCell = (p: Profile | undefined, id: string) => (
     <TableCell sx={cell}>
-      <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', minWidth: 170 }}>
+      <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', minWidth: 150 }}>
         <PersonAvatar name={p?.full_name ?? '?'} colour={p?.colour ?? tokens.inkFaint} size={32} />
         <Typography sx={{ fontWeight: 500 }} noWrap>{p ? named(p) : nameOf(id)}</Typography>
       </Stack>
@@ -184,7 +184,7 @@ export function TeamContracts({ tabs }: { tabs: ReactNode }) {
                 <TableCell align="right">{t('Hours a week')}</TableCell>
                 {showPay && <TableCell align="right">{t('Gross salary')}</TableCell>}
                 <TableCell>{t('Status')}</TableCell>
-                {canEdit && <TableCell><Box component="span" sx={visuallyHidden}>{t('Actions')}</Box></TableCell>}
+                {canEdit && <TableCell sx={{ position: 'relative' }}><Box component="span" sx={visuallyHidden}>{t('Actions')}</Box></TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -215,7 +215,7 @@ export function TeamContracts({ tabs }: { tabs: ReactNode }) {
                     <TableRow key={c.id} sx={{ opacity: status === 'ended' ? 0.7 : 1, '&:last-child td': { borderBottom: 0 } }}>
                       {personCell(p, c.profile_id)}
                       <TableCell sx={cell}>
-                        <Typography variant="body2" sx={{ fontWeight: 500, minWidth: 180 }}>{kindLabel(c.kind)}</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500, minWidth: 150 }}>{kindLabel(c.kind)}</Typography>
                         {(c.job_title || c.convenio) && (
                           <Typography variant="body2" sx={{ color: 'text.secondary' }}>{[c.job_title, c.convenio].filter(Boolean).join(' · ')}</Typography>
                         )}
@@ -283,7 +283,7 @@ export function TeamContracts({ tabs }: { tabs: ReactNode }) {
   )
 }
 
-const visuallyHidden = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' } as const
+const visuallyHidden = { position: 'absolute', width: '1px', height: '1px', p: 0, m: '-1px', overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0 } as const
 const numberText = (v: number | null | undefined) => (v === null || v === undefined ? '' : String(v))
 const numberOf = (v: string) => (v.trim() ? Number(v.replace(',', '.')) : null)
 

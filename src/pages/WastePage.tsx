@@ -103,7 +103,7 @@ export function WastePage() {
                   <TableHead><TableRow>
                     <TableCell>{t('Item')}</TableCell><TableCell align="right">{t('Quantity')}</TableCell><TableCell>{t('Why')}</TableCell>
                     <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{t('Who')}</TableCell>{showCost && <TableCell align="right">{t('Cost')}</TableCell>}
-                    {!isPartner && <TableCell sx={{ width: '1%' }}><Box component="span" sx={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>{t('Change')}</Box></TableCell>}
+                    {!isPartner && <TableCell sx={{ width: '1%', position: 'relative' }}><Box component="span" sx={{ position: 'absolute', width: '1px', height: '1px', m: '-1px', overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>{t('Change')}</Box></TableCell>}
                   </TableRow></TableHead>
                   <TableBody>
                     {list.map(m => {

@@ -88,7 +88,7 @@ export function HqErrors({ businesses }: { businesses: Map<number, string> }) {
                 <TableCell>{t('Where')}</TableCell>
                 <TableCell align="right">{t('Times')}</TableCell>
                 <TableCell>{t('Last seen')}</TableCell>
-                <TableCell align="right"><Box component="span" sx={visuallyHidden}>{t('Details')}</Box></TableCell>
+                <TableCell align="right" sx={{ position: 'relative' }}><Box component="span" sx={visuallyHidden}>{t('Details')}</Box></TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -128,4 +128,4 @@ export function HqErrors({ businesses }: { businesses: Map<number, string> }) {
   )
 }
 
-const visuallyHidden = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' } as const
+const visuallyHidden = { position: 'absolute', width: '1px', height: '1px', p: 0, m: '-1px', overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0 } as const
