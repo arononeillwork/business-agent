@@ -119,7 +119,8 @@ export function SocialAnalytics({ source, days, periodName, vs, frame }: {
           </CardContent>
         </Card>
       )}
-      {r.impact && <PostImpactCard impact={r.impact} followerDays={r.follower_days} from={r.from} to={r.to} periodName={periodName} />}
+      {r.impact && <PostImpactCard impact={r.impact} followerDays={r.follower_days} from={r.from} to={r.to} periodName={periodName}
+        collabsListed={row.external.can_list_collabs !== false} />}
       {r.post_columns.length > 0 && <TopPosts report={r} />}
     </>
   )

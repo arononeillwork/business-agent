@@ -50,6 +50,8 @@ export default {
   // Adding one by its link.
   'Add a post by its link': 'Añadir una publicación por su enlace',
   'Add a post': 'Añadir una publicación',
+  'Instagram doesn’t share collab reels with the app. Add each one by its link: whoever posted it goes on Sales reps & rewards too.':
+    'Instagram no comparte los reels en colaboración con la app. Añade cada uno por su enlace: quien lo publicó pasa también a Comerciales y recompensas.',
   'Collab reels and posts that tag you come in by themselves. If one is missing (say it only names you in the caption), add it here. Whoever posted it goes on Sales reps & rewards too, waiting for your OK.':
     'Los reels en colaboración y las publicaciones que te etiquetan llegan solos. Si falta alguna (por ejemplo, si solo te nombra en el texto), añádela aquí. Quien la publicó pasa también a Comerciales y recompensas, esperando tu OK.',
   'Link to the post or reel': 'Enlace a la publicación o al reel',

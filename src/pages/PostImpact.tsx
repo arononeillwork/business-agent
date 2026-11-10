@@ -3,7 +3,7 @@
 // day it went out and the two after, against a usual three days (shared/postImpact.ts). New followers
 // day by day above them. A post Instagram doesn't list can be added by its link.
 import {
-  Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, InputAdornment, Link, Stack, TextField,
+  Alert, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, InputAdornment, Link, Stack, TextField,
   ToggleButton, ToggleButtonGroup, Tooltip, Typography,
 } from '@mui/material'
 import AddLinkIcon from '@mui/icons-material/AddLinkRounded'
@@ -134,8 +134,10 @@ function FollowersChart({ days, posts, from, to, periodName }: { days: SocialDay
   )
 }
 
-export function PostImpactCard({ impact, followerDays, from, to, periodName }: {
+export function PostImpactCard({ impact, followerDays, from, to, periodName, collabsListed = true }: {
   impact: PostImpact[]; followerDays: SocialDay[] | null | undefined; from: string; to: string; periodName: string
+  /** False when Instagram doesn't list collab posts for this connection: they're added by their link. */
+  collabsListed?: boolean
 }) {
   const { api } = useApp()
   const run = useAction()
@@ -153,6 +155,11 @@ export function PostImpactCard({ impact, followerDays, from, to, periodName }: {
         <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
           {t('Your posts, and the ones customers made about you: collab reels, tags and story mentions. Each shows the followers you gained the day it went out and the two days after, against a usual three days.')}
         </Typography>
+        {!collabsListed && (
+          <Alert severity="info" sx={{ mb: 2 }} action={<Button size="small" onClick={() => setAdding(true)} sx={{ whiteSpace: 'nowrap' }}>{t('Add a post')}</Button>}>
+            {t('Instagram doesn’t share collab reels with the app. Add each one by its link: whoever posted it goes on Sales reps & rewards too.')}
+          </Alert>
+        )}
         <FollowersChart days={followerDays ?? []} posts={impact} from={from} to={to} periodName={periodName} />
         {about.length > 0 && fromAbout > 0 && (
           <Typography variant="body2" sx={{ mb: 1.5 }}>

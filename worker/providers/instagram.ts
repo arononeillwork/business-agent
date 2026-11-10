@@ -333,8 +333,10 @@ const COLLAB_PLAIN = 'id,username,caption,media_type,permalink,timestamp,thumbna
 /** The latest posts and reels the café is an accepted collaborator on (up to 50), newest first. */
 export async function collabs(cfg: InstagramConfig): Promise<CollabMedia[]> {
   const path = (fields: string) => `me/collaborative_media?fields=${fields}&limit=50`
+  // A field it won't give: ask again for the plain ones. The list itself not there (Instagram Login has
+  // none, "nonexisting field (collaborative_media)"): no use asking again.
   const res = await graph<{ data: CollabMedia[] }>(cfg, path(COLLAB_FIELDS))
-    .catch(e => (/field|param/i.test(String(e)) ? graph<{ data: CollabMedia[] }>(cfg, path(COLLAB_PLAIN)) : Promise.reject(e)))
+    .catch(e => (/field|param/i.test(String(e)) && !/collaborative_media/i.test(String(e)) ? graph<{ data: CollabMedia[] }>(cfg, path(COLLAB_PLAIN)) : Promise.reject(e)))
   return res.data ?? []
 }
 

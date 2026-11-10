@@ -34,12 +34,15 @@ export async function checkMentions(env: Env, db: SupabaseClient): Promise<numbe
   const ext = (row.external ?? {}) as { user_id?: string; username?: string; can_see_insights?: boolean; can_list_collabs?: boolean }
   const cfg = await instagramSession(env, db)
   const business = businessIdOf(db)
-  // Tagged posts need "Manage comments"; collabs are asked for on their own. An account Instagram won't
-  // list them for still has the rest; whether it does is kept on the connection (and HQ hears why not).
-  let listed = true
+  // Tagged posts need "Manage comments"; collabs are asked for on their own. Instagram Login doesn't list
+  // them (collaborative_media is Facebook Login's): once Instagram has said so, it isn't asked again
+  // until Instagram is connected again (which starts the connection's notes afresh), and Analytics says
+  // to add collabs by their link. HQ hears why, once.
+  let listed = ext.can_list_collabs !== false
   const [tagged, collabs] = await Promise.all([
     instagram.tagged(cfg).catch(() => [] as TaggedPost[]),
-    instagram.collabs(cfg).catch(async e => { listed = false; await reportError(env, 'instagram collabs', e, { business }); return [] as CollabMedia[] }),
+    listed ? instagram.collabs(cfg).catch(async e => { listed = false; await reportError(env, 'instagram collabs', e, { business }); return [] as CollabMedia[] })
+      : Promise.resolve([] as CollabMedia[]),
   ])
   if (ext.can_list_collabs !== listed) await db.from('integrations').update({ external: { ...ext, can_list_collabs: listed } }).eq('provider', 'instagram')
   // Story mentions arrive as messages. Without the chats, the tags and collabs are still kept.

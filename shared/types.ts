@@ -428,6 +428,8 @@ export interface Integration {
     can_message?: boolean; can_see_tags?: boolean
     /** Instagram: the connected account's username (without the @). */
     username?: string
+    /** Instagram: false once Instagram has said it doesn't list the posts the café is a collaborator on (Instagram Login doesn't). */
+    can_list_collabs?: boolean
     /** Meta Ads and Google Ads: the ad accounts the person can use, and the chosen one. */
     accounts?: { id: string; name: string; currency: string }[]; account_id?: string; account_name?: string
     /** Meta Ads: allowed to pause, resume and change budgets (not only read). */

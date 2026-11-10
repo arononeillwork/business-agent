@@ -112,8 +112,16 @@ describe('Posts about the café', () => {
     expect(await check()).toBe(2) // the tag and the story
     expect(mentions().some(m => m.kind === 'collab')).toBe(false)
     expect(db.integration('instagram').external).toMatchObject({ can_list_collabs: false })
+    // Once it has said no, it isn't asked again (each look has 50 requests)…
     apis.instagram.noCollabs = false
+    apis.instagram.collabs = [reel('c1', 'nora.eats.mbl', 'DfNora0001', '2026-10-17T18:30:00+0000')]
     await check()
+    expect(mentions().some(m => m.kind === 'collab')).toBe(false)
+    expect(db.integration('instagram').external).toMatchObject({ can_list_collabs: false })
+    // …until Instagram is connected again.
+    await connectInstagram()
+    await check()
+    expect(mentions().some(m => m.id === 'collab:DfNora0001')).toBe(true)
     expect(db.integration('instagram').external).toMatchObject({ can_list_collabs: true })
   })
 
