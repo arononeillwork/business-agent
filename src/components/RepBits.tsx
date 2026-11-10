@@ -24,7 +24,7 @@ const tierIndex = (reach: number | null | undefined) => REACH_TIERS.indexOf(reac
 /** Their profile photo (from Instagram), or their initials when there's none or its link has run out. */
 export function RepAvatar({ rep, size = 40 }: { rep: Pick<SalesRep, 'name' | 'kind' | 'picture_url'>; size?: number }) {
   const [broken, setBroken] = useState(false)
-  const initials = rep.name.replace(/[“”"«»]/g, '').split(/\s+/).filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase()
+  const initials = rep.name.replace(/[“”"«»@]/g, '').split(/\s+/).filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase()
   const tone = KIND_TONE[rep.kind]
   return (
     <Avatar src={rep.picture_url && !broken ? rep.picture_url : undefined} alt="" slotProps={{ img: { onError: () => setBroken(true), referrerPolicy: 'no-referrer' } }}

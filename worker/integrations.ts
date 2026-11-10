@@ -31,7 +31,9 @@ import { takingsMinutes } from '../shared/refresh'
 import { minutesFor } from './refresh'
 import { finishMusicConnect, type MusicState } from './music'
 import { ensureFeed } from './calendarFeed'
-import { checkMentions, decide, repostMention } from './mentions'
+import { checkMentions, decide, putForward, repostMention } from './mentions'
+import { collabId, shortcodeOf } from '../shared/mentions'
+import { cleanInstagram } from '../shared/reps'
 import { keepPostPhoto, latestPosts } from './offerPosts'
 import * as waInbox from './whatsappInbox'
 import { MediaError, checkFile, mediaBytes, mediaStorage, serveMedia, storeMedia } from './media'
@@ -1301,6 +1303,42 @@ integrations.post('/api/integrations/instagram/mentions/check', async c => {
   } catch (e) {
     return c.json({ error: inboxError(e) }, 400)
   }
+})
+
+// A post about the café that Instagram doesn't list (a collab it won't share, a post that names the
+// café without tagging it): added by its link, with who posted it and when. Its poster is put forward
+// as a rep like the others, and Analytics shows what it did.
+integrations.post('/api/integrations/instagram/mentions', async c => {
+  const body = await c.req.json().catch(() => ({})) as { link?: unknown; username?: unknown; on?: unknown }
+  const link = typeof body.link === 'string' ? body.link : ''
+  const code = shortcodeOf(link)
+  if (!code) return c.json({ error: 'Paste the link to the post or reel on Instagram (it has /p/ or /reel/ in it)' }, 400)
+  const username = cleanInstagram(typeof body.username === 'string' ? body.username : '')
+  if (!username) return c.json({ error: 'Add the @ of whoever posted it' }, 400)
+  const on = typeof body.on === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.on) && body.on <= today() ? body.on : today()
+  const video = /\/(reels?|tv)\//i.test(link)
+  const db = businessDb(c.env, c.get('businessId'))
+  const id = collabId(code)
+  const { data: had } = await db.from('instagram_mentions').select('id').eq('id', id).maybeSingle()
+  if (had) return c.json({ error: 'That post is in already' }, 400)
+  const { error } = await db.from('instagram_mentions').insert({
+    id, kind: 'collab', username, permalink: `https://www.instagram.com/${video ? 'reel' : 'p'}/${code}/`, mentioned_at: zonedIso(on, '12:00'),
+    video, added_by: c.get('userId'),
+  })
+  if (error) return c.json({ error: error.message }, 400)
+  const { data: ig } = await db.from('integrations').select('external').eq('provider', 'instagram').maybeSingle()
+  const self = (ig?.external as { username?: string } | null)?.username ?? null
+  const added = await putForward(db, self).catch(() => 0)
+  return c.json({ id, put_forward: added > 0 })
+})
+
+// One added by its link, taken off again (a wrong link). Ones Instagram listed stay.
+integrations.delete('/api/integrations/instagram/mentions/:id', async c => {
+  const db = businessDb(c.env, c.get('businessId'))
+  const { data, error } = await db.from('instagram_mentions').delete().eq('id', c.req.param('id')).not('added_by', 'is', null).select('id')
+  if (error) return c.json({ error: error.message }, 400)
+  if (!data?.length) return c.json({ error: 'Only a post added by its link can be taken off' }, 400)
+  return c.json({ ok: true })
 })
 
 integrations.post('/api/integrations/instagram/mentions/:id/repost', async c => {

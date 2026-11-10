@@ -529,6 +529,12 @@ LinkedIn review these like the posting permissions. A connection made before, or
 unticked, keeps posting; Analytics says to connect again to allow statistics (or, while `STATS_SCOPES`
 leaves the platform out, that its statistics aren't switched on yet).
 
+Instagram's **What each post did** needs nothing more: posts and reels the café is a collaborator on come
+from `me/collaborative_media` with `instagram_business_basic` (Meta documents the list for Facebook Login;
+if Instagram Login doesn't serve it, the rest of the check goes on and admins add a collab by its link),
+new followers per day from `follower_count` with the statistics permission (only for an account with 100
+followers or more, and only the last 30 days: the Worker keeps them in `social_follower_days` once a day).
+
 ## 14. Meta Ads and Google Ads (the Ads page)
 
 The **Ads** page (Marketing section) shows Facebook/Instagram ads and Google ads side by side:

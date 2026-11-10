@@ -58,8 +58,10 @@ export interface SalesRep {
   notes: string | null
   active: boolean
   created_at: string
-  /** Who added them (null: a rep, from their own page). */
+  /** Who added them (null: a rep, from their own page, or found on Instagram). */
   created_by?: string | null
+  /** The post about the café on Instagram that brought them (instagram_mentions): put forward by themselves. */
+  found_mention_id?: string | null
 }
 export type SalesRepInput = Partial<Omit<SalesRep, 'created_at' | 'created_by' | 'reach' | 'followers_checked_at'>> & { name: string }
 
