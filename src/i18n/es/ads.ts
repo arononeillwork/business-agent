@@ -8,7 +8,6 @@ export default {
   'Your Google search and Maps ads on the Ads page: what they cost and brought in, with pause and budgets.': 'Tus anuncios de la búsqueda y Maps de Google en la página Anuncios: lo que cuestan y lo que traen, con pausa y presupuestos.',
   'See your ad accounts, campaigns and what they spent and brought in': 'Ver tus cuentas publicitarias, campañas y lo que han gastado y traído',
   'Pause or resume a campaign, or change its daily budget, when you ask it to here': 'Pausar o reanudar una campaña, o cambiar su presupuesto diario, cuando se lo pidas aquí',
-  'the Google keys and a Google Ads developer token': 'las claves de Google y un token de desarrollador de Google Ads',
   'Pick the ad account first.': 'Elige primero la cuenta publicitaria.',
   'This sign-in can use more than one ad account. Pick the business’s account below.': 'Con este acceso se puede usar más de una cuenta publicitaria. Elige abajo la del negocio.',
   'Ad account': 'Cuenta publicitaria',

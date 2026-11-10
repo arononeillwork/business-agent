@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { integrations } from './integrations'
 import { ads } from './ads'
 import { checkAll, explain, lasting } from './connections'
-import { fromMicros, toMicros } from './providers/googleAds'
+import { fromMicros, GOOGLE_ADS_VERSION, toMicros } from './providers/googleAds'
 import { fromMinor, resultsOf } from './providers/metaAds'
 import { businessDb, type Env } from './supabase'
 import { FakeSupabase } from './test/fakeSupabase'
@@ -17,7 +17,7 @@ import type { AdsReport } from '../shared/ads'
 const APP = 'https://app.test'
 const env = {
   SUPABASE_URL: 'https://db.test', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test', SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_test', BUSINESS_ID: 'easy-beans',
-  INTEGRATION_KEY: 'test-integration-key', GOOGLE_CLIENT_ID: 'google-id', GOOGLE_CLIENT_SECRET: 'google-secret', GOOGLE_ADS_DEVELOPER_TOKEN: 'dev-token',
+  INTEGRATION_KEY: 'test-integration-key', GOOGLE_CLIENT_ID: 'google-id', GOOGLE_CLIENT_SECRET: 'google-secret',
   META_APP_ID: 'meta-app', META_APP_SECRET: 'meta-secret',
 } as unknown as Env
 
@@ -82,13 +82,31 @@ describe('Connecting ad platforms: "Connected" once the ad accounts were read', 
     expect(apis.googleAds.logins.every(l => l === '9990001111')).toBe(true)
   })
 
-  it('Google Ads: without the developer token it needs setup, and says what is missing', async () => {
-    const { start } = await connectGoogleAds({ ...env, GOOGLE_ADS_DEVELOPER_TOKEN: undefined } as Env)
+  it('Google Ads: needs only the Google keys, and sends no developer token (Google retired them)', async () => {
+    const { back } = await connectGoogleAds()
+    expect(back!.searchParams.get('connected')).toBe('google_ads')
+    expect(apis.googleAds.developerTokens.length).toBeGreaterThan(0)
+    expect(apis.googleAds.developerTokens.every(t => t === null)).toBe(true)
+    const { start } = await connectGoogleAds({ ...env, GOOGLE_CLIENT_ID: undefined } as Env)
     expect(start.status).toBe(400)
-    expect((await start.json() as { error: string }).error).toMatch(/developer token/)
+    expect((await start.json() as { error: string }).error).toMatch(/Google keys/)
   })
 
-  it('Google Ads: a token Google hasn’t approved yet is not connected, in plain words', async () => {
+  it('Google Ads: calls a version of the API Google still answers (v21 was switched off on 5 August 2026)', async () => {
+    const calls: string[] = []
+    const real = globalThis.fetch
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (url.startsWith('https://googleads.googleapis.com/')) calls.push(new URL(url).pathname.split('/')[1])
+      return real(input, init)
+    }))
+    await connectGoogleAds()
+    expect(calls.length).toBeGreaterThan(0)
+    expect(calls.every(v => v === GOOGLE_ADS_VERSION)).toBe(true)
+    expect(Number(GOOGLE_ADS_VERSION.slice(1))).toBeGreaterThanOrEqual(26)
+  })
+
+  it('Google Ads: a Google Cloud project Google hasn’t approved for real accounts yet is not connected, in plain words', async () => {
     apis.googleAds.unapproved = true
     const { back } = await connectGoogleAds()
     expect(back!.searchParams.get('connect_error')).toMatch(/Google hasn’t approved The Business Agent’s Google Ads access/)

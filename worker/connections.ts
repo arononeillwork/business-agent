@@ -82,9 +82,12 @@ export const metaAdsOAuth = (env: Env, origin: string): metaAds.MetaAdsOAuthConf
     ? { appId: env.META_APP_ID, appSecret: env.META_APP_SECRET, redirectUri: `${origin}/api/integrations/meta_ads/callback`, graphVersion: graphVersion(env) }
     : null
 
-/** Google Ads: the developer token from Business Agent's Google Ads manager account (API Center). */
-export const googleAdsConfig = (env: Env): googleAds.GoogleAdsConfig | null =>
-  env.GOOGLE_ADS_DEVELOPER_TOKEN ? { developerToken: env.GOOGLE_ADS_DEVELOPER_TOKEN, version: env.GOOGLE_ADS_API_VERSION ?? googleAds.GOOGLE_ADS_VERSION } : null
+/**
+ * Google Ads: which API version to call. Nothing else: since Google retired developer tokens
+ * (9 September 2026), what the app may do with real ad accounts is the access level of the Google
+ * Cloud project behind GOOGLE_CLIENT_ID (Google Ads API → Overview in Google Cloud).
+ */
+export const googleAdsConfig = (env: Env): googleAds.GoogleAdsConfig => ({ version: env.GOOGLE_ADS_API_VERSION || googleAds.GOOGLE_ADS_VERSION })
 
 export const tiktokOAuth = (env: Env, origin: string): tiktok.TikTokOAuthConfig | null =>
   env.TIKTOK_CLIENT_KEY && env.TIKTOK_CLIENT_SECRET && env.INTEGRATION_KEY
@@ -142,7 +145,7 @@ export const spotifyConfig = (env: Env, origin: string): spotify.SpotifyOAuthCon
     : null
 
 export const connectorConfigured = (env: Env, p: Connector) =>
-  isGoogle(p) ? !!googleConfig(env, '') && (p !== 'google_ads' || !!googleAdsConfig(env)) : !!msConfig(env, '')
+  isGoogle(p) ? !!googleConfig(env, '') : !!msConfig(env, '')
 
 /** What each connection asks for on the Google / Microsoft consent screen. */
 export const SCOPES: Record<Connector, readonly string[]> = {
@@ -214,8 +217,10 @@ export function explain(p: Provider, e: unknown): string {
   if (p === 'linkedin' && /Not enough permissions|ACCESS_DENIED/i.test(raw)) {
     return 'LinkedIn didn’t allow posting there. Check you’re still an admin of the Page (or choose your own profile), then connect again.'
   }
-  if (p === 'google_ads' && /DEVELOPER_TOKEN_NOT_APPROVED|DEVELOPER_TOKEN_PROHIBITED|only approved for use with test accounts/i.test(raw)) {
-    return 'Google hasn’t approved The Business Agent’s Google Ads access for real ad accounts yet (the developer token is for test accounts only). Once Google approves it, connect again.'
+  // CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION: the Google Cloud project only has Test access; the
+  // DEVELOPER_TOKEN_ ones are what Google said before it retired developer tokens.
+  if (p === 'google_ads' && /CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION|DEVELOPER_TOKEN_NOT_APPROVED|DEVELOPER_TOKEN_PROHIBITED|only approved for use with test accounts/i.test(raw)) {
+    return 'Google hasn’t approved The Business Agent’s Google Ads access for real ad accounts yet (it’s for test accounts only). Once Google approves it, connect again.'
   }
   // Starting a pick: FAILED_PRECONDITION is an account without Google Photos; RESOURCE_EXHAUSTED, too many picks at once.
   const photosStatus = e instanceof googlePhotos.PhotosError ? e.status : undefined
@@ -509,10 +514,9 @@ export async function metaAdsSession(env: Env, db: SupabaseClient) {
   return { token: s.access_token, expiresAt: s.expires_at, graphVersion: graphVersion(env), external: ext, account: ext.accounts?.find(a => a.id === ext.account_id) ?? null }
 }
 
-/** The chosen Google Ads account, a fresh access token and the developer token. */
+/** The chosen Google Ads account, a fresh access token and the API version. */
 export async function googleAdsSession(env: Env, db: SupabaseClient, origin = '') {
   const cfg = googleAdsConfig(env)
-  if (!cfg) throw new Error('Google Ads is not set up')
   const [{ token }, { data: row }] = await Promise.all([connectorGrant(env, db, 'google_ads', origin), db.from('integrations').select('external').eq('provider', 'google_ads').single()])
   const ext = (row?.external ?? {}) as AdsExternal
   return { cfg, token, external: ext, account: ext.accounts?.find(a => a.id === ext.account_id) ?? null }
@@ -629,7 +633,7 @@ const confirmation = (p: 'gmail' | 'outlook', email: string, business: string) =
  * `website`: the business's own, so Search Console can pick it.
  */
 export async function proveNew(p: Connector, t: { access_token: string; scope?: string }, business: string, website?: string | null,
-  ads?: googleAds.GoogleAdsConfig | null): Promise<Proven> {
+  ads?: googleAds.GoogleAdsConfig): Promise<Proven> {
   if (!hasScope(p, t.scope)) throw new Error(missingPermission(p))
   const token = t.access_token
   switch (p) {
@@ -729,9 +733,7 @@ async function stillWorks(env: Env, db: SupabaseClient, row: Row): Promise<Parti
       return { external: { ...row.external, sites } }
     }
     if (p === 'google_ads') {
-      const cfg = googleAdsConfig(env)
-      if (!cfg) throw new Error('Google Ads is not set up')
-      return { external: { ...row.external, accounts: stillThere(await googleAds.accounts(cfg, token), row.external as AdsExternal) } }
+      return { external: { ...row.external, accounts: stillThere(await googleAds.accounts(googleAdsConfig(env), token), row.external as AdsExternal) } }
     }
     if (p === 'google_photos') {
       const session = await googlePhotos.createSession(token, 1)

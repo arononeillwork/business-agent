@@ -338,7 +338,6 @@ const CHECKS = [
   notYet('LinkedIn app: LinkedIn posting', ['LINKEDIN_CLIENT_ID', 'LINKEDIN_CLIENT_SECRET']),
   notYet('SumUp app: SumUp takings', ['SUMUP_CLIENT_ID', 'SUMUP_CLIENT_SECRET']),
   notYet('Apple: Sign in with Apple', ['APPLE_CLIENT_ID', 'APPLE_TEAM_ID', 'APPLE_KEY_ID', 'APPLE_PRIVATE_KEY']),
-  notYet('Google Ads developer token', ['GOOGLE_ADS_DEVELOPER_TOKEN']),
   notYet('ElevenLabs: AI music', ['ELEVENLABS_API_KEY'], 'infra'),
   notYet('Fly.io: camera uploads', ['FLY_API_TOKEN'], 'infra'),
   whatsapp, placeId,

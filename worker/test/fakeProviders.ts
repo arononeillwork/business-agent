@@ -107,7 +107,7 @@ export class FakeProviders {
   }
   /** Google Ads: the accounts the Google sign-in reaches (one under a manager), campaigns, daily figures and the changes made. */
   googleAds = {
-    /** Google hasn't approved the developer token for real accounts yet. */
+    /** Google hasn't approved the Google Cloud project for real ad accounts yet (Test access only). */
     unapproved: false,
     accessible: ['1112223333'],
     customers: { '1112223333': { name: 'Easy Beans Coffee', currency: 'EUR', manager: false } } as Record<string, { name: string; currency: string; manager: boolean; clients?: string[] }>,
@@ -121,6 +121,8 @@ export class FakeProviders {
     ],
     /** login-customer-id headers seen, and the changes made. */
     logins: [] as (string | null)[],
+    /** The developer-token header of every call (Google retired them: none should be sent). */
+    developerTokens: [] as (string | null)[],
     mutations: [] as Json[],
   }
   /** Meta Ads: the person's ad accounts, campaigns and daily insights, and the changes made. */
@@ -559,11 +561,11 @@ export class FakeProviders {
     if (url.host === 'googleads.googleapis.com') {
       const g = this.googleAds
       const headers = new Headers(init.headers)
-      if (!headers.get('developer-token')) return googleError(401, 'The developer token is missing.')
+      g.developerTokens.push(headers.get('developer-token'))
       if (this.google.revoked) return googleError(401, 'Request had invalid authentication credentials.')
       if (g.unapproved) {
         return json({ error: { code: 403, status: 'PERMISSION_DENIED', message: 'The caller does not have permission',
-          details: [{ errors: [{ errorCode: { authorizationError: 'DEVELOPER_TOKEN_NOT_APPROVED' }, message: 'The developer token is only approved for use with test accounts.' }] }] } }, 403)
+          details: [{ errors: [{ errorCode: { authorizationError: 'CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION' }, message: 'The Google Cloud project is not approved for use with production accounts.' }] }] } }, 403)
       }
       if (url.pathname.endsWith('/customers:listAccessibleCustomers')) return json({ resourceNames: g.accessible.map(id => `customers/${id}`) })
       const call = url.pathname.match(/\/customers\/(\d+)\/(googleAds:search|campaigns:mutate|campaignBudgets:mutate)$/)

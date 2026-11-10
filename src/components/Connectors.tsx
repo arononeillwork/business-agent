@@ -174,7 +174,7 @@ export const KEYS_NEEDED: Partial<Record<OptionId, string>> = {
   outlook: msg('the Microsoft app'), onedrive: msg('the Microsoft app'), spotify: msg('the Spotify keys'), instagram: msg('the Instagram app keys'),
   facebook: msg('the Meta app keys'), tiktok: msg('the TikTok app keys'), square: msg('the Square app keys'), stripe: msg('the Stripe platform keys'),
   sumup: msg('the SumUp app keys'), linkedin: msg('the LinkedIn app keys'), search_console: msg('the Google keys'),
-  meta_ads: msg('the Meta app keys'), google_ads: msg('the Google keys and a Google Ads developer token'),
+  meta_ads: msg('the Meta app keys'), google_ads: msg('the Google keys'),
   whatsapp: msg('the WhatsApp Business number'), google_calendar: msg('the calendar link key'), outlook_calendar: msg('the calendar link key'),
 }
 

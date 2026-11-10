@@ -591,19 +591,30 @@ the card says to connect again to change campaigns.
 
 ### Google Ads
 
-Same Google app as sections 1-2, plus a **developer token**:
+Same Google app (the Google Cloud project behind `GOOGLE_CLIENT_ID`) as sections 1-2, and no key of
+its own. Google retired developer tokens on 9 September 2026: what the app may do with real ad
+accounts is now the **access level of that Google Cloud project**.
 
-1. Sign in to Google Ads with a **manager account** (create one at <https://ads.google.com/home/tools/manager-accounts/>
-   if there's none) → *Tools → API Center* → apply for API access. You get a developer token with
-   *Test account* access straight away; apply for **Basic access** (a short form; Google answers
-   in a few working days). Until then only Google Ads test accounts work, and connecting says
-   "Google hasn't approved Business Agent's Google Ads access for real ad accounts yet".
-2. Add the repo secret `GOOGLE_ADS_DEVELOPER_TOKEN` (the deploy passes it to the Worker).
-   `GOOGLE_ADS_API_VERSION` (a Worker var, default in `worker/providers/googleAds.ts`) moves the API
-   version on; Google retires each one after about a year.
-3. Google Cloud: *APIs & Services → Library* → **Google Ads API** → Enable; *OAuth consent screen →
-   Data access* → add `https://www.googleapis.com/auth/adwords` (a sensitive scope: Google verifies
-   the app before people outside the test users can use it).
+1. Google Cloud: *APIs & Services → Library* → **Google Ads API** → Enable. That alone gives
+   *Test* access: Google Ads test accounts only.
+2. *Google Auth Platform → Data access* → add `https://www.googleapis.com/auth/adwords` (a sensitive
+   scope: Google verifies the app before people outside the test users can use it without a warning).
+3. <https://console.cloud.google.com/google/ads-apis/overview> → *Upgrade access level* → **Apply for
+   access**:
+   - **Explorer**: real ad accounts, up to 2,880 operations a day on them; usually approved
+     automatically. Enough for the Ads page: what it can't do (create accounts, manage users,
+     planning, billing) the app doesn't use.
+   - **Basic**: 15,000 operations a day. The project's brand has to be verified first (*Google Auth
+     Platform → Branding*); Google then reviews it within minutes.
+
+   Until one is approved, connecting a real ad account says "Google hasn't approved The Business
+   Agent's Google Ads access for real ad accounts yet"; connect again once it is.
+4. `GOOGLE_ADS_API_VERSION` (a Worker var, default in `worker/providers/googleAds.ts`) is the API
+   version called. Google switches each version off about a year after it comes out, and from then
+   every call fails (v21 went on 5 August 2026), so move it on before that:
+   <https://developers.google.com/google-ads/api/docs/sunset-dates>.
+
+The old `GOOGLE_ADS_DEVELOPER_TOKEN` secret isn't used any more and can be deleted.
 
 Each business: **Connections → Advertising → Connect Google Ads** with the Google account that runs
 the ads. Accounts run through an agency's manager account are found under it. With more than one
