@@ -8,6 +8,7 @@
 // earns. Someone an employee adds waits for an admin's OK (the rep_reach_and_crews migration).
 import { msg } from './i18n'
 import type { Mention } from './mentions'
+import type { CashbackRates } from './cashback'
 import type { BusinessKind, RepPageHq } from './hqReps'
 
 export type RepKind = 'team' | 'ambassador' | 'customer'
@@ -136,7 +137,7 @@ export interface RewardLog {
 }
 export interface LoggedReward { id: string; status: RewardStatus; amount: number }
 
-export interface RepSettings {
+export interface RepSettings extends Partial<CashbackRates> {
   /** On the business cards, for the new customer ("10% off your first drink"). */
   welcome_offer: string | null
   /** What a crew's leader earns of what their crew earns, in %. */

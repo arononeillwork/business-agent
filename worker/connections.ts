@@ -122,6 +122,13 @@ export const asksForStats = (env: Pick<Env, 'STATS_SCOPES'>, platform: 'instagra
   return on.includes('all') || on.includes(platform)
 }
 
+/**
+ * Whether connecting Facebook asks for instagram_basic, for the collab reels Instagram Login doesn't list.
+ * On unless FACEBOOK_COLLABS is off: Facebook refuses a developer's sign-in asking for a permission the
+ * Meta app's Facebook Login doesn't have, so it's switched off until the app has it (docs/INTEGRATIONS.md).
+ */
+export const asksForCollabs = (env: Pick<Env, 'FACEBOOK_COLLABS'>) => !/^(off|false|0|no)$/i.test(env.FACEBOOK_COLLABS ?? '')
+
 /** LinkedIn. LINKEDIN_PAGES=off: people only, until LinkedIn approves the app for company Pages. */
 export const linkedinOAuth = (env: Env, origin: string): linkedin.LinkedInOAuthConfig | null =>
   env.LINKEDIN_CLIENT_ID && env.LINKEDIN_CLIENT_SECRET && env.INTEGRATION_KEY

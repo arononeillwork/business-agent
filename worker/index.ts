@@ -474,6 +474,8 @@ export default {
         await each('campaign_reminders')
         // Business Agent's reps: commission held 30 days counts now (the hq_reps migration).
         await each('release_rep_commission')
+        // Posts about the café whose three days are in: their reps' cashback (the post_cashback migration).
+        await each('pay_post_cashback')
         // Errors nobody has seen for 90 days go (HQ's Errors, the app_errors migration).
         await Promise.resolve(db.rpc('clear_old_app_errors')).then(({ error }) => (error ? failed('clear old errors')(error.message) : undefined))
         // AI music tracks made while Stripe didn't answer go on the bill now.

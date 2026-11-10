@@ -18,6 +18,7 @@ import type { LegalDocument, LegalSource, StorageListing } from '../../shared/le
 import { BRAND_COLUMNS, brandTitleOf, uploadProblem, type BrandDocument } from '../../shared/brandDocs'
 import type { Benefit, LeaveAllowance } from '../../shared/benefits'
 import type { LoggedReward, RepPageData, RepReward, RepSettings, RewardRule, SalesRep } from '../../shared/reps'
+import { CASHBACK_KEYS, cashbackRates } from '../../shared/cashback'
 import type { KittyEntry, KittyGoal } from '../../shared/kitty'
 import type { JobRole } from '../../shared/roles'
 import type { RoleOwner } from '../../shared/roleOwners'
@@ -1401,8 +1402,8 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
     },
     async deleteReward(id) { check(await sb.from('rep_rewards').delete().eq('id', id)) },
     async repSettings() {
-      const row = check(await sb.from('rep_settings').select('welcome_offer, crew_share, boost_by_reach, pitch').eq('id', 1).single()) as RepSettings
-      return { ...row, crew_share: Number(row.crew_share) }
+      const row = check(await sb.from('rep_settings').select(`welcome_offer, crew_share, boost_by_reach, pitch, ${CASHBACK_KEYS.join(', ')}`).eq('id', 1).single()) as RepSettings
+      return { ...row, crew_share: Number(row.crew_share), ...cashbackRates(row) }
     },
     async updateRepSettings(patch) { check(await sb.from('rep_settings').update(patch).eq('id', 1)) },
     async decideRep(id, approve) { check(await sb.rpc('decide_rep', { p_id: id, p_approve: approve })) },

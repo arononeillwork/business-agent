@@ -15,7 +15,7 @@ import { FakeProviders } from './test/fakeProviders'
 const APP = 'https://app.test'
 const env = {
   SUPABASE_URL: 'https://db.test', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test', SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_test', BUSINESS_ID: 'easy-beans',
-  INTEGRATION_KEY: 'test-integration-key', INSTAGRAM_APP_ID: 'ig-app', INSTAGRAM_APP_SECRET: 'ig-secret',
+  INTEGRATION_KEY: 'test-integration-key', INSTAGRAM_APP_ID: 'ig-app', INSTAGRAM_APP_SECRET: 'ig-secret', META_APP_ID: 'meta-app', META_APP_SECRET: 'meta-secret',
 } as unknown as Env
 
 let db: FakeSupabase
@@ -36,6 +36,14 @@ beforeEach(() => {
   }))
 })
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
+
+async function connectFacebook() {
+  const start = await integrations.request(`${APP}/api/integrations/facebook/start`, { method: 'POST', headers: as('admin'), body: '{}' }, env, ctx())
+  const url = new URL((await start.json() as { url: string }).url)
+  const res = await integrations.request(`${APP}/api/integrations/facebook/callback?code=c&state=${encodeURIComponent(url.searchParams.get('state')!)}`, {}, env, ctx())
+  expect(new URL(res.headers.get('location')!).searchParams.get('connected')).toBe('facebook')
+  return url
+}
 
 async function connectInstagram() {
   const start = await integrations.request(`${APP}/api/integrations/instagram/start`, { method: 'POST', headers: as('admin'), body: '{}' }, env, ctx())
@@ -68,6 +76,8 @@ describe('Posts about the café', () => {
     expect(told).toContain('@nora.eats.mbl posted a reel with you')
     expect(told.some(t => String(t).startsWith('@tomas.runs'))).toBe(false)
     expect(added).toBe(3)
+    // What the look found is noted at its end, so a look that didn't finish shows.
+    expect(db.tables.provider_cache.find(c => c.key === 'instagram:mentions-check')!.data).toEqual({ tagged: 1, collabs: 2, via: 'instagram', chats: 1, new: 3 })
 
     // Everyone who posted a post or reel is waiting for an owner's OK; Lucía's story (followers unknown) isn't put forward.
     expect(reps().map(r => r.instagram).sort()).toEqual(['nora.eats.mbl', 'sanpedro.eats', 'tomas.runs'])
@@ -112,9 +122,62 @@ describe('Posts about the café', () => {
     expect(await check()).toBe(2) // the tag and the story
     expect(mentions().some(m => m.kind === 'collab')).toBe(false)
     expect(db.integration('instagram').external).toMatchObject({ can_list_collabs: false })
+    // Once it has said no, it isn't asked again (each look has 50 requests)…
     apis.instagram.noCollabs = false
+    apis.instagram.collabs = [reel('c1', 'nora.eats.mbl', 'DfNora0001', '2026-10-17T18:30:00+0000')]
     await check()
+    expect(mentions().some(m => m.kind === 'collab')).toBe(false)
+    expect(db.integration('instagram').external).toMatchObject({ can_list_collabs: false })
+    // …until Instagram is connected again.
+    await connectInstagram()
+    await check()
+    expect(mentions().some(m => m.id === 'collab:DfNora0001')).toBe(true)
     expect(db.integration('instagram').external).toMatchObject({ can_list_collabs: true })
+  })
+
+  it('collab reels Instagram Login won’t list come through the Facebook Page (instagram_basic), by themselves', async () => {
+    await connectInstagram()
+    apis.instagram.noCollabs = true
+    apis.facebook.granted = [...apis.facebook.granted, 'instagram_basic']
+    apis.facebook.collabs = [reel('c1', 'nora.eats.mbl', 'DfNora0001', '2026-10-17T18:30:00+0000')]
+    // Connecting Facebook asks for instagram_basic, and notes it was allowed.
+    const asked = await connectFacebook()
+    expect(asked.searchParams.get('scope')!.split(',')).toContain('instagram_basic')
+    expect(db.integration('facebook').external).toMatchObject({ instagram: true })
+
+    expect(await check()).toBe(3) // the tag, the story and Nora's reel
+    expect(mentions().find(m => m.id === 'collab:DfNora0001')).toMatchObject({ kind: 'collab', username: 'nora.eats.mbl', likes: 1180 })
+    expect(reps().find(r => r.instagram === 'nora.eats.mbl')).toMatchObject({ approved: false, found_mention_id: 'collab:DfNora0001' })
+    expect(db.integration('instagram').external).toMatchObject({ can_list_collabs: false, collabs_via: 'facebook' })
+    expect(db.integration('facebook').external).toMatchObject({ instagram_id: '17841400000000001' })
+
+    // The next look goes straight to the Page, and asks which Instagram is linked to it only the once.
+    apis.facebook.collabs.push(reel('c2', 'tomas.runs', 'DfTomas001', '2026-10-19T08:00:00+0000'))
+    await check()
+    expect(mentions().some(m => m.id === 'collab:DfTomas001')).toBe(true)
+    expect(apis.facebook.instagramLookups).toBe(1)
+  })
+
+  it('without instagram_basic, or with no Instagram linked to the Page, collabs are noted as not coming in', async () => {
+    await connectInstagram()
+    apis.instagram.noCollabs = true
+    await connectFacebook() // instagram_basic not allowed
+    await check()
+    expect(db.integration('instagram').external).toMatchObject({ can_list_collabs: false, collabs_via: null })
+    apis.facebook.granted = [...apis.facebook.granted, 'instagram_basic']
+    apis.facebook.instagram = null
+    await connectFacebook()
+    await check()
+    await check()
+    expect(db.integration('facebook').external).toMatchObject({ instagram: true, instagram_id: null })
+    expect(apis.facebook.instagramLookups).toBe(1)
+    expect(db.integration('instagram').external).toMatchObject({ collabs_via: null })
+  })
+
+  it('FACEBOOK_COLLABS=off: connecting Facebook doesn’t ask for instagram_basic', async () => {
+    const start = await integrations.request(`${APP}/api/integrations/facebook/start`, { method: 'POST', headers: as('admin'), body: '{}' },
+      { ...env, FACEBOOK_COLLABS: 'off' } as Env, ctx())
+    expect(new URL((await start.json() as { url: string }).url).searchParams.get('scope')).not.toContain('instagram_basic')
   })
 
   it('looks up only the people who matter in the chats (a story mention, a rep): a scheduled run has 50 requests', async () => {

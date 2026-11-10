@@ -107,6 +107,7 @@ const TITLES: Phrase[] = [
   [/^(.+) is closed for now, says Google$/, msg('{name} is closed for now, says Google'), m => ({ name: m[1] })],
   [/^New on Google nearby: (.+)$/, msg('New on Google nearby: {name}'), m => ({ name: m[1] })],
   [/^(\d+) new places on Google nearby$/, msg('{n} new places on Google nearby'), m => ({ n: m[1] })],
+  [/^Post cashback for (.+): €(\d+\.\d\d) to approve$/, msg('Post cashback for {rep}: {amount} to approve'), (m, _l, f) => ({ rep: m[1], amount: euros(f, m[2]) }), 'numbers'],
   [/^(.+) for (.+): €(\d+\.\d\d) to approve$/, msg('{rule} for {rep}: {amount} to approve'), (m, _l, f) => ({ rule: m[1], rep: m[2], amount: euros(f, m[3]) }), 'numbers'],
   [/^(.+) stopped working$/, msg('{name} stopped working'), m => ({ name: m[1] })],
   [/^LinkedIn needs connecting again soon$/, msg('LinkedIn needs connecting again soon'), () => ({})],

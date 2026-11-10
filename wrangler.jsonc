@@ -44,6 +44,9 @@
     "WHATSAPP_TEMPLATE_LANG": "es",
     // The platforms whose statistics permissions sign-in asks for (Analytics; docs/INTEGRATIONS.md). Add one only
     // once its developer app has them: Instagram and TikTok refuse a sign-in asking for a permission the app lacks.
-    "STATS_SCOPES": "instagram,tiktok"
+    "STATS_SCOPES": "instagram,tiktok",
+    // Connecting Facebook also asks for instagram_basic: the collab reels Instagram Login doesn't list. The Meta
+    // app's Facebook Login needs it first (docs/INTEGRATIONS.md); "off" stops asking.
+    "FACEBOOK_COLLABS": "on"
   }
 }

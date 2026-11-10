@@ -6,19 +6,26 @@
 import type { InboxConversation } from '../../shared/messages'
 import { photo, remembered, toInboxMessage, type RawMessage } from './instagram'
 import type { FacebookStats, MetaInsight } from '../../shared/socialAnalytics'
+import type { CollabMedia } from '../../shared/mentions'
+import { COLLAB_FIELDS, COLLAB_PLAIN } from './instagram'
 
 export const FACEBOOK_SCOPES = ['pages_show_list', 'pages_manage_posts', 'pages_read_engagement', 'pages_messaging']
 // read_insights (the Page's statistics, on the Analytics page) came later still, and is optional the same way;
 // asked for only once the Meta app has it (STATS_SCOPES, worker/connections.ts).
 export const FACEBOOK_STATS_SCOPES = ['read_insights']
+// instagram_basic: the posts and reels the café's Instagram is a collaborator on (a customer's collab reel),
+// which Instagram Login doesn't list; Facebook Login does, for the Instagram account linked to the Page.
+// Asked for unless FACEBOOK_COLLABS is off (worker/connections.ts): the Meta app's Facebook Login needs it.
+export const FACEBOOK_INSTAGRAM_SCOPES = ['instagram_basic']
 
 export interface FacebookOAuthConfig { appId: string; appSecret: string; redirectUri: string; graphVersion: string }
 export interface FacebookPage { id: string; name: string; access_token: string; tasks?: string[] }
 
 const GRAPH = (v: string) => `https://graph.facebook.com/${v}`
 
-export function authUrl(cfg: FacebookOAuthConfig, state: string, stats = false) {
-  const p = new URLSearchParams({ client_id: cfg.appId, redirect_uri: cfg.redirectUri, state, response_type: 'code', scope: [...FACEBOOK_SCOPES, ...(stats ? FACEBOOK_STATS_SCOPES : [])].join(',') })
+export function authUrl(cfg: FacebookOAuthConfig, state: string, stats = false, instagram = false) {
+  const scope = [...FACEBOOK_SCOPES, ...(stats ? FACEBOOK_STATS_SCOPES : []), ...(instagram ? FACEBOOK_INSTAGRAM_SCOPES : [])]
+  const p = new URLSearchParams({ client_id: cfg.appId, redirect_uri: cfg.redirectUri, state, response_type: 'code', scope: scope.join(',') })
   return `https://www.facebook.com/${cfg.graphVersion}/dialog/oauth?${p}`
 }
 
@@ -159,4 +166,24 @@ export async function pagePosts(s: PageAccess, since: number, until: number) {
     fields: 'id,message,created_time,permalink_url,full_picture,shares,reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0)',
     since: String(since), until: String(until), limit: '50' })}`, asPage(s))
   return r.data ?? []
+}
+
+// ---------------------------------------------------------------------------------------------
+// The Page's Instagram (instagram_basic): the posts and reels it's an accepted collaborator on.
+// ---------------------------------------------------------------------------------------------
+
+/** The Instagram professional account linked to the Page, or null when none is. */
+export async function linkedInstagram(s: PageAccess): Promise<{ id: string; username?: string } | null> {
+  const r = await graph<{ instagram_business_account?: { id: string; username?: string } }>(
+    `${GRAPH(s.graphVersion)}/${s.pageId}?fields=instagram_business_account{id,username}`, asPage(s))
+  return r.instagram_business_account ?? null
+}
+
+/** The latest posts and reels that Instagram account is an accepted collaborator on (up to 50), newest first. */
+export async function collabs(s: PageAccess, instagramId: string): Promise<CollabMedia[]> {
+  const url = (fields: string) => `${GRAPH(s.graphVersion)}/${encodeURIComponent(instagramId)}/collaborative_media?fields=${fields}&limit=50`
+  // A field it won't give: ask again for the plain ones.
+  const res = await graph<{ data?: CollabMedia[] }>(url(COLLAB_FIELDS), asPage(s))
+    .catch(e => (/field|param/i.test(String(e)) && !/collaborative_media/i.test(String(e)) ? graph<{ data?: CollabMedia[] }>(url(COLLAB_PLAIN), asPage(s)) : Promise.reject(e)))
+  return res.data ?? []
 }

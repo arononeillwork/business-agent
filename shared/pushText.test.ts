@@ -31,6 +31,7 @@ describe('push notifications in each person’s language', () => {
   it('translates mentions and tests, and leaves other text as written', () => {
     expect(pushText({ title: '@cafe tagged you in a post', body: 'Hola', kind: 'instagram_mention' }, 'es')).toEqual({ title: '@cafe te ha etiquetado en una publicación', body: 'Hola' })
     expect(pushText({ title: '@nora.eats posted a reel with you', body: null, kind: 'instagram_mention' }, 'es')).toEqual({ title: '@nora.eats ha publicado un reel contigo', body: null })
+    expect(pushText({ title: 'Post cashback for Nora: €14.66 to approve', body: null }, 'es').title).toMatch(/^Cashback por publicación para Nora: 14,66\s?€ por aprobar$/)
     expect(pushText({ title: '@nora.eats posted about the café: waiting for your OK as a rep', body: null }, 'es'))
       .toEqual({ title: '@nora.eats ha publicado sobre la cafetería: espera tu OK como comercial', body: null })
     expect(pushText({ title: 'Test notification', body: 'x', kind: 'test' }, 'es').title).toBe('Notificación de prueba')

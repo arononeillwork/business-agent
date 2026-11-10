@@ -7,14 +7,16 @@ import PersonAddIcon from '@mui/icons-material/PersonAddAlt1Rounded'
 import ExpandIcon from '@mui/icons-material/ExpandMoreRounded'
 import TrophyIcon from '@mui/icons-material/EmojiEventsRounded'
 import PlayIcon from '@mui/icons-material/PlayArrowRounded'
+import ChatIcon from '@mui/icons-material/ChatBubbleOutlineRounded'
 import { useState } from 'react'
 import { Empty, SectionTitle, Tag } from '../components/common'
 import { RepAvatar } from '../components/RepBits'
 import { t, tn } from '../i18n'
-import { formatLocal, formatNumber } from '../../shared/time'
+import { formatLocal, formatMoney, formatNumber, today } from '../../shared/time'
 import type { Creator } from '../../shared/creators'
 import type { PostImpact } from '../../shared/postImpact'
-import type { SalesRep } from '../../shared/reps'
+import type { RepReward, SalesRep } from '../../shared/reps'
+import { CASHBACK_MIN, cashbackDue, cashbackFor, isCashback, type CashbackRates } from '../../shared/cashback'
 import { fonts, tokens } from '../theme'
 
 const SHOWN = 10
@@ -53,7 +55,20 @@ function Followers({ c }: { c: Creator }) {
   return <Typography variant="caption" sx={{ color: 'text.secondary', textAlign: 'right', maxWidth: { xs: 80, sm: 'none' } }}>{t('Followers not known')}</Typography>
 }
 
-function Post({ p }: { p: PostImpact }) {
+/** A post's cashback: logged (waiting or counted), or what it will earn once its days are in. */
+function cashbackText(p: PostImpact, line: RepReward | undefined, rates: CashbackRates, rep: SalesRep | null) {
+  if (line) {
+    return line.status === 'pending' ? t('{amount} cashback, waiting for your OK', { amount: formatMoney(line.amount) })
+      : line.status === 'approved' ? t('{amount} cashback', { amount: formatMoney(line.amount) }) : null
+  }
+  if (!rates.cashback_on || !rep?.active) return null
+  const { amount } = cashbackFor(p, rates)
+  if (amount < CASHBACK_MIN) return null
+  if (!rep.approved) return t('{amount} cashback once they’re a rep', { amount: formatMoney(amount) })
+  return cashbackDue(p, today()) ? t('{amount} cashback tonight', { amount: formatMoney(amount) }) : t('About {amount} cashback once its days are in', { amount: formatMoney(amount) })
+}
+
+function Post({ p, cashback }: { p: PostImpact; cashback: string | null }) {
   const figures = [
     p.views !== null ? t('{n} views', { n: formatNumber(p.views) }) : null,
     p.likes !== null ? t('{n} likes', { n: formatNumber(p.likes) }) : null,
@@ -77,19 +92,25 @@ function Post({ p }: { p: PostImpact }) {
         </Typography>
         {p.caption && <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.caption}</Typography>}
         {figures.length > 0 && <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>{figures.join(' · ')}</Typography>}
+        {cashback && <Typography variant="caption" sx={{ display: 'block', color: tokens.goodFg, fontWeight: 500 }}>{cashback}</Typography>}
       </Box>
     </Stack>
   )
 }
 
-function Row({ c, place, rep, onAdd }: { c: Creator; place: number; rep: SalesRep | null; onAdd: () => void }) {
+function Row({ c, place, rep, ledger, rates, onAdd }: {
+  c: Creator; place: number; rep: SalesRep | null; ledger: RepReward[]; rates: CashbackRates; onAdd: () => void
+}) {
   const [open, setOpen] = useState(false)
   const who = `@${c.username}`
+  const lines = new Map(ledger.filter(r => isCashback(r) && r.mention_id && r.status !== 'rejected').map(r => [r.mention_id!, r]))
+  const earned = c.posts.reduce((n, p) => n + (lines.get(p.id)?.amount ?? 0), 0)
   const summary = [
     c.reels ? tn(c.reels, '{n} reel', '{n} reels') : null,
     c.posts.length - c.reels ? tn(c.posts.length - c.reels, '{n} post or story', '{n} posts and stories') : null,
     c.views ? t('{n} views', { n: formatNumber(c.views) }) : null,
     c.likes ? t('{n} likes', { n: formatNumber(c.likes) }) : null,
+    earned > 0 ? t('{amount} cashback', { amount: formatMoney(earned) }) : null,
   ].filter(Boolean).join(' · ')
   return (
     <Box component="li" aria-label={t('{place}. {name}', { place, name: who })} sx={{ py: 1.25, borderTop: `1px solid ${tokens.line}`, '&:first-of-type': { borderTop: 0 } }}>
@@ -109,25 +130,30 @@ function Row({ c, place, rep, onAdd }: { c: Creator; place: number; rep: SalesRe
             {rep ? (rep.approved ? <Tag fg={tokens.goodFg} bg={tokens.goodBg}>{t('Rep')}</Tag> : <Tag fg={tokens.roseDeep} bg={tokens.roseSoft}>{t('Waiting for your OK')}</Tag>) : null}
           </Stack>
           <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>{summary}</Typography>
-          <Stack direction="row" spacing={0.5} sx={{ ml: -0.75 }}>
+          <Stack direction="row" spacing={0.5} useFlexGap sx={{ ml: -0.75, flexWrap: 'wrap' }}>
             <Button size="small" endIcon={<ExpandIcon sx={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />}
               aria-expanded={open} onClick={() => setOpen(x => !x)} sx={{ whiteSpace: 'nowrap' }}>
               {open ? t('Hide their posts') : t('Their posts')}
             </Button>
             {!rep && <Button size="small" startIcon={<PersonAddIcon />} onClick={onAdd} aria-label={t('Add {name} as a rep', { name: who })} sx={{ whiteSpace: 'nowrap' }}>{t('Add as a rep')}</Button>}
+            {/* Nothing is sent to them by itself: this opens a chat with them on Instagram, for whoever wants to write. */}
+            <Button size="small" startIcon={<ChatIcon />} href={`https://ig.me/m/${encodeURIComponent(c.username)}`} target="_blank" rel="noreferrer"
+              aria-label={t('Message {name} on Instagram', { name: who })} sx={{ whiteSpace: 'nowrap' }}>{t('Message')}</Button>
           </Stack>
         </Box>
         <Followers c={c} />
       </Stack>
       <Collapse in={open} unmountOnExit>
-        <Box sx={{ pl: { xs: 0, sm: 9 }, pt: 0.5 }}>{c.posts.map(p => <Post key={p.id} p={p} />)}</Box>
+        <Box sx={{ pl: { xs: 0, sm: 9 }, pt: 0.5 }}>{c.posts.map(p => <Post key={p.id} p={p} cashback={cashbackText(p, lines.get(p.id), rates, rep)} />)}</Box>
       </Collapse>
     </Box>
   )
 }
 
 /** Everyone who posted about the café, best first. */
-export function PostersBoard({ creators, reps, onAdd }: { creators: Creator[] | null; reps: SalesRep[]; onAdd: (username: string) => void }) {
+export function PostersBoard({ creators, reps, ledger, rates, onAdd }: {
+  creators: Creator[] | null; reps: SalesRep[]; ledger: RepReward[]; rates: CashbackRates; onAdd: (username: string) => void
+}) {
   const [all, setAll] = useState(false)
   const title = t('Posts about us: who brings the most')
   const repOf = (username: string) => reps.find(r => r.instagram === username) ?? null
@@ -152,7 +178,7 @@ export function PostersBoard({ creators, reps, onAdd }: { creators: Creator[] | 
               )}
               <Box component="ol" sx={{ listStyle: 'none', p: 0, m: 0 }}>
                 {(all ? list : list.slice(0, SHOWN)).map((c, i) => (
-                  <Row key={c.username} c={c} place={i + 1} rep={repOf(c.username)} onAdd={() => onAdd(c.username)} />
+                  <Row key={c.username} c={c} place={i + 1} rep={repOf(c.username)} ledger={ledger} rates={rates} onAdd={() => onAdd(c.username)} />
                 ))}
               </Box>
               {list.length > SHOWN && (

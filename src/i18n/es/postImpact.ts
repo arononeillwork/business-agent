@@ -50,6 +50,8 @@ export default {
   // Adding one by its link.
   'Add a post by its link': 'Añadir una publicación por su enlace',
   'Add a post': 'Añadir una publicación',
+  'Collab reels come in through your Facebook Page: connect Facebook again on Connections and allow access to Instagram. From then on they come in by themselves, and whoever posted them goes on Sales reps & rewards.':
+    'Los reels en colaboración llegan a través de tu página de Facebook: vuelve a conectar Facebook en Conexiones y permite el acceso a Instagram. A partir de ahí llegan solos, y quien los publicó pasa a Comerciales y recompensas.',
   'Collab reels and posts that tag you come in by themselves. If one is missing (say it only names you in the caption), add it here. Whoever posted it goes on Sales reps & rewards too, waiting for your OK.':
     'Los reels en colaboración y las publicaciones que te etiquetan llegan solos. Si falta alguna (por ejemplo, si solo te nombra en el texto), añádela aquí. Quien la publicó pasa también a Comerciales y recompensas, esperando tu OK.',
   'Link to the post or reel': 'Enlace a la publicación o al reel',

@@ -325,16 +325,18 @@ export async function tagged(cfg: InstagramConfig): Promise<TaggedPost[]> {
 
 // Collab posts: a reel or post someone made with the café as an accepted collaborator. It's on the
 // café's own grid, but not in me/media; Instagram lists them on their own (collaborative_media).
-const COLLAB_FIELDS = 'id,username,caption,media_type,media_product_type,permalink,timestamp,thumbnail_url,media_url,'
+export const COLLAB_FIELDS = 'id,username,caption,media_type,media_product_type,permalink,timestamp,thumbnail_url,media_url,'
   + 'total_like_count,total_comments_count,total_views_count,shares_count,saved_count'
 // If Instagram refuses one of the figures, ask again for the plain ones.
-const COLLAB_PLAIN = 'id,username,caption,media_type,permalink,timestamp,thumbnail_url,media_url,like_count,comments_count'
+export const COLLAB_PLAIN = 'id,username,caption,media_type,permalink,timestamp,thumbnail_url,media_url,like_count,comments_count'
 
 /** The latest posts and reels the café is an accepted collaborator on (up to 50), newest first. */
 export async function collabs(cfg: InstagramConfig): Promise<CollabMedia[]> {
   const path = (fields: string) => `me/collaborative_media?fields=${fields}&limit=50`
+  // A field it won't give: ask again for the plain ones. The list itself not there (Instagram Login has
+  // none, "nonexisting field (collaborative_media)"): no use asking again.
   const res = await graph<{ data: CollabMedia[] }>(cfg, path(COLLAB_FIELDS))
-    .catch(e => (/field|param/i.test(String(e)) ? graph<{ data: CollabMedia[] }>(cfg, path(COLLAB_PLAIN)) : Promise.reject(e)))
+    .catch(e => (/field|param/i.test(String(e)) && !/collaborative_media/i.test(String(e)) ? graph<{ data: CollabMedia[] }>(cfg, path(COLLAB_PLAIN)) : Promise.reject(e)))
   return res.data ?? []
 }
 

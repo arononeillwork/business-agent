@@ -593,7 +593,7 @@ describe('Statistics permissions (Analytics): asked for at sign-in only once STA
       expect(await scopeOf('/api/integrations/instagram/start')).toMatch(/,instagram_business_manage_insights$/)
       expect(await scopeOf('/api/integrations/facebook/start')).not.toMatch(/read_insights/)
       ;(env as { STATS_SCOPES?: string }).STATS_SCOPES = 'all'
-      expect(await scopeOf('/api/integrations/facebook/start')).toMatch(/,read_insights$/)
+      expect(await scopeOf('/api/integrations/facebook/start')).toMatch(/,read_insights,instagram_basic$/)
       expect(await scopeOf('/api/integrations/linkedin/start')).toMatch(/ rw_organization_admin$/)
     } finally {
       ;(env as { STATS_SCOPES?: string }).STATS_SCOPES = was
@@ -709,7 +709,8 @@ describe('Facebook, TikTok and Square: one click, connected once they really wor
   it('Facebook: signs in, finds the one Page it manages, keeps only Page tokens (encrypted)', async () => {
     const start = await post('/api/integrations/facebook/start')
     const auth = new URL((await start.json() as { url: string }).url)
-    expect(auth.searchParams.get('scope')).toBe('pages_show_list,pages_manage_posts,pages_read_engagement,pages_messaging')
+    // instagram_basic: the collab reels of the Instagram linked to the Page (FACEBOOK_COLLABS, on unless switched off).
+    expect(auth.searchParams.get('scope')).toBe('pages_show_list,pages_manage_posts,pages_read_engagement,pages_messaging,instagram_basic')
     expect((await connectOwn('facebook')).searchParams.get('connected')).toBe('facebook')
     expect(db.integration('facebook')).toMatchObject({ status: 'connected', account_label: 'Easy Beans Coffee', external: { page_id: 'page-1', followers: 812 } })
     expect(await unseal(env.INTEGRATION_KEY!, String(db.secret('facebook')!.ciphertext))).toEqual({ pages: { 'page-1': 'page-token-1' } })
