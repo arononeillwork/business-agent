@@ -7254,6 +7254,8 @@ test.describe('sales reps and rewards', () => {
     const copyAndOpen = write.getByRole('link', { name: 'Copy and open the chat' })
     await expect(copyAndOpen).toHaveAttribute('href', 'https://ig.me/m/nora.eats.mbl')
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+    // Instagram answered here: the browser tests run without the internet.
+    await page.context().route('https://ig.me/**', route => route.fulfill({ contentType: 'text/html', body: '<title>Instagram</title>' }))
     const chat = page.waitForEvent('popup')
     await copyAndOpen.click()
     await (await chat).close()
