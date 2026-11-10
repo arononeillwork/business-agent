@@ -9,6 +9,7 @@ import type { ReferralState } from '../../shared/referrals'
 import type { ReferralOpen, RepIntroduction } from '../../shared/hqReps'
 import type { HqFunnelRow } from '../../shared/hqFunnel'
 import type { ClientErrorReport } from '../../shared/appErrors'
+import type { HqSupportTicket, SupportDraft, SupportStatus, SupportTicket } from '../../shared/supportTickets'
 import type { KindInfo } from '../../shared/social'
 import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, Quarter, TaxDocKind, TaxDocument, TaxSettings } from '../../shared/tax'
@@ -1143,6 +1144,17 @@ export interface Api {
   hqErrors(): Promise<HqError[]>
   /** Tell The Business Agent about an error the app ran into (src/app/errorReports.ts); the demo tells nobody. */
   reportError(report: ClientErrorReport): Promise<void>
+  /**
+   * Help → Report a problem, or the error screen: a support ticket to The Business Agent (the support_tickets
+   * migration). The same words sent in the last 24 hours are that one (`duplicate`), not a second.
+   */
+  reportProblem(draft: SupportDraft): Promise<{ id: number; duplicate: boolean }>
+  /** Help → Your requests: the person's own support tickets, the latest first, with HQ's replies. */
+  mySupportTickets(): Promise<SupportTicket[]>
+  /** HQ's admins: every business's support tickets, open ones first (anyone else gets none). */
+  hqSupportTickets(): Promise<HqSupportTicket[]>
+  /** HQ's admins: a ticket's status and reply (null: the one it has stays); the person hears about a new reply, or its closing. */
+  hqAnswerSupportTicket(id: number, status: SupportStatus, reply: string | null): Promise<void>
   /** Owners: everything the business keeps, one CSV file per table in a zip, to save. */
   exportData(): Promise<{ filename: string; blob: Blob }>
   /** Owners: close the account; it closes in 30 days (returns when) and the subscription stops renewing. */

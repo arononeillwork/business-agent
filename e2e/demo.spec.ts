@@ -11516,3 +11516,115 @@ test('the back-office’s errors: what went wrong where, how often and when, ope
   await expect(errors.getByText('No stack was kept for this one.')).toBeVisible()
   await expect(errors.getByText('/api/hq/businesses/14/extend-trial', { exact: true })).toBeVisible()
 })
+
+test('support tickets: report a problem from Help, follow it under Your requests, and HQ answers it under Support in the back-office', async ({ page }) => {
+  // Both sides of it, in one go: longer than most.
+  test.setTimeout(60_000)
+  // The Business Agent HQ's demo (?hq): its admin sends one from the rota, and answers it on the Businesses page.
+  await open(page, '/rota?hq')
+  await fromAccountMenu(page, 'Help')
+  await page.getByRole('dialog', { name: 'Help' }).getByRole('button', { name: /^Report a problem/ }).click()
+  const report = page.getByRole('dialog', { name: 'Report a problem' })
+  await expect(report.getByText('The page you were on (/rota), the app’s version and your browser go with it')).toBeVisible()
+  await report.getByRole('radio', { name: 'A question' }).check()
+  await report.getByRole('textbox', { name: 'Your question' }).fill('Too short')
+  await expect(report.getByText('Say a little more: at least 10 characters')).toBeVisible()
+  await expect(report.getByRole('button', { name: 'Send' })).toBeDisabled()
+  await report.getByRole('radio', { name: 'Something isn’t working' }).check()
+  await report.getByRole('textbox', { name: 'What happened?' }).fill('The rota went blank when I opened next week.')
+  await report.getByRole('button', { name: 'Send' }).click()
+  await toast(page, 'Sent. We’ll answer you here, under Your requests.')
+
+  // Your requests: the new one, open, and the idea sent before with HQ's answer.
+  const requests = page.getByRole('dialog', { name: 'Your requests' })
+  const mine = requests.getByRole('list', { name: 'Your requests' }).getByRole('listitem')
+  await expect(mine.first()).toContainText('The rota went blank when I opened next week.')
+  await expect(mine.first()).toContainText('Open')
+  await expect(mine.first()).toContainText('Something isn’t working')
+  await expect(mine.filter({ hasText: 'weather forecast' })).toContainText('Answered')
+  await expect(mine.filter({ hasText: 'weather forecast' })).toContainText('It’s on our list')
+  // The same words again are the one already sent, not a second.
+  await requests.getByRole('button', { name: 'Report a problem' }).click()
+  await report.getByRole('textbox', { name: 'What happened?' }).fill('the rota went blank when I opened  next week.')
+  await expect(report.getByText('You already sent us this today.')).toBeVisible()
+  await report.getByRole('button', { name: 'Send' }).click()
+  await toast(page, 'You already sent us this today: it’s under Your requests.')
+  await expect(mine).toHaveCount(2)
+  await requests.getByRole('button', { name: 'Close' }).click()
+
+  // HQ's admins were told (no email): one notification for the problem report.
+  await page.getByRole('button', { name: /^Notifications/ }).first().click()
+  await expect(page.getByRole('region', { name: 'Notifications' })).toContainText('1 new problem report')
+  await page.keyboard.press('Escape')
+
+  // Support, above Errors: open ones first, with whose, when, the page and what they wrote.
+  await fromAccountMenu(page, 'Businesses')
+  const support = page.getByRole('region', { name: 'Support' })
+  await expect(support.getByText('2 open requests')).toBeVisible()
+  const tickets = support.getByRole('list', { name: 'Support requests' }).getByRole('listitem')
+  await expect(tickets).toHaveCount(4)
+  await expect(tickets.first()).toContainText('The rota went blank when I opened next week.')
+  await expect(tickets.first()).toContainText('Aron O\'Neill, Easy Beans Coffee')
+  await expect(tickets.first()).toContainText('/rota')
+  // Filters by kind and status.
+  await support.getByRole('combobox', { name: 'Kind' }).click()
+  await page.getByRole('option', { name: 'A question' }).click()
+  await expect(tickets).toHaveCount(1)
+  await expect(tickets.first()).toContainText('Sol Romero, Peluquería Sol')
+  await expect(tickets.first()).toContainText('Being looked at')
+  await support.getByRole('combobox', { name: 'Kind' }).click()
+  await page.getByRole('option', { name: 'All' }).click()
+  await support.getByRole('combobox', { name: 'Status' }).click()
+  await page.getByRole('option', { name: 'Answered' }).click()
+  await expect(tickets).toHaveCount(1)
+  await expect(tickets.first()).toContainText('weather forecast')
+  await support.getByRole('combobox', { name: 'Status' }).click()
+  await page.getByRole('option', { name: 'All' }).click()
+
+  // One sent from the error screen links to its error, which shows what the person said.
+  await tickets.filter({ hasText: 'Lola Martín, Café Lola' }).getByRole('link', { name: 'See its error' }).click()
+  const errors = page.getByRole('region', { name: 'Errors' })
+  await expect(errors.getByLabel('Stack')).toContainText('at WeekRow')
+  await expect(errors.getByText('What 1 person said about it, under Support:')).toBeVisible()
+
+  // HQ answers: a reply makes it Answered, and the person hears about it.
+  await tickets.first().getByRole('button', { name: /^Answer/ }).click()
+  const answer = page.getByRole('dialog', { name: /^Answer Aron/ })
+  await answer.getByRole('textbox', { name: 'Your reply' }).fill('Fixed now: reload the app and the rota opens again.')
+  await expect(answer.getByRole('combobox', { name: 'Status' })).toHaveText('Answered')
+  await answer.getByRole('button', { name: 'Save' }).click()
+  await toast(page, /^Saved$/)
+  await expect(support.getByText('1 open request')).toBeVisible()
+  await expect(tickets.filter({ hasText: 'The rota went blank' })).toContainText('Answered by Aron O\'Neill')
+
+  // The notification opens Help at Your requests, with the reply.
+  await page.getByRole('button', { name: /^Notifications/ }).first().click()
+  await page.getByRole('region', { name: 'Notifications' }).getByRole('button', { name: /The Business Agent answered your request/ }).click()
+  await expect(mine.filter({ hasText: 'The rota went blank' })).toContainText('Fixed now: reload the app and the rota opens again.')
+  await expect(mine.filter({ hasText: 'The rota went blank' })).toContainText('Answered')
+})
+
+test('support tickets: a page that breaks offers “Tell us what you were doing”, and HQ gets it under Support as not working', async ({ page }) => {
+  await open(page, '/hq/businesses?hq')
+  await expect(page.getByRole('heading', { level: 1, name: 'Businesses' })).toBeVisible()
+  // The rota's code breaks as it draws (the dev server hands over this in its place).
+  await page.route(/\/src\/pages\/RotaPage\.tsx/, route => route.fulfill({
+    contentType: 'text/javascript', body: 'export function RotaPage() { throw new Error("The rota broke for this test") }',
+  }))
+  await page.getByRole('link', { name: 'Rota' }).first().click()
+  await expect(page.getByRole('heading', { name: 'Something went wrong' })).toBeVisible()
+  await page.getByRole('button', { name: 'Tell us what you were doing' }).click()
+  const form = page.getByRole('form', { name: 'Tell us what you were doing' })
+  await form.getByRole('textbox', { name: 'What were you doing?' }).fill('I opened the rota from the menu.')
+  await form.getByRole('button', { name: 'Send' }).click()
+  await expect(page.getByText('Thanks. We’ll look into it, and answer you in Help, under Your requests.')).toBeVisible()
+
+  // The menu is still there: HQ's Support has it, from the rota, as not working, from the error screen.
+  await fromAccountMenu(page, 'Businesses')
+  const tickets = page.getByRole('region', { name: 'Support' }).getByRole('list', { name: 'Support requests' }).getByRole('listitem')
+  await expect(tickets.first()).toContainText('I opened the rota from the menu.')
+  await expect(tickets.first()).toContainText('Something isn’t working')
+  await expect(tickets.first()).toContainText('/rota')
+  // The demo tells nobody about its errors, so this one isn't under Errors.
+  await expect(tickets.first()).toContainText('From the error screen')
+})

@@ -228,4 +228,11 @@ export default {
   'New error: {message}': 'Error nuevo: {message}',
   'An error is back: {message}': 'Ha vuelto un error: {message}',
   'In {where}. The details are on Businesses, under Errors.': 'En {where}. Los detalles están en Negocios, en Errores.',
+  // Support tickets (the support_tickets migration).
+  '1 new problem report': '1 aviso nuevo de un problema',
+  '{n} new problem reports': '{n} avisos nuevos de problemas',
+  'Latest: “{message}”. On Businesses, under Support.': 'El último: “{message}”. En Negocios, en Soporte.',
+  'The Business Agent answered your request': 'The Business Agent ha respondido a tu solicitud',
+  'Your request is closed': 'Tu solicitud está cerrada',
+  'You wrote: “{message}”': 'Escribiste: “{message}”',
 } satisfies Record<string, string>

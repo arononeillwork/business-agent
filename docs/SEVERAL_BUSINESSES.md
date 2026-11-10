@@ -85,6 +85,15 @@ a payment or a refund writing HQ's ledger (`record_rep_commission`, `reverse_rep
 `hq_reps` migration makes HQ on a database people already use; a brand-new one runs
 `select public.start_hq();` when it wants one (the database tests do, last).
 
+Two tables are Business Agent's own rather than any one business's, so they have no `business_scope` (the test lists
+them): the error log, `app_errors`, and the support tickets people send from Help, `support_tickets` (the
+support_tickets migration). Each ticket keeps the `business_id` of whoever sent it and goes with that business, but it's
+read only by that person and by HQ's active admins, never by the business's own admins, and stays out of an owner's
+export. People write it only through `create_support_ticket()` and HQ through `hq_answer_support_ticket()` (both
+`app_definer`); the latter writes the person's notification in their business by naming it in `app.business_id` for that
+one insert. HQ's list with each business's name and the person's (`hq_support_tickets()`) stays with postgres, like
+`hq_closures()`.
+
 ## A new business signs up
 
 1. **Sign up.** Anyone can create an account on the sign-in page. Someone nobody invited is in no

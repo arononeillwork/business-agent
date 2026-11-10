@@ -4,6 +4,7 @@ import type { ApiKey, AppNotification, Brand, Business, Customer, SocialPost, Ev
 import type { HolidayReminder, PushDevice } from '../../shared/types'
 import type { HqClosure } from './api'
 import type { HqError } from './api'
+import type { HqSupportTicket, SupportTicket } from '../../shared/supportTickets'
 import type { HqFunnelRow } from '../../shared/hqFunnel'
 import type { AiMusicQuote, MusicGeneration, MusicTrack } from '../../shared/types'
 import type { InstagramMention } from '../../shared/mentions'
@@ -1818,6 +1819,25 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
       const token = (await sb.auth.getSession().catch(() => null))?.data.session?.access_token
       await fetch('/api/errors', { method: 'POST', keepalive: true, body: JSON.stringify(report),
         headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) } })
+    },
+    // Support tickets (the support_tickets migration): sent and read as themselves; HQ's list and answers.
+    async reportProblem(d) {
+      return check(await sb.rpc('create_support_ticket', { p_kind: d.kind, p_message: d.message, p_page: d.page, p_version: d.app_version,
+        p_browser: d.browser, p_error: d.error_fingerprint })) as { id: number; duplicate: boolean }
+    },
+    async mySupportTickets() {
+      // An HQ admin reads every business's: the list here is their own.
+      const me = await uid()
+      if (!me) return []
+      return check(await sb.from('support_tickets')
+        .select('id, kind, message, page, app_version, browser, error_fingerprint, status, reply, replied_at, created_at, updated_at')
+        .eq('user_id', me).order('created_at', { ascending: false }).limit(50)) as SupportTicket[]
+    },
+    async hqSupportTickets() {
+      return check(await sb.rpc('hq_support_tickets')) as HqSupportTicket[]
+    },
+    async hqAnswerSupportTicket(id, status, reply) {
+      check(await sb.rpc('hq_answer_support_ticket', { p_id: id, p_status: status, p_reply: reply }))
     },
     // An owner's own data and account (the Worker: worker/account.ts).
     async exportData() {

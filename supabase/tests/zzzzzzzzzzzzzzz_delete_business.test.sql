@@ -156,6 +156,8 @@ begin
   insert into public.recipe_variants (recipe_id, name, price_change) values (v_id, 'Oat milk', 0.4);
   update public.integrations set status = 'connected' where business_id = p_business and provider = 'google_business';
   insert into public.post_ideas (title, wants, created_by) values ('Latte art close-up', 'video', v_admin);
+  -- A support ticket to The Business Agent (the support_tickets migration): it goes with the business.
+  insert into public.support_tickets (business_id, user_id, kind, message) values (p_business, v_admin, 'question', 'How do I add a second café?');
   -- The working-hours record: a shift worked, its timecard with a break, a change made to it and a
   -- correction asked for.
   insert into public.shifts (profile_id, position_id, starts_at, ends_at)
