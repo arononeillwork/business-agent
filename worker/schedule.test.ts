@@ -6,20 +6,20 @@ import { OFFSETS, dueJobs, shiftOf, type Every, type Periodic } from './schedule
 import { CHOICES } from '../shared/refresh'
 
 const USUAL: Every = { hours: CHOICES.hours.usual, mentions: CHOICES.mentions.usual, customers: CHOICES.customers.usual, menu: CHOICES.menu.usual,
-  reviews: 60, cameras: 60, music: 5 }
+  reviews: 60, cameras: 60, music: 5, reps: 15 }
 /** A whole day of minutes, from midnight UTC. */
 const DAY = Array.from({ length: 1440 }, (_, m) => Date.UTC(2026, 10, 6) / 60_000 + m)
 
 describe('the minute job’s outside-service work', () => {
   it('at the usual times, never two of a business’s jobs in one minute, and each as often as it should', () => {
     for (let id = 1; id <= 40; id++) {
-      const runs: Record<Periodic, number> = { hours: 0, mentions: 0, customers: 0, menu: 0, reviews: 0, cameras: 0, music: 0 }
+      const runs: Record<Periodic, number> = { hours: 0, mentions: 0, customers: 0, menu: 0, reviews: 0, cameras: 0, music: 0, reps: 0 }
       for (const minute of DAY) {
         const now = dueJobs(minute, id, USUAL)
         expect(now.length, `business ${id} at minute ${minute % 60}: ${now.join(', ')}`).toBeLessThanOrEqual(1)
         for (const j of now) runs[j]++
       }
-      expect(runs).toEqual({ hours: 96, mentions: 96, customers: 24, menu: 24, reviews: 24, cameras: 24, music: 288 })
+      expect(runs).toEqual({ hours: 96, mentions: 96, customers: 24, menu: 24, reviews: 24, cameras: 24, music: 288, reps: 96 })
     }
   })
 

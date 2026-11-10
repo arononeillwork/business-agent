@@ -1,7 +1,8 @@
 // Cashback for posts about the café (Sales reps & rewards → Cashback for posts): a rep's post on Instagram
-// earns from what it did, so much per 1,000 views, per new follower the café gained over the usual in the
-// post's days (shared/postImpact.ts) and per 100 likes, up to a most per post. The database works it out
-// nightly and logs it (the post_cashback migration, pay_post_cashback()); this says the same for the page.
+// earns from what it did, so much per 1,000 views, per new follower the café gained in the post's days
+// (the day it went out and the two after: shared/postImpact.ts) and per 100 likes, up to a most per post,
+// however old the post. The database works it out nightly and logs it (the post_cashback and
+// cashback_every_follower migrations, pay_post_cashback()); this says the same for the page.
 import { msg } from './i18n'
 import type { PostImpact } from './postImpact'
 
@@ -22,8 +23,8 @@ export const CASHBACK_DEFAULTS: CashbackRates = {
 }
 export const CASHBACK_KEYS = Object.keys(CASHBACK_DEFAULTS) as (keyof CashbackRates)[]
 
-/** Less than this isn't logged. */
-export const CASHBACK_MIN = 0.5
+/** Less than this isn't logged: every cent a post earns is kept. */
+export const CASHBACK_MIN = 0.01
 
 /** The ledger's words for it (written by the database in English). */
 export const CASHBACK_LABEL = msg('Cashback for a post')
@@ -32,14 +33,13 @@ export const isCashback = (r: { source?: string | null }) => !!r.source?.startsW
 
 const round2 = (n: number) => Math.round(n * 100) / 100
 
-/** The new followers over the usual in a post's three days, when all three are known. */
-export const followersOver = (p: Pick<PostImpact, 'gained' | 'usual' | 'days'>) =>
-  p.gained !== null && p.usual !== null && p.days === 3 ? Math.max(0, p.gained - p.usual) : null
+/** The new followers in a post's three days, when all three are known. */
+export const followersIn = (p: Pick<PostImpact, 'gained' | 'days'>) => (p.gained !== null && p.days === 3 ? p.gained : null)
 
 /** What a post earns, and each part of it (before the most a post earns). */
-export function cashbackFor(p: Pick<PostImpact, 'views' | 'likes' | 'gained' | 'usual' | 'days'>, r: CashbackRates) {
+export function cashbackFor(p: Pick<PostImpact, 'views' | 'likes' | 'gained' | 'days'>, r: CashbackRates) {
   const views = (p.views ?? 0) / 1000 * r.cashback_per_1000_views
-  const followers = (followersOver(p) ?? 0) * r.cashback_per_follower
+  const followers = (followersIn(p) ?? 0) * r.cashback_per_follower
   const likes = (p.likes ?? 0) / 100 * r.cashback_per_100_likes
   return { amount: round2(Math.min(r.cashback_max, views + followers + likes)), views: round2(views), followers: round2(followers), likes: round2(likes) }
 }

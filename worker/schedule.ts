@@ -13,13 +13,13 @@ import { due } from '../shared/refresh'
 import { minutesFor } from './refresh'
 
 /** The jobs the minute job runs now and then, each reading an outside service. */
-export type Periodic = 'hours' | 'mentions' | 'customers' | 'menu' | 'reviews' | 'cameras' | 'music'
+export type Periodic = 'hours' | 'mentions' | 'customers' | 'menu' | 'reviews' | 'cameras' | 'music' | 'reps'
 
 /**
  * Minutes into its round each job runs at, chosen so that at their usual times (every 15 minutes, hourly,
  * every 5 minutes) no two share a minute: the quarter hours are the Google hours sync's alone.
  */
-export const OFFSETS: Record<Periodic, number> = { hours: 0, music: 2, customers: 3, mentions: 9, menu: 18, reviews: 36, cameras: 51 }
+export const OFFSETS: Record<Periodic, number> = { hours: 0, music: 2, customers: 3, mentions: 9, reps: 13, menu: 18, reviews: 36, cameras: 51 }
 
 /** How often each runs (minutes): the business's choice for those it can choose, else fixed. */
 export type Every = Record<Periodic, number>
@@ -37,6 +37,7 @@ export function dueJobs(minute: number, businessId: number, every: Every): Perio
 export async function everyFor(db: SupabaseClient): Promise<Every> {
   const [hours, mentions, customers, menu] = await Promise.all(
     (['hours', 'mentions', 'customers', 'menu'] as const).map(id => minutesFor(db, id)))
-  // Reviews hourly (refreshReviews reads Places only every third hour); the cameras hourly; music every 5 minutes.
-  return { hours, mentions, customers, menu, reviews: 60, cameras: 60, music: 5 }
+  // Reviews hourly (refreshReviews reads Places only every third hour); the cameras hourly; music every 5
+  // minutes; customers' credit onto their Square gift cards every 15 (worker/squareReps.ts).
+  return { hours, mentions, customers, menu, reviews: 60, cameras: 60, music: 5, reps: 15 }
 }

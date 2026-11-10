@@ -1,6 +1,7 @@
 // Square Loyalty and Gift Cards (the Loyalty page). Reads the programme, its members and what
-// happened lately; the only changes made are goodwill points (an adjustment, with a reason) and
-// selling a digital gift card (created, then activated at the café's location for the amount paid).
+// happened lately; the only changes made are goodwill points (an adjustment, with a reason), selling a
+// digital gift card (created, then activated at the café's location for the amount paid), and the gift
+// card on file of a customer who earns credit (Sales reps & rewards: worker/squareReps.ts).
 // Every change carries an idempotency key, so a retried request never gives points or a card twice.
 // Card numbers (GANs) are cut to their last 4 digits here, before anything leaves the Worker; only
 // giftCardNumber() gives one card's whole number, for an admin's "Copy number".
@@ -200,4 +201,53 @@ export async function sellGiftCard(sandbox: boolean, token: string, s: { locatio
   if (s.customerId) await squareApi(sandbox, token, `/v2/gift-cards/${encodeURIComponent(card.id)}/link-customer`, { customer_id: s.customerId })
   return { ...toCard({ ...card, state: 'ACTIVE', balance_money: { amount: Math.round(s.amount * 100), currency: s.currency }, customer_ids: s.customerId ? [s.customerId] : card.customer_ids },
     { original: s.amount, last_used: null }) }
+}
+
+// ---- A rep's credit on their gift card (worker/squareReps.ts) ------------------------------------------
+
+/** A gift card's state, balance and customers, as Square has them now. */
+export async function giftCard(sandbox: boolean, token: string, id: string) {
+  const { gift_card: card } = await squareApi<{ gift_card: SquareGiftCard }>(sandbox, token, `/v2/gift-cards/${encodeURIComponent(id)}`)
+  return { id: card.id, state: card.state ?? 'PENDING', balance: euros(card.balance_money), customer_ids: card.customer_ids ?? [] }
+}
+
+/** A digital gift card, not active yet (its first credit activates it). The same key gives back the same card. */
+export async function newGiftCard(sandbox: boolean, token: string, s: { locationId: string; key: string }) {
+  const { gift_card: card } = await squareApi<{ gift_card: SquareGiftCard }>(sandbox, token, '/v2/gift-cards', {
+    idempotency_key: s.key, location_id: s.locationId, gift_card: { type: 'DIGITAL' },
+  })
+  return card.id
+}
+
+/** The card on file of a customer, so the team sees it (and its balance) on the till when they find them. */
+export async function linkGiftCard(sandbox: boolean, token: string, cardId: string, customerId: string) {
+  await squareApi(sandbox, token, `/v2/gift-cards/${encodeURIComponent(cardId)}/link-customer`, { customer_id: customerId })
+}
+
+/**
+ * Credit onto a card (amount above 0) or off it (below 0): the first credit activates it (given by the
+ * café, not paid for: Square names the means REWARD_CREDIT); then a complimentary increase, or a
+ * decrease for credit used outside Square. Each with its own key, so a line is never added twice.
+ * Returns the activity's id.
+ */
+export async function creditGiftCard(sandbox: boolean, token: string,
+  s: { cardId: string; locationId: string; amount: number; currency: string; key: string; activate: boolean }) {
+  const money = { amount: Math.round(Math.abs(s.amount) * 100), currency: s.currency }
+  const activity = s.activate
+    ? { type: 'ACTIVATE', activate_activity_details: { amount_money: money, buyer_payment_instrument_ids: ['REWARD_CREDIT'] } }
+    : s.amount > 0
+      ? { type: 'ADJUST_INCREMENT', adjust_increment_activity_details: { amount_money: money, reason: 'COMPLIMENTARY' } }
+      : { type: 'ADJUST_DECREMENT', adjust_decrement_activity_details: { amount_money: money, reason: 'SUPPORT_ISSUE' } }
+  const r = await squareApi<{ gift_card_activity: { id: string } }>(sandbox, token, '/v2/gift-cards/activities', {
+    idempotency_key: s.key, gift_card_activity: { ...activity, location_id: s.locationId, gift_card_id: s.cardId },
+  })
+  return r.gift_card_activity.id
+}
+
+/** What was spent with a card at the till since an instant (its REDEEM activities), oldest first. */
+export async function cardRedemptions(sandbox: boolean, token: string, cardId: string, sinceIso: string) {
+  const q = new URLSearchParams({ gift_card_id: cardId, type: 'REDEEM', begin_time: sinceIso, limit: '100', sort_order: 'ASC' })
+  const r = await squareApi<{ gift_card_activities?: SquareActivity[] }>(sandbox, token, `/v2/gift-cards/activities?${q}`)
+  return (r.gift_card_activities ?? []).filter(a => a.type === 'REDEEM')
+    .map(a => ({ id: a.id, amount: euros(a.redeem_activity_details?.amount_money), at: a.created_at }))
 }

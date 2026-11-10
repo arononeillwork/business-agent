@@ -13,7 +13,7 @@ import type { SquareObject, SquareVariation } from '../../shared/menuSquare'
 import type { PayMethod, SalesDay, SalesItem } from '../../shared/types'
 import { hmacBase64, safeEqual } from '../crypto'
 
-export const SQUARE_SCOPES = ['MERCHANT_PROFILE_READ', 'PAYMENTS_READ', 'ORDERS_READ', 'CUSTOMERS_READ',
+export const SQUARE_SCOPES = ['MERCHANT_PROFILE_READ', 'PAYMENTS_READ', 'ORDERS_READ', 'CUSTOMERS_READ', 'CUSTOMERS_WRITE',
   'LOYALTY_READ', 'LOYALTY_WRITE', 'GIFTCARDS_READ', 'GIFTCARDS_WRITE', 'ITEMS_READ', 'EMPLOYEES_READ', 'EMPLOYEES_WRITE', 'ITEMS_WRITE']
 const VERSION = '2025-01-23'
 
@@ -62,6 +62,19 @@ async function api<T>(sandbox: boolean, accessToken: string, path: string, body?
 
 /** Square's API for the other Square modules (loyalty and gift cards): GET, or POST with a body. */
 export const squareApi = api
+
+/**
+ * A customer made by the app (CUSTOMERS_WRITE): a rep who earns credit, so the team finds them on the
+ * till. The same key gives back the same customer, so a retry never makes a second.
+ */
+export async function createCustomer(sandbox: boolean, accessToken: string,
+  c: { key: string; given_name: string; nickname?: string | null; reference_id: string; note?: string | null }): Promise<string> {
+  const r = await api<{ customer: { id: string } }>(sandbox, accessToken, '/v2/customers', {
+    idempotency_key: c.key, given_name: c.given_name, reference_id: c.reference_id,
+    ...(c.nickname ? { nickname: c.nickname } : {}), ...(c.note ? { note: c.note } : {}),
+  })
+  return r.customer.id
+}
 
 export interface SquareLocation { id: string; name: string; currency?: string; status?: string }
 

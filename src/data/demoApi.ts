@@ -20,7 +20,7 @@ import {
 import { collabId, collabMentions, isRecent, mentionTitle, mentionsIn, peopleToPutForward, shortcodeOf, type InstagramMention } from '../../shared/mentions'
 import { followerDays, ownPost, postAbout, postImpacts } from '../../shared/postImpact'
 import { creatorBoard } from '../../shared/creators'
-import { CASHBACK_DEFAULTS, CASHBACK_MIN, cashbackDue, cashbackFor, cashbackRates, followersOver } from '../../shared/cashback'
+import { CASHBACK_DEFAULTS, CASHBACK_MIN, cashbackDue, cashbackFor, cashbackRates, followersIn } from '../../shared/cashback'
 import { demoSports } from './demoSports'
 import { demoInbox, demoMessenger, demoWhatsApp } from './demoMessages'
 import { demoEmailPage, demoEmails } from './demoEmail'
@@ -179,8 +179,8 @@ export function createDemoApi(): Api {
     return mentions
   }
   /**
-   * As the database's pay_post_cashback() (nightly, the post_cashback migration): approved reps' posts
-   * about the café of the last 30 days whose days are in earn their cashback, each once. Here, whenever
+   * As the database's pay_post_cashback() (nightly, the cashback_every_follower migration): approved reps'
+   * posts about the café whose days are in, however old, earn their cashback, each once. Here, whenever
    * the reps or rewards are looked at.
    */
   const payCashback = () => {
@@ -191,13 +191,13 @@ export function createDemoApi(): Api {
     const days = row.status === 'connected' ? demoSocialReport('instagram', addDays(now, -30), addDays(now, -1), now, row).follower_days ?? [] : []
     const paid = new Set(rewardList.map(r => r.mention_id).filter(Boolean))
     for (const p of postImpacts(demoMentions().filter(m => m.username).map(postAbout), followerDays(days, null))) {
-      if (paid.has(p.id) || p.at.slice(0, 10) < addDays(now, -30) || !cashbackDue(p, now)) continue
+      if (paid.has(p.id) || p.at.slice(0, 10) > addDays(now, -3) || !cashbackDue(p, now)) continue
       const rep = repList.find(r => r.active && r.approved && r.instagram === p.username)
       if (!rep) continue
       const { amount } = cashbackFor(p, rates)
       if (amount < CASHBACK_MIN) continue
-      const over = followersOver(p)
-      const note = [p.views ? `${p.views.toLocaleString('en')} views` : null, over ? `+${over.toLocaleString('en')} followers over the usual` : null,
+      const followers = followersIn(p)
+      const note = [p.views ? `${p.views.toLocaleString('en')} views` : null, followers ? `+${followers.toLocaleString('en')} new followers` : null,
         p.likes ? `${p.likes.toLocaleString('en')} likes` : null].filter(Boolean).join(' · ') || null
       const status = rates.cashback_needs_approval ? 'pending' as const : 'approved' as const
       rewardList.push(...withBonus(repReward(rep.id, null, amount, p.at.slice(0, 10), { kind: 'earn', label: 'Cashback for a post', status, mention_id: p.id,
@@ -1923,7 +1923,8 @@ export function createDemoApi(): Api {
   const fighter = (id: string, name: string, code: string, instagram: string, followers: number, more: Partial<SalesRep> = {}) =>
     salesRep({ id, name, kind: 'customer', code, instagram, instagram_followers: followers, leader_id: 'rep-dani', followers_checked_at: daysAgo(1), ...more })
   const repList: SalesRep[] = [
-    salesRep({ id: 'rep-lucia', name: 'Lucía García', kind: 'customer', code: 'LUCIA27', customer_id: customerId('Lucía'), instagram: 'lucia.mbl', instagram_followers: 640, phone: '+34 611 204 318' }),
+    salesRep({ id: 'rep-lucia', name: 'Lucía García', kind: 'customer', code: 'LUCIA27', customer_id: customerId('Lucía'), instagram: 'lucia.mbl', instagram_followers: 640, phone: '+34 611 204 318',
+      square_customer_id: 'SQC-lucia', square_gift_card_id: 'GC-lucia' }),
     salesRep({ id: 'rep-eats', name: 'San Pedro Eats', kind: 'customer', code: 'EATS10', instagram: 'sanpedro.eats', instagram_followers: 12_400, tiktok: 'sanpedroeats', tiktok_followers: 3_100,
       notes: 'Local food blog', followers_checked_at: daysAgo(0) }),
     salesRep({ id: 'rep-sofia', name: 'Sofia Lindqvist', kind: 'customer', code: 'SOFIA14', customer_id: customerId('Sofia'), tiktok: 'sofia.matcha', tiktok_followers: 3_400, notes: 'Matcha videos on TikTok' }),

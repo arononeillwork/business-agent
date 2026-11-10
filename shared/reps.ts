@@ -29,6 +29,10 @@ export interface SalesRep {
   profile_id: string | null
   /** The customer they are, on Customers. */
   customer_id: string | null
+  /** A customer's credit is on Square too: their Square customer, its gift card on file (worker/squareReps.ts), and what stopped that. */
+  square_customer_id?: string | null
+  square_gift_card_id?: string | null
+  square_error?: string | null
   /** On their business cards. */
   code: string
   /** Without the @: their stories and posts about the café are matched to them by it. */

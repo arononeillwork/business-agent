@@ -7,6 +7,7 @@ import { rest } from './rest'
 import { drainOutbox, integrations, pushGoogleMenu, syncGoogle, syncGoogleBothWays } from './integrations'
 import { checkDue } from './connections'
 import { checkMentions } from './mentions'
+import { syncRepsToSquare } from './squareReps'
 import { syncSquareCustomers } from './squareCustomers'
 import { purge as purgeWhatsApp } from './whatsappInbox'
 import { refreshAllSports, refreshStaleSports, sportsEnabled, syncCrests } from './sports'
@@ -547,6 +548,9 @@ export default {
         if (now.has('mentions')) await checkMentions(env, b).catch(failed('instagram mentions', id))
         // Every hour (or as the business chose): Square customers added or changed since the last look, into Customers.
         if (now.has('customers')) await syncSquareCustomers(env, b).catch(failed('square customers', id))
+        // Every 15 minutes: customers' credit (Sales reps & rewards) onto their gift card on Square, and what
+        // they spent with it at the till back (worker/squareReps.ts).
+        if (now.has('reps')) await syncRepsToSquare(env, b).catch(failed('square reps', id))
         // Every hour (or as the business chose): the menu from the Square item library, when that's where it
         // comes from, in case a webhook from Square was missed.
         if (now.has('menu')) await syncSquareMenuIfChosen(env, b)

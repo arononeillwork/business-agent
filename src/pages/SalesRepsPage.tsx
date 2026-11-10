@@ -512,6 +512,11 @@ function PersonCard({ rep: r, reps, ledger, seesBalance, isAdmin, mine, crewShow
           </Box>
         )}
       </Stack>
+      {/* Their credit is on their gift card on Square too: the team finds them on the till. */}
+      {credit && r.square_gift_card_id && !r.square_error && (
+        <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t('On Square too: their gift card on file, found under their name on the till.')}</Typography>
+      )}
+      {credit && isAdmin && r.square_error && <Typography variant="caption" sx={{ color: 'error.main' }}>{t('Not on Square: {why}', { why: r.square_error })}</Typography>}
       <Stack direction="row" spacing={0.5} useFlexGap sx={{ flexWrap: 'wrap', mx: -0.75, mb: -0.5 }}>
         {r.active && <Button size="small" startIcon={<StarIcon />} onClick={onReward} aria-label={t('Log a reward for {name}', { name: r.name })}>{t('Reward')}</Button>}
         {credit && balance > 0 && <Button size="small" startIcon={<RedeemIcon />} onClick={onSettle} aria-label={t('Use the credit of {name}', { name: r.name })}>{t('Use credit')}</Button>}

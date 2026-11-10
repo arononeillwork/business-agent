@@ -31,4 +31,10 @@ export default {
   '{amount} cashback once they’re a rep': '{amount} de cashback cuando sea comercial',
   'About {amount} cashback once its days are in': 'Unos {amount} de cashback cuando estén sus días',
   '{amount} cashback tonight': '{amount} de cashback esta noche',
+  '{views} per 1,000 views, {followers} per new follower and {likes} per 100 likes, up to {max} a post.':
+    '{views} por cada 1.000 reproducciones, {followers} por cada nuevo seguidor y {likes} por cada 100 me gusta, hasta {max} por publicación.',
+  'For example, a reel with {views} views, {followers} new followers and {likes} likes earns {amount}.':
+    'Por ejemplo, un reel con {views} reproducciones, {followers} nuevos seguidores y {likes} me gusta gana {amount}.',
+  'Per new follower': 'Por nuevo seguidor',
+  'Every follower you gained the day the post went out and the two after': 'Cada seguidor que ganaste el día que salió la publicación y los dos siguientes',
 }
