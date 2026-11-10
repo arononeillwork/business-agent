@@ -7110,7 +7110,7 @@ test.describe('sales reps and rewards', () => {
     const lucia = reps.getByRole('article', { name: 'Lucía García' })
     await expect(lucia).toContainText('1,00')
     // Her credit is on her gift card on Square too: the team finds her on the till.
-    await expect(lucia).toContainText('On Square too: their gift card on file')
+    await expect(lucia).toContainText('Credit on their Square profile: at the till, select them and pay with “Gift card on file”.')
     await lucia.getByRole('button', { name: 'Log a reward for Lucía García' }).click()
     const log = page.getByRole('dialog', { name: 'Reward Lucía García' })
     await expect(log.getByRole('combobox', { name: 'What for' })).toContainText('Reposted our story')
