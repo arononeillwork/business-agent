@@ -97,7 +97,7 @@ export function ReviewsPage() {
                     onClick={() => setFilter(f.id)} aria-pressed={filter === f.id} />
                 ))}
               </Stack>
-              <TextField select size="small" label={t('Sort by')} value={sort} onChange={e => setSort(e.target.value as ReviewSort)} sx={{ ml: 'auto', minWidth: 180 }}>
+              <TextField select fullWidth={false} size="small" label={t('Sort by')} value={sort} onChange={e => setSort(e.target.value as ReviewSort)} sx={{ ml: 'auto', minWidth: 180 }}>
                 {REVIEW_SORTS.map(o => <MenuItem key={o.id} value={o.id}>{t(o.label)}</MenuItem>)}
               </TextField>
             </Stack>
