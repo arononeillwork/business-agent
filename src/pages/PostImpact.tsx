@@ -19,7 +19,10 @@ import { t, tn } from '../i18n'
 import { addDays, formatLocal, formatNumber, today } from '../../shared/time'
 import { IMPACT_DAYS, extraFollowers, type PostBy, type PostImpact } from '../../shared/postImpact'
 import type { SocialDay } from '../../shared/socialAnalytics'
+import type { collabsBlocked } from '../../shared/mentions'
 import { tokens } from '../theme'
+
+type CollabsBlocked = ReturnType<typeof collabsBlocked>
 
 type Show = 'all' | 'you' | 'about'
 const SHOWN = 12
@@ -135,10 +138,29 @@ function FollowersChart({ days, posts, from, to, periodName }: { days: SocialDay
   )
 }
 
-export function PostImpactCard({ impact, followerDays, from, to, periodName, collabsListed = true }: {
+/** Why the collab reels don't come in, and the one thing to do about it (shared/mentions.ts collabsBlocked). */
+export function CollabsNotice({ blocked }: { blocked: CollabsBlocked }) {
+  if (!blocked) return null
+  if (blocked.fix === 'link') {
+    const page = blocked.page ?? t('your Facebook Page')
+    return (
+      <Alert severity="warning" sx={{ mb: 2 }}>
+        {t('Meta only shares collab reels for the Instagram account linked to your Facebook Page, and {account} isn’t linked to {page} yet. In the Instagram app: Edit profile → Page → choose {page}. The reels then come in the next time you open Sales reps & rewards, and by themselves from then on.',
+          { account: blocked.account ? `@${blocked.account}` : t('your Instagram'), page })}
+      </Alert>
+    )
+  }
+  return (
+    <Alert severity="info" sx={{ mb: 2 }} action={<Button size="small" component={RouterLink} to="/connections" sx={{ whiteSpace: 'nowrap' }}>{t('Connections')}</Button>}>
+      {t('Collab reels come in through your Facebook Page: connect Facebook again on Connections and allow access to Instagram. From then on they come in by themselves, and whoever posted them goes on Sales reps & rewards.')}
+    </Alert>
+  )
+}
+
+export function PostImpactCard({ impact, followerDays, from, to, periodName, collabs = null }: {
   impact: PostImpact[]; followerDays: SocialDay[] | null | undefined; from: string; to: string; periodName: string
-  /** False when Instagram doesn't list collab posts for this connection: they're added by their link. */
-  collabsListed?: boolean
+  /** Why collab reels don't come in for this connection (null: they do). */
+  collabs?: CollabsBlocked
 }) {
   const { api } = useApp()
   const run = useAction()
@@ -156,11 +178,7 @@ export function PostImpactCard({ impact, followerDays, from, to, periodName, col
         <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
           {t('Your posts, and the ones customers made about you: collab reels, tags and story mentions. Each shows the followers you gained the day it went out and the two days after, against a usual three days.')}
         </Typography>
-        {!collabsListed && (
-          <Alert severity="info" sx={{ mb: 2 }} action={<Button size="small" component={RouterLink} to="/connections" sx={{ whiteSpace: 'nowrap' }}>{t('Connections')}</Button>}>
-            {t('Collab reels come in through your Facebook Page: connect Facebook again on Connections and allow access to Instagram. From then on they come in by themselves, and whoever posted them goes on Sales reps & rewards.')}
-          </Alert>
-        )}
+        <CollabsNotice blocked={collabs} />
         <FollowersChart days={followerDays ?? []} posts={impact} from={from} to={to} periodName={periodName} />
         {about.length > 0 && fromAbout > 0 && (
           <Typography variant="body2" sx={{ mb: 1.5 }}>

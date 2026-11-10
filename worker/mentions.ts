@@ -92,11 +92,12 @@ async function tellAdmins(db: SupabaseClient, added: Mention[]) {
  * The tags and collab reels: new ones kept and told about, every collab's figures brought up to date, and
  * their posters put forward as reps. Tagged posts need "Manage comments"; collabs come from readCollabs.
  */
-export async function lookForPosts(env: Env, db: SupabaseClient, cfg: instagram.InstagramConfig, ext: InstagramExternal) {
+export async function lookForPosts(env: Env, db: SupabaseClient, cfg: instagram.InstagramConfig, ext: InstagramExternal, askAgainAfter = ASK_LINK_AGAIN_MS,
+  now = Date.now()) {
   const business = businessIdOf(db)
   const [tagged, found] = await Promise.all([
     instagram.tagged(cfg).catch(() => [] as TaggedPost[]),
-    readCollabs(env, db, cfg, ext),
+    readCollabs(env, db, cfg, ext, now, askAgainAfter),
   ])
   const collabs = found.media ?? []
   if (ext.can_list_collabs !== found.instagram || (ext.collabs_via ?? null) !== found.via) {
@@ -125,7 +126,9 @@ export async function lookIfDue(env: Env, db: SupabaseClient, now = Date.now()):
   if (last?.fetched_at && now - Date.parse(String(last.fetched_at)) < LOOK_FRESH_MS) return
   await db.from('provider_cache').upsert({ key: 'instagram:posts-look', fetched_at: new Date(now).toISOString(), data: {} }, { onConflict: 'business_id,key' })
   const cfg = await instagramSession(env, db)
-  await lookForPosts(env, db, cfg, (row.external ?? {}) as InstagramExternal)
+  // An owner who has just linked the café's Instagram to its Page sees its collab reels when they open
+  // the page, not hours later: the ways through Facebook are tried again after a few minutes here.
+  await lookForPosts(env, db, cfg, (row.external ?? {}) as InstagramExternal, LOOK_FRESH_MS, now)
 }
 
 type InstagramExternal = {
@@ -161,7 +164,8 @@ type Way = { id: string; token: string; via: 'page' | 'ads'; page: string | null
  * and used from then on; when none does, every way is tried again some hours later, and what Meta said
  * to each is kept (instagram_why) and goes to HQ. media null: none can, and Analytics says so.
  */
-export async function readCollabs(env: Env, db: SupabaseClient, cfg: instagram.InstagramConfig, ext: InstagramExternal, now = Date.now()):
+export async function readCollabs(env: Env, db: SupabaseClient, cfg: instagram.InstagramConfig, ext: InstagramExternal, now = Date.now(),
+  askAgainAfter = ASK_LINK_AGAIN_MS):
   Promise<{ media: CollabMedia[] | null; via: 'instagram' | 'facebook' | null; instagram: boolean }> {
   const business = businessIdOf(db)
   let fromInstagram = ext.can_list_collabs !== false
@@ -177,7 +181,7 @@ export async function readCollabs(env: Env, db: SupabaseClient, cfg: instagram.I
   const { data: fb } = await db.from('integrations').select('status, external').eq('provider', 'facebook').maybeSingle()
   const fx = (fb?.external ?? {}) as FacebookInstagram
   if (fb?.status !== 'connected' || fx.instagram !== true) return none
-  if (fx.instagram_id === null && fx.instagram_asked_at && now - Date.parse(fx.instagram_asked_at) < ASK_LINK_AGAIN_MS) return none
+  if (fx.instagram_id === null && fx.instagram_asked_at && now - Date.parse(fx.instagram_asked_at) < askAgainAfter) return none
   const keep = (patch: FacebookInstagram) => db.from('integrations').update({ external: { ...fx, ...patch } }).eq('provider', 'facebook')
   try {
     if (fx.instagram_id) {

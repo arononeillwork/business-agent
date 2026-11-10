@@ -38,7 +38,7 @@ import {
   timesInMonth, type RepKind, type RepReward, type RepSettings, type RewardRule, type RewardRuleInput, type SalesRep, type SalesRepInput,
   type Standing,
 } from '../../shared/reps'
-import type { Mention } from '../../shared/mentions'
+import { collabsBlocked, type Mention } from '../../shared/mentions'
 import { PostersBoard } from './PostersBoard'
 import { CashbackBlock } from './Cashback'
 import { CASHBACK_LABEL, cashbackRates, isCashback } from '../../shared/cashback'
@@ -93,6 +93,9 @@ export function SalesRepsPage() {
   const mentions = useAsync('instagram-mentions', () => (isAdmin ? api.instagramMentions() : Promise.resolve([])), [isAdmin])
   // Everyone who posted about the café on Instagram, best first (admins).
   const posters = useAsync('instagram-posters', () => (isAdmin ? api.postersBoard() : Promise.resolve([])), [isAdmin])
+  // Why collab reels don't come in, if they don't (admins).
+  const integ = useAsync('integrations', () => (isAdmin ? api.integrations() : Promise.resolve(null)), [isAdmin])
+  const connection = (p: string) => integ.data?.integrations.find(i => i.provider === p)
   const run = useAction()
   const [filter, setFilter] = useState<Filter>('all')
   const [crew, setCrew] = useState<string | null>(null)
@@ -168,6 +171,7 @@ export function SalesRepsPage() {
 
       {/* First, the people who post about the café, each with their posts and what they did. */}
       {isAdmin && <PostersBoard creators={posters.data} reps={allReps} ledger={ledger} rates={cashbackRates(set)}
+        collabs={collabsBlocked(connection('instagram'), connection('facebook'))}
         onAdd={username => setEditing({ name: `@${username}`, kind: 'customer', instagram: username, active: true })}
         onReward={(rep, post) => setLogging({ rep, mention: (mentions.data ?? []).find(m => m.id === post.id) })} />}
 

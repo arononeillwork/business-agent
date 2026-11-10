@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { STORY_REP_FOLLOWERS, collabMentions, mentionTitle, mentionsIn, peopleToPutForward, shortcodeOf, type Mention } from './mentions'
+import { STORY_REP_FOLLOWERS, collabMentions, collabsBlocked, mentionTitle, mentionsIn, peopleToPutForward, shortcodeOf, type Mention } from './mentions'
 import type { InboxConversation, TaggedPost } from './messages'
 
 const now = Date.parse('2026-10-20T12:00:00Z')
@@ -79,5 +79,23 @@ describe('Putting the people who post about the café forward as reps', () => {
       m('post:self', 'post', 'easy.beans.coffee'), m('post:rep', 'post', 'sanpedro.eats'), m('post:x', 'post', null), m('post:y', 'post', 'not a handle'),
     ], new Set(['sanpedro.eats']), 'easy.beans.coffee', chats)
     expect(out).toEqual([{ username: 'nora.eats.mbl', mention_id: 'collab:new', followers: 8900, name: 'Nora', picture: 'https://cdn.example/nora.jpg' }])
+  })
+})
+
+describe('why collab reels don’t come in', () => {
+  const ig = (external: Record<string, unknown>) => ({ status: 'connected' as const, external })
+  it('says nothing when they come in, or Instagram isn’t connected', () => {
+    expect(collabsBlocked(ig({ collabs_via: 'facebook', can_list_collabs: false }), undefined)).toBeNull()
+    expect(collabsBlocked(ig({}), undefined)).toBeNull()
+    expect(collabsBlocked(undefined, undefined)).toBeNull()
+  })
+  it('connect Facebook with Instagram, or link the Instagram to the Page when Facebook can’t see it', () => {
+    const off = ig({ username: 'easy.beans.coffee', can_list_collabs: false, collabs_via: null })
+    expect(collabsBlocked(off, undefined)).toEqual({ fix: 'connect' })
+    expect(collabsBlocked(off, { status: 'connected', external: { instagram: false } })).toEqual({ fix: 'connect' })
+    expect(collabsBlocked(off, { status: 'connected', external: { instagram: true, instagram_id: null, page_name: 'Easy Beans Coffee' } }))
+      .toEqual({ fix: 'link', account: 'easy.beans.coffee', page: 'Easy Beans Coffee' })
+    // Not asked yet: connect is still the advice until a look says otherwise.
+    expect(collabsBlocked(off, { status: 'connected', external: { instagram: true } })).toEqual({ fix: 'connect' })
   })
 })
