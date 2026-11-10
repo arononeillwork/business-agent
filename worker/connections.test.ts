@@ -1592,7 +1592,12 @@ describe('Messages: the Instagram inbox (read and answer DMs)', () => {
     apis.instagram.noMessages = true
     const res = await get('/api/integrations/instagram/inbox')
     expect(res.status).toBe(400)
-    expect((await res.json() as { error: string }).error).toMatch(/Connect Instagram again.*Allow access to messages/)
+    const error = (await res.json() as { error: string }).error
+    expect(error).toMatch(/Connect Instagram again.*Connected tools → Allow access to messages/)
+    expect(error).toContain('Instagram said: “(#3) Application does not have the capability to make this API call.”')
+    // One chat that won't open: Meta's limit until App Review, or the same permission; what Instagram said either way.
+    const chat = await (await get('/api/integrations/instagram/inbox/conv-1')).json() as { error: string }
+    expect(chat.error).toMatch(/^Instagram didn’t share this chat\. If other chats open.*App Review.*Allow access to messages.*Instagram said: “\(#3\)/)
   })
 
   it('staff can’t read the business’s messages', async () => {
