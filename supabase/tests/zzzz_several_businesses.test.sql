@@ -49,6 +49,8 @@ begin
    where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' and c.relname not in ('plan_limits', 'pay_per_use')
      -- The Business Agent's own error log, HQ's admins' only (the app_errors migration).
      and c.relname <> 'app_errors'
+     -- and its support tickets, each the person's who sent it and HQ's admins' (the support_tickets migration).
+     and c.relname <> 'support_tickets'
      and not (c.relrowsecurity and exists (select 1 from pg_policy p where p.polrelid = c.oid and p.polname = 'business_scope' and not p.polpermissive));
   assert v is null, 'Tables not kept to their business. After creating a table: select public.add_business_scope(''public.<table>''); — ' || v;
 
@@ -64,6 +66,8 @@ begin
                            'hq_businesses',
                            -- and its funnel: week two and cancellations, business by business (the hq_funnel migration).
                            'hq_funnel',
+                           -- and every business's support tickets, with who sent each (the support_tickets migration).
+                           'hq_support_tickets',
                            -- and make one complimentary (the hq_actions migration), see which are closing and hear about it (close_account).
                            'hq_set_complimentary', 'hq_end_complimentary', 'hq_closures', 'notify_hq');
   assert v is null, 'Security definer functions that would see every business. After creating one: alter function ... owner to app_definer; — ' || v;

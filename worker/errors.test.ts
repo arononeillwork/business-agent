@@ -11,6 +11,7 @@ import { errors, forgetErrorReports, reportError, REPORTS_PER_ADDRESS, SERVER_RE
 import type { Env } from './supabase'
 import { FakeSupabase, type Row } from './test/fakeSupabase'
 import { ALERTS, MAX_REPORT_BYTES } from '../shared/appErrors'
+import { appErrorFingerprint, clientReport } from '../shared/appErrors'
 import worker from './index'
 
 const APP = 'https://app.test'
@@ -149,6 +150,22 @@ describe('the app’s error reports', () => {
     const res = await report(crash, {}, { ...env, SUPABASE_SERVICE_ROLE_KEY: undefined } as Env)
     expect(res.status).toBe(204)
     expect(rows()).toHaveLength(0)
+  })
+
+  it('gives an error the fingerprint the app works out for a support ticket from the error screen (the support_tickets migration)', async () => {
+    const thrown = [
+      new TypeError('Cannot read properties of undefined (reading \'starts_at\')'),
+      new Error('Shift 8f14e45f-ceea-467a-9575-0f1c2a3b4c5d not found for maria@cafe.es at https://app.test/rota?week=2026-11-09&token=abc'),
+      new Error('Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2lnbmF0dXJl was refused   with\ttabs and  spaces'),
+      'a thrown string',
+      { message: '' },
+    ]
+    for (const err of thrown) {
+      const sent = clientReport(err, 'render', { path: '/rota', build: null, userAgent: 'Mozilla/5.0' })
+      expect((await report(sent)).status).toBe(204)
+      const fp = await appErrorFingerprint(err)
+      expect(rows().map(r => r.fingerprint), String(sent?.message)).toContain(fp)
+    }
   })
 })
 

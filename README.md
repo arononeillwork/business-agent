@@ -930,3 +930,20 @@ seen, the last stack and path, and whose it was. A new kind, or one back after a
 admins, pushed to their phones like any other (once a day each at most, five an hour in all; the app_errors
 migration). HQ's Businesses page lists them under **Errors**, each opening to its stack. Only the Worker's service
 role writes the table and only HQ's admins read it; kinds unseen for 90 days go each night.
+
+## Support tickets
+
+People report a problem themselves; nothing makes a ticket by itself (errors stay grouped under Errors). In **Help**,
+**Report a problem** takes a kind ("Something isn't working", "A question", "An idea") and what happened, with the
+page they were on, the app's build and the browser attached; **Your requests** lists what they sent, each with its
+status (Open, Being looked at, Answered, Closed) and HQ's reply. The "Something went wrong" screen has **Tell us what
+you were doing**, which sends a "not working" ticket linked to that error's fingerprint (`src/app/supportReports.ts`).
+They're rows of `support_tickets`, written only through `create_support_ticket()` (signed in as themselves: five a
+person in 24 hours, at least 10 characters, and the same words again within a day are the ticket already sent) and
+`hq_answer_support_ticket()`; the person reads their own, HQ's active admins read them all, nobody else does, and
+they stay out of an owner's export (the support_tickets migration; `shared/supportTickets.ts` has the same rules for
+the app and the demo). HQ's Businesses page has **Support** above Errors (`src/components/HqSupport.tsx`): open ones
+first, filters by status and kind, whose and from where, a link to the error, and a status and reply to set. No
+email: "Something isn't working" notifies HQ's admins at most once every 15 minutes, saying how many came in
+(`alert_support_tickets()`, straight away or from the Worker's minute job); questions and ideas only wait in the
+list. The person gets a notification when HQ replies or closes theirs, which opens Help at Your requests.

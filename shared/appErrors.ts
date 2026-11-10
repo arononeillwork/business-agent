@@ -115,6 +115,15 @@ export function cleanReport(body: unknown): ClientErrorReport | null {
   }
 }
 
+/**
+ * The fingerprint the Worker gives an error the app reports (POST /api/errors, then record_app_error()): a
+ * support ticket sent from the error screen carries it (shared/supportTickets.ts), so HQ sees the person's
+ * words and the error together.
+ */
+export function appErrorFingerprint(err: unknown): Promise<string> {
+  return fingerprintOf('app', cleanMessage(describeError(err).message) || 'Error')
+}
+
 /** What the app sends about an error it ran into (null: nothing worth sending). */
 export function clientReport(err: unknown, kind: ClientErrorKind, at: { path: string; build: string | null; userAgent: string }): ClientErrorReport | null {
   const { message, stack } = describeError(err)

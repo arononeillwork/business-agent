@@ -68,6 +68,11 @@ const TITLES: Phrase[] = [
   // Error alerts to HQ's admins (the app_errors migration): first, as the error's own message could read like another's.
   [/^New error: (.+)$/s, msg('New error: {message}'), m => ({ message: m[1] })],
   [/^An error is back: (.+)$/s, msg('An error is back: {message}'), m => ({ message: m[1] })],
+  // Support tickets (the support_tickets migration): problem reports to HQ's admins, and HQ answering someone.
+  [/^1 new problem report$/, msg('1 new problem report'), () => ({})],
+  [/^(\d+) new problem reports$/, msg('{n} new problem reports'), m => ({ n: m[1] })],
+  [/^The Business Agent answered your request$/, msg('The Business Agent answered your request'), () => ({})],
+  [/^Your request is closed$/, msg('Your request is closed'), () => ({})],
   [/^Time to post your (post|carousel|reel|story) on (.+)$/, msg('Time to post your {what} on {where}'), (m, l) => ({
     what: say(l, WHAT[m[1]]),
     where: m[2] === 'social media' ? say(l, msg('social media')) : m[2].split(' and ').join(say(l, msg(' and '))),
@@ -96,6 +101,8 @@ const TITLES: Phrase[] = [
 ]
 const BODIES: Phrase[] = [
   [/^In (.+)\. The details are on Businesses, under Errors\.$/s, msg('In {where}. The details are on Businesses, under Errors.'), m => ({ where: m[1] })],
+  [/^Latest: “(.+)”\. On Businesses, under Support\.$/s, msg('Latest: “{message}”. On Businesses, under Support.'), m => ({ message: m[1] })],
+  [/^You wrote: “(.+)”$/s, msg('You wrote: “{message}”'), m => ({ message: m[1] })],
   [/^Coming up (\w{3}) (\d\d) (\w{3}), (\d\d:\d\d)\. You asked to be reminded\.$/, msg('Coming up {when}. You asked to be reminded.'), (m, l) => ({
     when: l === 'es' ? `${DAY[m[1]] ?? m[1]} ${Number(m[2])} ${MONTH[m[3]] ?? m[3]}, ${m[4]}` : `${m[1]} ${m[2]} ${m[3]}, ${m[4]}`,
   })],

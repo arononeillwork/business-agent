@@ -5181,6 +5181,9 @@ export function createDemoApi(): Api {
       hqAdmin: () => demoHq && isAdmin() && !!me()?.active, isOwner: () => paysAdmin() && !!me()?.active, me: () => me()?.id ?? null,
       business, billing: demoBilling, team: () => profiles.filter(p => p.role !== 'partner'), shifts: () => shifts,
       timecards: () => entries.map(e => ({ ...e })), daysAgo,
+      // Support tickets: replies and problem reports reach the bell; the café's owner sent the sample one.
+      notify: (profileId, title, body, link) => { notes.push({ id: notes.length + 1, profile_id: profileId, title, body, link, created_at: nowIso(), read_at: null }) },
+      owner: P.aron,
     }),
     // The demo tells nobody about its errors: they stay in the browser's console.
     async reportError() {},

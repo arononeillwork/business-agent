@@ -512,6 +512,9 @@ export default {
       await each('bank_holiday_reminders')
       // Social planner: posts that are due become one outbox job per network (sent just below).
       await each('queue_due_social_posts')
+      // Support tickets: problem reports held back by the 15 minutes between HQ's alerts, told about now they
+      // may be (the support_tickets migration; before the push just below, so HQ's phones get it this minute).
+      await Promise.resolve(db.rpc('alert_support_tickets')).then(({ error }) => (error ? failed('support alerts')(error.message) : undefined))
       await forEach(async (id, b) => {
         await drainOutbox(env, id).catch(failed('outbox', id))
         // Reports set to go by themselves (Dashboards → Reports), when they're due.

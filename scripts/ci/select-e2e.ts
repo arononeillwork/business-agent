@@ -95,6 +95,8 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'hq funnel', files: [/HqFunnel/, /i18n\/es\/hqFunnel/, /shared\/hqFunnel/, /demoBackOffice/], tests: String.raw`back-office` },
   { name: 'hq errors', files: [/HqErrors/, /i18n\/es\/hqErrors/, /shared\/appErrors/], tests: String.raw`back-office` },
   { name: 'help', files: [/components\/HelpDialog/, /i18n\/es\/help\.ts$/], tests: String.raw`Help in the account menu|account menu` },
+  { name: 'support tickets', files: [/components\/(HelpDialog|HqSupport|HqErrors)/, /i18n\/es\/support\.ts$/, /shared\/supportTickets/, /app\/supportReports/],
+    tests: String.raw`support tickets` },
   { name: 'closing the account', files: [/AccountDataCard/, /app\/ClosingBanner/, /i18n\/es\/closeAccount/, /shared\/(accountClosing|dataExport)/],
     tests: String.raw`closes the account|billing` },
   { name: 'compare', files: [/ComparePage/, /marketing\/compareCharts/, /shared\/compare/, /i18n\/es\/compare/], tests: String.raw`compare|landing` },
