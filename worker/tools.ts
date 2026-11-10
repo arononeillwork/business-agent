@@ -11,6 +11,7 @@ import { dutiesByWhen, sortRoles, type JobRole } from '../shared/roles'
 import { readState, rulesChangedAt, sortSections, type RuleSection, type RulesRead } from '../shared/staffRules'
 import { TEAM_ROLE_IDS, roleBlock, roleChange, teamRole, teamRoleOf } from '../shared/teamRoles'
 import { cleanPhone, matchesSearch } from '../shared/customers'
+import { COUNTRIES, type Country } from '../shared/country'
 import { cleanWebsite } from '../shared/connections'
 import { moneyLines, statusOf, totals, type MoneyItem } from '../shared/creditDebit'
 import type { GrantApplication } from '../shared/grants'
@@ -36,6 +37,7 @@ import { OFFER_TOOLS } from './offerTools'
 import { CONTACT_TOOLS } from './contactTools'
 import { PAGE_TOOLS } from './pageTools'
 import type { Env } from './supabase'
+import { inTimeZone } from './zone'
 import { shows, type FEATURES as APP_PARTS } from '../src/app/features'
 
 export interface ToolContext {
@@ -48,6 +50,8 @@ export interface ToolContext {
   accessToken?: string
   /** Their decimal mark, when already known (the assistant reads it to tell Claude); else numbersOf reads it. */
   numbers?: NumberFormat
+  /** The business's time zone, when already known; else runTool reads it. */
+  timeZone?: string
 }
 
 export interface ToolDef<S extends z.ZodType = z.ZodType> {
@@ -88,6 +92,15 @@ async function numbersOf({ sb, me, numbers }: Pick<ToolContext, 'sb' | 'me' | 'n
   if (numbers) return numbers
   const { data } = await sb.from('business').select('country').maybeSingle()
   return numberFormatOf(me.preferences?.numberFormat, (data as { country?: string | null } | null)?.country)
+}
+
+/**
+ * Where the business is (Spain or Ireland): a phone typed without its country code is that country's, and
+ * the example a tool gives is too. The Worker serves every business, so it's read, never assumed.
+ */
+export async function countryOf(sb: SupabaseClient): Promise<Country> {
+  const { data } = await sb.from('business').select('country').maybeSingle()
+  return (data as { country?: string | null } | null)?.country === 'IE' ? 'IE' : 'ES'
 }
 
 const PROFILE_COLUMNS = 'id, business_id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, partner_company, partner_access'
@@ -198,14 +211,19 @@ function endIso(day: string, start: string, end: string) {
 }
 
 async function describeShifts(sb: SupabaseClient, from: string, to: string) {
-  const [shifts, people, pos, business, events] = await Promise.all([
+  const [shifts, people, pos, business, events, rules] = await Promise.all([
     sb.from('shifts').select('*').gte('starts_at', zonedIso(addDays(from, -1), '00:00'))
       .lt('starts_at', zonedIso(addDays(to, 1), '00:00')).order('starts_at').then(rowsAs<Shift[]>()),
     team(sb), positions(sb),
     sb.from('business').select('opening_hours').single().then(rowsAs<Pick<Business, 'opening_hours'>>()),
     sb.from('calendar_events').select('*').gte('starts_on', from).lte('starts_on', to).then(rowsAs<CalendarEvent[]>()),
+    sb.from('settings').select('break_after_hours, min_break_minutes, max_daily_hours, max_weekly_hours, min_rest_hours').maybeSingle(),
   ])
-  const ctx = { shifts, openingHours: business.opening_hours, events }
+  // The business's own working-time rules, as on the rota (Ireland's start from its law, Spain's from its own).
+  const s = rules.data as Pick<Settings, 'break_after_hours' | 'min_break_minutes' | 'max_daily_hours' | 'max_weekly_hours' | 'min_rest_hours'> | null
+  const limits = s ? { breakAfterHours: s.break_after_hours, minBreakMinutes: s.min_break_minutes, maxDailyHours: s.max_daily_hours,
+    maxWeeklyHours: s.max_weekly_hours, minRestHours: s.min_rest_hours } : undefined
+  const ctx = { shifts, openingHours: business.opening_hours, events, limits }
   return shifts.filter(s => localDate(s.starts_at) >= from).map(s => ({
     shift_id: s.id,
     date: localDate(s.starts_at),
@@ -345,7 +363,7 @@ export const ALL_TOOLS: ToolDef[] = [
   tool({
     name: 'get_schedule',
     title: 'Rota',
-    description: 'Shifts between two dates (default: this week), with open shifts and Spanish working-time warnings (breaks, 12h rest, opening hours, holidays).',
+    description: 'Shifts between two dates (default: this week), with open shifts and working-time warnings from the business’s own rules, which follow its country (breaks, rest between days, opening hours, holidays).',
     partner: ['rota', 'payroll'],
     input: z.object({ from: date.optional(), to: date.optional() }),
     readOnly: true,
@@ -712,7 +730,7 @@ export const ALL_TOOLS: ToolDef[] = [
   tool({
     name: 'outsourcing',
     title: 'Outsourcing',
-    description: 'The jobs done for the business by people and firms outside the team (social media, the books, cleaning, the coffee machine\'s service…): who does each, the price agreed and how it\'s charged, roughly what it costs a month, what\'s included, the contract dates and whether one needs a look, and how to reach them. Then the catalogue: the people and firms on file to choose from for each job, with their usual rate, the business\'s own rating (1-5), whether they\'re starred and notes; the usual jobs nobody does yet; and past jobs. Prices are euros without IVA.',
+    description: 'The jobs done for the business by people and firms outside the team (social media, the books, cleaning, the coffee machine\'s service…): who does each, the price agreed and how it\'s charged, roughly what it costs a month, what\'s included, the contract dates and whether one needs a look, and how to reach them. Then the catalogue: the people and firms on file to choose from for each job, with their usual rate, the business\'s own rating (1-5), whether they\'re starred and notes; the usual jobs nobody does yet; and past jobs. Prices are euros without VAT.',
     admin: true,
     partner: ['finances'],
     readOnly: true,
@@ -750,7 +768,7 @@ export const ALL_TOOLS: ToolDef[] = [
   tool({
     name: 'save_contractor',
     title: 'Add/change someone in the outsourcing catalogue',
-    description: `Admins: add a person or firm to the outsourcing catalogue (name needed), or change one (pass contractor_id, or their name to find them). jobs replaces the jobs they do; add_jobs adds to them. The usual jobs: ${usualJobs}; any other is fine in the business's own words. rate_eur is their usual rate without IVA, charged ${RATE_UNIT_IDS.join(', ')}. rating: the business's own score, 1-5. active: false archives them (someone who has done a job is never deleted).`,
+    description: `Admins: add a person or firm to the outsourcing catalogue (name needed), or change one (pass contractor_id, or their name to find them). jobs replaces the jobs they do; add_jobs adds to them. The usual jobs: ${usualJobs}; any other is fine in the business's own words. rate_eur is their usual rate without VAT, charged ${RATE_UNIT_IDS.join(', ')}. rating: the business's own score, 1-5. active: false archives them (someone who has done a job is never deleted).`,
     admin: true,
     input: z.object({
       contractor_id: z.string().optional(), name: z.string().min(1).max(120).optional(), kind: enumOf(CONTRACTOR_KINDS).optional(),
@@ -768,8 +786,9 @@ export const ALL_TOOLS: ToolDef[] = [
       const patch: Record<string, unknown> = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined))
       if (jobs || add_jobs) patch.services = [...named(jobs ?? found?.services ?? []), ...named(add_jobs ?? [])]
       if (phone !== undefined) {
-        patch.phone = phone.trim() ? cleanPhone(phone) : null
-        if (phone.trim() && !patch.phone) throw new Error(`"${phone}" isn't a phone number: write it with its country code, like +34 600 000 000`)
+        const country = await countryOf(sb)
+        patch.phone = phone.trim() ? cleanPhone(phone, country) : null
+        if (phone.trim() && !patch.phone) throw new Error(`"${phone}" isn't a phone number: write it with its country code, like ${COUNTRIES[country].phoneExample}`)
       }
       if (website !== undefined) patch.website = cleanWebsite(website)
       if (their_work !== undefined) patch.portfolio_url = cleanWebsite(their_work)
@@ -789,7 +808,7 @@ export const ALL_TOOLS: ToolDef[] = [
   tool({
     name: 'outsource_job',
     title: 'Give someone a job (outsourcing)',
-    description: `Admins: give a job to someone in the outsourcing catalogue (who: their name or id; add them first with save_contractor), on the terms agreed: price_eur without IVA, charged ${RATE_UNIT_IDS.join(', ')}, and for a price an hour, day or visit how_many of them per week, month or year (so the monthly cost can be worked out). Whoever did that job until now has theirs ended today, unless end_current is false. Or change a job (job_id from the outsourcing tool), or end it with active: false. The usual jobs: ${usualJobs}.`,
+    description: `Admins: give a job to someone in the outsourcing catalogue (who: their name or id; add them first with save_contractor), on the terms agreed: price_eur without VAT, charged ${RATE_UNIT_IDS.join(', ')}, and for a price an hour, day or visit how_many of them per week, month or year (so the monthly cost can be worked out). Whoever did that job until now has theirs ended today, unless end_current is false. Or change a job (job_id from the outsourcing tool), or end it with active: false. The usual jobs: ${usualJobs}.`,
     admin: true,
     input: z.object({
       job_id: z.string().optional(), job: z.string().min(1).max(80).optional().describe('e.g. "Social media management"'), who: z.string().optional(),
@@ -1236,7 +1255,7 @@ export const ALL_TOOLS: ToolDef[] = [
   tool({
     name: 'save_customer',
     title: 'Add/change customer',
-    description: 'Admins: add a customer or lead (a name, an email or a phone is needed), or change one (pass customer_id), e.g. kind: "customer" when a lead buys. Phone as "+34 600 000 000". Only set marketing_consent: true when the person really agreed to receive marketing (GDPR); the date is recorded.',
+    description: 'Admins: add a customer or lead (a name, an email or a phone is needed), or change one (pass customer_id), e.g. kind: "customer" when a lead buys. Phone with its country code ("+34 600 000 000", "+353 87 123 4567"); one without is taken as the business’s country’s. Only set marketing_consent: true when the person really agreed to receive marketing (GDPR); the date is recorded.',
     admin: true,
     input: z.object({
       customer_id: z.string().uuid().optional(), kind: z.enum(['customer', 'lead']).optional(),
@@ -1247,7 +1266,7 @@ export const ALL_TOOLS: ToolDef[] = [
     }),
     async run({ sb }, { customer_id, phone, last_contacted_on, ...rest }) {
       const patch: Record<string, unknown> = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined))
-      if (phone !== undefined) patch.phone = cleanPhone(phone) ?? phone
+      if (phone !== undefined) patch.phone = cleanPhone(phone, await countryOf(sb)) ?? phone
       if (last_contacted_on) patch.last_contacted_at = zonedIso(last_contacted_on, '12:00')
       if (customer_id) {
         check(await sb.from('customers').update(patch).eq('id', customer_id))
@@ -1448,7 +1467,7 @@ export const ALL_TOOLS: ToolDef[] = [
   tool({
     name: 'list_competitors',
     title: 'Competitors',
-    description: 'Admins: the cafés around the business followed on the Competitors page and how the business compares. Each competitor\'s kind, distance, how much it competes (threat), Google rating, reviews and new reviews a month, price level, what it offers and doesn\'t, opening hours, strengths, weaknesses and its latest prices; the basket item by item (the business\'s own price from Menu costing against the area\'s average and range); a price index (100 = the area average); recent price changes; the findings in plain words; notes and ideas to borrow; and places Google lists nearby that aren\'t followed. Prices in euros, IVA included.',
+    description: 'Admins: the cafés around the business followed on the Competitors page and how the business compares. Each competitor\'s kind, distance, how much it competes (threat), Google rating, reviews and new reviews a month, price level, what it offers and doesn\'t, opening hours, strengths, weaknesses and its latest prices; the basket item by item (the business\'s own price from Menu costing against the area\'s average and range); a price index (100 = the area average); recent price changes; the findings in plain words; notes and ideas to borrow; and places Google lists nearby that aren\'t followed. Prices in euros, VAT included.',
     admin: true,
     readOnly: true,
     input: z.object({ include_notes: z.boolean().default(true) }),
@@ -1522,7 +1541,7 @@ export const ALL_TOOLS: ToolDef[] = [
   tool({
     name: 'record_competitor_price',
     title: 'Record a competitor\'s price',
-    description: `Admins: a price seen at a competitor (or typed in for the business itself, for an item not on Menu costing), kept with the day so prices can be followed over time. The item is matched to the basket by name; a new one is added to the basket (and linked to the business's own menu item of the same name). Sources: ${PRICE_SOURCES.map(x => x.id).join(', ')}. Euros, IVA included.`,
+    description: `Admins: a price seen at a competitor (or typed in for the business itself, for an item not on Menu costing), kept with the day so prices can be followed over time. The item is matched to the basket by name; a new one is added to the basket (and linked to the business's own menu item of the same name). Sources: ${PRICE_SOURCES.map(x => x.id).join(', ')}. Euros, VAT included.`,
     admin: true,
     input: z.object({
       competitor: z.string().describe('Name (or id) of the competitor'), item: z.string().min(1).max(80).describe('e.g. "Flat white"'), price_eur: z.number().min(0).max(999),
@@ -1749,5 +1768,17 @@ export async function runTool(t: ToolDef, ctx: ToolContext, raw: unknown) {
   } else if (t.admin && ctx.me.role !== 'admin') throw new Error('Only admins can do that')
   const parsed = t.input.safeParse(raw ?? {})
   if (!parsed.success) throw new Error(parsed.error.issues.map(i => `${i.path.join('.') || 'input'}: ${i.message}`).join('; '))
-  return t.run(ctx, parsed.data)
+  // In the business's own time zone: the dates and times a tool reads and writes are the business's (Dublin's
+  // for a business in Ireland, as whoami says), not the Worker's.
+  return inTimeZone(ctx.timeZone ?? await businessTimeZone(ctx.sb), () => t.run(ctx, parsed.data))
+}
+
+/** The business's time zone, as whoever is asking can read it; none when it can't be read (the Worker's own then). */
+async function businessTimeZone(sb: SupabaseClient): Promise<string | undefined> {
+  try {
+    const { data } = await sb.from('business').select('timezone').maybeSingle()
+    return (data as { timezone?: string } | null)?.timezone
+  } catch {
+    return undefined
+  }
 }

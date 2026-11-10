@@ -6,6 +6,7 @@
 import { msg } from './i18n'
 import { EMAIL, cleanPhone } from './customers'
 import { cleanWebsite } from './connections'
+import { currentCountry, type Country } from './country'
 
 export interface Contact {
   id: string
@@ -57,23 +58,28 @@ export function jobKey(typed: string | null | undefined, translate: (s: string) 
   return USUAL_JOBS.find(j => fold(j) === fold(v) || fold(translate(j)) === fold(v)) ?? v
 }
 
-/** A contact as saved: blanks are none, the phone and website written the usual way, WhatsApp only with a phone. */
-export function tidyContact<T extends ContactInput>(c: T): T {
+/**
+ * A contact as saved: blanks are none, the phone and website written the usual way (a phone without its country
+ * code is the business's country's), WhatsApp only with a phone.
+ */
+export function tidyContact<T extends ContactInput>(c: T, country: Country = currentCountry()): T {
   const text = (v: string | null | undefined) => v?.trim() || null
   const phone = text(c.phone)
   return {
     ...c, name: c.name.trim(), job: text(c.job), company: text(c.company), email: text(c.email), notes: text(c.notes),
-    phone: phone && (cleanPhone(phone) ?? phone), website: cleanWebsite(c.website), whatsapp: !!phone && !!c.whatsapp,
+    phone: phone && (cleanPhone(phone, country) ?? phone), website: cleanWebsite(c.website), whatsapp: !!phone && !!c.whatsapp,
   }
 }
 
-/** What's wrong before it's saved (the database says the same), or null. Pass it tidied. */
-export function contactProblem(c: ContactInput): string | null {
+/** What's wrong before it's saved (the database says the same), or null. Pass it tidied. A phone's example is the business's country's. */
+export function contactProblem(c: ContactInput, country: Country = currentCountry()): string | null {
   if (!c.name.trim()) return msg('Give them a name')
   if (c.name.length > CONTACT_LIMITS.name) return msg('Keep the name to 120 characters')
   if ((c.job ?? '').length > CONTACT_LIMITS.job) return msg('Keep what they do to 80 characters')
   if ((c.company ?? '').length > CONTACT_LIMITS.company) return msg('Keep the company to 120 characters')
-  if (c.phone && !/^\+[0-9][0-9 ]{4,24}$/.test(c.phone)) return msg('Write the phone number with its country code, like +34 600 000 000')
+  if (c.phone && !/^\+[0-9][0-9 ]{4,24}$/.test(c.phone)) {
+    return country === 'IE' ? msg('Write the phone number with its country code, like +353 87 123 4567') : msg('Write the phone number with its country code, like +34 600 000 000')
+  }
   if (c.email && (c.email.length > CONTACT_LIMITS.email || !EMAIL.test(c.email))) return msg('Enter a full email address, like name@example.com')
   if (c.website && (c.website.length > CONTACT_LIMITS.website || !/^https?:\/\/[^\s/]+\S*$/i.test(c.website))) return msg('The link needs to start with https://')
   if ((c.notes ?? '').length > CONTACT_LIMITS.notes) return msg('Keep the notes to 2,000 characters')

@@ -33,6 +33,13 @@ describe('which browser tests a change runs', () => {
     expect(matches(p, 'adds a calendar event')).toBe(false)
   })
 
+  it('the last Spain-only texts run the tests of the pages they’re on', () => {
+    const p = selectTests(['src/i18n/es/countryLeftovers.ts'])
+    for (const t of ['employees cannot open profit and loss', 'competitors: one menu item at every café, yours marked, and your menu added to the basket',
+      'roles and rules › staff rules']) expect(matches(p, t), t).toBe(true)
+    expect(matches(p, 'adds a calendar event')).toBe(false)
+  })
+
   it('every area names files and tests', () => {
     for (const a of AREAS) { expect(a.files.length, a.name).toBeGreaterThan(0); expect(a.tests, a.name).not.toBe('') }
   })

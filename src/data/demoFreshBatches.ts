@@ -25,6 +25,8 @@ interface Who {
   screens: () => { id: string; active: boolean }[]
   /** The menu items, for a name's price. */
   menu: () => { id: string; name: string; sell_price: number | null; square_id?: string | null }[]
+  /** An amount as the database writes an offer's: the business's country's way ("€2,45" in Spain). */
+  money: (n: number) => string
 }
 
 type FreshApi = Pick<Api, 'freshBatches' | 'saveFreshBatch' | 'deleteFreshBatch' | 'freshItems' | 'saveFreshItem' | 'deleteFreshItem'> & {
@@ -71,7 +73,7 @@ export function demoFreshApi(w: Who): FreshApi {
       const mine = (o: { fresh_batch_id?: string | null; fresh_stage?: number | null }) => o.fresh_batch_id === b.id && (o.fresh_stage ?? 1) === stage
       const existing = w.offers.find(mine)
       if (from && !b.cleared && Date.parse(until) > now) {
-        const { price, was_price } = freshOfferPrice(discount, sell)
+        const { price, was_price } = freshOfferPrice(discount, sell, w.money)
         const fields = { title: b.name.slice(0, 80), price, was_price, starts_at: from, ends_at: until }
         if (existing) Object.assign(existing, fields, moved ? where : {})
         else w.offers.push({ id: w.uid(), details: null, image_url: null, seconds: 15, post_id: null, active: true,

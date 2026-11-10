@@ -5239,7 +5239,7 @@ test.describe('stock and suppliers', () => {
     await page.getByRole('option', { name: '8 hours' }).click()
     await expect(dialog).toContainText('Good until 17:00')
     await dialog.getByRole('group', { name: 'Start the discount' }).getByRole('button', { name: '2 hours before' }).click()
-    await expect(dialog.getByRole('status')).toHaveText('On Offers & specials from 15:00 until 17:00: €1.26, was €1.80.')
+    await expect(dialog.getByRole('status')).toHaveText('On Offers & specials from 15:00 until 17:00: €1,26, was €1,80.')
     await dialog.getByRole('button', { name: 'Record', exact: true }).click()
     await toast(page, 'Croissant recorded, with its offer')
     const croissant = counter.getByRole('listitem', { name: 'Croissant' })
@@ -5253,8 +5253,8 @@ test.describe('stock and suppliers', () => {
     await signInAs(page, 'aron@example.com')
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Offers & specials' }).click()
     const offer = page.getByRole('region', { name: 'Coming up' }).getByRole('article', { name: 'Croissant' })
-    await expect(offer).toContainText('€1.26')
-    await expect(offer).toContainText('€1.80')
+    await expect(offer).toContainText('€1,26')
+    await expect(offer).toContainText('€1,80')
     await offer.getByRole('link', { name: 'Freshly made: see the batch on Stock' }).click()
     await expect(page.getByRole('tab', { name: 'Freshly made' })).toHaveAttribute('aria-selected', 'true')
     await expect(counter.getByRole('listitem', { name: 'Croissant' }).getByRole('link', { name: '30% off from 15:00, on Offers & specials' })).toHaveAttribute('href', '/offers')
@@ -5495,7 +5495,7 @@ test.describe('stock and suppliers', () => {
     await expect(pain).toContainText('30% off for its last 4 hours, then 50% off for its last 2 hours')
     await pain.getByRole('button', { name: 'Record a batch of Pain au chocolat' }).click()
     await expect(page.getByRole('dialog', { name: 'Record a batch' }).getByRole('status')).toHaveText(
-      'On Offers & specials from Thu 1 Oct, 05:00 until Thu 1 Oct, 07:00: €1.40, was €2.00. Then from Thu 1 Oct, 07:00 until Thu 1 Oct, 09:00: €1.00, was €2.00.')
+      'On Offers & specials from Thu 1 Oct, 05:00 until Thu 1 Oct, 07:00: €1,40, was €2,00. Then from Thu 1 Oct, 07:00 until Thu 1 Oct, 09:00: €1,00, was €2,00.')
   })
 })
 
@@ -6137,8 +6137,11 @@ test.describe('menu, menu design and screens', () => {
   test('a screen’s own link plays its slides with no sign-in; an old link says so', async ({ page }) => {
     await page.clock.install({ time: WED_0900 })
     await page.goto('/display/c0ffee00beef00c0ffee00beef00cafe?demo')
-    // Today's last-day offer first, for 15 seconds, then the slides.
+    // Today's last-day offer first, for 15 seconds, then the slides. Its price the way the business's country
+    // writes it (Spain's decimal comma), with nobody signed in.
     await expect(page.getByText('Butter croissants')).toBeVisible()
+    await expect(page.getByRole('img', { name: 'Butter croissants · €1,68' })).toBeVisible()
+    await expect(page.getByRole('img', { name: 'Butter croissants · €1,68' }).locator('s')).toHaveText('€2,40')
     await page.clock.fastForward('00:00:16')
     await expect(page.getByText('Iced matcha latte')).toBeVisible()
     // Its diet badges, from what goes into it on Menu costing (vegan, dairy free).
@@ -6340,14 +6343,14 @@ test.describe('offers and specials', () => {
     await page.getByRole('button', { name: /Notifications, \d+ new/ }).first().click()
     const bell = page.getByRole('region', { name: 'Notifications' })
     await expect(bell).toContainText('On offer till closing: Butter croissants')
-    await expect(bell).toContainText('18 left on their last day, €1.68 until 18:00. Square isn’t changed: take the offer price at the till.')
+    await expect(bell).toContainText('18 left on their last day, 1,68 € until 18:00. Square isn’t changed: take the offer price at the till.')
     await page.keyboard.press('Escape')
 
     // Offers & specials: live now, labelled as automatic, the usual price crossed out, on the counter TV until closing.
     await last.getByRole('link', { name: 'Offers & specials' }).click()
     const offer = page.getByRole('region', { name: 'Live now' }).getByRole('article', { name: 'Butter croissants' })
-    await expect(offer).toContainText('€1.68')
-    await expect(offer.locator('s')).toHaveText('€2.40')
+    await expect(offer).toContainText('€1,68')
+    await expect(offer.locator('s')).toHaveText('€2,40')
     await expect(offer).toContainText('Automatic: last day')
     await expect(offer).toContainText('Today, 08:35–18:00')
     await expect(offer).toContainText('On Counter TV: in turn, 15 seconds each time')
@@ -6361,9 +6364,9 @@ test.describe('offers and specials', () => {
     await bakes.getByRole('button', { name: 'Edit' }).click()
     const dialog = page.getByRole('dialog', { name: 'Edit the rule' })
     await expect(dialog.getByRole('checkbox', { name: 'Bakery' })).toBeChecked()
-    await expect(dialog).toContainText('Butter croissants: €1.68 instead of €2.40')
+    await expect(dialog).toContainText('Butter croissants: €1,68 instead of €2,40')
     await dialog.getByRole('textbox', { name: 'Off the usual price' }).fill('50')
-    await expect(dialog).toContainText('Butter croissants: €1.20 instead of €2.40')
+    await expect(dialog).toContainText('Butter croissants: €1,20 instead of €2,40')
     await expect(dialog).toContainText('Nothing is charged or changed in Square.')
     await dialog.getByRole('button', { name: 'Save' }).click()
     await toast(page, 'Saved. Items on their last day go on offer by themselves.')

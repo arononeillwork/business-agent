@@ -1,8 +1,8 @@
 // Tables out of the app: CSV, Excel (.xlsx), a printable page (save it as PDF) and tab-separated
 // text for pasting into Google Sheets or Numbers. No library: an .xlsx is a few XML files in a zip.
-import { currentLanguage } from '../i18n'
+import { locale } from '../i18n'
 import { currentCountry, type Country } from '../../shared/country'
-import type { NumberFormat } from '../../shared/time'
+import { formatNumber, type NumberFormat } from '../../shared/time'
 
 export type Cell = string | number | null | undefined
 export interface ExportTable {
@@ -84,11 +84,17 @@ export async function copyTsv(t: ExportTable) {
   await navigator.clipboard.writeText(tsvContent(t))
 }
 
+/** The day a PDF is printed, day first in the person's language: "10 November 2026", "10 de noviembre de 2026". */
+export const printedOn = (now = new Date()) => now.toLocaleDateString(locale(), { day: 'numeric', month: 'long', year: 'numeric' })
+
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
-/** Opens the browser's print dialog on a clean copy of the table; "Save as PDF" makes the file. */
+/**
+ * Opens the browser's print dialog on a clean copy of the table; "Save as PDF" makes the file. Its numbers
+ * have the person's decimal mark, as on screen (Ireland's point, Spain's comma), and its date is day first.
+ */
 export function printPdf(t: ExportTable, money: (n: number) => string = n => n.toFixed(2)) {
-  const num = (c: number, i: number) => (t.money?.includes(i) ? money(c) : c.toLocaleString(undefined, { maximumFractionDigits: 2 }))
+  const num = (c: number, i: number) => (t.money?.includes(i) ? money(c) : formatNumber(c))
   const cell = (c: Cell, tag: 'td' | 'th', i: number) =>
     `<${tag}${typeof c === 'number' ? ' class="n"' : ''}>${esc(typeof c === 'number' ? num(c, i) : text(c))}</${tag}>`
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(t.title)}</title><style>
@@ -97,7 +103,7 @@ export function printPdf(t: ExportTable, money: (n: number) => string = n => n.t
     table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #e6dfda}
     th{font-weight:600;background:#f6f2ef}.n{text-align:right;font-variant-numeric:tabular-nums}tfoot td,tr.b td{font-weight:600}tfoot td{border-top:2px solid #2b2522}
     @page{margin:14mm}</style></head><body>
-    <h1>${esc(t.title)}</h1><p>${esc(new Date().toLocaleDateString(currentLanguage() === 'es' ? 'es-ES' : undefined, { day: 'numeric', month: 'long', year: 'numeric' }))}</p>
+    <h1>${esc(t.title)}</h1><p>${esc(printedOn())}</p>
     <table><thead><tr>${t.columns.map((c, i) => cell(c, 'th', i)).join('')}</tr></thead>
     <tbody>${t.rows.map((r, ri) => `<tr${t.bold?.includes(ri) ? ' class="b"' : ''}>${r.map((c, i) => cell(c, 'td', i)).join('')}</tr>`).join('')}</tbody>
     ${t.footer ? `<tfoot><tr>${t.footer.map((c, i) => cell(c, 'td', i)).join('')}</tr></tfoot>` : ''}</table></body></html>`

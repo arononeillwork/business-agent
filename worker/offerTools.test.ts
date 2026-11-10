@@ -81,9 +81,18 @@ describe('Offers and screens: the AI tools', () => {
       posted: 'Mon 2 Nov 2026 09:00', photo: IG_PHOTO, link: 'https://www.instagram.com/p/C2/',
       offer: { title: '2x1 iced lattes this weekend', price: '2 for 1', was_price: null, details: 'Bring a friend', runs: 'weekend' },
     })
-    // A reel's cover is its photo.
-    expect(out.posts[2]).toMatchObject({ photo: 'https://x.cdninstagram.com/v.jpg', video: true, offer: { price: '€3.80', was_price: '€4.50' } })
+    // A reel's cover is its photo. Its prices as the business's country writes them: Spain's comma.
+    expect(out.posts[2]).toMatchObject({ photo: 'https://x.cdninstagram.com/v.jpg', video: true, offer: { price: '€3,80', was_price: '€4,50' } })
     expect(fetched.find(u => u.includes('me/media'))).toContain('limit=3')
+  })
+
+  it('reads the prices in a post the Irish way for a business in Ireland, and saves them so', async () => {
+    db.tables.business[0].country = 'IE'
+    await connectInstagram()
+    const out = await run('latest_social_posts', { limit: 3 }) as { posts: Row[] }
+    expect(out.posts[2]).toMatchObject({ offer: { price: '€3.80', was_price: '€4.50' } })
+    await run('save_offer', { from_post: '1799', length: 'today', screens: ['café tv'] })
+    expect(db.table('offers')[0]).toMatchObject({ price: '€3.80', was_price: '€4.50' })
   })
 
   it('reads the Facebook Page’s posts while Instagram isn’t connected', async () => {
@@ -122,7 +131,7 @@ describe('Offers and screens: the AI tools', () => {
     await connectInstagram()
     await run('save_offer', { from_post: '1799', title: 'PSL', length: 'today', screens: ['café tv'], screen_mode: 'only' })
     expect(db.table('offers')[0]).toMatchObject({
-      title: 'PSL', price: '€3.80', was_price: '€4.50', ends_at: '2026-11-03T22:59:00.000Z', screen_ids: ['s-tv'], screen_mode: 'only',
+      title: 'PSL', price: '€3,80', was_price: '€4,50', ends_at: '2026-11-03T22:59:00.000Z', screen_ids: ['s-tv'], screen_mode: 'only',
     })
     // The reel's cover, kept in the café's storage.
     expect(db.table('offers')[0].image_url).toMatch(/^https:\/\/app\.test\/media\/posts\//)

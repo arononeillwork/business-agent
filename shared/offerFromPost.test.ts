@@ -25,6 +25,18 @@ describe('offerFromCaption', () => {
     expect(offerFromCaption(`Matcha latte ${STRUCK('€4.80')} €3.90`)).toMatchObject({ price: '€3.90', was_price: '€4.80' })
   })
 
+  it('writes the amounts the way the business’s country does, however the caption has them', () => {
+    // Ireland's decimal point (the default), Spain's comma.
+    expect(offerFromCaption('Tostada con aguacate\nSolo hoy 4,50€ (antes 6€)', 'point')).toMatchObject({ price: '€4.50', was_price: '€6' })
+    expect(offerFromCaption('Tostada con aguacate\nSolo hoy 4,50€ (antes 6€)', 'comma')).toMatchObject({ price: '€4,50', was_price: '€6' })
+    expect(offerFromCaption('Scones €3.50, usually €4.20', 'comma')).toMatchObject({ price: '€3,50', was_price: '€4,20' })
+    expect(offerFromCaption('Cookies: 3 for €2.50 this weekend', 'comma').price).toBe('3 for €2,50')
+    expect(offerFromCaption(`Matcha latte ${STRUCK('€4.80')} €3.90`, 'comma')).toMatchObject({ price: '€3,90', was_price: '€4,80' })
+    const post: SourcePost = { id: 'p', source: 'instagram', caption: 'Pumpkin spice latte €3.80', image_url: null, permalink: null, posted_at: '2026-10-20T08:00:00Z' }
+    expect(offerFromPost(post, [], 'Europe/Dublin', Date.parse('2026-10-20T09:00:00Z'), 'point').price).toBe('€3.80')
+    expect(offerFromPost(post, [], 'Europe/Madrid', Date.parse('2026-10-20T09:00:00Z'), 'comma').price).toBe('€3,80')
+  })
+
   it('reads deals: 2x1, 3 for €5, % off, half price, buy one get one', () => {
     expect(offerFromCaption('2x1 en cafés esta tarde').price).toBe('2 for 1')
     expect(offerFromCaption('Cookies: 3 for €5 this weekend')).toMatchObject({ price: '3 for €5', length: 'weekend' })

@@ -13,7 +13,7 @@ import { keepPostPhoto, latestPosts } from './offerPosts'
 import { endFor, offerProblem, offerState, type Offer, type OfferInput } from '../shared/offers'
 import { latestOfferPost, offerFromCaption, offerFromPost, postOfferEnd, type SourcePost } from '../shared/offerFromPost'
 import type { Screen } from '../shared/screens'
-import { formatLocal, zonedIso } from '../shared/time'
+import { defaultNumberFormat, formatLocal, zonedIso, type NumberFormat } from '../shared/time'
 
 const tool = <S extends z.ZodType>(def: ToolDef<S>) => def as unknown as ToolDef
 
@@ -28,6 +28,11 @@ const STATE_TEXT = { on: 'live now', coming: 'coming up', ended: 'ended', off: '
 
 async function timeZone(sb: SupabaseClient) {
   return (check(await sb.from('business').select('timezone').single()) as { timezone: string }).timezone
+}
+
+/** How the business's country writes an amount (Ireland's "€3.50", Spain's "€3,50"): an offer read from a post is saved that way. */
+async function countryNumbers(sb: SupabaseClient): Promise<NumberFormat> {
+  return defaultNumberFormat((check(await sb.from('business').select('country').single()) as { country: string | null }).country)
 }
 
 /** The business's own database (posts are read with its connection, which only the server can open). */
@@ -74,8 +79,8 @@ function offerOut(o: Offer, screens: Pick<Screen, 'id' | 'name'>[], tz: string) 
   }
 }
 
-function postOut(p: SourcePost, tz: string) {
-  const idea = offerFromCaption(p.caption)
+function postOut(p: SourcePost, tz: string, f: NumberFormat) {
+  const idea = offerFromCaption(p.caption, f)
   return {
     post_id: p.id, posted: formatLocal(p.posted_at, 'EEE d MMM yyyy HH:mm', tz), caption: p.caption, photo: p.image_url, link: p.permalink, video: !!p.video,
     offer_found: idea.found,
@@ -93,10 +98,10 @@ export const OFFER_TOOLS: ToolDef[] = [
     input: z.object({ limit: z.number().int().min(1).max(25).default(6) }),
     async run(ctx, { limit }) {
       const { env, db } = await serverDb(ctx)
-      const [read, tz] = await Promise.all([latestPosts(env, db, limit), timeZone(ctx.sb)])
+      const [read, tz, f] = await Promise.all([latestPosts(env, db, limit), timeZone(ctx.sb), countryNumbers(ctx.sb)])
       const latest = latestOfferPost(read.posts)
       return {
-        source: read.source, account: read.account, posts: read.posts.map(p => postOut(p, tz)), latest_offer_post: latest?.id ?? null,
+        source: read.source, account: read.account, posts: read.posts.map(p => postOut(p, tz, f)), latest_offer_post: latest?.id ?? null,
         ...(read.source === 'facebook' ? { note: 'Instagram isn’t connected, so these are the Facebook Page’s posts. Connect Instagram on the Connections page to read it.' } : {}),
       }
     },
@@ -186,7 +191,7 @@ export const OFFER_TOOLS: ToolDef[] = [
             ? `None of the latest ${read.posts.length} posts on ${read.source === 'instagram' ? 'Instagram' : 'the Facebook Page'} has an offer in it: pick one with its post_id from latest_social_posts, or type the offer in`
             : 'That post isn’t among the latest 25: see latest_social_posts')
         }
-        const made = offerFromPost(post, screenIds, tz)
+        const made = offerFromPost(post, screenIds, tz, Date.now(), await countryNumbers(sb))
         base = existing ? { ...existing, title: made.title, details: made.details, price: made.price, was_price: made.was_price, image_url: made.image_url } : made
         if (a.image_url === undefined && post.image_url && ctx.origin) {
           const kept = await keepPostPhoto(env, db, ctx.origin, post.image_url)

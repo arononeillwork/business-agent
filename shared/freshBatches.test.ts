@@ -4,6 +4,7 @@ import {
   squareShelfChanges, type FreshBatch,
   madeHere, menuShelfLife, type FreshItem, NO_SECOND_DISCOUNT, NO_SECOND_OFFER, discountNow, defaultSecondAt, DISCOUNT_LEADS, batchScreens, offerScreens,
 } from './freshBatches'
+import { countryMoney } from './offers'
 
 const at = (hhmm: string, day = '2026-09-30') => new Date(`${day}T${hhmm}:00Z`).toISOString()
 const batch = (x: Partial<FreshBatch> = {}): FreshBatch => ({
@@ -53,9 +54,12 @@ describe('freshly made', () => {
   })
 
   it('puts it on offer at a % off its menu price, or a set price', () => {
-    expect(freshOfferPrice(batch(), 3.5)).toEqual({ price: '€2.45', was_price: '€3.50' })
+    // On this screen (Spain's comma until someone chooses), and saved by an Irish or a Spanish business.
+    expect(freshOfferPrice(batch(), 3.5)).toEqual({ price: '€2,45', was_price: '€3,50' })
+    expect(freshOfferPrice(batch(), 3.5, n => countryMoney(n, 'IE'))).toEqual({ price: '€2.45', was_price: '€3.50' })
+    expect(freshOfferPrice(batch(), 3.5, n => countryMoney(n, 'ES'))).toEqual({ price: '€2,45', was_price: '€3,50' })
     expect(freshOfferPrice(batch(), null)).toEqual({ price: '-30%', was_price: null })
-    expect(freshOfferPrice(batch({ discount: 'price', price: '2 for €5' }), 3.5)).toEqual({ price: '2 for €5', was_price: '€3.50' })
+    expect(freshOfferPrice(batch({ discount: 'price', price: '2 for €5' }), 3.5, n => countryMoney(n, 'IE'))).toEqual({ price: '2 for €5', was_price: '€3.50' })
   })
 
   it('starts the next batch of the same thing like the last one, moved to its time', () => {

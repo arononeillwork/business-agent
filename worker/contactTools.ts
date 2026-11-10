@@ -88,8 +88,11 @@ export const CONTACT_TOOLS: ToolDef[] = [
       }
       const changes = Object.fromEntries(Object.entries(typed).filter(([, v]) => v !== undefined)) as Partial<ContactInput>
       if (current && !Object.keys(changes).length) throw new Error('Nothing to change')
-      const next = tidyContact({ ...current, ...changes, name: changes.name ?? current!.name })
-      const problem = contactProblem(next)
+      // A phone typed without its country code is the business's country's (an Irish 087… is +353 87…).
+      const { data: where } = await sb.from('business').select('country').maybeSingle()
+      const country = (where as { country?: string } | null)?.country === 'IE' ? 'IE' : 'ES'
+      const next = tidyContact({ ...current, ...changes, name: changes.name ?? current!.name }, country)
+      const problem = contactProblem(next, country)
       if (problem) throw new Error(problem)
       const { id: _id, ...row } = next
       const id = current

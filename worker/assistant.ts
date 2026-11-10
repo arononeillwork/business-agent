@@ -13,6 +13,7 @@ import { loadMe, runTool, toolsFor, type ToolContext, type ToolDef } from './too
 import { permissionsOf, type JobRole } from '../shared/roles'
 import { businessConfig } from '../shared/business.config'
 import { defaultNumberFormat, formatMoneyAs, moneyText, numberFormatOf, type NumberFormat } from '../shared/time'
+import type { Country } from '../shared/country'
 
 const MODEL = 'claude-opus-5-5'
 /** Rounds of tool use in one answer before it gives up. */
@@ -31,15 +32,21 @@ export type Claude = Pick<Anthropic['beta']['messages'], 'create'>
 const amounts = (f: NumberFormat) => `Write amounts the way the app shows them here, with a decimal ${f === 'point' ? 'point' : 'comma'}: ${formatMoneyAs(15, f)}`
   + `${f === 'point' ? '' : ` or ${moneyText(15, f)}`}, ${formatMoneyAs(1234.5, f)}. The tools give amounts as plain numbers (12.5 is ${formatMoneyAs(12.5, f)}).`
 
-const instructions = (ctx: ToolContext, business: string) => `You are the assistant inside ${business}'s team app (rota, clock-ins, time off, the to-do list, stock, the menu and more).
+/** Where the business is, so what Claude says about the law, tax and holidays is that country's (Ireland's isn't Spain's). */
+const where = (country?: Country) => (country === 'IE'
+  ? 'The business is in Ireland: answer about employment law, tax and public holidays for Ireland (VAT, Revenue, PRSI, the Organisation of Working Time Act), not Spain.'
+  : 'The business is in Spain: answer about employment law, tax and public holidays for Spain (IVA, the Agencia Tributaria, the Estatuto de los Trabajadores).')
+
+const instructions = (ctx: ToolContext, business: string, country?: Country) => `You are the assistant inside ${business}'s team app (rota, clock-ins, time off, the to-do list, stock, the menu and more).
 You are talking with ${ctx.me.full_name}. Answer questions about the business and the app, using the tools to look things up rather than guessing.
+${where(country)}
 The tools run as them: they show and change only what they could in the app. Call whoami first when you need to know who they are or what they can do.
 Dates are YYYY-MM-DD and times 24-hour in the business's time zone. Answer in the language they write in, briefly, in plain words, without markdown tables.
 ${amounts(ctx.numbers ?? defaultNumberFormat())}
 Before deleting anything or changing several things at once, say what you will do and ask them to confirm. Everything you change is logged as made via AI on their behalf.`
 
 /** A question, answered: Claude runs the person's tools as it needs them, then replies. */
-export async function answer(claude: Claude, ctx: ToolContext, tools: ToolDef[], history: ChatTurn[], business: string): Promise<string> {
+export async function answer(claude: Claude, ctx: ToolContext, tools: ToolDef[], history: ChatTurn[], business: string, country?: Country): Promise<string> {
   const messages: Anthropic.Beta.BetaMessageParam[] = history.map(t => ({ role: t.role, content: t.text }))
   const offered: Anthropic.Beta.BetaTool[] = tools.map(t => {
     const { $schema: _, ...schema } = z.toJSONSchema(t.input) as Record<string, unknown>
@@ -54,7 +61,7 @@ export async function answer(claude: Claude, ctx: ToolContext, tools: ToolDef[],
       fallbacks: 'default',
       // The instructions and the tools are the same every time: cached.
       cache_control: { type: 'ephemeral' },
-      system: instructions(ctx, business),
+      system: instructions(ctx, business, country),
       tools: offered,
       messages,
     })
@@ -132,14 +139,14 @@ assistant.post('/api/assistant', async c => {
   const db = me.business_id && c.env.SUPABASE_SERVICE_ROLE_KEY ? businessDb(c.env, me.business_id) : null
   const allowance = db ? await countQuestion(db) : null
   if (allowance && !allowance.allowed) return c.json({ error: outOfQuestions(allowance), allowance }, 429)
-  const { data: business } = await sb.from('business').select('name, country').maybeSingle()
-  const biz = business as { name?: string; country?: string | null } | null
+  const { data: business } = await sb.from('business').select('name, country, timezone').maybeSingle()
+  const biz = business as { name?: string; country?: string | null; timezone?: string | null } | null
   // Their decimal mark (their own choice, else the business's country's): Claude is told it, and the tools write with it.
   const numbers = numberFormatOf(me.preferences?.numberFormat, biz?.country)
   const claude = new Anthropic({ apiKey: c.env.ANTHROPIC_API_KEY }).beta.messages
   try {
-    const reply = await answer(claude, { sb, me, env: c.env, origin: new URL(c.req.url).origin, numbers }, toolsFor(me), history,
-      biz?.name ?? businessConfig.name)
+    const reply = await answer(claude, { sb, me, env: c.env, origin: new URL(c.req.url).origin, numbers, timeZone: biz?.timezone ?? undefined }, toolsFor(me), history,
+      biz?.name ?? businessConfig.name, biz?.country === 'IE' ? 'IE' : 'ES')
     return c.json({ reply })
   } catch (e) {
     // Not answered: the question doesn't count.

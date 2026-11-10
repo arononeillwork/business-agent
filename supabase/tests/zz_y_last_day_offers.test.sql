@@ -89,13 +89,13 @@ begin
   assert public.start_last_day_offers(pg_temp.at('12:30')) = 0, 'not before two hours before closing';
   assert public.start_last_day_offers(pg_temp.at('13:30')) = 2, 'the croissants and the milk';
   select * into o from public.offers where title = 'LDO butter croissants';
-  assert o.price = '€1.96' and o.was_price = '€2.80', format('30%% off the shop price, the usual crossed out: %s / %s', o.price, o.was_price);
+  assert o.price = '€1,96' and o.was_price = '€2,80', format('30%% off the shop price, the usual crossed out: %s / %s', o.price, o.was_price);
   assert o.starts_at = pg_temp.at('13:30') and o.ends_at = pg_temp.at('15:00'), 'from now until closing';
   assert o.auto_for = v_today and o.stock_item_id = (select id from public.stock_items where name = 'LDO butter croissants')
     and o.last_day_rule_id = (select id from public.last_day_rules where name = 'Today''s bakes') and o.active, 'linked to its item, rule and day';
   assert o.screen_ids = array[(select id from public.screens where name = 'LDO counter TV')], 'on the rule''s screens';
   select * into m from public.offers where title = 'LDO oat milk';
-  assert m.price = '2 for €3' and m.was_price = '€2.10', 'a set price';
+  assert m.price = '2 for €3' and m.was_price = '€2,10', 'a set price';
   assert m.screen_ids = coalesce(array(select id from public.screens where active order by created_at, id), '{}'), 'no screens picked: every screen that''s on';
   assert not exists (select 1 from public.offers where title in ('LDO almond cake', 'LDO tomorrow''s buns', 'LDO sold-out muffins')),
     'not the cake (in two days), the buns (tomorrow) or the muffins (none left)';
@@ -103,11 +103,11 @@ begin
   -- On the counter TV while it's on (moved to now, whatever the time the tests run).
   update public.offers set starts_at = now() - interval '1 hour', ends_at = now() + interval '1 hour' where id = o.id;
   assert exists (select 1 from jsonb_array_elements(public.display_feed((select token from public.screens where name = 'LDO counter TV'))->'offers') x
-                  where x->>'title' = 'LDO butter croissants' and x->>'was_price' = '€2.80'), 'on the screen';
+                  where x->>'title' = 'LDO butter croissants' and x->>'was_price' = '€2,80'), 'on the screen';
   -- Admins hear about it, with the link to its story.
   assert exists (select 1 from public.notifications n join public.profiles p on p.id = n.profile_id
                   where p.email = 'maria@test' and n.title = 'On offer till closing: LDO butter croissants'
-                    and n.body = '12 left on their last day, €1.96 until 15:00. Square isn’t changed: take the offer price at the till.'
+                    and n.body = '12 left on their last day, €1,96 until 15:00. Square isn’t changed: take the offer price at the till.'
                     and n.link = '/offers?story=' || o.id), 'maria hears about it';
   assert not exists (select 1 from public.notifications n join public.profiles p on p.id = n.profile_id
                       where p.email = 'julio@test' and n.title like 'On offer till closing%'), 'the team doesn''t';

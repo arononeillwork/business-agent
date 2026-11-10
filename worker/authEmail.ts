@@ -74,13 +74,15 @@ ${para(hi)}${p.lines.map(para).join('')}${p.code ? `<p style="margin:4px 0 18px;
 
 /**
  * The email for each kind of sign-in message, as The Business Agent. `business` is the person's
- * business when they're in one (an invite names who invited them). Links go through Supabase,
- * exactly like its own emails.
+ * business when they're in one (an invite names who invited them), and `country` where it is: someone
+ * joining a business in Ireland is greeted in English, as the rest of the email is ("Hi Aoife,"); in
+ * Spain, and before there's a business, "Hola". Links go through Supabase, exactly like its own emails.
  */
-export function authMessage(env: Env, business: string | null, p: HookPayload) {
+export function authMessage(env: Env, business: string | null, p: HookPayload, country?: string | null) {
   const d = p.email_data
   const name = p.user.user_metadata?.full_name?.split(' ')[0]
-  const hi = name ? `Hola ${name},` : 'Hola,'
+  const greet = country === 'IE' ? 'Hi' : 'Hola'
+  const hi = name ? `${greet} ${name},` : `${greet},`
   const site = (d.site_url || 'https://businesssagent.com').replace(/\/+$/, '')
   const link = (type: string) =>
     `${env.SUPABASE_URL}/auth/v1/verify?token=${encodeURIComponent(d.token_hash)}&type=${type}&redirect_to=${encodeURIComponent(d.redirect_to || d.site_url)}`
@@ -153,8 +155,8 @@ authEmail.post('/api/auth/send-email', async c => {
     : { data: null }
   const own = (person?.business_id as number | null | undefined) ?? null
   const ownDb = own ? businessDb(c.env, own) : null
-  const { data: biz } = ownDb ? await ownDb.from('business').select('name').maybeSingle() : { data: null }
-  const message = authMessage(c.env, (biz?.name as string | undefined) ?? null, payload)
+  const { data: biz } = ownDb ? await ownDb.from('business').select('name, country').maybeSingle() : { data: null }
+  const message = authMessage(c.env, (biz?.name as string | undefined) ?? null, payload, biz?.country as string | undefined)
   if (!message) return hookError(400, `This kind of email isn't supported: ${payload.email_data.email_action_type}`)
   // From The Business Agent's own address when Cloudflare Email Sending is on.
   if (c.env.EMAIL) {

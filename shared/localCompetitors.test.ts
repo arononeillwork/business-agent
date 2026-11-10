@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  BASKET, FEATURES, analyse, compareHours, distanceM, featureMatrix, featuresFromGoogle, hoursFromGoogle, insightText, insights, kindFromGoogle,
+  BASKET, FEATURES, IRISH_BASKET, analyse, basketFor, compareHours, distanceM, featureMatrix, featuresFromGoogle, hoursFromGoogle, insightText, insights, kindFromGoogle,
   matchRecipe, priceBoard, priceChanges, priceHistory, priceIndex, priceLevelFromGoogle, ourPrices, ratingRows, suggestedThreat, walkMinutes,
   type Competitor, type CompetitorData, type CompetitorPrice, type PriceItem,
 } from './localCompetitors'
@@ -113,6 +113,16 @@ describe('competitors: prices', () => {
     expect(matchRecipe('Latte', menu)).toBeNull() // three lattes
     expect(matchRecipe('Croissant', menu)).toBeNull() // off the menu
     expect(new Set(BASKET).size).toBe(BASKET.length)
+  })
+
+  it('the usual basket is the country’s: an Irish café’s scone and toastie, a Spanish one’s café con leche and tostada', () => {
+    expect(basketFor('IE')).toBe(IRISH_BASKET)
+    expect(IRISH_BASKET).toEqual(expect.arrayContaining(['Americano', 'Scone', 'Toastie', 'Flat white']))
+    expect(IRISH_BASKET).not.toContain('Café con leche')
+    expect(IRISH_BASKET).not.toContain('Tostada con tomate')
+    expect(new Set(IRISH_BASKET).size).toBe(IRISH_BASKET.length)
+    expect(basketFor('ES')).toBe(BASKET)
+    expect(BASKET).toEqual(expect.arrayContaining(['Café con leche', 'Tostada con tomate']))
   })
 })
 

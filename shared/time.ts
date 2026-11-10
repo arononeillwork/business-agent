@@ -14,20 +14,30 @@ export function setBusinessTimeZone(tz: string | null | undefined) {
   if (isTimeZone(tz)) TZ = tz
 }
 
+/**
+ * The Worker serves every business at once, so it can't set TZ: what it does for one business (an AI tool's
+ * run) says that business's time zone for the request in hand instead (worker/zone.ts), and the helpers
+ * below use it. In the app there is none, and it's TZ.
+ */
+let requestZone: () => string | undefined = () => undefined
+export function zoneFromRequest(f: () => string | undefined) { requestZone = f }
+/** The business's time zone for what's being done now: the request's (the Worker), else TZ (the app). */
+export const businessTz = () => requestZone() ?? TZ
+
 /** yyyy-MM-dd of an instant, in business time (or the time zone given). */
-export const localDate = (iso: string | Date, tz = TZ) => formatInTimeZone(iso, tz, 'yyyy-MM-dd')
+export const localDate = (iso: string | Date, tz = businessTz()) => formatInTimeZone(iso, tz, 'yyyy-MM-dd')
 
 /** HH:mm of an instant, in business time (24-hour, as used in Spain), or the time zone given. */
-export const localTime = (iso: string | Date, tz = TZ) => formatInTimeZone(iso, tz, 'HH:mm')
+export const localTime = (iso: string | Date, tz = businessTz()) => formatInTimeZone(iso, tz, 'HH:mm')
 
 // Month and day names follow the person's language (set by the app; the Worker always writes English).
 let dateLocale: Locale | undefined
 export function setDateLocale(locale: Locale | undefined) { dateLocale = locale }
 
-export const formatLocal = (iso: string | Date, pattern: string, tz = TZ) => formatInTimeZone(iso, tz, pattern, { locale: dateLocale })
+export const formatLocal = (iso: string | Date, pattern: string, tz = businessTz()) => formatInTimeZone(iso, tz, pattern, { locale: dateLocale })
 
 /** Instant (ISO, UTC) for a local date and HH:mm, in business time or the time zone given. */
-export const zonedIso = (date: string, time: string, tz = TZ) =>
+export const zonedIso = (date: string, time: string, tz = businessTz()) =>
   fromZonedTime(`${date}T${time}:00`, tz).toISOString()
 
 /** Whether this runtime knows the time zone (an IANA name such as "Europe/London"). */
@@ -61,7 +71,7 @@ export const weekStart = (date: string) => {
   return addDays(date, -((dow + 6) % 7))
 }
 
-export const today = (tz = TZ) => localDate(new Date(), tz)
+export const today = (tz = businessTz()) => localDate(new Date(), tz)
 
 export const dayKey = (date: string): DayKey =>
   DAY_KEYS[(new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7]

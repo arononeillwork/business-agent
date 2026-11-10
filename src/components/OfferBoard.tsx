@@ -1,7 +1,7 @@
 import { Box } from '@mui/material'
 import type { BoardBrand } from './MenuBoard'
 import { useGoogleFont } from '../lib/googleFont'
-import { offerDays, type ScreenOffer } from '../../shared/offers'
+import { offerDays, shownPrice, type ScreenOffer } from '../../shared/offers'
 import { addDays, formatLocal, localDate, TZ } from '../../shared/time'
 import { fonts } from '../theme'
 import { t } from '../i18n'
@@ -63,8 +63,10 @@ export function OfferBoard({ offer: o, brand, now }: { offer: BoardOffer; brand:
   const heading = brand.heading_font ? `"${brand.heading_font}", ${fonts.display}` : fonts.display
   const body = brand.body_font ? `"${brand.body_font}", system-ui, sans-serif` : 'system-ui, -apple-system, "Segoe UI", sans-serif'
   const clamp = (lines: number) => ({ display: '-webkit-box', WebkitLineClamp: lines, WebkitBoxOrient: 'vertical', overflow: 'hidden' }) as const
+  // A plain amount the way this screen writes amounts (a TV: the business's country's); "2 for €3" as typed.
+  const price = shownPrice(o.price), was = shownPrice(o.was_price)
   return (
-    <Box role="img" aria-label={[o.title, o.price].filter(Boolean).join(' · ')}
+    <Box role="img" aria-label={[o.title, price].filter(Boolean).join(' · ')}
       sx={{ position: 'absolute', inset: 0, containerType: 'size', overflow: 'hidden', bgcolor: CREAM, color: INK, fontFamily: body }}>
       <Box sx={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', '@container (orientation: landscape)': { flexDirection: 'row' } }}>
         {o.image_url && (
@@ -79,10 +81,10 @@ export function OfferBoard({ offer: o, brand, now }: { offer: BoardOffer; brand:
           </Box>
           <Box sx={{ fontFamily: heading, fontWeight: 600, fontSize: o.title.length > 28 ? '7cqmin' : '9cqmin', lineHeight: 1.05, ...clamp(3) }}>{o.title}</Box>
           {o.details && <Box sx={{ fontSize: '3.6cqmin', lineHeight: 1.3, opacity: 0.85, maxWidth: '60ch', ...clamp(4) }}>{o.details}</Box>}
-          {(o.price || o.was_price) && (
+          {(price || was) && (
             <Box sx={{ display: 'flex', alignItems: 'baseline', gap: '2.4cqmin', flexWrap: 'wrap', justifyContent: o.image_url ? 'flex-start' : 'center' }}>
-              {o.price && <Box sx={{ px: '3cqmin', py: '1cqmin', borderRadius: '2cqmin', bgcolor: accent, color: onAccent, fontFamily: heading, fontWeight: 600, fontSize: '7.5cqmin', lineHeight: 1.1 }}>{o.price}</Box>}
-              {o.was_price && <Box component="s" aria-label={t('was {price}', { price: o.was_price })} sx={{ fontSize: '4.4cqmin', opacity: 0.55 }}>{o.was_price}</Box>}
+              {price && <Box sx={{ px: '3cqmin', py: '1cqmin', borderRadius: '2cqmin', bgcolor: accent, color: onAccent, fontFamily: heading, fontWeight: 600, fontSize: '7.5cqmin', lineHeight: 1.1 }}>{price}</Box>}
+              {was && <Box component="s" aria-label={t('was {price}', { price: was })} sx={{ fontSize: '4.4cqmin', opacity: 0.55 }}>{was}</Box>}
             </Box>
           )}
           <Box sx={{ fontSize: '3.4cqmin', fontWeight: 600 }}>{offerWhenText(o, now)}</Box>

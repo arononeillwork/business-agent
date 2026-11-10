@@ -59,8 +59,16 @@ describe('profit and loss', () => {
     }))
     expect(row(p, 'team-pay').values).toEqual([140]) // 8 h × 10 + 5 h × 12
     expect(row(p, 'team-social').values).toEqual([44.1])
+    expect(row(p, 'team-social').label).toBe('Employer’s Social Security')
     expect(row(p, 'team-total').values).toEqual([184.1])
     expect(row(p, 'team-pay').note).toMatch(/rota/)
+  })
+
+  it('in Ireland, what the employer pays on top of pay is PRSI; in Spain, Social Security', () => {
+    const p = (country?: 'ES' | 'IE') => buildPnl(base({ country, employerMultiplier: 1.11 }))
+    expect(row(p('IE'), 'team-social').label).toBe('Employer’s PRSI')
+    expect(row(p('ES'), 'team-social').label).toBe('Employer’s Social Security')
+    expect(row(p(), 'team-social').label).toBe('Employer’s Social Security')
   })
 
   it('Finances’ wages estimate fills only the days before the app has hours, never both', () => {

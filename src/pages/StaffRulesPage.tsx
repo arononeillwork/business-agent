@@ -16,8 +16,9 @@ import { ExportButton } from '../components/tables'
 import type { ExportTable } from '../lib/export'
 import { formatLocal } from '../../shared/time'
 import { businessConfig } from '../../shared/business.config'
+import { currentCountry } from '../../shared/country'
 import {
-  RULE_PRESETS, readState, rulesChangedAt, rulesFromLines, sectionProblem, sortSections,
+  readState, rulePresets, rulesChangedAt, rulesFromLines, sectionProblem, sortSections,
   type ReadState, type RulePreset, type RuleSection, type RuleSectionInput,
 } from '../../shared/staffRules'
 import { tokens } from '../theme'
@@ -100,9 +101,11 @@ export function StaffRulesPage() {
           <CardContent>
             <Empty>
               <Typography sx={{ mb: isAdmin ? 1.5 : 0 }}>
-                {isAdmin ? t('No rules yet. Start with the usual ones for a café in Spain, then change them to how you work.') : t('No rules have been written yet.')}
+                {!isAdmin ? t('No rules have been written yet.')
+                  : currentCountry() === 'IE' ? t('No rules yet. Start with the usual ones for a café in Ireland, then change them to how you work.')
+                    : t('No rules yet. Start with the usual ones for a café in Spain, then change them to how you work.')}
               </Typography>
-              {isAdmin && <Button variant="contained" onClick={() => void addPresets(RULE_PRESETS)}>{t('Add the usual café rules')}</Button>}
+              {isAdmin && <Button variant="contained" onClick={() => void addPresets(rulePresets())}>{t('Add the usual café rules')}</Button>}
             </Empty>
           </CardContent>
         </Card>

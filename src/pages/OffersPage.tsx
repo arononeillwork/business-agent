@@ -29,12 +29,13 @@ import { offerPicture } from '../lib/offerPicture'
 import { readyPhoto } from '../lib/media'
 import { latestOfferPost, offerFromCaption, offerFromPost, type SourcePost } from '../../shared/offerFromPost'
 import {
-  LENGTHS, OFFER_SECONDS, endFor, lengthOf, newOffer, offerProblem, offerState, type Offer, type OfferInput, type OfferLength, type OfferState,
+  LENGTHS, OFFER_SECONDS, countryMoney, endFor, lengthOf, newOffer, offerProblem, offerState, shownPrice, type Offer, type OfferInput, type OfferLength, type OfferState,
 } from '../../shared/offers'
+import { currentCountry } from '../../shared/country'
 import { kindInfo } from '../../shared/social'
 import type { Screen } from '../../shared/screens'
 import type { PostKind, PostMedia, SocialPost } from '../../shared/types'
-import { formatLocal as formatIn, localDate as dateIn, localTime as timeIn, ownTimeZone, today as todayIn, zoneCity, zonedIso as isoIn } from '../../shared/time'
+import { defaultNumberFormat, formatLocal as formatIn, formatMoney, localDate as dateIn, localTime as timeIn, ownTimeZone, today as todayIn, zoneCity, zonedIso as isoIn } from '../../shared/time'
 import { tokens } from '../theme'
 import { msg, t, tn } from '../i18n'
 
@@ -73,9 +74,13 @@ function postText(p: SocialPost) {
   return `${kind}: ${what}`
 }
 
-/** What the story or post says: its name and price, the details, and until when (as it will be when it goes out). */
+/**
+ * What the story or post says: its name and price, the details, and until when (as it will be when it goes out).
+ * A plain amount the way the business's country writes it, for its customers.
+ */
 function captionFor(o: Pick<Offer, 'title' | 'details' | 'price' | 'was_price' | 'starts_at' | 'ends_at'>) {
-  const price = [o.price, o.was_price ? t('was {price}', { price: o.was_price }) : null].filter(Boolean).join(' · ')
+  const was = shownPrice(o.was_price, countryMoney)
+  const price = [shownPrice(o.price, countryMoney), was ? t('was {price}', { price: was }) : null].filter(Boolean).join(' · ')
   return [price ? `${o.title} · ${price}` : o.title, o.details, offerWhenText(o, Math.max(Date.now(), Date.parse(o.starts_at)), ownTimeZone())]
     .filter(Boolean).join('\n')
 }
@@ -126,7 +131,9 @@ export function OffersPage() {
     await run(async () => {
       const image_url = p.image_url ? await api.keepPostPhoto(p.image_url) : null
       const { length: _length, found: _found, ...o } = offerFromPost({ ...p, image_url },
-        screenId ? [screenId] : screenList.filter(s => s.active && s.kind !== 'slideshow').map(s => s.id), ownTimeZone())
+        screenId ? [screenId] : screenList.filter(s => s.active && s.kind !== 'slideshow').map(s => s.id), ownTimeZone(), Date.now(),
+        // Its amounts as the business's country writes them: they're saved, and go on its screens.
+        defaultNumberFormat(currentCountry()))
       setPicking(null)
       setEditing(o)
     })
@@ -248,8 +255,8 @@ function OfferCard({ offer: o, screens, post, onEdit, onStory, onDownload, onEnd
           <Typography component="h3" sx={{ fontWeight: 600, lineHeight: 1.35, textWrap: 'balance', overflowWrap: 'anywhere' }}>{o.title}</Typography>
           {(o.price || o.was_price) && (
             <Stack direction="row" sx={{ gap: 1, alignItems: 'baseline', flexWrap: 'wrap', mt: 0.5 }}>
-              {o.price && <Typography sx={{ fontWeight: 600, color: tokens.roseDeep }}>{o.price}</Typography>}
-              {o.was_price && <Typography component="s" variant="body2" sx={{ color: 'text.secondary' }}>{o.was_price}</Typography>}
+              {o.price && <Typography sx={{ fontWeight: 600, color: tokens.roseDeep }}>{shownPrice(o.price)}</Typography>}
+              {o.was_price && <Typography component="s" variant="body2" sx={{ color: 'text.secondary' }}>{shownPrice(o.was_price)}</Typography>}
             </Stack>
           )}
           <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>{span(o)}</Typography>
@@ -342,9 +349,9 @@ function OfferDialog({ offer, screens, brand, hasPost, onClose, onSaved }: {
             <TextField label={t('Details (optional)')} multiline minRows={2} value={o.details ?? ''} onChange={e => set({ details: e.target.value || null })}
               slotProps={{ htmlInput: { maxLength: 300 } }} />
             <Stack direction="row" spacing={1.5}>
-              <TextField fullWidth label={t('Price (optional)')} placeholder={t('e.g. €3.50, 2 for 1, 20% off')} value={o.price ?? ''}
+              <TextField fullWidth label={t('Price (optional)')} placeholder={t('e.g. {price}, 2 for 1, 20% off', { price: formatMoney(3.5) })} value={o.price ?? ''}
                 onChange={e => set({ price: e.target.value || null })} slotProps={{ htmlInput: { maxLength: 40 } }} />
-              <TextField fullWidth label={t('Usually (optional)')} placeholder={t('e.g. €4.20')} value={o.was_price ?? ''}
+              <TextField fullWidth label={t('Usually (optional)')} placeholder={t('e.g. {price}', { price: formatMoney(4.2) })} value={o.was_price ?? ''}
                 onChange={e => set({ was_price: e.target.value || null })} slotProps={{ htmlInput: { maxLength: 40 } }} helperText={t('Shown crossed out')} />
             </Stack>
             <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
@@ -489,7 +496,7 @@ function PostPicker({ onClose, onPick }: { onClose: () => void; onPick: (p: Sour
         {read.data && !list.length && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('No posts yet.')}</Typography>}
         <Stack spacing={1.5}>
           {list.map(p => {
-            const idea = offerFromCaption(p.caption)
+            const idea = offerFromCaption(p.caption, defaultNumberFormat(currentCountry()))
             const first = p.id === latest?.id
             return (
               <Card key={p.id} component="article" aria-label={idea.title || t('Post')} variant="outlined" sx={{ p: 1.5, display: 'flex', gap: 1.5, borderColor: first ? tokens.roseDeep : undefined }}>
@@ -500,8 +507,8 @@ function PostPicker({ onClose, onPick }: { onClose: () => void; onPick: (p: Sour
                   <Stack direction="row" sx={{ gap: 0.75, alignItems: 'center', flexWrap: 'wrap', mb: 0.5 }}>
                     <Typography variant="body2" sx={{ color: 'text.secondary' }}>{formatLocal(p.posted_at, 'EEE d MMM, HH:mm')}</Typography>
                     {first && <Tag fg={tokens.goodFg} bg={tokens.goodBg}>{t('Latest offer')}</Tag>}
-                    {idea.price && <Tag fg={tokens.infoFg} bg={tokens.infoBg}>{idea.price}</Tag>}
-                    {idea.was_price && <Typography component="s" variant="caption" sx={{ color: 'text.secondary' }}>{idea.was_price}</Typography>}
+                    {idea.price && <Tag fg={tokens.infoFg} bg={tokens.infoBg}>{shownPrice(idea.price)}</Tag>}
+                    {idea.was_price && <Typography component="s" variant="caption" sx={{ color: 'text.secondary' }}>{shownPrice(idea.was_price)}</Typography>}
                   </Stack>
                   <Typography variant="body2" sx={{ whiteSpace: 'pre-line', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                     {p.caption || t('No caption')}

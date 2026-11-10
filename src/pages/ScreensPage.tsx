@@ -46,6 +46,7 @@ import { qrSvg } from '../../shared/qrCodes'
 import type { Brand } from '../../shared/types'
 import { tokens } from '../theme'
 import { SlideVersions } from './ScreenSlideVersions'
+import { currentCountry } from '../../shared/country'
 import { msg, t, tc, tn } from '../i18n'
 
 const inputOf = ({ id, token: _token, last_seen_at: _seen, updated_at: _updated, ...s }: Screen): ScreenInput => ({ ...s, id })
@@ -453,7 +454,8 @@ function ScreenEditor({ screen, main, designs, items, allergens, brand, offers, 
               <FormControlLabel sx={{ mt: 1 }} control={<Switch checked={s.video_sound} onChange={e => set({ video_sound: e.target.checked })} />}
                 label={t('Videos play their own sound (the music pauses for them)')} />
               <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 0.5 }}>
-                {t('Playing music in the café needs the usual licences (SGAE and AGEDI/AIE in Spain): see Licences & renewals.')}
+                {currentCountry() === 'IE' ? t('Playing music in the café needs the usual licences (IMRO and PPI in Ireland): see Licences & renewals.')
+                  : t('Playing music in the café needs the usual licences (SGAE and AGEDI/AIE in Spain): see Licences & renewals.')}
               </Typography>
             </Box>
             <Box>

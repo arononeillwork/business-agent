@@ -6,6 +6,7 @@ import { msg } from './i18n'
 import { shiftPaidMinutes } from './rules'
 import { localDate } from './time'
 import type { Expense, SalesDay, Shift, TimeEntry } from './types'
+import type { Country } from './country'
 
 /** Spanish IVA on food and drink served in a café or restaurant. */
 export const DEFAULT_VAT_RATE = 10
@@ -56,6 +57,8 @@ export interface PnlInput {
   vatRate: number
   /** settings.employer_cost_multiplier: 1.315 = Social Security of 31.5% on top of pay. */
   employerMultiplier: number
+  /** Where the business is: in Ireland what the employer pays on top of pay is PRSI. Spain's when not given. */
+  country?: Country
   takings: Pick<SalesDay, 'date' | 'gross' | 'refunds'>[]
   expenses: (Pick<Expense, 'name' | 'amount' | 'category' | 'active'> & { frequency?: string | null })[]
   entries: Pick<TimeEntry, 'profile_id' | 'work_date' | 'paid_minutes'>[]
@@ -232,7 +235,7 @@ export function buildPnl(input: PnlInput): Pnl {
     } else estimate[i] = people * shares[i]
   })
   line('team-pay', msg('Pay'), 'team', pay, rota ? msg('From timecards, and the rota where there are none yet') : msg('From timecards'))
-  line('team-social', msg('Employer’s Social Security'), 'team', social)
+  line('team-social', input.country === 'IE' ? msg('Employer’s PRSI') : msg('Employer’s Social Security'), 'team', social)
   if (estimate.some(v => v > 0)) line('team-estimate', msg('Wages estimate from Finances'), 'team', estimate, msg('For days without timecards or rota'))
   let team = add(add(pay, social), estimate)
   for (const [label, v] of oneOff('cost', l => l.category === PEOPLE)) { line(`team:one-off:${label}`, label, 'team', v); team = add(team, v) }

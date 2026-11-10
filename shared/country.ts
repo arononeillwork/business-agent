@@ -14,6 +14,8 @@ export interface CountryProfile {
   timezone: string
   locale: string
   callingCode: string
+  /** A phone number written as it's saved, for "like …" (a Spanish mobile, an Irish one). */
+  phoneExample: string
   /** VAT rates a business there charges, lowest first, and the usual one for food and drink served. */
   vatRates: number[]
   defaultVat: number
@@ -30,7 +32,7 @@ export interface CountryProfile {
 
 export const COUNTRIES: Record<Country, CountryProfile> = {
   ES: {
-    code: 'ES', name: msg('Spain'), timezone: 'Europe/Madrid', locale: 'es-ES', callingCode: '34',
+    code: 'ES', name: msg('Spain'), timezone: 'Europe/Madrid', locale: 'es-ES', callingCode: '34', phoneExample: '+34 600 000 000',
     vatRates: [0, 4, 10, 21], defaultVat: 10,
     taxIdLabel: 'CIF / NIF', taxIdHelp: msg('A CIF (B12345678) for a company, or a NIF or NIE for a self-employed person'),
     hoursRecord: { name: msg('Registro de jornada'), law: msg('Estatuto de los Trabajadores, art. 34.9'), years: 4 },
@@ -38,7 +40,7 @@ export const COUNTRIES: Record<Country, CountryProfile> = {
     lawSource: { label: 'BOE', url: 'https://www.boe.es/buscar/act.php?id=BOE-A-2015-11430' },
   },
   IE: {
-    code: 'IE', name: msg('Ireland'), timezone: 'Europe/Dublin', locale: 'en-IE', callingCode: '353',
+    code: 'IE', name: msg('Ireland'), timezone: 'Europe/Dublin', locale: 'en-IE', callingCode: '353', phoneExample: '+353 87 123 4567',
     vatRates: [0, 9, 13.5, 23], defaultVat: 13.5,
     taxIdLabel: msg('VAT or CRO number'), taxIdHelp: msg('A VAT number (IE1234567T) or the company’s CRO number'),
     // Kept 3 years: section 25 of the Act. S.I. 473/2001 (the Records (Prescribed Form and Exemptions) Regulations) sets their form.

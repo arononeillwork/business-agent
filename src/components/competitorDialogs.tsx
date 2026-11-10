@@ -12,11 +12,12 @@ import { useApp } from '../app/AppContext'
 import { useAction } from '../app/Notify'
 import { Empty } from './common'
 import {
-  BASKET, IDEA_STATUSES, KINDS, NOTE_KINDS, PRICE_SOURCES, THREATS, instagramHandle, matchRecipe, priceHistory, priceKey, priceLevelLabel,
+  IDEA_STATUSES, KINDS, NOTE_KINDS, PRICE_SOURCES, THREATS, basketFor, instagramHandle, matchRecipe, priceHistory, priceKey, priceLevelLabel,
   type Competitor, type CompetitorData, type CompetitorInput, type CompetitorNoteInput, type NearbyPlace, type PriceSource,
 } from '../../shared/localCompetitors'
 import { DAY_KEYS, type DayKey, type OpeningHours } from '../../shared/types'
 import { addDays, formatLocal, formatMoney, formatNumber, today } from '../../shared/time'
+import { currentCountry } from '../../shared/country'
 import { msg, t, tn } from '../i18n'
 
 const day = (d: string) => formatLocal(`${d}T12:00:00Z`, 'd MMM yyyy')
@@ -73,7 +74,7 @@ export function PlaceSearch({ onFollow, autoFocus }: { onFollow: (p: NearbyPlace
   }
   return (
     <Box component="form" onSubmit={search}>
-      <TextField fullWidth autoFocus={autoFocus} label={t('Find a place on Google')} value={q} onChange={e => setQ(e.target.value)} placeholder={t('A name, or “brunch San Pedro”')}
+      <TextField fullWidth autoFocus={autoFocus} label={t('Find a place on Google')} value={q} onChange={e => setQ(e.target.value)} placeholder={currentCountry() === 'IE' ? t('A name, or “brunch” and your town') : t('A name, or “brunch San Pedro”')}
         slotProps={{ input: { endAdornment: <InputAdornment position="end"><IconButton type="submit" disabled={busy || q.trim().length < 2} aria-label={t('Search')}><SearchIcon /></IconButton></InputAdornment> } }} />
       {error && <Alert severity="error" sx={{ mt: 1 }}>{error}</Alert>}
       {found && (found.length
@@ -312,7 +313,7 @@ export function BasketDialog({ data, recipes, onClose }: { data: CompetitorData;
   const items = [...data.items].sort((a, b) => a.sort - b.sort)
   const next = () => Math.max(0, ...items.map(i => i.sort)) + 1
   const have = new Set(items.map(i => i.name.toLowerCase()))
-  const missing = BASKET.map(b => t(b)).filter(b => !have.has(b.toLowerCase()))
+  const missing = basketFor().map(b => t(b)).filter(b => !have.has(b.toLowerCase()))
   const menu = recipes.filter(r => r.active).sort((a, b) => a.name.localeCompare(b.name))
   const add = async (e?: FormEvent) => {
     e?.preventDefault()
@@ -363,7 +364,9 @@ export function BasketDialog({ data, recipes, onClose }: { data: CompetitorData;
         )}
         {missing.length > 0 && (
           <Box sx={{ mt: 2 }}>
-            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>{t('Usual for a café in Spain: {list}.', { list: missing.join(', ') })}</Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
+              {currentCountry() === 'IE' ? t('Usual for a café in Ireland: {list}.', { list: missing.join(', ') }) : t('Usual for a café in Spain: {list}.', { list: missing.join(', ') })}
+            </Typography>
             <Button variant="outlined" size="small" onClick={() => void usual()}>{items.length ? t('Add the rest of the usual basket') : t('Add the usual basket')}</Button>
           </Box>
         )}

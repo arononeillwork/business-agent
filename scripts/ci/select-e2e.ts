@@ -142,6 +142,8 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
     tests: String.raw`privacy|terms of service|data deletion|legal notice|data processing agreement` },
   { name: 'posts about the café', files: [/pages\/PostImpact/, /shared\/(postImpact|mentions)\.ts$/, /i18n\/es\/postImpact/, /components\/(Mentions|RepBits)\.tsx$/, /demoSocialAnalytics/],
     tests: String.raw`Analytics|sales reps|Instagram mentions` },
+  { name: 'country leftovers', files: [/i18n\/es\/countryLeftovers/],
+    tests: String.raw`in Ireland|customers|screen|profit and loss|P&L|competitors|roles and rules|account|contacts|outsourcing` },
 ]
 
 /** The --grep pattern for these changed files, or 'all'. */

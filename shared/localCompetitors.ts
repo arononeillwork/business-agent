@@ -6,6 +6,7 @@
 // (Not to be confused with shared/competitors.ts: Business Agent's own comparison with Square.)
 import { msg } from './i18n'
 import { addDays } from './time'
+import { currentCountry, type Country } from './country'
 import type { DayKey, OpeningHours } from './types'
 
 export type CompetitorKind = 'specialty' | 'cafe' | 'cafe_bar' | 'bakery' | 'brunch' | 'juice' | 'chain' | 'other'
@@ -337,6 +338,14 @@ export const BASKET: string[] = [
   msg('Espresso'), msg('Café con leche'), msg('Flat white'), msg('Cappuccino'), msg('Latte'), msg('Iced latte'), msg('Matcha latte'),
   msg('Chai latte'), msg('Plant milk (extra)'), msg('Croissant'), msg('Tostada con tomate'), msg('Fresh orange juice'), msg('Smoothie'), msg('Açaí bowl'),
 ]
+
+/** What a café in Ireland is usually compared on: the coffees, the matcha, a scone and a toastie, and the fresh juice. */
+export const IRISH_BASKET: string[] = [
+  msg('Espresso'), msg('Americano'), msg('Flat white'), msg('Cappuccino'), msg('Latte'), msg('Iced latte'), msg('Matcha latte'),
+  msg('Chai latte'), msg('Plant milk (extra)'), msg('Croissant'), msg('Scone'), msg('Toastie'), msg('Fresh orange juice'), msg('Smoothie'),
+]
+/** The usual basket where the business is. */
+export const basketFor = (country: Country = currentCountry()) => (country === 'IE' ? IRISH_BASKET : BASKET)
 
 const norm = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s+/g, ' ').trim()
 

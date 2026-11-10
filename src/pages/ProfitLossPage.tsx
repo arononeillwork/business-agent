@@ -107,6 +107,7 @@ export function ProfitLossPage() {
   const opened = days.find(d => d.gross > 0)?.date ?? null
   const input = (months: string[]) => ({
     months, today: now, opened, vatRate: pnlSettings.data?.vat_rate ?? countryProfile().defaultVat, employerMultiplier: settings?.employer_cost_multiplier ?? 1,
+    country: countryProfile().code,
     takings: days, expenses: expenses.data ?? [], entries: team.data?.entries ?? [], shifts: team.data?.shifts ?? [], rates, lines: lines.data ?? [],
   })
   // Months before the business opened are left out (unless that leaves nothing to show).
@@ -343,17 +344,21 @@ function LineDialog({ line, months, onClose }: { line: Partial<PnlLine>; months:
   )
 }
 
-/** The IVA taken off the takings, and the employer's Social Security on top of pay (the same the rota and timecards use). */
+/**
+ * The IVA taken off the takings, and the employer's Social Security on top of pay (the same the rota and timecards use).
+ * In Ireland: VAT at 13.5% on food and drink served, and the employer's PRSI.
+ */
 function Rates({ vat, multiplier, canEdit }: { vat: number; multiplier: number; canEdit: boolean }) {
   const { api } = useApp()
   const run = useAction()
+  const irish = countryProfile().code === 'IE'
   const [vatDraft, setVat] = useState(String(vat))
   const ss = Math.round((multiplier - 1) * 1000) / 10
   const [ssDraft, setSs] = useState(String(ss))
   const save = async () => {
     const v = Number(vatDraft), s = Number(ssDraft)
     if (!(v >= 0 && v <= 30)) { await run(async () => { throw new Error(t('VAT is between 0% and 30%')) }); return }
-    if (!(s >= 0 && s <= 60)) { await run(async () => { throw new Error(t('Social Security is between 0% and 60%')) }); return }
+    if (!(s >= 0 && s <= 60)) { await run(async () => { throw new Error(irish ? t('PRSI is between 0% and 60%') : t('Social Security is between 0% and 60%')) }); return }
     await run(async () => {
       if (v !== vat) await api.savePnlSettings({ vat_rate: v })
       if (s !== ss) await api.updateSettings({ employer_cost_multiplier: Math.round((1 + s / 100) * 1000) / 1000 })
@@ -366,17 +371,22 @@ function Rates({ vat, multiplier, canEdit }: { vat: number; multiplier: number; 
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'flex-start' } }}>
           <TextField label={t('VAT in the takings')} type="number" value={vatDraft} onChange={e => setVat(e.target.value)} disabled={!canEdit}
             slotProps={{ input: { endAdornment: <InputAdornment position="end">%</InputAdornment> }, htmlInput: { min: 0, max: 30, step: 0.5 } }}
-            helperText={t('10% for food and drink served in a café')} sx={{ maxWidth: 260 }} />
-          <TextField label={t('Employer’s Social Security on pay')} type="number" value={ssDraft} onChange={e => setSs(e.target.value)} disabled={!canEdit}
+            helperText={irish ? t('13.5% for food and drink served in a café') : t('10% for food and drink served in a café')} sx={{ maxWidth: 260 }} />
+          <TextField label={irish ? t('Employer’s PRSI on pay') : t('Employer’s Social Security on pay')} type="number" value={ssDraft} onChange={e => setSs(e.target.value)} disabled={!canEdit}
             slotProps={{ input: { endAdornment: <InputAdornment position="end">%</InputAdornment> }, htmlInput: { min: 0, max: 60, step: 0.5 } }}
-            helperText={t('About 31.5% in Spain. The rota and timecards use it too.')} sx={{ maxWidth: 300 }} />
+            helperText={irish ? t('About 11% in Ireland, less on lower weekly pay. The rota and timecards use it too.') : t('About 31.5% in Spain. The rota and timecards use it too.')}
+            sx={{ maxWidth: 300 }} />
           {canEdit && <Button variant="contained" onClick={save} sx={{ mt: { sm: 1 } }}>{t('Save')}</Button>}
         </Stack>
-        {ss === 0 && canEdit && (
+        {ss === 0 && canEdit && (irish ? (
+          <Alert severity="info" sx={{ mt: 2 }} action={<Button size="small" onClick={() => setSs('11')}>{t('Use 11%')}</Button>}>
+            {t('No employer’s PRSI is added on top of pay yet, so the team costs less here than it really does.')}
+          </Alert>
+        ) : (
           <Alert severity="info" sx={{ mt: 2 }} action={<Button size="small" onClick={() => setSs('31.5')}>{t('Use 31.5%')}</Button>}>
             {t('No Social Security is added on top of pay yet, so the team costs less here than it really does.')}
           </Alert>
-        )}
+        ))}
       </CardContent>
     </Card>
   )

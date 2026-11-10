@@ -2,9 +2,11 @@
 // 4:5), as a JPEG ready to post: its photo across the top, then its name, details, price (with what
 // it usually costs crossed out) and until when, in the brand's fonts and main colour, as the screens
 // show it (components/OfferBoard). A photo from somewhere that doesn't allow it to be drawn is left
-// out, and the picture is made without it.
+// out, and the picture is made without it. A plain amount is written the way the business's country
+// writes it ("€1.96" in Ireland, "€1,96" in Spain), whoever makes the picture: its customers read it.
 import type { BoardBrand } from '../components/MenuBoard'
 import { inkOn, type BoardOffer } from '../components/OfferBoard'
+import { countryMoney, shownPrice } from '../../shared/offers'
 import { t } from '../i18n'
 
 const CREAM = '#FBF6EF'
@@ -149,7 +151,8 @@ const toJpeg = (canvas: HTMLCanvasElement) => new Promise<Blob | null>((resolve,
 })
 
 /** The offer as a story or post picture (JPEG). `when`: until when it's on, as the story says it. */
-export async function offerPicture(o: BoardOffer, brand: BoardBrand, kind: 'story' | 'post', when: string): Promise<File> {
+export async function offerPicture(offer: BoardOffer, brand: BoardBrand, kind: 'story' | 'post', when: string): Promise<File> {
+  const o = { ...offer, price: shownPrice(offer.price, countryMoney), was_price: shownPrice(offer.was_price, countryMoney) }
   const h = kind === 'story' ? 1920 : 1350
   const [img, heading, body] = await Promise.all([
     o.image_url ? loadImage(o.image_url) : Promise.resolve(null),

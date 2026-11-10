@@ -222,6 +222,8 @@ export default {
   'On offer till closing: {name}': 'En oferta hasta el cierre: {name}',
   '{n} left on their last day, {price} until {time}. Square isn’t changed: take the offer price at the till.':
     'Quedan {n} en su último día, a {price} hasta las {time}. Square no cambia: cóbralo al precio de la oferta.',
+  // A tip pool's share (the tips migration), its amount in the person's number format.
+  'Your tips: {amount}': 'Tus propinas: {amount}',
   // Error alerts to HQ's admins (the app_errors migration).
   'New error: {message}': 'Error nuevo: {message}',
   'An error is back: {message}': 'Ha vuelto un error: {message}',

@@ -2,7 +2,8 @@
 // screens picked from the minute it starts to the minute it ends (in turn with each screen's other
 // slides, or on its own), and its story or post on the Social planner. Shared by the app, the
 // demo and the screens, which put each offer on and take it off by their own clock.
-import { localDate, zonedIso } from './time'
+import { currencySymbol, defaultNumberFormat, formatMoney, formatMoneyAs, localDate, zonedIso } from './time'
+import { currentCountry, type Country } from './country'
 import { msg } from './i18n'
 
 /** turns: one of the screen's slides, in turn with the others. only: the screen shows just the offer. */
@@ -12,7 +13,7 @@ export interface Offer {
   id: string
   title: string
   details: string | null
-  /** As shown: "€3.50", "2 for 1", "20% off". */
+  /** As shown: "€3.50", "2 for 1", "20% off" (a plain amount is shown the screen's way: shownPrice). */
   price: string | null
   /** What it usually costs, shown crossed out. */
   was_price: string | null
@@ -39,6 +40,33 @@ export interface Offer {
   fresh_stage?: number | null
 }
 export type OfferInput = Omit<Offer, 'id' | 'updated_at'> & { id?: string }
+
+/**
+ * A price that's an amount and nothing else, as the database and the app write them ("€1.96", "€1,96",
+ * "1,96 €"): its number; null for anything else ("2 for €3", "20% off", "€4", "€1.500"), which is shown
+ * as typed. Two decimals only, so a thousand written the Spanish way is never read as one euro fifty.
+ */
+export function priceAmount(text: string | null | undefined): number | null {
+  const m = /^\s*(?:€\s?(\d{1,6})[.,](\d\d)|(\d{1,6})[.,](\d\d)\s?€)\s*$/u.exec(text ?? '')
+  return m ? Number(`${m[1] ?? m[3]}.${m[2] ?? m[4]}`) : null
+}
+
+/**
+ * An offer's price as shown: a plain amount written the way this screen writes amounts (Ireland's "€1.96",
+ * Spain's "€1,96", whichever way it was saved: an older last-day offer in Spain says "€1.96"); anything
+ * else as typed. `money` writes it some other way (a story's picture: the business's country's).
+ */
+export function shownPrice(text: string | null, money: (n: number) => string = formatMoney): string | null {
+  const n = priceAmount(text)
+  // Saved in euros: a business that sells in another currency keeps what was written.
+  return n === null || currencySymbol() !== '€' ? text : money(n)
+}
+
+/**
+ * An amount the way the business's country writes it on a screen ("€1.96" in Ireland, "€1,96" in Spain),
+ * whoever is looking: for what goes out to customers (a story's picture, a post's caption).
+ */
+export const countryMoney = (n: number, country: Country = currentCountry()) => formatMoneyAs(n, defaultNumberFormat(country))
 
 /** What a screen's link gets of each offer on it (display_feed()). */
 export type ScreenOffer = Pick<Offer, 'id' | 'title' | 'details' | 'price' | 'was_price' | 'image_url' | 'starts_at' | 'ends_at' | 'screen_mode' | 'seconds'>

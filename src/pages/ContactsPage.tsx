@@ -18,6 +18,7 @@ import { PhoneField } from '../components/PhoneField'
 import {
   CONTACT_LIMITS, USUAL_JOBS, contactProblem, jobKey, jobName, matchesContact, siteName, sortContacts, tidyContact, type Contact, type ContactInput,
 } from '../../shared/contacts'
+import { currentCountry } from '../../shared/country'
 import { tokens } from '../theme'
 import { t, useLanguage } from '../i18n'
 
@@ -130,7 +131,7 @@ function ContactDialog({ contact, onClose }: { contact: ContactInput; onClose: (
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <Autocomplete freeSolo fullWidth options={USUAL_JOBS.map(j => t(j))} inputValue={c.job ?? ''} onInputChange={(_, v) => set({ job: v })}
               renderInput={p => <TextField {...p} label={t('What they do')} placeholder={t('e.g. Lawyer')} />} />
-            <TextField fullWidth label={t('Company')} value={c.company ?? ''} onChange={e => set({ company: e.target.value })} placeholder={t('e.g. BBVA')}
+            <TextField fullWidth label={t('Company')} value={c.company ?? ''} onChange={e => set({ company: e.target.value })} placeholder={currentCountry() === 'IE' ? t('e.g. AIB') : t('e.g. BBVA')}
               slotProps={{ htmlInput: { maxLength: CONTACT_LIMITS.company } }} />
           </Stack>
           <PhoneField label={t('Phone')} value={c.phone ?? ''} onChange={v => set({ phone: v })} />

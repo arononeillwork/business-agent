@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { toCsv, xlsxSheet, zip } from './export'
+import { printedOn, toCsv, xlsxSheet, zip } from './export'
 
 describe('export', () => {
   it('writes CSV the way Spanish Excel reads it: semicolons, decimal commas, quotes escaped', () => {
@@ -31,5 +31,11 @@ describe('export', () => {
     expect(view.getUint32(end, true)).toBe(0x06054b50)
     expect(view.getUint16(end + 10, true)).toBe(2)
     expect(view.getUint32(view.getUint32(end + 16, true), true)).toBe(0x02014b50)
+  })
+})
+
+describe('a printed PDF', () => {
+  it('is dated day first in English, whatever the browser (Ireland and Spain both write the day first)', () => {
+    expect(printedOn(new Date('2026-11-10T12:00:00Z'))).toBe('10 November 2026')
   })
 })

@@ -3,8 +3,9 @@
 // gives the offer's name (its first line), its price and what it usually costs ("€3.50, was €4.50",
 // "2x1", "20% off"), the details (the rest, without the hashtags) and how long it runs ("today only",
 // "this weekend"); the post's photo is its picture. Used by the Offers page and the AI connector's
-// save_offer, which both show the result before it's saved.
-import { addDays, localDate, zonedIso } from './time'
+// save_offer, which both show the result before it's saved. Its amounts are written the way the
+// business's country writes them ("€3.50" in Ireland, "€3,50" in Spain), however the caption had them.
+import { addDays, formatNumberAs, localDate, zonedIso, type NumberFormat } from './time'
 import type { OfferInput } from './offers'
 
 /** One of the business's own posts, newest first. */
@@ -43,16 +44,16 @@ const EURO = new RegExp(String.raw`€\s?(${AMOUNT})|(${AMOUNT})\s?(?:€|eur(?:
 const WAS = /\b(?:was|were|before|usually|normally|regular(?:ly)?|instead of|rrp|antes|normalmente|habitual|en vez de|en lugar de|precio normal)\s*:?\s*$/i
 const DEAL_WORDS = /\b(?:offer|offers|special|specials|promo|promotion|deal|discount|happy hour|sale|oferta|ofertas|especial|promoci[oó]n|descuento|rebaja|rebajas)\b/i
 
-/** "3,5" → "€3.50", "4" → "€4". */
-function euros(n: string) {
+/** "3,5" → "€3.50" (Ireland's decimal point) or "€3,50" (Spain's comma); "4" → "€4". */
+function euros(n: string, f: NumberFormat) {
   const v = Number(n.replace(',', '.'))
-  return `€${Number.isInteger(v) ? v : v.toFixed(2)}`
+  return `€${Number.isInteger(v) ? v : formatNumberAs(v, f, 2)}`
 }
 
 /** "2x1", "3 for €5", "20% off", "half price", "buy one get one free". */
-function dealIn(text: string): string | null {
+function dealIn(text: string, f: NumberFormat): string | null {
   const forPrice = new RegExp(String.raw`\b(\d)\s?(?:for|por|x)\s?(?:€\s?(${AMOUNT})|(${AMOUNT})\s?(?:€|eur(?:os?)?\b))`, 'iu').exec(text)
-  if (forPrice) return `${forPrice[1]} for ${euros(forPrice[2] ?? forPrice[3])}`
+  if (forPrice) return `${forPrice[1]} for ${euros(forPrice[2] ?? forPrice[3], f)}`
   const nForM = /\b([2-9])\s?(?:x|for|por)\s?([1-8])\b(?!\s?(?:€|%|eur))/i.exec(text)
   if (nForM && Number(nForM[2]) < Number(nForM[1])) return `${nForM[1]} for ${nForM[2]}`
   if (/\b(?:buy one,? get one(?: free)?|bogo|compra uno y ll[eé]vate otro)\b/i.test(text)) return '2 for 1'
@@ -64,18 +65,18 @@ function dealIn(text: string): string | null {
 }
 
 /** The euro amounts in the text, each marked if it's what it usually costs ("was €4", "4̶€̶", "€4 → €3"). */
-function amountsIn(raw: string) {
+function amountsIn(raw: string, f: NumberFormat) {
   const plain = raw.replace(STRIKE, '')
   const out: { price: string; was: boolean }[] = []
   for (const m of plain.matchAll(EURO)) {
     const before = plain.slice(Math.max(0, m.index - 24), m.index)
     // "€4 → €3", "4€ a 3€", "€4 now €3": the first is what it usually costs.
     const after = plain.slice(m.index + m[0].length, m.index + m[0].length + 12)
-    out.push({ price: euros(m[1] ?? m[2]), was: WAS.test(before) || /^\s?(?:→|->|➡|>|a|now|ahora)\s?€?\s?\d/i.test(after) })
+    out.push({ price: euros(m[1] ?? m[2], f), was: WAS.test(before) || /^\s?(?:→|->|➡|>|a|now|ahora)\s?€?\s?\d/i.test(after) })
   }
   // Crossed out: the digits of an amount carry strokes in the caption as written.
   const struck = [...raw.matchAll(new RegExp(String.raw`(?:€\s?)?(?:\d[\u{335}\u{336}]?)+(?:[.,][\u{335}\u{336}]?(?:\d[\u{335}\u{336}]?)+)?\s?(?:€[\u{335}\u{336}]?)?`, 'gu'))]
-    .filter(m => STRUCK.test(m[0])).map(m => euros(m[0].replace(STRIKE, '').replace(/[€\s]/g, '')))
+    .filter(m => STRUCK.test(m[0])).map(m => euros(m[0].replace(STRIKE, '').replace(/[€\s]/g, ''), f))
   return out.map(a => (struck.includes(a.price) ? { ...a, was: true } : a))
 }
 
@@ -88,8 +89,8 @@ function cut(s: string, max: number) {
 
 const tidy = (s: string) => s.replace(STRIKE, '').replace(HASHTAG, ' ').replace(/[ \t]+/g, ' ').replace(/\s+([.,!?;:])/g, '$1').trim()
 
-/** Read the offer in a caption. */
-export function offerFromCaption(caption: string | null): OfferIdea {
+/** Read the offer in a caption, its amounts written with the business's decimal mark (Ireland's point by default). */
+export function offerFromCaption(caption: string | null, f: NumberFormat = 'point'): OfferIdea {
   const raw = (caption ?? '').replace(/\r/g, '')
   const lines = raw.split('\n').map(l => tidy(l.replace(EMOJI, ' '))).filter(l => /[\p{L}\p{N}]/u.test(l))
   let title = lines[0] ?? ''
@@ -103,8 +104,8 @@ export function offerFromCaption(caption: string | null): OfferIdea {
   title = title.replace(/[.!:]+$/, '').trim()
   const details = rest.join(' ').replace(/\s+/g, ' ').trim()
   const flat = raw.replace(EMOJI, ' ')
-  const amounts = amountsIn(flat)
-  const deal = dealIn(flat.replace(STRIKE, ''))
+  const amounts = amountsIn(flat, f)
+  const deal = dealIn(flat.replace(STRIKE, ''), f)
   const was = amounts.find(a => a.was)?.price ?? null
   const price = deal ?? amounts.find(a => !a.was)?.price ?? null
   const text = flat.toLowerCase()
@@ -136,10 +137,11 @@ export function postOfferEnd(starts: string, length: PostLength, tz: string): st
 
 /**
  * A new offer from a post, ready to check and save: from now (to the minute) for as long as the
- * caption says, on the screens given. A caption with nothing to name it by is named after the post.
+ * caption says, on the screens given, its amounts with the business's decimal mark (`f`: its country's).
+ * A caption with nothing to name it by is named after the post.
  */
-export function offerFromPost(post: SourcePost, screenIds: string[], tz: string, now = Date.now()): OfferInput & { length: PostLength; found: boolean } {
-  const idea = offerFromCaption(post.caption)
+export function offerFromPost(post: SourcePost, screenIds: string[], tz: string, now = Date.now(), f: NumberFormat = 'point'): OfferInput & { length: PostLength; found: boolean } {
+  const idea = offerFromCaption(post.caption, f)
   const starts = new Date(Math.floor(now / 60_000) * 60_000).toISOString()
   return {
     title: idea.title || (post.source === 'instagram' ? 'Our Instagram special' : 'Our special'),
