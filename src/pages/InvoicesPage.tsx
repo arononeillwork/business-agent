@@ -1,13 +1,13 @@
 import {
   Alert, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Link, MenuItem, Stack,
-  Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
+  Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import UploadIcon from '@mui/icons-material/CloudUploadOutlined'
 import EditIcon from '@mui/icons-material/EditOutlined'
 import OpenIcon from '@mui/icons-material/OpenInNew'
 import MailIcon from '@mui/icons-material/MailOutlined'
-import NotesIcon from '@mui/icons-material/StickyNote2Outlined'
+import PaidIcon from '@mui/icons-material/TaskAltOutlined'
 import { useState } from 'react'
 import { Link as RouterLink, useSearchParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
@@ -25,7 +25,7 @@ import {
 import type { Supplier } from '../../shared/stock'
 import { UploadDialog } from './TaxPage'
 import { tokens } from '../theme'
-import { t, tn } from '../i18n'
+import { msg, t, tn } from '../i18n'
 
 type Row = Invoice & { document?: { name: string; link: string | null } | null }
 const day = (d: string | null) => (d ? formatLocal(`${d}T12:00:00Z`, 'd MMM yyyy') : '')
@@ -34,6 +34,24 @@ const statusLabel = (s: InvoiceStatus) => t(INVOICE_STATUSES.find(x => x.id === 
 const TONE: Record<InvoiceStatus, { fg: string; bg: string }> = {
   to_check: { fg: tokens.infoFg, bg: tokens.infoBg }, to_pay: { fg: tokens.warnFg, bg: tokens.warnBg }, paid: { fg: tokens.goodFg, bg: tokens.goodBg },
   disputed: { fg: tokens.badFg, bg: tokens.badBg }, sent: { fg: tokens.warnFg, bg: tokens.warnBg }, cancelled: { fg: tokens.neutralFg, bg: tokens.neutralBg },
+}
+
+/** The status chips over the list: what each shows, and for invoices received, sent or both. */
+type View = 'all' | 'open' | 'overdue' | 'to_check' | 'paid'
+const VIEWS: { id: View; label: string; for: InvoiceDirection[]; shows: (i: Invoice, today: string) => boolean }[] = [
+  { id: 'all', label: msg('All'), for: ['in', 'out'], shows: () => true },
+  { id: 'open', label: msg('Not paid yet'), for: ['in', 'out'], shows: i => isOpen(i) },
+  { id: 'overdue', label: msg('Overdue'), for: ['in', 'out'], shows: (i, today) => isOverdue(i, today) },
+  { id: 'to_check', label: msg('To check'), for: ['in'], shows: i => i.status === 'to_check' },
+  { id: 'paid', label: msg('Paid'), for: ['in', 'out'], shows: i => i.status === 'paid' },
+]
+const short = (d: string) => formatLocal(`${d}T12:00:00Z`, 'd MMM')
+/** An invoice's status in a few words, and its colour: overdue since when, due when, paid when. */
+function statusOf(i: Invoice, today: string): { text: string; tone: { fg: string; bg: string } } {
+  if (isOverdue(i, today)) return { text: t('Overdue since {date}', { date: short(i.due_on!) }), tone: TONE.disputed }
+  if (i.status === 'paid') return { text: i.paid_on ? t('Paid {date}', { date: short(i.paid_on) }) : statusLabel(i.status), tone: TONE.paid }
+  if ((i.status === 'to_pay' || i.status === 'sent') && i.due_on) return { text: t('Due {date}', { date: short(i.due_on) }), tone: TONE[i.status] }
+  return { text: statusLabel(i.status), tone: TONE[i.status] }
 }
 
 /**
@@ -49,7 +67,7 @@ export function InvoicesPage() {
   const suppliers = useAsync('suppliers', () => api.suppliers(), [])
   const docs = useAsync('tax-documents', () => (canEdit ? api.taxDocuments(Number(today().slice(0, 4))) : Promise.resolve([])), [Number(today().slice(0, 4))])
   const [direction, setDirection] = useState<InvoiceDirection>('in')
-  const [status, setStatus] = useState<'all' | 'open' | InvoiceStatus>('all')
+  const [status, setStatus] = useState<View>('all')
   // From a supplier on Stock → Suppliers (its Invoices link): /invoices?supplier=<id> opens its invoices, and its emails.
   const [params, setParams] = useSearchParams()
   const [supplier, setSupplierNow] = useState<string>(params.get('supplier') || 'all')
@@ -77,9 +95,18 @@ export function InvoicesPage() {
   const paidThisMonth = received.filter(i => i.status === 'paid' && i.paid_on?.slice(0, 7) === now.slice(0, 7))
   const sum = (xs: Invoice[]) => xs.reduce((s, i) => s + Number(i.total ?? 0), 0)
   const nameOf = (i: Invoice) => sups.find(s => s.id === i.supplier_id)?.name ?? i.party_name ?? i.party_email ?? t('Unknown')
-  const shown = all.filter(i => i.direction === direction
-    && (status === 'all' || (status === 'open' ? isOpen(i) : i.status === status))
-    && (supplier === 'all' || (supplier === 'none' ? !i.supplier_id : i.supplier_id === supplier)))
+  // The invoices received (or sent) from the supplier picked; then those with the status picked, newest first.
+  const theirs = all.filter(i => i.direction === direction && (supplier === 'all' || (supplier === 'none' ? !i.supplier_id : i.supplier_id === supplier)))
+  const views = VIEWS.filter(v => v.for.includes(direction)).map(v => ({ ...v, count: theirs.filter(i => v.shows(i, now)).length }))
+  const shown = theirs.filter(i => (VIEWS.find(v => v.id === status) ?? VIEWS[0]).shows(i, now))
+    .sort((a, b) => (b.issued_on ?? '9999').localeCompare(a.issued_on ?? '9999'))
+  const months = shown.reduce<{ key: string; label: string; invoices: Row[] }[]>((out, i) => {
+    const key = i.issued_on?.slice(0, 7) ?? ''
+    const last = out[out.length - 1]
+    if (last?.key === key) last.invoices.push(i)
+    else out.push({ key, label: key ? formatLocal(`${key}-15T12:00:00Z`, 'MMMM yyyy') : t('No date yet'), invoices: [i] })
+    return out
+  }, [])
 
   const table = (): ExportTable => ({
     title: direction === 'in' ? t('Invoices received') : t('Invoices sent'),
@@ -127,25 +154,28 @@ export function InvoicesPage() {
         </Stack>
       )}
 
-      {canEdit && <FromEmail suppliers={sups} only={sups.find(s => s.id === supplier) ?? null} onAll={() => setSupplier('all')} />}
-
       <Card component="section" aria-label={t('Invoices')} sx={{ mb: 3 }}>
         <CardContent>
           <SectionTitle action={<ExportButton table={table} disabled={!shown.length} folder="Invoices" />}>{t('Invoices')}</SectionTitle>
-          <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', mb: 2, alignItems: 'center' }}>
+          <Stack direction="row" useFlexGap sx={{ flexWrap: 'wrap', gap: 1, mb: 2, alignItems: 'center' }}>
             <Stack direction="row" spacing={1} role="group" aria-label={t('Received or sent')}>
               {(['in', 'out'] as const).map(d => (
                 <Chip key={d} label={d === 'in' ? t('Received') : t('Sent')} color={direction === d ? 'primary' : 'default'} variant={direction === d ? 'filled' : 'outlined'}
                   aria-pressed={direction === d} onClick={() => { setDirection(d); setStatus('all') }} />
               ))}
             </Stack>
-            <TextField select size="small" fullWidth={false} label={t('Status')} value={status} onChange={e => setStatus(e.target.value as typeof status)} sx={{ minWidth: 170 }}>
-              <MenuItem value="all">{t('Any status')}</MenuItem>
-              <MenuItem value="open">{t('Not paid yet')}</MenuItem>
-              {INVOICE_STATUSES.filter(s => s.for.includes(direction)).map(s => <MenuItem key={s.id} value={s.id}>{t(s.label)}</MenuItem>)}
-            </TextField>
+            <Box sx={{ width: '1px', alignSelf: 'stretch', bgcolor: tokens.line, mx: 0.5, display: { xs: 'none', sm: 'block' } }} />
+            {/* What's to do at a glance: each with how many, for the supplier picked. */}
+            <Stack direction="row" role="group" aria-label={t('Status')} useFlexGap sx={{ gap: 0.75, flexWrap: 'wrap' }}>
+              {views.map(v => (
+                <Chip key={v.id} aria-pressed={status === v.id} onClick={() => setStatus(v.id)} variant={status === v.id ? 'filled' : 'outlined'}
+                  color={status === v.id ? (v.id === 'overdue' ? 'error' : 'primary') : 'default'}
+                  label={<>{t(v.label)}<Box component="span" sx={{ opacity: 0.7, ml: 0.75 }}>{v.count}</Box></>} />
+              ))}
+            </Stack>
             {direction === 'in' && (
-              <TextField select size="small" fullWidth={false} label={t('Supplier')} value={supplier} onChange={e => setSupplier(e.target.value)} sx={{ minWidth: 200 }}>
+              <TextField select size="small" fullWidth={false} label={t('Supplier')} value={supplier} onChange={e => setSupplier(e.target.value)}
+                sx={{ minWidth: 200, ml: { md: 'auto' } }}>
                 <MenuItem value="all">{t('Every supplier')}</MenuItem>
                 {sups.map(s => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
                 <MenuItem value="none">{t('Not matched to a supplier')}</MenuItem>
@@ -154,47 +184,29 @@ export function InvoicesPage() {
           </Stack>
           {shown.length === 0
             ? <Empty>{list.data ? t('No invoices here yet.') : t('Loading…')}</Empty>
-            : <Box sx={{ overflowX: 'auto' }}>
-                <Table size="small">
-                  <TableHead><TableRow>
-                    <TableCell>{t('Date')}</TableCell><TableCell>{direction === 'in' ? t('Supplier') : t('Customer')}</TableCell><TableCell>{t('Number')}</TableCell>
-                    <TableCell align="right">{t('Total')}</TableCell><TableCell>{t('Due')}</TableCell><TableCell>{t('Status')}</TableCell><TableCell />
-                  </TableRow></TableHead>
-                  <TableBody>
-                    {shown.map(i => (
-                      <TableRow key={i.id} hover>
-                        <TableCell sx={{ whiteSpace: 'nowrap' }}>{day(i.issued_on) || <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t('No date yet')}</Typography>}</TableCell>
-                        <TableCell>
-                          <Typography variant="body2">{nameOf(i)}</Typography>
-                          {i.category && <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t(i.category)}</Typography>}
-                        </TableCell>
-                        <TableCell sx={{ whiteSpace: 'nowrap' }}>{i.number ?? ''}</TableCell>
-                        <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{money(i.total)}</TableCell>
-                        <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                          {day(i.due_on)}
-                          {isOverdue(i, now) && <Box><Tag fg={tokens.badFg} bg={tokens.badBg}>{t('Overdue')}</Tag></Box>}
-                        </TableCell>
-                        <TableCell>
-                          {canEdit
-                            ? <TextField select size="small" value={i.status} sx={{ minWidth: 150 }}
-                                slotProps={{ htmlInput: { 'aria-label': t('Status of {invoice}', { invoice: i.number ?? nameOf(i) }) } }}
-                                onChange={e => void run(() => api.saveInvoice({ id: i.id, status: e.target.value as InvoiceStatus }), t('Saved'))}>
-                                {INVOICE_STATUSES.filter(s => s.for.includes(i.direction)).map(s => <MenuItem key={s.id} value={s.id}>{t(s.label)}</MenuItem>)}
-                              </TextField>
-                            : <Tag {...TONE[i.status]}>{statusLabel(i.status)}</Tag>}
-                        </TableCell>
-                        <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                          {i.notes && <IconButton size="small" aria-label={t('Notes: {notes}', { notes: i.notes })} title={i.notes} onClick={() => canEdit && setEditing(i)}><NotesIcon fontSize="small" /></IconButton>}
-                          {i.document?.link && <IconButton size="small" component="a" href={i.document.link} target="_blank" rel="noopener" aria-label={t('Open the file of {invoice}', { invoice: i.number ?? nameOf(i) })}><OpenIcon fontSize="small" /></IconButton>}
-                          {canEdit && <IconButton size="small" aria-label={t('Edit {invoice}', { invoice: i.number ?? nameOf(i) })} onClick={() => setEditing(i)}><EditIcon fontSize="small" /></IconButton>}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Box>}
+            : <Stack spacing={2.5}>
+                {/* By month, newest first, each with what it comes to. */}
+                {months.map(m => (
+                  <Box key={m.key}>
+                    <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'baseline', px: 0.5, mb: 0.75 }}>
+                      <Typography variant="overline" component="h3" sx={{ color: 'text.secondary', lineHeight: 1.6 }}>{m.label}</Typography>
+                      <Typography variant="overline" sx={{ color: 'text.secondary', lineHeight: 1.6, fontVariantNumeric: 'tabular-nums' }}>
+                        {tn(m.invoices.length, '{n} invoice', '{n} invoices')} · {formatMoney(sum(m.invoices))}
+                      </Typography>
+                    </Stack>
+                    <Box component="ul" aria-label={m.label} sx={{ m: 0, p: 0, listStyle: 'none', border: `1px solid ${tokens.line}`, borderRadius: 2.5, overflow: 'hidden' }}>
+                      {m.invoices.map(i => (
+                        <InvoiceRow key={i.id} invoice={i} name={nameOf(i)} now={now} canEdit={canEdit} onOpen={() => setEditing(i)}
+                          onPaid={() => void run(() => api.saveInvoice({ id: i.id, status: 'paid', paid_on: now }), t('{invoice}: paid', { invoice: i.number ?? nameOf(i) }))} />
+                      ))}
+                    </Box>
+                  </Box>
+                ))}
+              </Stack>}
         </CardContent>
       </Card>
+
+      {canEdit && <FromEmail suppliers={sups} only={sups.find(s => s.id === supplier) ?? null} onAll={() => setSupplier('all')} />}
 
       {direction === 'in' && <BySupplier invoices={all} suppliers={sups} onPick={setSupplier} />}
 
@@ -202,6 +214,47 @@ export function InvoicesPage() {
       {uploading && <UploadDialog year={Number(now.slice(0, 4))} known={docs.data ?? []} kind={direction === 'in' ? 'purchase_invoice' : 'sales_invoice'}
         title={t('Upload invoices')} onKept={kept} onClose={() => { setUploading(false); void run(async () => {}) }} />}
     </>
+  )
+}
+
+/**
+ * One invoice in the list: who from (or to), its date, number and what it's for; what it comes to and where it
+ * stands; and, while it's to pay, marking it paid in one press. The rest is in the invoice (pressing the row).
+ */
+function InvoiceRow({ invoice: i, name, now, canEdit, onOpen, onPaid }: {
+  invoice: Row; name: string; now: string; canEdit: boolean; onOpen: () => void; onPaid: () => void
+}) {
+  const st = statusOf(i, now)
+  const what = i.number ?? name
+  return (
+    <Box component="li" aria-label={[name, i.number].filter(Boolean).join(' ')} onClick={canEdit ? onOpen : undefined}
+      sx={{ display: 'flex', flexWrap: { xs: 'wrap', sm: 'nowrap' }, alignItems: 'center', columnGap: 2, rowGap: 1, px: 2, py: 1.5,
+        borderTop: `1px solid ${tokens.line}`, '&:first-of-type': { borderTop: 0 },
+        ...(canEdit && { cursor: 'pointer', '&:hover': { bgcolor: tokens.surfaceAlt } }) }}>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{name}</Typography>
+        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+          {[i.issued_on ? short(i.issued_on) : t('No date yet'), i.number, i.category ? t(i.category) : null].filter(Boolean).join(' · ')}
+        </Typography>
+        {i.notes && <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.notes}</Typography>}
+      </Box>
+      <Stack sx={{ alignItems: 'flex-end', gap: 0.5, flexShrink: 0 }}>
+        <Typography sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{money(i.total) || '—'}</Typography>
+        <Tag fg={st.tone.fg} bg={st.tone.bg}>{st.text}</Tag>
+      </Stack>
+      <Stack direction="row" spacing={0.5} onClick={e => e.stopPropagation()}
+        sx={{ alignItems: 'center', justifyContent: 'flex-end', flexShrink: 0, width: { xs: '100%', sm: 'auto' }, minWidth: { sm: 172 } }}>
+        {canEdit && isOpen(i) && (
+          <Button size="small" variant="outlined" startIcon={<PaidIcon />} onClick={onPaid} sx={{ whiteSpace: 'nowrap' }} aria-label={t('Mark {invoice} paid', { invoice: what })}>{t('Mark paid')}</Button>
+        )}
+        {i.document?.link && (
+          <Tooltip title={t('Open the file')}>
+            <IconButton size="small" component="a" href={i.document.link} target="_blank" rel="noopener" aria-label={t('Open the file of {invoice}', { invoice: what })}><OpenIcon fontSize="small" /></IconButton>
+          </Tooltip>
+        )}
+        {canEdit && <IconButton size="small" aria-label={t('Edit {invoice}', { invoice: what })} onClick={onOpen}><EditIcon fontSize="small" /></IconButton>}
+      </Stack>
+    </Box>
   )
 }
 

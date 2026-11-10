@@ -5300,6 +5300,23 @@ test.describe('stock and suppliers', () => {
     await expect(made.getByRole('listitem', { name: 'Croissant', exact: true })).toContainText('From Square')
     await expect(made.getByRole('listitem', { name: 'Croissant', exact: true })).toContainText('30% off for its last 4 hours')
 
+    // The filters: pastries, cakes, yoghurt and chia pots, each showing only those, on the list and on the counter.
+    const show = page.getByRole('region', { name: 'Freshly made' }).getByRole('group', { name: 'Show' })
+    const counter = page.getByRole('list', { name: 'On the counter' })
+    await show.getByRole('button', { name: /^Yoghurts & chia pots/ }).click()
+    await expect(made.getByRole('listitem', { name: 'Mango Chia Pudding' })).toBeVisible()
+    await expect(made.getByRole('listitem', { name: 'Croissant', exact: true })).toHaveCount(0)
+    await show.getByRole('button', { name: /^Pastries/ }).click()
+    await expect(made.getByRole('listitem', { name: 'Croissant', exact: true })).toBeVisible()
+    await expect(made.getByRole('listitem', { name: 'Mango Chia Pudding' })).toHaveCount(0)
+    await expect(counter.getByRole('listitem', { name: 'Pain au chocolat' })).toBeVisible()
+    await expect(counter.getByRole('listitem', { name: 'Brownies' })).toHaveCount(0)
+    await show.getByRole('button', { name: /^Cakes/ }).click()
+    await expect(made.getByRole('listitem', { name: 'Biscoff Cheesecake' })).toBeVisible()
+    await expect(counter.getByRole('listitem', { name: 'Brownies' })).toBeVisible()
+    await show.getByRole('button', { name: /^All/ }).click()
+    await expect(show.getByRole('button', { name: /^All/ })).toHaveAttribute('aria-pressed', 'true')
+
     // Aron puts the cheesecake on offer, 25% off for its last 2 days; its shelf life is Square's.
     const cake = made.getByRole('listitem', { name: 'Biscoff Cheesecake' })
     await expect(cake).toContainText('Keeps 5 days')
@@ -5396,7 +5413,6 @@ test.describe('stock and suppliers', () => {
     await expect(parfait).toContainText('From the menu')
     await expect(parfait).toContainText('Keeps 2 days')
     await expect(parfait).toContainText('No offer')
-    await expect(page.getByRole('region', { name: 'Made here' })).toContainText('One item comes from the menu')
     await expect(made.getByRole('listitem', { name: 'Croissant', exact: true })).not.toContainText('From the menu')
 
     // A batch of it starts from that: good for 2 days, not on offer.
@@ -6536,24 +6552,35 @@ test.describe('ads', () => {
 test.describe('invoices', () => {
   test.describe.configure({ timeout: 90_000 })
 
-  test('invoices received, by supplier: what’s to pay and overdue, a status changed in place, and exported', async ({ page }) => {
+  test('invoices received, by supplier: what’s to pay and overdue, by month, one marked paid in place, and exported', async ({ page }) => {
     await open(page, '/invoices')
     await expect(page.getByRole('heading', { name: 'Invoices', level: 1 })).toBeVisible()
     const glance = page.getByRole('list', { name: 'At a glance' })
     await expect(glance).toContainText('€1.120,00') // to pay: Tostadores €320 + By Eric €600 + Lácteos €200 (to check)
     const list = page.getByRole('region', { name: 'Invoices', exact: true })
-    await expect(list.getByRole('row').filter({ hasText: '2026-0812' })).toContainText('Overdue') // By Eric, due 15 Sep
+    const eric = list.getByRole('listitem', { name: 'By Eric 2026-0812' })
+    await expect(eric).toContainText('Overdue since 15 Sep')
+    // By month, newest first, each with what it comes to.
+    await expect(list.getByRole('heading', { level: 3 })).toHaveText(['September 2026', 'August 2026'])
+    await expect(list.getByRole('list', { name: 'August 2026' }).getByRole('listitem')).toHaveCount(2)
+    await expect(list).toContainText('2 invoices · €970,00')
+    const status = list.getByRole('group', { name: 'Status' })
+    await status.getByRole('button', { name: /^Overdue/ }).click()
+    await expect(list.getByRole('listitem')).toHaveCount(1)
+    await expect(list.getByRole('listitem')).toHaveAccessibleName('By Eric 2026-0812')
+    await status.getByRole('button', { name: /^All/ }).click()
     const bySupplier = page.getByRole('region', { name: 'By supplier' })
     await expect(bySupplier.getByRole('row').filter({ hasText: 'Tostadores del Sur' })).toContainText('€690,00')
 
-    await list.getByRole('combobox', { name: 'Status of 2026-0812' }).click()
-    await page.getByRole('option', { name: 'Paid', exact: true }).click()
-    await toast(page, /^Saved$/)
-    await expect(list.getByRole('row').filter({ hasText: '2026-0812' })).not.toContainText('Overdue')
+    await eric.getByRole('button', { name: 'Mark 2026-0812 paid' }).click()
+    await toast(page, '2026-0812: paid')
+    await expect(eric).not.toContainText('Overdue')
+    await expect(eric).toContainText('Paid')
+    await expect(eric.getByRole('button', { name: 'Mark 2026-0812 paid' })).toHaveCount(0)
 
     // Categorised through the supplier: pick one to see only theirs.
     await bySupplier.getByRole('button', { name: 'Tostadores del Sur' }).click()
-    await expect(list.getByRole('row')).toHaveCount(3) // the heading row and two invoices
+    await expect(list.getByRole('listitem')).toHaveCount(2)
     await list.getByRole('button', { name: 'Export' }).click()
     await expect(page.getByRole('menuitem', { name: /Excel/ })).toBeVisible()
   })
@@ -6565,7 +6592,7 @@ test.describe('invoices', () => {
     await expect(chips.getByRole('button', { name: 'Every supplier' })).toHaveAttribute('aria-pressed', 'true')
     await chips.getByRole('button', { name: /^Tostadores del Sur/ }).click()
     await expect(page).toHaveURL(/supplier=sup-roaster/)
-    await expect(list.getByRole('row')).toHaveCount(3) // the heading row and its two invoices
+    await expect(list.getByRole('listitem')).toHaveCount(2)
     await chips.getByRole('button', { name: /^Tostadores del Sur/ }).click()
     await expect(page).not.toHaveURL(/supplier=/)
     await expect(chips.getByRole('button', { name: 'Every supplier' })).toHaveAttribute('aria-pressed', 'true')
@@ -6589,7 +6616,7 @@ test.describe('invoices', () => {
     await toast(page, 'Invoice brought in')
     await expect(email.getByRole('article', { name: 'Factura F2026-0142' })).toHaveCount(0)
 
-    const row = page.getByRole('region', { name: 'Invoices', exact: true }).getByRole('row').filter({ hasText: 'F2026-0142' })
+    const row = page.getByRole('region', { name: 'Invoices', exact: true }).getByRole('listitem').filter({ hasText: 'F2026-0142' })
     await expect(row).toContainText('Tostadores del Sur')
     await expect(row).toContainText('To check')
     await row.getByRole('button', { name: 'Edit F2026-0142' }).click()
@@ -6597,7 +6624,7 @@ test.describe('invoices', () => {
     await dialog.getByRole('textbox', { name: 'Notes' }).fill('September beans, 12 kg')
     await dialog.getByRole('button', { name: 'Save' }).click()
     await toast(page, /^Saved$/)
-    await expect(row.getByRole('button', { name: 'Notes: September beans, 12 kg' })).toBeVisible()
+    await expect(row).toContainText('September beans, 12 kg')
   })
 
   test('employees don’t get invoices', async ({ page }) => {
@@ -9792,7 +9819,7 @@ test('suppliers: each one’s invoices beside its phone and email, opened on Inv
   await expect(page.getByRole('heading', { name: 'Invoices', level: 1 })).toBeVisible()
   await expect(page).toHaveURL(/supplier=sup-roaster/)
   const list = page.getByRole('region', { name: 'Invoices', exact: true })
-  await expect(list.getByRole('row')).toHaveCount(3) // the heading row and its two invoices
+  await expect(list.getByRole('listitem')).toHaveCount(2)
   await expect(list).not.toContainText('LC-4471')
   // Back to every supplier.
   await page.getByRole('combobox', { name: 'Supplier' }).first().click()

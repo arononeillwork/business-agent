@@ -37,6 +37,28 @@ export type RecipeInput = Omit<Recipe, 'id'> & { id?: string }
 export const RECIPE_CATEGORIES = [msg('Coffee'), msg('Tea & matcha'), msg('Cold drinks'), msg('Food'), msg('Bakery'), msg('Shop')]
 export const DEFAULT_TARGET_MARGIN = 70
 
+/** A category as it compares: "Cold Drinks", "cold drinks " and "Cold drinks" are one. */
+export const categoryKey = (c: string | null | undefined) => (c ?? '').trim().toLowerCase()
+
+/**
+ * The menu's own categories (from Square or typed), each once whatever its capitals, spelt the way most
+ * of its items have it, with how many items are in it. Items with no category aren't in a category.
+ */
+export function recipeCategories(recipes: { category: string | null }[]): { key: string; name: string; count: number }[] {
+  const by = new Map<string, Map<string, number>>()
+  for (const r of recipes) {
+    const name = r.category?.trim()
+    if (!name) continue
+    const spellings = by.get(categoryKey(name)) ?? new Map<string, number>()
+    spellings.set(name, (spellings.get(name) ?? 0) + 1)
+    by.set(categoryKey(name), spellings)
+  }
+  return [...by].map(([key, spellings]) => {
+    const [name] = [...spellings].sort((a, b) => b[1] - a[1])[0]
+    return { key, name, count: [...spellings.values()].reduce((s, n) => s + n, 0) }
+  })
+}
+
 /** Units that measure the same thing, and how many of the smallest each one is. */
 const SCALE: Partial<Record<StockUnit, [string, number]>> = { kg: ['mass', 1000], g: ['mass', 1], l: ['volume', 1000], ml: ['volume', 1] }
 

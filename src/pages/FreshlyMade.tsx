@@ -1,5 +1,5 @@
 import {
-  Autocomplete, Box, Button, Card, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, InputAdornment, Link, MenuItem,
+  Autocomplete, Box, Button, Card, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, InputAdornment, Link, MenuItem,
   Radio, RadioGroup, Stack, Switch, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
@@ -19,6 +19,7 @@ import {
   DISCOUNT_LEADS, MAX_SHELF_HOURS, OFFER_LEADS, SHELF_LIVES, batchFromItem, batchesOf, defaultDiscountAt, freshItemProblem, freshOfferPrice, freshProblem, freshState,
   goodUntil, likeLastTime, newFreshBatch, newFreshItem, onCounter, shelfShare, type FreshBatch, type FreshBatchInput, type FreshItem, type FreshItemInput, type FreshState,
   madeHere, menuShelfLife, type MadeHereItem, defaultSecondAt, discountNow, secondDiscount, batchScreens, type FreshScreenMode, type FreshScreens,
+  FRESH_KINDS, freshKind, type FreshKind,
 } from '../../shared/freshBatches'
 import type { Screen } from '../../shared/screens'
 import type { MenuItem as MenuRow } from '../../shared/menu'
@@ -92,15 +93,24 @@ export function FreshlyMade() {
   const onList = madeHere(menu.data ?? [], items.data ?? [])
   const made = onList.flatMap(i => { const m = menu.data?.find(x => x.id === i.recipe_id); return m ? [{ item: i, menu: m }] : [] })
     .sort((a, b) => (a.menu.category ?? '').localeCompare(b.menu.category ?? '') || a.menu.name.localeCompare(b.menu.name))
-  const suggested = made.filter(x => x.item.suggested).length
+  // The filters: pastries, cakes, yoghurt and chia pots (and anything else, when there is some), each with how many
+  // things there are of it, on the list or on the counter (each once).
+  const [kind, setKind] = useState<FreshKind | 'all'>('all')
+  const kindOfBatch = (b: FreshBatch) => { const m = menu.data?.find(x => x.id === b.recipe_id); return m ? freshKind(m.name, m.category) : freshKind(b.name) }
+  const now = Date.now()
+  const things = [...made.map(x => ({ name: x.menu.name, kind: freshKind(x.menu.name, x.menu.category) })),
+    ...list.filter(b => onCounter(b, now)).map(b => ({ name: b.name, kind: kindOfBatch(b) }))]
+  const howMany = (k: FreshKind | 'all') => new Set(things.filter(x => k === 'all' || x.kind === k).map(x => x.name.trim().toLowerCase())).size
+  const kinds = [...FRESH_KINDS, { id: 'other' as const, label: msg('Other') }].map(k => ({ ...k, count: howMany(k.id) })).filter(k => k.id !== 'other' || k.count > 0)
+  const madeShown = made.filter(x => kind === 'all' || freshKind(x.menu.name, x.menu.category) === kind)
   /** A batch of an item made now: its shelf life and offer, and as many as last time. */
   const recordOf = (i: FreshItem, m: MenuRow) => {
     const fresh = newFreshBatch()
     setEditing({ ...fresh, name: m.name, quantity: batchesOf(m, list)[0]?.quantity ?? null, ...batchFromItem(i, fresh.made_at) })
   }
-  const now = Date.now()
-  const counter = list.filter(b => onCounter(b, now)).sort((a, b) => a.good_until.localeCompare(b.good_until))
-  const earlier = list.filter(b => !onCounter(b, now))
+  const shownBatches = list.filter(b => kind === 'all' || kindOfBatch(b) === kind)
+  const counter = shownBatches.filter(b => onCounter(b, now)).sort((a, b) => a.good_until.localeCompare(b.good_until))
+  const earlier = shownBatches.filter(b => !onCounter(b, now))
   const canRecord = !isPartner
   const sellPrice = (b: FreshBatch) => menu.data?.find(m => m.id === b.recipe_id)?.sell_price ?? null
 
@@ -112,9 +122,13 @@ export function FreshlyMade() {
   return (
     <Box component="section" aria-label={t('Freshly made')}>
       <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ gap: 1.5, alignItems: { sm: 'center' }, justifyContent: 'space-between', mb: 2 }}>
-        <Typography variant="body2" sx={{ color: 'text.secondary', maxWidth: 760 }}>
-          {t('What’s been made for the counter today: when, how long it keeps, and when it goes on offer. A discount puts it on Offers & specials by itself until it has to be gone.')}
-        </Typography>
+        <Stack direction="row" role="group" aria-label={t('Show')} useFlexGap sx={{ gap: 0.75, flexWrap: 'wrap', alignItems: 'center' }}>
+          {[{ id: 'all' as const, label: msg('All'), count: howMany('all') }, ...kinds].map(k => (
+            <Chip key={k.id} aria-pressed={kind === k.id} onClick={() => setKind(kind === k.id && k.id !== 'all' ? 'all' : k.id)}
+              color={kind === k.id ? 'primary' : 'default'} variant={kind === k.id ? 'filled' : 'outlined'}
+              label={<>{t(k.label)}<Box component="span" sx={{ opacity: 0.7, ml: 0.75 }}>{k.count}</Box></>} />
+          ))}
+        </Stack>
         <Stack direction="row" spacing={1} sx={{ flexShrink: 0 }}>
           {isAdmin && <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setSetting({ item: newFreshItem(), suggested: false })}>{t('Add an item')}</Button>}
           {canRecord && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setEditing(newFreshBatch())}>{t('Record a batch')}</Button>}
@@ -125,16 +139,12 @@ export function FreshlyMade() {
       {/* The items made here with a set shelf life: how long each keeps, when it was last made, and its offer. */}
       <Box component="section" aria-label={t('Made here')} sx={{ mb: 3 }}>
         <SectionTitle>{t('Made here')}</SectionTitle>
-        {isAdmin && suggested > 0 && (
-          <Typography variant="body2" sx={{ color: 'text.secondary', mt: -0.5, mb: 1.5, maxWidth: 760 }}>
-            {tn(suggested, 'One item comes from the menu, with how long it usually keeps: set it to change that or give it an offer, or take it off the list if it isn’t made here.',
-              '{n} items come from the menu, each with how long it usually keeps: set one to change that or give it an offer, or take it off the list if it isn’t made here.')}
-          </Typography>
-        )}
         {items.data && menu.data && !made.length ? (
           <Empty>{isAdmin
             ? t('Nothing with a set shelf life yet. Add what you make (pastries, yoghurt pots, chia puddings) with how long it keeps and its offer, or give the item a Shelf life custom attribute in Square: it comes in with the menu.')
             : t('Nothing with a set shelf life yet.')}</Empty>
+        ) : items.data && menu.data && !madeShown.length ? (
+          <Empty>{t('None of these on the list.')}</Empty>
         ) : (
           <Card sx={{ overflow: 'hidden' }}>
             {/* The columns' names, on wide screens (on narrow ones each row names its own). */}
@@ -145,7 +155,7 @@ export function FreshlyMade() {
               ))}
             </Box>
             <Box component="ul" aria-label={t('Made here')} sx={{ m: 0, p: 0, listStyle: 'none' }}>
-              {made.map(({ item, menu: m }) => (
+              {madeShown.map(({ item, menu: m }) => (
                 <MadeHereRow key={item.id} item={item} menu={m} batches={batchesOf(m, list)} now={now} canRecord={canRecord} canEdit={isAdmin}
                   onRecord={() => recordOf(item, m)} onEdit={() => setSetting({ item: itemInput(item), suggested: item.suggested })} />
               ))}
@@ -156,7 +166,8 @@ export function FreshlyMade() {
 
       <SectionTitle>{t('On the counter')}</SectionTitle>
       {batches.data && !counter.length ? (
-        <Empty>{canRecord ? t('Nothing on the counter. Record what you make (a banana bread, the day’s sandwiches) to see how long it keeps.') : t('Nothing on the counter.')}</Empty>
+        <Empty>{kind !== 'all' ? t('None of these on the counter.')
+          : canRecord ? t('Nothing on the counter. Record what you make (a banana bread, the day’s sandwiches) to see how long it keeps.') : t('Nothing on the counter.')}</Empty>
       ) : (
         <Box role="list" aria-label={t('On the counter')}
           sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' } }}>
