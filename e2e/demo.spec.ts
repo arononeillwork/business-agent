@@ -6674,6 +6674,34 @@ test.describe('reviews and website', () => {
     await expect(page.getByRole('menuitem', { name: /Excel/ })).toBeVisible()
   })
 
+  test('reviews: most recent first, or sorted oldest, best or worst first next to the filters', async ({ page }) => {
+    await open(page, '/reviews')
+    const list = page.getByRole('region', { name: 'Google reviews' })
+    const reviews = list.getByRole('article')
+    await expect(reviews.first()).toHaveAccessibleName('Tom Hughes, 2 stars')
+    const sortBy = async (name: string) => {
+      await list.getByLabel('Sort by').click()
+      await page.getByRole('option', { name }).click()
+    }
+    await sortBy('Worst first')
+    // Fewest stars first; among the same stars, the newest.
+    await expect(reviews.nth(0)).toHaveAccessibleName('Tom Hughes, 2 stars')
+    await expect(reviews.nth(1)).toHaveAccessibleName('Javier Ruiz, 3 stars')
+    await expect(reviews.nth(2)).toHaveAccessibleName('Miguel Ángel Torres, 4 stars')
+    await sortBy('Best first')
+    await expect(reviews.first()).toHaveAccessibleName('Lucía Pérez, 5 stars')
+    await expect(reviews.last()).toHaveAccessibleName('Tom Hughes, 2 stars')
+    await sortBy('Oldest first')
+    await expect(reviews.first()).toHaveAccessibleName('James O’Brien, 4 stars')
+    // The filter and the order go together: 4 and 5 stars, worst first.
+    await list.getByRole('button', { name: '4 and 5 stars' }).click()
+    await sortBy('Worst first')
+    await expect(reviews).toHaveCount(10)
+    await expect(reviews.first()).toHaveAccessibleName('Miguel Ángel Torres, 4 stars')
+    await sortBy('Most recent')
+    await expect(reviews.first()).toHaveAccessibleName('Lucía Pérez, 5 stars')
+  })
+
   test('website: the SEO check lists what to fix with how, and whether the details match everywhere', async ({ page }) => {
     await open(page, '/website')
     await expect(page.getByRole('heading', { name: 'Website & SEO' })).toBeVisible()
@@ -10065,6 +10093,19 @@ test.describe('team contracts', () => {
     await expect(row('Julio')).toHaveCount(0)
   })
 
+  test('the contracts table scrolls inside its card; the page never scrolls sideways', async ({ page }) => {
+    // A table wider than the screen, and the hidden "Actions" heading in its last column, used to stretch the whole page.
+    await open(page, '/team?tab=contracts')
+    await expect(contractRow(page, 'Julio')).toBeVisible()
+    for (const width of [1274, 1024, 390]) {
+      await page.setViewportSize({ width, height: 700 })
+      await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth), `nothing wider than ${width}px`).toBeLessThanOrEqual(width)
+    }
+    // At a laptop's width the table fits its card without a scrollbar of its own.
+    await page.setViewportSize({ width: 1274, height: 700 })
+    await expect.poll(() => page.getByRole('table', { name: 'Contracts' }).evaluate(t => t.parentElement!.scrollWidth - t.parentElement!.clientWidth)).toBe(0)
+  })
+
   test('an admin adds a contract for someone without one, and ends one', async ({ page }) => {
     await open(page, '/team?tab=contracts')
     const row = (name: string) => contractRow(page, name)
@@ -10303,16 +10344,12 @@ test.describe('theme days and the weekly routine', () => {
   // Each walks through several pages and dialogs.
   test.describe.configure({ timeout: 60_000 })
   // Irish, then Colombian, then Brazilian roast, from Monday: Wednesday 30 September is a Brazilian roast day.
-  test('theme days: the calendar leads with today’s theme, its coffee and playlist; an admin changes a date’s theme from the calendar', async ({ page }) => {
+  test('theme days: the calendar shows each day’s theme in the grid, not a card of its own; an admin changes a date’s theme from the calendar', async ({ page }) => {
     await open(page, '/calendar')
-    const todays = page.getByRole('region', { name: 'Today’s theme' })
-    await expect(todays.getByRole('heading', { name: 'Brazilian roast day' })).toBeVisible()
-    await expect(todays).toContainText('Brazilian dark roast')
-    await expect(todays).toContainText('Bossa nova café')
-    await expect(todays.getByRole('link', { name: 'Open Bossa nova café' })).toHaveAttribute('href', 'https://music.youtube.com/playlist?list=PLeb-bossa')
-    await expect(todays.getByRole('list', { name: 'The next few days' }).getByRole('listitem'))
-      .toHaveText([/Irish day/, /Colombian day/, /Brazilian roast day/, /—/, /Irish day/, /Colombian day/])
+    // Today's theme card is on Today, not the Calendar: the grid already says each day's theme.
+    await expect(page.getByRole('region', { name: 'Today’s theme' })).toHaveCount(0)
     const grid = page.getByRole('grid')
+    await expect(grid.getByRole('gridcell', { name: 'Wednesday 30 September' })).toContainText('Brazilian roast day')
     await expect(grid.getByRole('gridcell', { name: 'Thursday 1 October' })).toContainText('Irish day')
     await expect(grid.getByRole('gridcell', { name: 'Friday 2 October' })).toContainText('Colombian day')
     await expect(grid.getByRole('gridcell', { name: 'Sunday 4 October' }).getByRole('button', { name: /^Sunday 4 October:/ })).toHaveCount(0)
@@ -10626,8 +10663,8 @@ test.describe('theme days and the weekly routine', () => {
 
   test('theme days and the routine: an employee sees them but can’t change them', async ({ page }) => {
     await open(page, '/calendar', 'maria@example.com')
-    await expect(page.getByRole('region', { name: 'Today’s theme' })).toContainText('Brazilian roast day')
     const grid = page.getByRole('grid')
+    await expect(grid.getByRole('gridcell', { name: 'Wednesday 30 September' })).toContainText('Brazilian roast day')
     await grid.getByRole('button', { name: 'Friday 2 October: Colombian day' }).click()
     const day = page.getByRole('dialog', { name: 'Friday 2 October' })
     await expect(day).toContainText('Colombian (guest)')
