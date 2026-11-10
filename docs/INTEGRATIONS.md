@@ -356,7 +356,8 @@ Connections); with it, within seconds.
 
 Permissions asked for: `MERCHANT_PROFILE_READ` (business name and locations), `PAYMENTS_READ`
 (takings, tips, refunds, card/cash), `ORDERS_READ` (what was sold, for best sellers),
-`CUSTOMERS_READ` (the customer directory, for Customers), `ITEMS_READ` (the item library, for a menu
+`CUSTOMERS_READ` (the customer directory, for Customers), `CUSTOMERS_WRITE` (a Square customer for each
+customer who earns credit on Sales reps & rewards, with their gift card on file), `ITEMS_READ` (the item library, for a menu
 read from Square), `LOYALTY_READ` and `GIFTCARDS_READ` (the
 loyalty programme and gift cards, for Loyalty & gift cards) and `LOYALTY_WRITE` and
 `GIFTCARDS_WRITE` for goodwill points for a member (with a reason Square keeps) and selling a digital

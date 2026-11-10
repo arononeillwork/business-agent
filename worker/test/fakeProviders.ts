@@ -300,6 +300,11 @@ export class FakeProviders {
     ] as { id: string; type: string; created_at: string; gift_card_gan: string; [k: string]: unknown }[],
     /** Idempotency keys seen on gift card writes. */
     giftKeys: [] as string[],
+    /** Gift card activities made by the app, by idempotency key (the same key twice is one activity, as on Square). */
+    giftActivityKeys: new Map<string, string>(),
+    /** Customers made by the app, by idempotency key. `customersWrite: false` is a connection made before CUSTOMERS_WRITE was asked for. */
+    customersWrite: true,
+    customersMade: new Map<string, { id: string; [k: string]: unknown }>(),
     /** Completed orders, for best sellers. `ordersScope: false` is a connection made before ORDERS_READ was asked for. */
     ordersScope: true,
     orders: [
@@ -1042,6 +1047,13 @@ export class FakeProviders {
         const from = url.searchParams.get('begin_time')!, to = url.searchParams.get('end_time')!
         return json({ payments: this.square.payments.filter(p => p.created_at >= from && p.created_at < to) })
       }
+      if (url.pathname === '/v2/customers' && method === 'POST') {
+        if (!this.square.customersWrite) return json({ errors: [{ category: 'AUTHENTICATION_ERROR', code: 'INSUFFICIENT_SCOPES', detail: 'The merchant has not granted CUSTOMERS_WRITE' }] }, 403)
+        const b = body() as { idempotency_key: string; [k: string]: unknown }
+        const made = this.square.customersMade.get(b.idempotency_key) ?? { id: `SQC-${this.nextId++}`, ...b }
+        this.square.customersMade.set(b.idempotency_key, made)
+        return json({ customer: made })
+      }
       if (url.pathname === '/v2/customers/search' && method === 'POST') {
         if (!this.square.customersScope) return json({ errors: [{ category: 'AUTHENTICATION_ERROR', code: 'INSUFFICIENT_SCOPES', detail: 'The merchant has not granted CUSTOMERS_READ' }] }, 403)
         const since = (body() as { query?: { filter?: { updated_at?: { start_at?: string } } } }).query?.filter?.updated_at?.start_at ?? ''
@@ -1073,24 +1085,45 @@ export class FakeProviders {
         if (url.pathname === '/v2/gift-cards' && method === 'POST') {
           const b = body() as { idempotency_key: string; location_id: string; gift_card: { type: string } }
           sq.giftKeys.push(b.idempotency_key)
+          const again = sq.giftActivityKeys.get(`card:${b.idempotency_key}`)
+          if (again) return json({ gift_card: sq.giftCards.find(g => g.id === again) })
           const card = { id: `GC-${this.nextId++}`, type: b.gift_card.type, state: 'PENDING', gan: `77833200${String(this.nextId).padStart(8, '0')}`,
             balance_money: { amount: 0, currency: 'EUR' }, created_at: '2026-09-30T07:00:00Z' }
           sq.giftCards.push(card)
+          sq.giftActivityKeys.set(`card:${b.idempotency_key}`, card.id)
           return json({ gift_card: card })
         }
         if (url.pathname === '/v2/gift-cards/activities' && method === 'GET') {
-          const from = url.searchParams.get('begin_time')!, to = url.searchParams.get('end_time')!
-          return json({ gift_card_activities: sq.giftActivities.filter(a => a.created_at >= from && a.created_at < to) })
+          const from = url.searchParams.get('begin_time')!, to = url.searchParams.get('end_time') ?? '9999'
+          const card = url.searchParams.get('gift_card_id'), type = url.searchParams.get('type')
+          return json({ gift_card_activities: sq.giftActivities.filter(a => a.created_at >= from && a.created_at < to
+            && (!card || a.gift_card_id === card) && (!type || a.type === type)) })
         }
         if (url.pathname === '/v2/gift-cards/activities' && method === 'POST') {
-          const b = body() as { idempotency_key: string; gift_card_activity: { type: string; gift_card_id: string; location_id: string; activate_activity_details: { amount_money: { amount: number; currency: string } } } }
+          type Details = { amount_money: { amount: number; currency: string }; reason?: string; buyer_payment_instrument_ids?: string[] }
+          const b = body() as { idempotency_key: string; gift_card_activity: { type: string; gift_card_id: string; location_id: string
+            activate_activity_details?: Details; adjust_increment_activity_details?: Details; adjust_decrement_activity_details?: Details } }
           sq.giftKeys.push(b.idempotency_key)
-          const card = sq.giftCards.find(g => g.id === b.gift_card_activity.gift_card_id)!
-          card.state = 'ACTIVE'
-          card.balance_money = b.gift_card_activity.activate_activity_details.amount_money
-          sq.giftActivities.push({ id: `GA-${this.nextId++}`, type: 'ACTIVATE', created_at: '2026-09-30T07:00:00Z', gift_card_gan: card.gan,
-            activate_activity_details: b.gift_card_activity.activate_activity_details, location_id: b.gift_card_activity.location_id })
-          return json({ gift_card_activity: { id: 'GA-new', type: 'ACTIVATE' } })
+          const done = sq.giftActivityKeys.get(b.idempotency_key)
+          if (done) return json({ gift_card_activity: { id: done, type: b.gift_card_activity.type } })
+          const a = b.gift_card_activity
+          const card = sq.giftCards.find(g => g.id === a.gift_card_id)!
+          const details = a.activate_activity_details ?? a.adjust_increment_activity_details ?? a.adjust_decrement_activity_details!
+          if (a.type === 'ACTIVATE') {
+            if (card.state !== 'PENDING') return json({ errors: [{ code: 'INVALID_REQUEST_ERROR', detail: 'The gift card is already active' }] }, 400)
+            card.state = 'ACTIVE'
+            card.balance_money = { ...details.amount_money }
+          } else {
+            if (card.state !== 'ACTIVE') return json({ errors: [{ code: 'INVALID_REQUEST_ERROR', detail: 'The gift card is not active' }] }, 400)
+            const sign = a.type === 'ADJUST_DECREMENT' ? -1 : 1
+            if (card.balance_money.amount + sign * details.amount_money.amount < 0) return json({ errors: [{ code: 'INSUFFICIENT_FUNDS', detail: 'Not enough on the card' }] }, 400)
+            card.balance_money = { ...card.balance_money, amount: card.balance_money.amount + sign * details.amount_money.amount }
+          }
+          const id = `GA-${this.nextId++}`
+          sq.giftActivityKeys.set(b.idempotency_key, id)
+          sq.giftActivities.push({ id, type: a.type, created_at: '2026-09-30T07:00:00Z', gift_card_gan: card.gan, gift_card_id: card.id,
+            [`${a.type.toLowerCase()}_activity_details`]: details, location_id: a.location_id })
+          return json({ gift_card_activity: { id, type: a.type } })
         }
         const link = url.pathname.match(/^\/v2\/gift-cards\/([^/]+)\/link-customer$/)
         if (link && method === 'POST') {

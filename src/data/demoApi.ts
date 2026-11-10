@@ -1923,7 +1923,8 @@ export function createDemoApi(): Api {
   const fighter = (id: string, name: string, code: string, instagram: string, followers: number, more: Partial<SalesRep> = {}) =>
     salesRep({ id, name, kind: 'customer', code, instagram, instagram_followers: followers, leader_id: 'rep-dani', followers_checked_at: daysAgo(1), ...more })
   const repList: SalesRep[] = [
-    salesRep({ id: 'rep-lucia', name: 'Lucía García', kind: 'customer', code: 'LUCIA27', customer_id: customerId('Lucía'), instagram: 'lucia.mbl', instagram_followers: 640, phone: '+34 611 204 318' }),
+    salesRep({ id: 'rep-lucia', name: 'Lucía García', kind: 'customer', code: 'LUCIA27', customer_id: customerId('Lucía'), instagram: 'lucia.mbl', instagram_followers: 640, phone: '+34 611 204 318',
+      square_customer_id: 'SQC-lucia', square_gift_card_id: 'GC-lucia' }),
     salesRep({ id: 'rep-eats', name: 'San Pedro Eats', kind: 'customer', code: 'EATS10', instagram: 'sanpedro.eats', instagram_followers: 12_400, tiktok: 'sanpedroeats', tiktok_followers: 3_100,
       notes: 'Local food blog', followers_checked_at: daysAgo(0) }),
     salesRep({ id: 'rep-sofia', name: 'Sofia Lindqvist', kind: 'customer', code: 'SOFIA14', customer_id: customerId('Sofia'), tiktok: 'sofia.matcha', tiktok_followers: 3_400, notes: 'Matcha videos on TikTok' }),
