@@ -4,7 +4,9 @@
 //   whose owner asked to close it. The café (no ?hq) isn't HQ: nothing to list, and the acts are refused.
 // - Owners: the export is made here, from the demo's own data, into the same zip of CSV files; closing the
 //   account stops the plan renewing, and keeping it starts it again.
+// - HQ's errors (the app_errors migration): a few the app, the Worker and a scheduled job ran into.
 import type { Api, BillingInfo, HqBusiness, HqClosure } from './api'
+import type { HqError } from './api'
 import type { Business, Profile, Shift } from '../../shared/types'
 import { closesAt, canStillKeep } from '../../shared/accountClosing'
 import { complimentaryBlock, isTrialExtension } from '../../shared/hqActions'
@@ -26,6 +28,7 @@ interface Who {
 
 type BackOfficeApi = Pick<Api, 'hqBusinesses' | 'hqSetComplimentary' | 'hqEndComplimentary' | 'hqExtendTrial' | 'hqClosures' | 'hqFunnel'
   | 'exportData' | 'closeAccount' | 'keepAccount'>
+  & Pick<Api, 'hqErrors'>
 
 export function demoBackOfficeApi(w: Who): BackOfficeApi {
   const day = 86_400_000
@@ -53,6 +56,21 @@ export function demoBackOfficeApi(w: Who): BackOfficeApi {
   const ended: Record<number, string> = { 7: w.daysAgo(65), 5: w.daysAgo(120) }
   const closures: HqClosure[] = [{ id: 13, closing_requested_at: w.daysAgo(5), closes_at: closesAt(w.daysAgo(5)), requested_by: 'Juan Pérez' }]
   const needHq = () => { if (!w.hqAdmin()) throw new Error('Only The Business Agent HQ’s admins can do that') }
+  // What went wrong lately: on a phone at Café Lola, in the Worker, and in the minute job for Peluquería Sol.
+  const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString()
+  const errors: HqError[] = [
+    { fingerprint: '6f1c0a9e2b7d4c3e8a5f1b0d9c7e6a21', source: 'app', message: 'Cannot read properties of undefined (reading \'starts_at\')', times: 3,
+      first_seen: hoursAgo(30), last_seen: hoursAgo(2), last_path: '/rota', business_id: 9,
+      last_stack: 'TypeError: Cannot read properties of undefined (reading \'starts_at\')\n    at WeekRow (https://businesssagent.com/assets/RotaPage-C81kq2Lm-r2.js:1:20412)\n    at renderWithHooks (https://businesssagent.com/assets/index-Bf3x9QaL-r2.js:8:41233)',
+      last_detail: { kind: 'render', build: 'index-Bf3x9QaL-r2', user_agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1', version: 'a1b2c3d' } },
+    { fingerprint: '0d4e7b19c2a64f58b3e9a7c1d5f2e830', source: 'cron: outbox', message: 'Instagram answered 500: An unexpected error has occurred. Please retry your request later.', times: 12,
+      first_seen: hoursAgo(9), last_seen: hoursAgo(5), last_path: null, business_id: 14,
+      last_stack: 'Error: Instagram answered 500: An unexpected error has occurred. Please retry your request later.\n    at publish (worker/providers/instagram.ts:212:11)',
+      last_detail: { version: 'a1b2c3d' } },
+    { fingerprint: '9a3b5c7d1e2f40618293a4b5c6d7e8f9', source: 'worker POST /api/hq/businesses/:id/extend-trial', message: 'Stripe didn’t answer in time', times: 1,
+      first_seen: hoursAgo(50), last_seen: hoursAgo(50), last_path: '/api/hq/businesses/14/extend-trial', business_id: 1, last_stack: null,
+      last_detail: { method: 'POST', route: '/api/hq/businesses/:id/extend-trial', version: '9f8e7d6' } },
+  ]
   const find = (id: number) => {
     const b = list.find(x => x.id === id)
     if (!b) throw new Error('No such business')
@@ -65,6 +83,7 @@ export function demoBackOfficeApi(w: Who): BackOfficeApi {
   return {
     async hqBusinesses() { return w.hqAdmin() ? list.map(b => ({ ...b })) : [] },
     async hqClosures() { return w.hqAdmin() ? closures.map(c => ({ ...c })) : [] },
+    async hqErrors() { return w.hqAdmin() ? errors.map(e => ({ ...e, last_detail: { ...e.last_detail } })) : [] },
     async hqFunnel(): Promise<HqFunnelRow[]> {
       if (!w.hqAdmin()) return []
       return list.map(b => {

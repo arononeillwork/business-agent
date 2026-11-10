@@ -79,6 +79,7 @@ import WebsiteIcon from '@mui/icons-material/LanguageOutlined'
 import CompetitorsIcon from '@mui/icons-material/StorefrontOutlined'
 import DashboardsIcon from '@mui/icons-material/SpaceDashboardOutlined'
 import AdvisorIcon from '@mui/icons-material/TipsAndUpdatesOutlined'
+import HelpIcon from '@mui/icons-material/HelpOutlineRounded'
 import ExpandIcon from '@mui/icons-material/ExpandMore'
 import DragIcon from '@mui/icons-material/DragIndicator'
 import PinIcon from '@mui/icons-material/PushPin'
@@ -111,6 +112,8 @@ import { LanguageToggle } from '../components/Language'
 import { AgentBanner, AgentsButton, useAgentView } from './AgentsMenu'
 import { InstallApp, InstallMenuItem } from '../components/InstallApp'
 import { hiddenByAgent } from '../../shared/agents'
+import { HelpDialog } from '../components/HelpDialog'
+import { AppErrorBoundary } from './ErrorBoundary'
 
 // `partner`: which partner areas show the item ('any' = every partner). Items without it are staff-only.
 // `children`: sub-pages, shown indented under the item when it's opened (or its arrow is pressed).
@@ -285,6 +288,8 @@ function AccountMenu({ children, label, sx }: { children: ReactNode; label?: str
   const { business } = useApp()
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
   const close = () => setAnchor(null)
+  // Help: how to reach The Business Agent, the set-up guide, an AI assistant, privacy and terms.
+  const [help, setHelp] = useState(false)
   // The other businesses on this device, to switch to, and adding one (the phone has no top left for it).
   const businesses = useBusinesses()
   const signOut = useSignOutLabel()
@@ -307,6 +312,7 @@ function AccountMenu({ children, label, sx }: { children: ReactNode; label?: str
         {isAdmin && !isPartner && item('/referrals', t('Referrals'), <ReferralsIcon fontSize="small" />)}
         {isAdmin && business?.is_hq && item('/hq/businesses', t('Businesses'), <BusinessesIcon fontSize="small" />)}
         {item('/appearance', t('Appearance'), <AppearanceIcon fontSize="small" />)}
+        <MenuItem onClick={() => { close(); setHelp(true) }}><ListItemIcon><HelpIcon fontSize="small" /></ListItemIcon><ListItemText primary={t('Help')} /></MenuItem>
         <InstallMenuItem onClick={close} />
         <Divider />
         {businessMenuItems(businesses, close, false)}
@@ -314,6 +320,7 @@ function AccountMenu({ children, label, sx }: { children: ReactNode; label?: str
         <MenuItem onClick={() => { close(); void api.signOut() }}><ListItemIcon><LogoutIcon fontSize="small" /></ListItemIcon><ListItemText primary={signOut} /></MenuItem>
       </Menu>
       <Opening account={businesses.opening} />
+      {help && <HelpDialog onClose={() => setHelp(false)} />}
     </>
   )
 }
@@ -789,7 +796,10 @@ export function AppShell() {
           )}
           <TitleSlot.Provider value={desktop ? titleSlot : null}>
             <CafeSpeakerProvider>
+              {/* A page that breaks shows its error screen here, with the menu still there to go to another page. */}
+              <AppErrorBoundary inPage resetKey={pathname}>
               <Suspense fallback={<Loading />}>{blocked ? <Navigate to="/" replace /> : <Outlet />}</Suspense>
+              </AppErrorBoundary>
             </CafeSpeakerProvider>
           </TitleSlot.Provider>
         </Box>

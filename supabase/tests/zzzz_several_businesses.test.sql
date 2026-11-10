@@ -47,6 +47,8 @@ declare v text;
 begin
   select string_agg(c.relname, ', ') into v from pg_class c
    where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' and c.relname not in ('plan_limits', 'pay_per_use')
+     -- The Business Agent's own error log, HQ's admins' only (the app_errors migration).
+     and c.relname <> 'app_errors'
      and not (c.relrowsecurity and exists (select 1 from pg_policy p where p.polrelid = c.oid and p.polname = 'business_scope' and not p.polpermissive));
   assert v is null, 'Tables not kept to their business. After creating a table: select public.add_business_scope(''public.<table>''); — ' || v;
 
@@ -72,6 +74,7 @@ begin
     from pg_index i join pg_class c on c.oid = i.indrelid
    where c.relnamespace = 'public'::regnamespace and i.indisunique
      and c.relname not in ('plan_limits', 'pay_per_use', 'business', 'profiles')
+     and c.relname <> 'app_errors'
      and i.indexrelid::regclass::text not in ('api_keys_key_hash_key', 'calendar_feeds_token_hash_key', 'screens_token_key', 'cameras_ftp_user_key', 'rep_links_token_key')
      and not exists (
        select 1 from pg_attribute a
