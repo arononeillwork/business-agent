@@ -11435,6 +11435,8 @@ test('the back-office’s errors: what went wrong where, how often and when, ope
 })
 
 test('support tickets: report a problem from Help, follow it under Your requests, and HQ answers it under Support in the back-office', async ({ page }) => {
+  // Both sides of it, in one go: longer than most.
+  test.setTimeout(60_000)
   // The Business Agent HQ's demo (?hq): its admin sends one from the rota, and answers it on the Businesses page.
   await open(page, '/rota?hq')
   await fromAccountMenu(page, 'Help')
