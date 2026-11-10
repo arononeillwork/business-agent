@@ -20,7 +20,13 @@ export interface Mention {
   figures_at?: string | null
   /** The poster's followers, when Instagram says (people who've messaged the café). */
   followers?: number | null
+  /** What the café's own account did in the post's days, against the week before (the post_account_window migration). */
+  account_window?: AccountWindow | null
 }
+
+/** The café account's figures in a post's three days, and the usual for three days (null: Instagram didn't give it). */
+export interface AccountFigures { reach: number | null; views: number | null; engaged: number | null; link_taps: number | null; profile_visits: number | null }
+export interface AccountWindow extends AccountFigures { usual: AccountFigures }
 
 const RECENT_MS = 7 * 86_400_000
 
@@ -37,7 +43,9 @@ export function mentionsIn(chats: InboxConversation[], tagged: TaggedPost[], now
     .map(m => ({ id: `story:${m.id}`, kind: 'story' as const, username: c.with.username || null, media_url: m.mediaUrl ?? null,
       permalink: null, caption: m.text || null, mentioned_at: m.at, followers: c.with.followers ?? null })))
   const posts: Mention[] = tagged.filter(p => p.mediaUrl).map(p => ({ id: `post:${p.id}`, kind: 'post' as const, username: p.username ?? null,
-    media_url: p.mediaUrl ?? null, permalink: p.permalink, caption: p.caption ?? null, mentioned_at: p.at, followers: followers(p.username) }))
+    media_url: p.mediaUrl ?? null, permalink: p.permalink, caption: p.caption ?? null, mentioned_at: p.at, followers: followers(p.username),
+    // A reel's link says so (the tags list doesn't give its kind).
+    video: /instagram\.com\/(?:[\w.]+\/)?(?:reels?|tv)\//i.test(p.permalink ?? '') }))
   return [...stories, ...posts].filter(m => now - Date.parse(m.mentioned_at) < RECENT_MS)
     .sort((a, b) => b.mentioned_at.localeCompare(a.mentioned_at))
 }

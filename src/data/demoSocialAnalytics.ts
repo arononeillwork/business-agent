@@ -4,7 +4,7 @@
 // shape and go through the same steps as the real answers (shared/socialAnalytics.ts). Each day's
 // figures are fixed by its date, so a page shows the same thing every time.
 import { addDays } from '../../shared/time'
-import type { CollabMedia } from '../../shared/mentions'
+import type { AccountFigures, AccountWindow, CollabMedia } from '../../shared/mentions'
 import {
   facebookReport, instagramReport, linkedinReport, msDay, noReport, tiktokReport,
   type FacebookStats, type InstagramStats, type LinkedInStats, type MetaInsight, type SocialReport, type SocialSource, type TikTokVideo,
@@ -58,11 +58,11 @@ const VIDEOS = [
  * new followers each brought the day it went out and the two after, on top of the usual.
  */
 export const DEMO_COLLABS = [
-  { ago: 3, username: 'nora.eats.mbl', name: 'Nora Eats', followers: 8_900, views: 14_200, likes: 1_180, comments: 64, boost: [31, 17, 6],
+  { ago: 3, username: 'nora.eats.mbl', name: 'Nora Eats', followers: 8_900, views: 14_200, likes: 1_180, comments: 64, shares: 212, saves: 340, boost: [31, 17, 6],
     caption: 'Found the prettiest ube latte in San Pedro 💜 @easy.beans.coffee', bg: '#E9DDF3', fg: '#6B4A8B', word: 'ube' },
-  { ago: 10, username: 'marbella.brunchclub', name: 'Marbella Brunch Club', followers: 23_400, views: 38_600, likes: 2_940, comments: 151, boost: [58, 29, 11],
+  { ago: 10, username: 'marbella.brunchclub', name: 'Marbella Brunch Club', followers: 23_400, views: 38_600, likes: 2_940, comments: 151, shares: 610, saves: 880, boost: [58, 29, 11],
     caption: 'Brunch at Easy Beans: açaí bowl, eggs your way and the best flat white on the coast', bg: '#F6E7C8', fg: '#A86B2D', word: 'brunch' },
-  { ago: 17, username: 'tomas.runs', name: 'Tomás', followers: 1_350, views: 2_100, likes: 214, comments: 12, boost: [6, 3, 1],
+  { ago: 17, username: 'tomas.runs', name: 'Tomás', followers: 1_350, views: 2_100, likes: 214, comments: 12, shares: 9, saves: 21, boost: [6, 3, 1],
     caption: 'Post-run iced matcha at my favourite café 🍵', bg: '#DDE8D5', fg: '#4F6B45', word: 'matcha' },
 ]
 
@@ -73,8 +73,23 @@ const PIC = (bg: string, fg: string, word: string) => `data:image/svg+xml,${enco
 export const demoCollabs = (now: string): CollabMedia[] => DEMO_COLLABS.map((c, i) => ({
   id: `1790000000000000${i + 1}`, username: c.username, caption: c.caption, media_type: 'VIDEO', media_product_type: 'REELS',
   permalink: `https://www.instagram.com/reel/DemoCollab${i + 1}/`, timestamp: `${addDays(now, -c.ago)}T18:30:00+0000`, thumbnail_url: PIC(c.bg, c.fg, c.word),
-  total_like_count: c.likes, total_comments_count: c.comments, total_views_count: c.views,
+  total_like_count: c.likes, total_comments_count: c.comments, total_views_count: c.views, shares_count: c.shares, saved_count: c.saves,
 }))
+
+/** The café account's usual three days (the week before's, for three), as readPostWindow keeps them. */
+const USUAL_THREE_DAYS = { reach: 1_260, views: 3_480, engaged: 96, link_taps: 9, profile_visits: 84 } satisfies AccountFigures
+
+/**
+ * What the café's own account did in a post's three days, against the usual: a big collab reel lifts
+ * them a lot, a tag a little. Null until its days are in (three days on), as the Worker reads them.
+ */
+export function demoAccountWindow(username: string | null, at: string, now: string): AccountWindow | null {
+  if (ageOf(now, at.slice(0, 10)) < 3) return null
+  const c = DEMO_COLLABS.find(x => x.username === username)
+  const lift = c ? c.views / 4_000 : 0.35
+  const u = USUAL_THREE_DAYS, k = (n: number, f: number) => Math.round(n * (1 + lift * f))
+  return { reach: k(u.reach, 0.9), views: k(u.views, 0.7), engaged: k(u.engaged, 1.1), link_taps: k(u.link_taps, 0.8), profile_visits: k(u.profile_visits, 1.6), usual: u }
+}
 
 /** The extra new followers on a day from the collabs. */
 const collabBoost = (d: string, now: string) => DEMO_COLLABS.reduce((n, c) => {

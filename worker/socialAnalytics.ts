@@ -22,6 +22,7 @@ import { BASELINE_DAYS, IMPACT_DAYS, followerDays, ownPost, postAbout, postImpac
 import { creatorBoard, type Creator } from '../shared/creators'
 import { reportError } from './errors'
 import type { Mention } from '../shared/mentions'
+import { lookIfDue } from './mentions'
 import { minutesFor } from './refresh'
 import { addDays, today } from '../shared/time'
 import { zoneOf } from './zone'
@@ -123,7 +124,7 @@ export async function readFacebook(s: facebook.PageAccess, from: string, to: str
  */
 export const aboutUntil = (to: string, now = today()) => (to >= addDays(now, -1) ? addDays(now, 1) : addDays(to, 1))
 
-const MENTION_FIELDS = 'id, kind, username, media_url, permalink, caption, mentioned_at, video, likes, comments, views, shares, saves, added_by'
+const MENTION_FIELDS = 'id, kind, username, media_url, permalink, caption, mentioned_at, video, likes, comments, views, shares, saves, added_by, account_window'
 
 /** Keep Instagram's new followers each day (it forgets them after 30 days). Never throws. */
 export async function keepFollowerDays(db: SupabaseClient, days: SocialDay[] | null | undefined) {
@@ -176,6 +177,8 @@ export async function postImpact(db: SupabaseClient, report: SocialReport): Prom
  * the followers of its days, kept up to date once a day first.
  */
 export async function postersBoard(env: Env, db: SupabaseClient): Promise<Creator[]> {
+  // A reel posted since the last scheduled look is in already (every few minutes at most).
+  if (instagramOAuth(env, '')) await lookIfDue(env, db).catch(e => reportError(env, 'instagram: a look at tags and collabs', e, { business: businessIdOf(db) }))
   const { data: row } = await db.from('integrations').select('status, external').eq('provider', 'instagram').maybeSingle()
   const ext = (row?.external ?? {}) as { can_see_insights?: boolean }
   if (row?.status === 'connected' && ext.can_see_insights !== false && instagramOAuth(env, '')) {

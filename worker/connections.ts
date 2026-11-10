@@ -48,7 +48,7 @@ export const isCalendarApp = (p: string): p is CalendarApp => p === 'google_cale
 // ---------------------------------------------------------------------------------------------
 // Keys (Worker secrets). One Google app and one Microsoft app serve every business.
 // ---------------------------------------------------------------------------------------------
-const graphVersion = (env: Env) => env.META_GRAPH_VERSION ?? 'v23.0'
+export const graphVersion = (env: Pick<Env, 'META_GRAPH_VERSION'>) => env.META_GRAPH_VERSION ?? 'v23.0'
 
 /** The café's WhatsApp number: Business Agent's own (Worker secrets), so only the business it was set up for. */
 export const waConfig = (env: Env, db: SupabaseClient): whatsapp.WhatsAppConfig | null =>
@@ -472,6 +472,20 @@ export async function facebookSession(env: Env, db: SupabaseClient) {
   const pageId = (row?.external as { page_id?: string } | undefined)?.page_id
   if (!pageId || !pages[pageId]) throw new Error('Choose which Facebook Page to post to')
   return { pageId, token: pages[pageId], graphVersion: graphVersion(env) }
+}
+
+/** Every Facebook Page the connected person manages, each with its token, and the chosen one (null: none chosen yet). */
+export async function facebookPages(env: Env, db: SupabaseClient) {
+  const [{ data: secret }, { data: row }] = await Promise.all([
+    db.from('integration_secrets').select('ciphertext').eq('provider', 'facebook').maybeSingle(),
+    db.from('integrations').select('external').eq('provider', 'facebook').single(),
+  ])
+  if (!secret) throw new Error('Facebook is not connected')
+  const { pages } = await unseal<{ pages: Record<string, string> }>(env.INTEGRATION_KEY!, secret.ciphertext)
+  const ext = (row?.external ?? {}) as { page_id?: string; pages?: { id: string; name: string }[] }
+  const chosen = ext.page_id && pages[ext.page_id] ? ext.page_id : null
+  const names = new Map((ext.pages ?? []).map(p => [p.id, p.name]))
+  return { chosen, pages, nameOf: (id: string) => names.get(id) ?? id, graphVersion: graphVersion(env) }
 }
 
 /** Meta Ads and Google Ads keep the chosen ad account (and the ones to choose from) in `external`. */

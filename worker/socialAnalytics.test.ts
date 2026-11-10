@@ -133,9 +133,15 @@ describe('Instagram', () => {
     const res = await socialAnalytics.request(`${APP}/api/analytics/instagram/posters`, { headers: as('admin') }, env, ctx())
     expect(res.status).toBe(200)
     const board = await res.json() as { username: string; views: number; gained: number | null; posts: unknown[] }[]
-    expect(board.map(c => c.username)).toEqual(['nora.eats.mbl', 'tomas.runs'])
+    // Opening it looks at the tags and collabs first: @sanpedro.eats tagged the café since the last look.
+    expect(board.map(c => c.username)).toEqual(['nora.eats.mbl', 'tomas.runs', 'sanpedro.eats'])
     expect(board[0]).toMatchObject({ views: 14200, gained: 110 })
     expect(board[1]).toMatchObject({ gained: null })
+    // Not again within a few minutes: the tags aren't asked for a second time.
+    const tags = () => vi.mocked(fetch).mock.calls.filter(([u]) => String(u).includes('/me/tags')).length
+    expect(tags()).toBe(1)
+    await socialAnalytics.request(`${APP}/api/analytics/instagram/posters`, { headers: as('admin') }, env, ctx())
+    expect(tags()).toBe(1)
     // Admins only.
     expect((await socialAnalytics.request(`${APP}/api/analytics/instagram/posters`, { headers: as('staff') }, env, ctx())).status).toBe(403)
   })

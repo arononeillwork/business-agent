@@ -6988,11 +6988,10 @@ test.describe('sales reps and rewards', () => {
     await open(page, '/')
     await page.getByRole('navigation', { name: 'Main' }).getByRole('region', { name: 'Sales' }).getByRole('link', { name: 'Reps & rewards' }).click()
     await expect(page.getByRole('heading', { name: 'Sales reps & rewards', level: 1 })).toBeVisible()
-    await expect(page.getByRole('region', { name: 'Our people' })).toContainText('The people who talk about us')
-    await expect(page.getByRole('region', { name: 'Our people' })).toContainText('Commission owed')
-    // Three steps, in plain words; the crew's box is gone from them.
-    await expect(page.getByRole('region', { name: 'How it works' }).getByRole('listitem')).toHaveCount(3)
-    await expect(page.getByRole('region', { name: 'How it works' })).not.toContainText('Bring your crew')
+    // The people who post about the café come first: no boxes of text above them.
+    await expect(page.getByRole('main').getByRole('region').first()).toHaveAccessibleName('People who post about us')
+    await expect(page.getByRole('region', { name: 'Our people' })).toHaveCount(0)
+    await expect(page.getByRole('region', { name: 'How it works' })).toHaveCount(0)
     await expect(page.getByRole('region', { name: 'What earns a reward' }).getByRole('list', { name: 'The bigger their reach, the bigger the reward' }).getByRole('listitem'))
       .toHaveCount(4)
     const top = page.getByRole('region', { name: 'Top sellers this month' })
@@ -7112,8 +7111,7 @@ test.describe('sales reps and rewards', () => {
     await expect(reps.getByRole('article', { name: 'Marco Bellini' })).not.toContainText('owed')
     await expect(page.getByRole('button', { name: /^Pay / })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Add a reward' })).toHaveCount(0)
-    await expect(page.getByRole('region', { name: 'Our people' })).toContainText('My commission')
-    await expect(page.getByRole('region', { name: 'Our people' })).toContainText('MARIA22')
+    await expect(reps.getByRole('article', { name: 'Maria' })).toContainText('MARIA22')
 
     // Anyone on the team brings someone in; the owner or a manager says yes first.
     await page.getByRole('button', { name: 'Add someone' }).click()
@@ -7137,8 +7135,9 @@ test.describe('sales reps and rewards', () => {
     await open(page, '/sales-reps')
     // The page's buttons sit in a row under the title, Add someone last (on the right).
     await expect(page.getByRole('button', { name: 'Add someone' })).toBeVisible()
-    const till = page.getByRole('region', { name: 'At the till' })
+    const till = page.getByRole('dialog', { name: 'At the till' })
     const code = till.getByRole('combobox', { name: 'Code or name' })
+    await page.getByRole('button', { name: 'At the till' }).click()
     await code.fill('dani20')
     await page.getByRole('option', { name: /DANI20/ }).click()
     const log = page.getByRole('dialog', { name: 'Reward Dani Ortega' })
@@ -7150,9 +7149,10 @@ test.describe('sales reps and rewards', () => {
     await log.getByRole('button', { name: 'Log it' }).click()
     await toast(page, /30,00.* for Dani Ortega/)
     await expect(page.getByRole('table', { name: 'Latest rewards' }).getByRole('row').filter({ hasText: 'Fighters from Ortega MMA' })).toHaveCount(10)
-    await expect(code).toHaveValue('')
+    await expect(till).toHaveCount(0)
 
     // The month's limit holds for ten at once as for one: 20 a month, 10 used.
+    await page.getByRole('button', { name: 'At the till' }).click()
     await code.fill('Dani')
     await code.press('Enter')
     const more = page.getByRole('dialog', { name: 'Reward Dani Ortega' })
@@ -7162,32 +7162,39 @@ test.describe('sales reps and rewards', () => {
     await toast(page, 'Only 10 more this month for Dani Ortega')
     await more.getByRole('button', { name: 'Cancel' }).click()
 
+    await page.getByRole('button', { name: 'At the till' }).click()
     await code.fill('LUCIA')
     await page.getByRole('option', { name: /LUCIA27/ }).click()
     const friend = page.getByRole('dialog', { name: 'Reward Lucía García' })
     await expect(friend.getByRole('combobox', { name: 'What for' })).toContainText(/Brought a friend with their card · .*1,00/)
     await friend.getByRole('button', { name: 'Log it' }).click()
     await toast(page, /1,00.* for Lucía García/)
+    await page.getByRole('button', { name: 'At the till' }).click()
     await code.fill('NOBODY1')
     await expect(page.getByText('Nobody has that code')).toBeVisible()
   })
 
-  test('a story on Instagram is rewarded in one press, worth more for a bigger account; someone new is added as a customer first', async ({ page }) => {
+  test('a story on Instagram is rewarded in one press from its poster’s card, worth more for a bigger account; someone new is added as a customer first', async ({ page }) => {
     await open(page, '/sales-reps')
-    const stories = page.getByRole('region', { name: 'Stories and posts about the café' })
-    await stories.getByRole('article', { name: '@sanpedro.eats' }).getByRole('button', { name: 'Reward San Pedro Eats' }).click()
+    const board = page.getByRole('region', { name: 'People who post about us' })
+    const eats = board.getByRole('listitem', { name: /\. @sanpedro\.eats$/ })
+    const story = eats.getByRole('article', { name: /^Story mention/ })
+    await expect(story).toContainText('Instagram doesn’t share a story’s views or likes with the café.')
+    await story.getByRole('button', { name: 'Reward' }).click()
     const log = page.getByRole('dialog', { name: 'Reward San Pedro Eats' })
     await expect(log.getByRole('combobox', { name: 'What for' })).toContainText('Reposted our story')
     await log.getByRole('button', { name: 'Log it' }).click()
     await toast(page, /2,50.* for San Pedro Eats/)
-    await expect(stories.getByRole('article', { name: '@sanpedro.eats' })).toHaveCount(0)
+    await expect(story.getByRole('button', { name: 'Reward' })).toHaveCount(0)
 
     // Who tagged the café was put forward by themselves; an owner who said no can still add them by hand.
     const found = page.getByRole('region', { name: 'Waiting for approval' }).getByRole('group', { name: '@costa.del.sol.food: new rep' })
     await expect(found).toContainText('Tagged the café in a post')
     await found.getByRole('button', { name: 'Say no' }).click()
     await toast(page, '@costa.del.sol.food isn’t a rep')
-    await stories.getByRole('article', { name: '@costa.del.sol.food' }).getByRole('button', { name: 'Add as a customer' }).click()
+    const costa = board.getByRole('listitem', { name: /\. @costa\.del\.sol\.food$/ })
+    await expect(costa).toContainText('Not a rep yet')
+    await costa.getByRole('button', { name: 'Add @costa.del.sol.food as a rep' }).click()
     const add = page.getByRole('dialog', { name: 'Add someone' })
     await expect(add.getByRole('radio', { name: /^Customer/ })).toHaveAttribute('aria-checked', 'true')
     await expect(add.getByRole('textbox', { name: 'Instagram' })).toHaveValue('costa.del.sol.food')
@@ -7199,7 +7206,7 @@ test.describe('sales reps and rewards', () => {
     await toast(page, 'Costa del Sol Food is a rep')
     // A rep now, their post's cashback rewards it (each post once), waiting for an OK.
     await expect(page.getByRole('region', { name: 'Waiting for approval' }).getByRole('group', { name: 'Costa del Sol Food: Cashback for a post' })).toBeVisible()
-    await expect(stories.getByRole('article', { name: '@costa.del.sol.food' })).toHaveCount(0)
+    await expect(costa).toContainText(/€\d+,\d\d cashback, waiting for your OK/)
     await expect(page.getByRole('region', { name: 'Reps' }).getByRole('article', { name: 'Costa del Sol Food' })).toContainText(/COSTA\d{2}/)
 
     // Someone who has messaged the café: their followers come from Instagram.
@@ -7212,9 +7219,9 @@ test.describe('sales reps and rewards', () => {
     await expect(tom).toContainText('Rising voice')
   })
 
-  test('posts about us: everyone who posted about the café on Instagram, ranked by the followers they brought, with their posts', async ({ page }) => {
+  test('people who post about us: everyone who posted about the café on Instagram, ranked by the followers they brought, each with their posts and what they did', async ({ page }) => {
     await open(page, '/sales-reps')
-    const board = page.getByRole('region', { name: 'Posts about us: who brings the most' })
+    const board = page.getByRole('region', { name: 'People who post about us' })
     await expect(board.getByRole('listitem')).toHaveCount(5)
     await expect(board.getByRole('listitem').first()).toHaveAccessibleName(/^1\. @/)
     await expect(board).toContainText('brought the most')
@@ -7222,9 +7229,17 @@ test.describe('sales reps and rewards', () => {
     await expect(nora).toContainText('Waiting for your OK')
     await expect(nora).toContainText('14.200 views')
     await expect(nora).toContainText('followers over the usual')
-    await nora.getByRole('button', { name: 'Their posts' }).click()
-    await expect(nora).toContainText('Collab reel')
-    await expect(nora.getByRole('link', { name: 'See it' })).toHaveAttribute('href', 'https://www.instagram.com/reel/DemoCollab1/')
+    // Her reel, with every figure Instagram gives: its own, and the café's account in its three days against the usual.
+    const reel = nora.getByRole('region', { name: '@nora.eats.mbl’s posts' }).getByRole('article', { name: /^Collab reel/ })
+    await expect(reel.getByRole('link', { name: 'See it' })).toHaveAttribute('href', 'https://www.instagram.com/reel/DemoCollab1/')
+    await expect(reel.getByRole('group', { name: 'Views' })).toContainText('14.200')
+    await expect(reel.getByRole('group', { name: 'Shares' })).toContainText('212')
+    await expect(reel.getByRole('group', { name: 'Saves' })).toContainText('340')
+    await expect(reel.getByRole('group', { name: 'New followers' })).toContainText(/\+\d+.*usually \d+/)
+    await expect(reel.getByRole('group', { name: 'Profile visits' })).toContainText('usually 84')
+    await expect(reel.getByRole('group', { name: 'Accounts reached' })).toContainText('usually 1.260')
+    await expect(reel.getByRole('group', { name: 'Link taps' })).toBeVisible()
+    await expect(reel.getByRole('group', { name: 'Accounts engaged' })).toBeVisible()
     await expect(board.getByRole('listitem', { name: /\. @sanpedro\.eats$/ })).toContainText('Rep')
     // Nothing goes to them by itself: a button opens a chat with them on Instagram.
     await expect(nora.getByRole('link', { name: 'Message @nora.eats.mbl on Instagram' })).toHaveAttribute('href', 'https://ig.me/m/nora.eats.mbl')
@@ -7288,7 +7303,9 @@ test.describe('sales reps and rewards', () => {
     await tune.getByRole('textbox', { name: 'Your words to your reps' }).fill('Thanks for backing a local café, from all of us at Easy Beans.')
     await tune.getByRole('button', { name: 'Save' }).click()
     await toast(page, /^Saved$/)
-    await expect(page.getByRole('region', { name: 'Our people' })).toContainText('Thanks for backing a local café')
+    await list.getByRole('button', { name: 'Crews & reach' }).click()
+    await expect(page.getByRole('dialog', { name: 'Crews & reach' }).getByRole('textbox', { name: 'Your words to your reps' })).toHaveValue(/^Thanks for backing a local café/)
+    await page.getByRole('dialog', { name: 'Crews & reach' }).getByRole('button', { name: 'Cancel' }).click()
     await page.getByRole('button', { name: 'Add someone' }).click()
     await expect(page.getByRole('dialog', { name: 'Add someone' })).toContainText('earns 15% of what they earn')
     await page.getByRole('dialog', { name: 'Add someone' }).getByRole('button', { name: 'Cancel' }).click()
@@ -7312,8 +7329,7 @@ test.describe('sales reps and rewards', () => {
 
   test('someone on the team who is a rep waits for someone else to approve their own reward, and has their own page', async ({ page }) => {
     await open(page, '/sales-reps', 'julio@example.com')
-    await expect(page.getByRole('region', { name: 'Our people' })).toContainText('My commission')
-    await expect(page.getByRole('region', { name: 'Our people' })).toContainText('JULIO08')
+    await expect(page.getByRole('region', { name: 'Reps' }).getByRole('article', { name: 'Julio' })).toContainText('JULIO08')
     await page.getByRole('button', { name: 'Log a reward for Julio' }).click()
     const log = page.getByRole('dialog', { name: 'Reward Julio' })
     await expect(log).toContainText('Your own reward: someone else approves it.')

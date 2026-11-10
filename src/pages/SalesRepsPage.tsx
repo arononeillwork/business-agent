@@ -1,5 +1,5 @@
 import {
-  Alert, Autocomplete, Box, Button, ButtonBase, Card, CardContent, Chip, Collapse, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton,
+  Alert, Autocomplete, Box, Button, ButtonBase, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton,
   InputAdornment, Link, MenuItem, Stack, Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
@@ -34,8 +34,8 @@ import { CategoryTags, HqBusinessesCard, RepCategoriesField } from '../component
 import type { ExportTable } from '../lib/export'
 import {
   DEFAULT_PITCH, REACH_TIERS, REP_KINDS, REWARD_IDEAS, TOP_MULTIPLIER, RULE_WHO, SOCIALS, balanceOf, bonusFrom, cleanInstagram, cleanRepCode, cleanYoutube, crewOf, crewReach, earnsCredit,
-  formatReach, kindLabel, leaderboard, limitReached, mentionsToReward, outstanding, parseCount, reachMultiplier, reachOf, reachTier, rewardAmount, ruleFits,
-  timesInMonth, type MentionToReward, type RepKind, type RepReward, type RepSettings, type RewardRule, type RewardRuleInput, type SalesRep, type SalesRepInput,
+  formatReach, kindLabel, leaderboard, limitReached, parseCount, reachMultiplier, reachOf, reachTier, rewardAmount, ruleFits,
+  timesInMonth, type RepKind, type RepReward, type RepSettings, type RewardRule, type RewardRuleInput, type SalesRep, type SalesRepInput,
   type Standing,
 } from '../../shared/reps'
 import type { Mention } from '../../shared/mentions'
@@ -68,7 +68,6 @@ const KIND_PITCH: Record<RepKind, string> = {
 const day = (d: string) => formatLocal(`${d}T12:00:00Z`, 'd MMM')
 /** A ledger line's words: the list's names are as typed; the database's own words are translated. */
 const lineLabel = (r: RepReward) => (r.bonus_for ? t('Crew bonus: {name}', { name: bonusFrom(r) }) : isCashback(r) ? t(CASHBACK_LABEL) : r.kind === 'earn' ? r.label : t(r.label))
-const HOW_KEY = 'eb-reps-how-hidden'
 
 /**
  * Sales reps & rewards: everyone who talks about the café (the team, ambassadors from outside it
@@ -105,6 +104,7 @@ export function SalesRepsPage() {
   const [sharing, setSharing] = useState<SalesRep | null>(null)
   const [tuning, setTuning] = useState(false)
   const [everything, setEverything] = useState(false)
+  const [atTill, setAtTill] = useState(false)
 
   const now = today()
   const month = now.slice(0, 7)
@@ -120,14 +120,10 @@ export function SalesRepsPage() {
   // A rep's balance is known to admins, for customers (the till), and to a rep for their own.
   const seesBalance = (r: SalesRep) => isAdmin || earnsCredit(r.kind) || r.id === myRep?.id
   const pending = ledger.filter(r => r.status === 'pending')
-  const thisMonth = ledger.filter(r => r.kind === 'earn' && r.status !== 'rejected' && r.occurred_on.slice(0, 7) === month)
-  const owed = outstanding(allReps, ledger)
   const top = leaderboard(active, ledger, month).slice(0, 5)
-  const toReward = isAdmin ? mentionsToReward(mentions.data ?? [], allReps, ledger).slice(0, 6) : []
   const activeRules = allRules.filter(r => r.active)
   const named = new Set(allRules.map(r => r.name.toLowerCase()))
   const ideas = REWARD_IDEAS.filter(i => !named.has(t(i.name).toLowerCase()))
-  const totalReach = active.reduce((a, r) => a + r.reach, 0)
   const growing = activeRules.find(r => r.scales_with_reach && r.basis === 'fixed')
 
   // Who shows: a crew's people are under their leader ("See crew"), unless searched for or waiting.
@@ -157,11 +153,6 @@ export function SalesRepsPage() {
     money: [4, 5],
   })
 
-  // The money that matters to whoever is looking: what's owed to the reps (admins), or their own commission.
-  const money = isAdmin
-    ? { label: t('Commission owed'), value: rewards.data ? formatMoney(owed.commission) : '–' }
-    : myRep ? { label: t('My commission'), value: formatMoney(balanceOf(ledger, myRep.id)), note: t('Your code: {code}', { code: myRep.code }) } : null
-
   return (
     <>
       {/* The title on its own, so it stays on one line; the page's buttons in a row under it, Add someone on the right. */}
@@ -170,16 +161,15 @@ export function SalesRepsPage() {
         {isAdmin && <ExportButton table={table} disabled={!ledger.length} folder="Rewards" />}
         {isAdmin && <Button variant="outlined" startIcon={<CardsIcon />} component={RouterLink} to="/sales-reps/cards" disabled={!active.length}>{t('Business cards')}</Button>}
         {myRep && <Button variant="outlined" startIcon={<LinkIcon />} onClick={() => setSharing(myRep)}>{t('My page')}</Button>}
+        <Button variant="outlined" startIcon={<TillIcon />} onClick={() => setAtTill(true)}>{t('At the till')}</Button>
         <Button variant="contained" startIcon={<PersonAddIcon />} onClick={() => setEditing(newRep())}>{t('Add someone')}</Button>
       </>} />
       <ErrorBox error={reps.error ?? rules.error ?? rewards.error} />
 
-      <Hero pitch={set.pitch} people={reps.data ? active.length : null} reach={reps.data ? totalReach : null}
-        given={rewards.data ? thisMonth.reduce((a, r) => a + r.amount, 0) : null} money={money} />
-
-      <HowItWorks />
-
-      <TillBox reps={allReps} onPick={rep => setLogging({ rep, till: true })} />
+      {/* First, the people who post about the café, each with their posts and what they did. */}
+      {isAdmin && <PostersBoard creators={posters.data} reps={allReps} ledger={ledger} rates={cashbackRates(set)}
+        onAdd={username => setEditing({ name: `@${username}`, kind: 'customer', instagram: username, active: true })}
+        onReward={(rep, post) => setLogging({ rep, mention: (mentions.data ?? []).find(m => m.id === post.id) })} />}
 
       {isAdmin && (pending.length > 0 || waitingPeople.length > 0) && (
         <Card component="section" aria-label={t('Waiting for approval')} sx={{ mb: 3, borderLeft: `4px solid ${tokens.rose}` }}>
@@ -253,22 +243,6 @@ export function SalesRepsPage() {
         </Card>
       )}
 
-      {toReward.length > 0 && (
-        <Card component="section" aria-label={t('Stories and posts about the café')} sx={{ mb: 3 }}>
-          <CardContent>
-            <SectionTitle>{t('Stories and posts about the café')}</SectionTitle>
-            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-              {t('From Instagram this week. Reward the people who shared the café, or add them as a customer first.')}
-            </Typography>
-            <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' } }}>
-              {toReward.map(m => <MentionCard key={m.mention.id} item={m}
-                onReward={rep => setLogging({ rep, mention: m.mention })}
-                onAdd={() => setEditing({ name: `@${m.mention.username}`, kind: 'customer', instagram: m.mention.username, active: true })} />)}
-            </Box>
-          </CardContent>
-        </Card>
-      )}
-
       {isHq && isAdmin && <HqBusinessesCard reps={allReps} ledger={ledger} />}
 
       <Card component="section" aria-label={t('Reps')} sx={{ mb: 3 }}>
@@ -301,9 +275,6 @@ export function SalesRepsPage() {
               </Box>}
         </CardContent>
       </Card>
-
-      {isAdmin && <PostersBoard creators={posters.data} reps={allReps} ledger={ledger} rates={cashbackRates(set)}
-        onAdd={username => setEditing({ name: `@${username}`, kind: 'customer', instagram: username, active: true })} />}
 
       <Card component="section" aria-label={t('Top sellers this month')} sx={{ mb: 3 }}>
         <CardContent>
@@ -409,6 +380,7 @@ export function SalesRepsPage() {
         </CardContent>
       </Card>
 
+      {atTill && <TillDialog reps={allReps} onClose={() => setAtTill(false)} onPick={rep => { setAtTill(false); setLogging({ rep, till: true }) }} />}
       {editing && <RepDialog rep={editing} reps={allReps} crewShare={set.crew_share} onClose={() => setEditing(null)} />}
       {logging && <LogDialog rep={logging.rep} mention={logging.mention} till={logging.till} rules={activeRules} ledger={ledger} isAdmin={isAdmin} self={logging.rep.id === myRep?.id}
         boost={set.boost_by_reach} onClose={() => setLogging(null)} />}
@@ -420,81 +392,6 @@ export function SalesRepsPage() {
   )
 }
 
-/** The café's thank-you to the people who talk about it, what they add up to, and (for admins or a rep on the team) the money owed. */
-function Hero({ pitch, people, reach, given, money }: {
-  pitch: string | null; people: number | null; reach: number | null; given: number | null; money: { label: string; value: string; note?: string } | null
-}) {
-  const numbers: { label: string; value: string; note?: string }[] = [
-    { label: t('People talking about us'), value: people === null ? '–' : formatNumber(people) },
-    { label: t('People they reach'), value: reach === null ? '–' : formatReach(reach) },
-    { label: t('Given back this month'), value: given === null ? '–' : formatMoney(given) },
-    ...(money ? [money] : []),
-  ]
-  return (
-    <Box component="section" aria-label={t('Our people')} sx={{ mb: 3, p: { xs: 2.5, md: 3 }, borderRadius: 4, position: 'relative', overflow: 'hidden',
-      background: `linear-gradient(135deg, ${tokens.roseSoft} 0%, ${tokens.ubeSoft} 55%, ${tokens.matchaSoft} 100%)` }}>
-      <Stack direction={{ xs: 'column', lg: 'row' }} spacing={{ xs: 2.5, lg: 4 }} sx={{ alignItems: { lg: 'center' } }}>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1, color: tokens.roseDeep }}>
-            <HeartIcon fontSize="small" />
-            <Typography variant="overline" sx={{ lineHeight: 1.4 }}>{t('Local people, local reach')}</Typography>
-          </Stack>
-          <Typography component="h2" sx={{ fontFamily: fonts.display, fontWeight: 600, fontSize: { xs: '1.4rem', md: '1.7rem' }, lineHeight: 1.2, mb: 1 }}>
-            {t('The people who talk about us')}
-          </Typography>
-          <Typography variant="body1" sx={{ color: 'text.secondary', maxWidth: 560 }}>{pitch?.trim() || t(DEFAULT_PITCH)}</Typography>
-        </Box>
-        <Box component="dl" sx={{ m: 0, display: 'grid', gap: { xs: 1.5, md: 2 },
-          gridTemplateColumns: { xs: `repeat(${numbers.length === 4 ? 2 : 3}, minmax(0, 1fr))`, sm: `repeat(${numbers.length}, minmax(0, 1fr))`,
-            lg: `repeat(${numbers.length === 4 ? 2 : 3}, auto)`, xl: `repeat(${numbers.length}, auto)` } }}>
-          {numbers.map(n => (
-            <Box key={n.label} sx={{ p: 1.5, borderRadius: 3, bgcolor: tokens.surface, minWidth: { lg: 128 } }}>
-              <Typography component="dd" sx={{ m: 0, fontFamily: fonts.display, fontWeight: 600, fontSize: { xs: '1.3rem', md: '1.7rem' }, lineHeight: 1.1,
-                fontVariantNumeric: 'tabular-nums' }}>{n.value}</Typography>
-              <Typography component="dt" variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>{n.label}</Typography>
-              {n.note && <Typography component="dd" variant="caption" sx={{ m: 0, color: 'text.secondary' }}>{n.note}</Typography>}
-            </Box>
-          ))}
-        </Box>
-      </Stack>
-    </Box>
-  )
-}
-
-/** Three steps, in plain words: what anyone on the team needs to know, hidden once read. */
-function HowItWorks() {
-  const [hidden, setHidden] = useState(() => { try { return localStorage.getItem(HOW_KEY) === '1' } catch { return false } })
-  const toggle = () => setHidden(h => { try { localStorage.setItem(HOW_KEY, h ? '0' : '1') } catch { /* private window: fine */ } return !h })
-  const steps = [
-    { icon: <CardsIcon />, title: t('Add them, with a code'), text: t('A regular, a coach, a hotel, someone on the team. Each gets a code for their business cards.') },
-    { icon: <TillIcon />, title: t('Someone uses their code'), text: t('They show the card or say the code when they pay: type it in “At the till” below. Stories that tag the café show up here too.') },
-    { icon: <TrophyIcon />, title: t('They get something back'), text: t('Customers get credit to spend here; ambassadors and the team, commission. The more people they reach, the more a story or shout-out is worth.') },
-  ]
-  return (
-    <Card component="section" aria-label={t('How it works')} sx={{ mb: 3 }}>
-      <CardContent>
-        <SectionTitle action={<Button size="small" onClick={toggle} aria-expanded={!hidden}>{hidden ? t('Show how it works') : t('Hide')}</Button>}>
-          {t('How it works')}
-        </SectionTitle>
-        <Collapse in={!hidden}>
-          <Box component="ol" sx={{ listStyle: 'none', p: 0, m: 0, display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' } }}>
-            {steps.map((s, i) => (
-              <Stack component="li" key={s.title} direction="row" spacing={1.5} sx={{ p: 2, borderRadius: 3, bgcolor: i === 0 ? tokens.roseSoft : i === 1 ? tokens.ubeSoft : tokens.matchaSoft, alignItems: 'flex-start' }}>
-                <Box sx={{ width: 36, height: 36, borderRadius: '50%', display: 'grid', placeItems: 'center', flexShrink: 0, bgcolor: tokens.surface,
-                  color: i === 0 ? tokens.roseDeep : i === 1 ? tokens.ubeDeep : tokens.matchaDeep }}>{s.icon}</Box>
-                <Box>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{`${i + 1}. ${s.title}`}</Typography>
-                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>{s.text}</Typography>
-                </Box>
-              </Stack>
-            ))}
-          </Box>
-        </Collapse>
-      </CardContent>
-    </Card>
-  )
-}
-
 /** A code typed at the till: its letters and digits, in capitals. */
 const asCode = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, '')
 
@@ -503,51 +400,43 @@ const asCode = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, '')
  * rep's name) finds whose it is, and choosing them opens their reward, the card's one ready. This is
  * how the café knows who brought whom: the code, said at the till, on the day.
  */
-function TillBox({ reps, onPick }: { reps: SalesRep[]; onPick: (rep: SalesRep) => void }) {
+function TillDialog({ reps, onPick, onClose }: { reps: SalesRep[]; onPick: (rep: SalesRep) => void; onClose: () => void }) {
   const [text, setText] = useState('')
   const options = reps.filter(r => r.active)
   return (
-    <Card component="section" aria-label={t('At the till')} sx={{ mb: 3, borderLeft: `4px solid ${tokens.matcha}` }}>
-      <CardContent>
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ alignItems: { md: 'center' } }}>
-          <Stack direction="row" spacing={1.5} sx={{ flex: 1, minWidth: 0, alignItems: 'flex-start' }}>
-            <Box sx={{ width: 40, height: 40, borderRadius: '50%', display: 'grid', placeItems: 'center', flexShrink: 0, bgcolor: tokens.matchaSoft, color: tokens.matchaDeep }}>
-              <TillIcon />
-            </Box>
-            <Box sx={{ minWidth: 0 }}>
-              <Typography component="h2" variant="body1" sx={{ fontWeight: 600 }}>{t('Someone new came in with a code?')}</Typography>
-              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                {t('When they pay, ask whose card or code brought them and type it here. Whoever it belongs to gets their reward: one for each new person.')}
-              </Typography>
-            </Box>
-          </Stack>
-          <Autocomplete options={options} value={null} inputValue={text} autoHighlight blurOnSelect sx={{ width: { xs: '100%', md: 340 }, flexShrink: 0 }}
-            onInputChange={(_, v, reason) => { if (reason !== 'reset') setText(v) }}
-            onChange={(_, r) => { if (r) { setText(''); onPick(r) } }}
-            getOptionLabel={r => `${r.code} · ${r.name}`} isOptionEqualToValue={(a, b) => a.id === b.id}
-            filterOptions={(opts, { inputValue }) => {
-              const code = asCode(inputValue)
-              const q = inputValue.trim().toLowerCase().replace(/^@/, '')
-              if (!q) return []
-              return opts.filter(r => (code && r.code.startsWith(code)) || r.name.toLowerCase().includes(q) || (r.instagram ?? '').includes(q))
-                .sort((a, b) => Number(b.code === code) - Number(a.code === code) || a.name.localeCompare(b.name)).slice(0, 8)
-            }}
-            noOptionsText={text.trim() ? t('Nobody has that code') : t('Type the code on their card')}
-            renderOption={({ key, ...props }, r) => (
-              <Box component="li" key={key} {...props} sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-                <RepAvatar rep={r} size={28} />
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 500 }}>{r.name}</Typography>
-                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t(kindLabel(r.kind))}</Typography>
-                </Box>
-                <RepCode code={r.code} />
+    <Dialog open onClose={onClose} fullWidth maxWidth="xs" aria-labelledby="till-title">
+      <DialogTitle id="till-title">{t('At the till')}</DialogTitle>
+      <DialogContent>
+        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
+          {t('When they pay, ask whose card or code brought them and type it here. Whoever it belongs to gets their reward: one for each new person.')}
+        </Typography>
+        <Autocomplete options={options} value={null} inputValue={text} autoHighlight blurOnSelect openOnFocus={false}
+          onInputChange={(_, v, reason) => { if (reason !== 'reset') setText(v) }}
+          onChange={(_, r) => { if (r) { setText(''); onPick(r) } }}
+          getOptionLabel={r => `${r.code} · ${r.name}`} isOptionEqualToValue={(a, b) => a.id === b.id}
+          filterOptions={(opts, { inputValue }) => {
+            const code = asCode(inputValue)
+            const q = inputValue.trim().toLowerCase().replace(/^@/, '')
+            if (!q) return []
+            return opts.filter(r => (code && r.code.startsWith(code)) || r.name.toLowerCase().includes(q) || (r.instagram ?? '').includes(q))
+              .sort((a, b) => Number(b.code === code) - Number(a.code === code) || a.name.localeCompare(b.name)).slice(0, 8)
+          }}
+          noOptionsText={text.trim() ? t('Nobody has that code') : t('Type the code on their card')}
+          renderOption={({ key, ...props }, r) => (
+            <Box component="li" key={key} {...props} sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+              <RepAvatar rep={r} size={28} />
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>{r.name}</Typography>
+                <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t(kindLabel(r.kind))}</Typography>
               </Box>
-            )}
-            renderInput={params => <TextField {...params} label={t('Code or name')} slotProps={{ ...params.slotProps,
-              input: { ...params.slotProps.input, startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> } }} />} />
-        </Stack>
-      </CardContent>
-    </Card>
+              <RepCode code={r.code} />
+            </Box>
+          )}
+          renderInput={params => <TextField {...params} autoFocus label={t('Code or name')} slotProps={{ ...params.slotProps,
+            input: { ...params.slotProps.input, startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> } }} />} />
+      </DialogContent>
+      <DialogActions><Button onClick={onClose}>{t('Cancel')}</Button></DialogActions>
+    </Dialog>
   )
 }
 
@@ -723,28 +612,6 @@ function Medal({ place }: { place: number }) {
 /** What someone did about the café on Instagram. */
 const mentionWords = (m: Pick<Mention, 'kind' | 'video'>) => (m.kind === 'story' ? t('Mentioned the café in their story')
   : m.kind === 'collab' ? (m.video ? t('Posted a reel with the café') : t('Posted with the café')) : t('Tagged the café in a post'))
-
-/** A story or post about the café: reward who shared it, or add them first. */
-function MentionCard({ item, onReward, onAdd }: { item: MentionToReward; onReward: (rep: SalesRep) => void; onAdd: () => void }) {
-  const { mention: m, rep } = item
-  return (
-    <Box component="article" aria-label={`@${m.username}`} sx={{ display: 'flex', gap: 1.5, p: 1.5, borderRadius: 3, border: 1, borderColor: 'divider' }}>
-      {m.media_url
-        ? <Box component="img" src={m.media_url} alt="" sx={{ width: 56, height: 72, objectFit: 'cover', borderRadius: 2, flexShrink: 0 }} />
-        : <Box sx={{ width: 56, height: 72, borderRadius: 2, bgcolor: tokens.roseSoft, flexShrink: 0 }} />}
-      <Box sx={{ minWidth: 0, flex: 1 }}>
-        <Typography variant="body2" sx={{ fontWeight: 500 }}>@{m.username}</Typography>
-        <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
-          {mentionWords(m)} · {formatLocal(m.mentioned_at, 'd MMM')}
-          {rep && rep.reach > 0 && ` · ${t('Reaches {n}', { n: formatReach(rep.reach) })}`}
-        </Typography>
-        {rep
-          ? <Button size="small" startIcon={<StarIcon />} sx={{ mt: 0.5, ml: -0.75 }} onClick={() => onReward(rep)}>{t('Reward {name}', { name: rep.name })}</Button>
-          : <Button size="small" startIcon={<PersonAddIcon />} sx={{ mt: 0.5, ml: -0.75 }} onClick={onAdd}>{t('Add as a customer')}</Button>}
-      </Box>
-    </Box>
-  )
-}
 
 /** Followers as typed into a field: what the form holds until it's saved. */
 type Counts = Record<'instagram_followers' | 'tiktok_followers' | 'youtube_followers' | 'facebook_followers' | 'community', string>
