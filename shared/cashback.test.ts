@@ -1,19 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { CASHBACK_DEFAULTS, cashbackDue, cashbackFor, cashbackRates, followersOver, isCashback } from './cashback'
+import { CASHBACK_DEFAULTS, cashbackDue, cashbackFor, cashbackRates, followersIn, isCashback } from './cashback'
 
 // The database's own test (supabase/tests/zz_post_cashback.test.sql) has the same reel: they must agree.
 const reel = { views: 14_200, likes: 1_180, gained: 67, usual: 15, days: 3 }
 
 describe('Cashback for posts', () => {
-  it('per 1,000 views, per new follower over the usual and per 100 likes, as the database works it out', () => {
-    expect(cashbackFor(reel, CASHBACK_DEFAULTS)).toEqual({ amount: 14.66, views: 7.1, followers: 5.2, likes: 2.36 })
+  it('per 1,000 views, per new follower in its three days (every one, not only those over the usual) and per 100 likes, up to the most a post earns, as the database works it out', () => {
+    expect(cashbackFor(reel, CASHBACK_DEFAULTS)).toEqual({ amount: 15, views: 7.1, followers: 6.7, likes: 2.36 })
+    expect(cashbackFor(reel, { ...CASHBACK_DEFAULTS, cashback_max: 20 }).amount).toBe(16.16)
   })
 
-  it('up to the most a post earns; followers count only when all three days are in, and never below the usual', () => {
+  it('followers count only when all three days are in', () => {
     expect(cashbackFor(reel, { ...CASHBACK_DEFAULTS, cashback_max: 5 }).amount).toBe(5)
-    expect(followersOver({ gained: 30, usual: 15, days: 2 })).toBeNull()
-    expect(followersOver({ gained: 10, usual: 15, days: 3 })).toBe(0)
-    expect(cashbackFor({ views: null, likes: null, gained: null, usual: null, days: 0 }, CASHBACK_DEFAULTS).amount).toBe(0)
+    expect(followersIn({ gained: 30, days: 2 })).toBeNull()
+    expect(followersIn({ gained: 10, days: 3 })).toBe(10)
+    expect(cashbackFor({ views: null, likes: null, gained: null, days: 0 }, CASHBACK_DEFAULTS).amount).toBe(0)
   })
 
   it('due once its three days are in, or a week on', () => {

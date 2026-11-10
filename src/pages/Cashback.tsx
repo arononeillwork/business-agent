@@ -1,5 +1,5 @@
 // Sales reps & rewards → Cashback for posts: what a rep's post about the café earns from what it did
-// (views, new followers over the usual, likes), the café's rates, and (admins) changing them, with an
+// (views, new followers in its days, likes), the café's rates, and (admins) changing them, with an
 // example worked out as they type. The database pays it nightly (shared/cashback.ts).
 import {
   Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, InputAdornment, Stack, Switch, TextField, Typography,
@@ -15,11 +15,11 @@ import { cashbackFor, type CashbackRates } from '../../shared/cashback'
 import { tokens } from '../theme'
 
 /** A reel like the ones customers post: the example under the rates. */
-const EXAMPLE = { views: 14_200, likes: 1_180, gained: 67, usual: 15, days: 3 }
+const EXAMPLE = { views: 8_400, likes: 620, gained: 35, days: 3 }
 
 /** The rates in a sentence. */
 export function cashbackWords(r: CashbackRates) {
-  return t('{views} per 1,000 views, {followers} per new follower over the usual and {likes} per 100 likes, up to {max} a post.', {
+  return t('{views} per 1,000 views, {followers} per new follower and {likes} per 100 likes, up to {max} a post.', {
     views: formatMoney(r.cashback_per_1000_views), followers: formatMoney(r.cashback_per_follower), likes: formatMoney(r.cashback_per_100_likes),
     max: formatMoney(r.cashback_max),
   })
@@ -51,8 +51,8 @@ export function CashbackBlock({ rates, isAdmin }: { rates: CashbackRates; isAdmi
       </Typography>
       {rates.cashback_on && (
         <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 0.75 }}>
-          {t('For example, a reel with {views} views, {followers} new followers over the usual and {likes} likes earns {amount}.', {
-            views: formatNumber(EXAMPLE.views), followers: formatNumber(EXAMPLE.gained - EXAMPLE.usual), likes: formatNumber(EXAMPLE.likes), amount: formatMoney(example) })}
+          {t('For example, a reel with {views} views, {followers} new followers and {likes} likes earns {amount}.', {
+            views: formatNumber(EXAMPLE.views), followers: formatNumber(EXAMPLE.gained), likes: formatNumber(EXAMPLE.likes), amount: formatMoney(example) })}
         </Typography>
       )}
       {editing && <CashbackDialog rates={rates} onClose={() => setEditing(false)} />}
@@ -93,14 +93,14 @@ function CashbackDialog({ rates, onClose }: { rates: CashbackRates; onClose: () 
         <Stack spacing={2} sx={{ pt: 1 }}>
           <FormControlLabel control={<Switch checked={on} onChange={e => setOn(e.target.checked)} />} label={t('Posts about the café earn cashback')} />
           {field('cashback_per_1000_views', t('Per 1,000 views'))}
-          {field('cashback_per_follower', t('Per new follower over the usual'), t('The followers you gained the day the post went out and the two after, over a usual three days'))}
+          {field('cashback_per_follower', t('Per new follower'), t('Every follower you gained the day the post went out and the two after'))}
           {field('cashback_per_100_likes', t('Per 100 likes'))}
           {field('cashback_max', t('The most a post earns'))}
           <FormControlLabel control={<Switch checked={approval} onChange={e => setApproval(e.target.checked)} disabled={!on} />} label={t('An admin approves each one')} />
           {on && example !== null && (
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-              {t('For example, a reel with {views} views, {followers} new followers over the usual and {likes} likes earns {amount}.', {
-                views: formatNumber(EXAMPLE.views), followers: formatNumber(EXAMPLE.gained - EXAMPLE.usual), likes: formatNumber(EXAMPLE.likes), amount: formatMoney(example) })}
+              {t('For example, a reel with {views} views, {followers} new followers and {likes} likes earns {amount}.', {
+                views: formatNumber(EXAMPLE.views), followers: formatNumber(EXAMPLE.gained), likes: formatNumber(EXAMPLE.likes), amount: formatMoney(example) })}
             </Typography>
           )}
         </Stack>

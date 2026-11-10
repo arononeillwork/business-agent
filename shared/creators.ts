@@ -1,7 +1,7 @@
 // Who posts about the café (Sales reps & rewards → Posts about us): everyone whose reels, posts and
 // stories about the café the Instagram check found or an admin added by its link, ranked by what
-// their posts did: the followers the café gained in their days over the usual (shared/postImpact.ts),
-// then views, then likes. Each with their posts, newest first.
+// their posts did: the new followers the café gained in their days (the day each went out and the two
+// after: shared/postImpact.ts), then views, then likes. Each with their posts, newest first.
 import type { PostImpact } from './postImpact'
 
 export interface Creator {
@@ -42,6 +42,6 @@ export function creatorBoard(impacts: PostImpact[]): Creator[] {
       extra: compared.length ? add(compared.map(p => Math.max(0, p.gained! - p.usual!))) : null,
       last_at: posts[0].at,
     }
-  }).sort((a, b) => (b.extra ?? -1) - (a.extra ?? -1) || b.views - a.views || b.likes - a.likes || b.posts.length - a.posts.length
+  }).sort((a, b) => (b.gained ?? -1) - (a.gained ?? -1) || b.views - a.views || b.likes - a.likes || b.posts.length - a.posts.length
     || b.last_at.localeCompare(a.last_at))
 }

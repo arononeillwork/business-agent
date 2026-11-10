@@ -1,17 +1,18 @@
 // Sales reps & rewards → People who post about us (admins), first on the page: everyone who posted about
 // the café on Instagram (collab reels, tags, story mentions, ones added by their link), ranked by the
-// followers the café gained in their posts' days over the usual, then views and likes (shared/creators.ts).
+// new followers the café gained in their posts' days, then views and likes (shared/creators.ts).
 // Each person is a card: who they are, whether they're a rep (or waiting for an owner's OK, or not one
 // yet), and their posts inside it, each with every figure Instagram gives: the post's own (views, likes,
 // comments, shares, saves) and what the café's account did the day it went out and the two after (new
 // followers, accounts reached, profile visits, accounts engaged, link taps), against a usual three days.
-import { Avatar, Box, Button, Card, CardContent, Link, Stack, Typography } from '@mui/material'
+import { Alert, Avatar, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle, Link, Stack, TextField, Typography } from '@mui/material'
 import PersonAddIcon from '@mui/icons-material/PersonAddAlt1Rounded'
 import TrophyIcon from '@mui/icons-material/EmojiEventsRounded'
 import PlayIcon from '@mui/icons-material/PlayArrowRounded'
 import ChatIcon from '@mui/icons-material/ChatBubbleOutlineRounded'
 import StarIcon from '@mui/icons-material/AutoAwesomeOutlined'
 import { useState } from 'react'
+import { useApp } from '../app/AppContext'
 import { Empty, SectionTitle, Tag } from '../components/common'
 import { RepAvatar } from '../components/RepBits'
 import { t, tn } from '../i18n'
@@ -19,7 +20,7 @@ import { addDays, formatLocal, formatMoney, formatNumber, today } from '../../sh
 import type { Creator } from '../../shared/creators'
 import type { PostImpact } from '../../shared/postImpact'
 import type { AccountFigures } from '../../shared/mentions'
-import { formatReach, type RepReward, type SalesRep } from '../../shared/reps'
+import { balanceOf, earnsCredit, formatReach, type RepReward, type SalesRep } from '../../shared/reps'
 import { CASHBACK_MIN, cashbackDue, cashbackFor, isCashback, type CashbackRates } from '../../shared/cashback'
 import { fonts, tokens } from '../theme'
 import { CollabsNotice } from './PostImpact'
@@ -43,10 +44,9 @@ function Place({ place }: { place: number }) {
 
 const what = (p: PostImpact) => (p.by === 'collab' ? (p.video ? t('Collab reel') : t('Collab post')) : p.by === 'story' ? t('Story mention') : t('Tagged you'))
 
-/** The followers in their days: more than usual when that's known, else what came in. */
+/** The new followers in their posts' days. */
 function Followers({ c }: { c: Creator }) {
-  const [value, label, good] = c.extra !== null ? [`+${formatNumber(c.extra)}`, t('followers over the usual'), c.extra > 0]
-    : c.gained !== null ? [`+${formatNumber(c.gained)}`, t('new followers in their days'), false] : [null, t('Followers not known'), false]
+  const [value, label, good] = c.gained !== null ? [`+${formatNumber(c.gained)}`, t('new followers from their posts'), c.gained > 0] : [null, t('Followers not known'), false]
   return (
     <Box sx={{ textAlign: 'right', maxWidth: { xs: 100, sm: 'none' }, flexShrink: 0 }}>
       {value && <Typography sx={{ fontFamily: fonts.display, fontWeight: 600, fontSize: '1.25rem', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1,
@@ -154,11 +154,94 @@ function Post({ p, cashback, onReward }: { p: PostImpact; cashback: string | nul
   )
 }
 
+/**
+ * Copy text there and then, inside the click: the chat opens in a new tab straight after, and the
+ * page loses its focus before an asynchronous copy would finish. The text is put in `inside` (an open
+ * dialog keeps the focus within itself), and the asynchronous way is asked too, in case the first is
+ * refused. Whether it was copied.
+ */
+function copyNow(text: string, inside: HTMLElement = document.body) {
+  const area = document.createElement('textarea')
+  area.value = text
+  area.setAttribute('readonly', '')
+  Object.assign(area.style, { position: 'fixed', top: '0', left: '0', opacity: '0' })
+  inside.appendChild(area)
+  area.focus()
+  area.select()
+  let done = false
+  try { done = area.selectionEnd - area.selectionStart === text.length && document.execCommand('copy') } catch { done = false }
+  area.remove()
+  void navigator.clipboard?.writeText(text).catch(() => undefined)
+  return done || !!navigator.clipboard
+}
+
+/** "a, b and c", in the page's language. */
+const andList = (xs: string[]) => (xs.length < 2 ? xs.join('') : t('{list} and {last}', { list: xs.slice(0, -1).join(', '), last: xs[xs.length - 1] }))
+
+/**
+ * A short note for whoever presses Message to send them (it's copied, never sent by the app): what their
+ * posts did for the café, and what they've earned for them so far.
+ */
+export function thanksMessage(c: Creator, rep: SalesRep | null, ledger: RepReward[], cafe: string) {
+  const figures = [
+    c.views ? t('{n} views', { n: formatNumber(c.views) }) : null,
+    c.likes ? t('{n} likes', { n: formatNumber(c.likes) }) : null,
+    c.gained ? t('{n} new followers', { n: formatNumber(c.gained) }) : null,
+  ].filter((x): x is string => !!x)
+  const earned = rep ? ledger.filter(r => r.rep_id === rep.id && r.kind === 'earn' && r.status === 'approved') : []
+  const total = earned.reduce((n, r) => n + r.amount, 0)
+  const cashback = earned.filter(isCashback).reduce((n, r) => n + r.amount, 0)
+  const money = { total: formatMoney(total), cashback: formatMoney(cashback), balance: rep ? formatMoney(balanceOf(ledger, rep.id)) : '' }
+  const rewards = !rep || total <= 0 ? null
+    : earnsCredit(rep.kind)
+      ? cashback > 0
+        ? t('So far you’ve earned {total} in rewards ({cashback} of it cashback for your posts), with {balance} to spend at the café.', money)
+        : t('So far you’ve earned {total} in rewards, with {balance} to spend at the café.', money)
+      : cashback > 0
+        ? t('So far you’ve earned {total} in commission ({cashback} of it cashback for your posts).', money)
+        : t('So far you’ve earned {total} in commission.', money)
+  return [
+    t('Hi @{name}! Thank you for posting about {cafe} 💛', { name: c.username, cafe }),
+    figures.length ? t('{posts} brought us {figures}.', { posts: tn(c.posts.length, 'Your post', 'Your {n} posts'), figures: andList(figures) }) : null,
+    rewards,
+    t('See you soon!'),
+  ].filter(Boolean).join(' ')
+}
+
+/**
+ * Message someone: the note, to read and change, then copied as their chat on Instagram opens (the app
+ * sends nothing itself). Copied is said here, in the dialog, which stays open behind the new tab.
+ */
+function MessageDialog({ username, text: first, onClose }: { username: string; text: string; onClose: () => void }) {
+  const [text, setText] = useState(first)
+  const [copied, setCopied] = useState(false)
+  const who = `@${username}`
+  return (
+    <Dialog open onClose={onClose} fullWidth maxWidth="sm" aria-labelledby="message-title">
+      <DialogTitle id="message-title">{t('Message {name}', { name: who })}</DialogTitle>
+      <DialogContent>
+        <TextField label={t('Message')} value={text} onChange={e => { setText(e.target.value); setCopied(false) }} multiline minRows={4} fullWidth sx={{ mt: 1 }}
+          helperText={t('Their figures and what they’ve earned, to change as you like. Nothing is sent by the app: it’s copied as their chat opens, for you to paste.')} />
+        {copied && <Alert severity="success" sx={{ mt: 2 }}>{t('Copied: paste it in the chat with {name} on Instagram.', { name: who })}</Alert>}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>{copied ? t('Done') : t('Cancel')}</Button>
+        <Button variant="contained" startIcon={<ChatIcon />} href={`https://ig.me/m/${encodeURIComponent(username)}`} target="_blank" rel="noreferrer"
+          onClick={e => setCopied(copyNow(text, e.currentTarget.closest<HTMLElement>('[role="dialog"]') ?? undefined))} disabled={!text.trim()}>
+          {copied ? t('Open the chat again') : t('Copy and open the chat')}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
 /** Someone who posted about the café, with their posts. */
 function Person({ c, place, rep, ledger, rates, onAdd, onReward }: {
   c: Creator; place: number; rep: SalesRep | null; ledger: RepReward[]; rates: CashbackRates; onAdd: () => void; onReward: (rep: SalesRep, post: PostImpact) => void
 }) {
   const [all, setAll] = useState(false)
+  const { business } = useApp()
+  const [messaging, setMessaging] = useState(false)
   const who = `@${c.username}`
   const lines = new Map(ledger.filter(r => r.mention_id && r.status !== 'rejected').map(r => [r.mention_id!, r]))
   const earned = c.posts.reduce((n, p) => { const l = lines.get(p.id); return n + (l && isCashback(l) ? l.amount : 0) }, 0)
@@ -198,9 +281,8 @@ function Person({ c, place, rep, ledger, rates, onAdd, onReward }: {
       </Stack>
       <Stack direction="row" spacing={0.5} useFlexGap sx={{ flexWrap: 'wrap', mt: 1, ml: { sm: 10.5 } }}>
         {!rep && <Button size="small" variant="outlined" startIcon={<PersonAddIcon />} onClick={onAdd} aria-label={t('Add {name} as a rep', { name: who })}>{t('Add as a rep')}</Button>}
-        {/* Nothing is sent to them by itself: this opens a chat with them on Instagram, for whoever wants to write. */}
-        <Button size="small" startIcon={<ChatIcon />} href={`https://ig.me/m/${encodeURIComponent(c.username)}`} target="_blank" rel="noreferrer"
-          aria-label={t('Message {name} on Instagram', { name: who })}>{t('Message')}</Button>
+        {/* Nothing is sent to them by itself: a note to copy, and a chat with them on Instagram for whoever wants to write. */}
+        <Button size="small" startIcon={<ChatIcon />} onClick={() => setMessaging(true)} aria-label={t('Message {name} on Instagram', { name: who })}>{t('Message')}</Button>
       </Stack>
       <Stack component="section" aria-label={t('{name}’s posts', { name: who })} spacing={1} sx={{ mt: 1.5 }}>
         {shown.map(p => {
@@ -216,6 +298,7 @@ function Person({ c, place, rep, ledger, rates, onAdd, onReward }: {
           </Button>
         )}
       </Stack>
+      {messaging && <MessageDialog username={c.username} text={thanksMessage(c, rep, ledger, business?.name ?? '')} onClose={() => setMessaging(false)} />}
     </Box>
   )
 }
@@ -239,11 +322,11 @@ export function PostersBoard({ creators, reps, ledger, rates, collabs = null, on
         {!list.length
           ? <Empty>{creators ? t('Nobody has posted about the café yet. Collab reels and tags come in by themselves; add one Instagram missed on Analytics → Instagram.') : t('Loading…')}</Empty>
           : <>
-              {list[0].extra !== null && list[0].extra > 0 && (
+              {list[0].gained !== null && list[0].gained > 0 && (
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1.5 }}>
                   <TrophyIcon sx={{ color: tokens.roseDeep }} />
                   <Typography variant="body2">
-                    {t('{name} brought the most: {n} more followers than usual.', { name: `@${list[0].username}`, n: formatNumber(list[0].extra) })}
+                    {t('{name} brought the most: {n} new followers.', { name: `@${list[0].username}`, n: formatNumber(list[0].gained) })}
                   </Typography>
                 </Stack>
               )}

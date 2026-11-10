@@ -33,4 +33,22 @@ export default {
   'Profile visits': 'Visitas al perfil',
   'Link taps': 'Toques en enlaces',
   'Reach and profile visits come in once its three days are in.': 'El alcance y las visitas al perfil llegan cuando pasan sus tres días.',
+  'new followers from their posts': 'nuevos seguidores de sus publicaciones',
+  '{name} brought the most: {n} new followers.': '{name} es quien más ha aportado: {n} nuevos seguidores.',
+  '{list} and {last}': '{list} y {last}',
+  'Hi @{name}! Thank you for posting about {cafe} 💛': '¡Hola @{name}! Gracias por publicar sobre {cafe} 💛',
+  '{posts} brought us {figures}.': '{posts} nos trajo {figures}.',
+  'Your {n} posts': 'Tus {n} publicaciones',
+  'So far you’ve earned {total} in rewards ({cashback} of it cashback for your posts), with {balance} to spend at the café.':
+    'Hasta ahora has ganado {total} en recompensas ({cashback} de ello en cashback por tus publicaciones), y tienes {balance} para gastar en la cafetería.',
+  'So far you’ve earned {total} in rewards, with {balance} to spend at the café.': 'Hasta ahora has ganado {total} en recompensas, y tienes {balance} para gastar en la cafetería.',
+  'So far you’ve earned {total} in commission ({cashback} of it cashback for your posts).': 'Hasta ahora has ganado {total} en comisiones ({cashback} de ello en cashback por tus publicaciones).',
+  'So far you’ve earned {total} in commission.': 'Hasta ahora has ganado {total} en comisiones.',
+  'See you soon!': '¡Hasta pronto!',
+  'Message {name}': 'Mensaje para {name}',
+  'Their figures and what they’ve earned, to change as you like. Nothing is sent by the app: it’s copied as their chat opens, for you to paste.':
+    'Sus cifras y lo que han ganado, para cambiarlo a tu gusto. La app no envía nada: se copia al abrir su chat, para que lo pegues.',
+  'Copied: paste it in the chat with {name} on Instagram.': 'Copiado: pégalo en el chat con {name} en Instagram.',
+  'Copy and open the chat': 'Copiar y abrir el chat',
+  'Open the chat again': 'Abrir el chat de nuevo',
 }

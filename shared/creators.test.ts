@@ -9,18 +9,18 @@ const post = (id: string, username: string | null, more: Partial<PostImpact> = {
 })
 
 describe('Who posts about the café', () => {
-  it('one line each, best first: followers over the usual, then views; the café’s own posts aren’t on it', () => {
+  it('one line each, best first: the new followers their posts brought (every one, not only those over the usual), then views; the café’s own posts aren’t on it', () => {
     const board = creatorBoard([
       post('own', null, { gained: 99, usual: 1, days: 3 }),
       post('n1', 'nora.eats.mbl', { views: 14200, likes: 1180, comments: 64, gained: 54, usual: 15, days: 3, at: '2026-11-07T18:00:00Z' }),
       post('n2', 'Nora.Eats.MBL', { by: 'story', video: false, gained: 20, usual: 18, days: 3, at: '2026-11-02T18:00:00Z' }),
-      post('b1', 'marbella.brunchclub', { views: 38600, likes: 2940, gained: 40, usual: 39, days: 3 }),
+      post('b1', 'marbella.brunchclub', { views: 38600, likes: 2940, gained: 80, usual: 79, days: 3 }),
       post('t1', 'tomas.runs', { views: 2100, likes: 214 }),
       post('l1', 'lola.runs', { views: 5000 }),
     ])
-    expect(board.map(c => [c.username, c.extra])).toEqual([['nora.eats.mbl', 41], ['marbella.brunchclub', 1], ['lola.runs', null], ['tomas.runs', null]])
-    expect(board[0]).toMatchObject({ reels: 1, views: 14200, likes: 1180, comments: 64, gained: 74, last_at: '2026-11-07T18:00:00Z' })
-    expect(board[0].posts.map(p => p.id)).toEqual(['n1', 'n2'])
+    expect(board.map(c => [c.username, c.gained])).toEqual([['marbella.brunchclub', 80], ['nora.eats.mbl', 74], ['lola.runs', null], ['tomas.runs', null]])
+    expect(board[1]).toMatchObject({ reels: 1, views: 14200, likes: 1180, comments: 64, gained: 74, last_at: '2026-11-07T18:00:00Z' })
+    expect(board[1].posts.map(p => p.id)).toEqual(['n1', 'n2'])
   })
 
   it('a post with followers but no usual counts in what came in, not in what’s over the usual', () => {
