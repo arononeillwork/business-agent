@@ -7204,6 +7204,32 @@ test.describe('sales reps and rewards', () => {
     await expect(tom).toContainText('Rising voice')
   })
 
+  test('posts about us: everyone who posted about the café on Instagram, ranked by the followers they brought, with their posts', async ({ page }) => {
+    await open(page, '/sales-reps')
+    const board = page.getByRole('region', { name: 'Posts about us: who brings the most' })
+    await expect(board.getByRole('listitem')).toHaveCount(5)
+    await expect(board.getByRole('listitem').first()).toHaveAccessibleName(/^1\. @/)
+    await expect(board).toContainText('brought the most')
+    const nora = board.getByRole('listitem', { name: /\. @nora\.eats\.mbl$/ })
+    await expect(nora).toContainText('Waiting for your OK')
+    await expect(nora).toContainText('14.200 views')
+    await expect(nora).toContainText('followers over the usual')
+    await nora.getByRole('button', { name: 'Their posts' }).click()
+    await expect(nora).toContainText('Collab reel')
+    await expect(nora.getByRole('link', { name: 'See it' })).toHaveAttribute('href', 'https://www.instagram.com/reel/DemoCollab1/')
+    await expect(board.getByRole('listitem', { name: /\. @sanpedro\.eats$/ })).toContainText('Rep')
+
+    // Saying yes makes them a rep on the board too; someone said no to can still be added from it.
+    const waiting = page.getByRole('region', { name: 'Waiting for approval' })
+    await waiting.getByRole('group', { name: '@nora.eats.mbl: new rep' }).getByRole('button', { name: 'Say yes' }).click()
+    await toast(page, '@nora.eats.mbl is a rep')
+    await expect(nora.getByText('Rep', { exact: true })).toBeVisible()
+    await waiting.getByRole('group', { name: '@tomas.runs: new rep' }).getByRole('button', { name: 'Say no' }).click()
+    await toast(page, '@tomas.runs isn’t a rep')
+    await board.getByRole('button', { name: 'Add @tomas.runs as a rep' }).click()
+    await expect(page.getByRole('dialog', { name: 'Add someone' }).getByRole('textbox', { name: 'Instagram' })).toHaveValue('tomas.runs')
+  })
+
   test('admins add a usual reward to the list, and print business cards with each rep’s code', async ({ page }) => {
     await open(page, '/sales-reps')
     const list = page.getByRole('region', { name: 'What earns a reward' })

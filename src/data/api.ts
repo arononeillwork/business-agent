@@ -71,6 +71,7 @@ import type { BrandDocument } from '../../shared/brandDocs'
 import type { TipPool, TipPoolInput, TipShare } from '../../shared/tips'
 import type { CompetitorData, CompetitorInput, CompetitorNoteInput, CompetitorPrice, CompetitorSettings, NearbyPlace, PriceItem } from '../../shared/localCompetitors'
 import type { SocialReport, SocialSource } from '../../shared/socialAnalytics'
+import type { Creator } from '../../shared/creators'
 import type { DeviceAccount } from './deviceAccounts'
 import type { FoundBrand } from '../../shared/brandLookup'
 
@@ -1182,6 +1183,8 @@ export interface Api {
   addPostByLink(input: { link: string; username: string; on: string }): Promise<{ id: string; put_forward: boolean }>
   /** One added by its link, taken off again. */
   removePostByLink(id: string): Promise<void>
+  /** Everyone who posted about the café on Instagram, best first, with what their posts did (admins). */
+  postersBoard(): Promise<Creator[]>
   eventAlerts(): Promise<EventAlert[]>
   setEventAlert(kind: EventAlert['kind'], refId: string, on: boolean): Promise<boolean>
   /** Bank holiday reminders (admins): the holidays left out, and the ones reminded about. */

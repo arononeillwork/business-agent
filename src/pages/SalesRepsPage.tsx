@@ -39,6 +39,7 @@ import {
   type Standing,
 } from '../../shared/reps'
 import type { Mention } from '../../shared/mentions'
+import { PostersBoard } from './PostersBoard'
 import { customerName } from '../../shared/customers'
 import { formatLocal, formatMoney, formatNumber, today } from '../../shared/time'
 import { fonts, tokens } from '../theme'
@@ -89,6 +90,8 @@ export function SalesRepsPage() {
   const rewards = useAsync('rep-rewards', () => api.repRewards(), [])
   const settings = useAsync('rep-settings', () => api.repSettings(), [])
   const mentions = useAsync('instagram-mentions', () => (isAdmin ? api.instagramMentions() : Promise.resolve([])), [isAdmin])
+  // Everyone who posted about the café on Instagram, best first (admins).
+  const posters = useAsync('instagram-posters', () => (isAdmin ? api.postersBoard() : Promise.resolve([])), [isAdmin])
   const run = useAction()
   const [filter, setFilter] = useState<Filter>('all')
   const [crew, setCrew] = useState<string | null>(null)
@@ -296,6 +299,9 @@ export function SalesRepsPage() {
               </Box>}
         </CardContent>
       </Card>
+
+      {isAdmin && <PostersBoard creators={posters.data} reps={allReps}
+        onAdd={username => setEditing({ name: `@${username}`, kind: 'customer', instagram: username, active: true })} />}
 
       <Card component="section" aria-label={t('Top sellers this month')} sx={{ mb: 3 }}>
         <CardContent>
@@ -711,11 +717,11 @@ function Medal({ place }: { place: number }) {
   )
 }
 
-/** A story or post about the café: reward who shared it, or add them first. */
 /** What someone did about the café on Instagram. */
 const mentionWords = (m: Pick<Mention, 'kind' | 'video'>) => (m.kind === 'story' ? t('Mentioned the café in their story')
   : m.kind === 'collab' ? (m.video ? t('Posted a reel with the café') : t('Posted with the café')) : t('Tagged the café in a post'))
 
+/** A story or post about the café: reward who shared it, or add them first. */
 function MentionCard({ item, onReward, onAdd }: { item: MentionToReward; onReward: (rep: SalesRep) => void; onAdd: () => void }) {
   const { mention: m, rep } = item
   return (

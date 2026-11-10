@@ -106,11 +106,37 @@ describe('Posts about the café', () => {
     expect(mentions().every(m => m.rep_checked_at)).toBe(true)
   })
 
-  it('Instagram not listing collabs for the account leaves the rest working', async () => {
+  it('Instagram not listing collabs for the account leaves the rest working, and the connection says so', async () => {
     await connectInstagram()
     apis.instagram.noCollabs = true
     expect(await check()).toBe(2) // the tag and the story
     expect(mentions().some(m => m.kind === 'collab')).toBe(false)
+    expect(db.integration('instagram').external).toMatchObject({ can_list_collabs: false })
+    apis.instagram.noCollabs = false
+    await check()
+    expect(db.integration('instagram').external).toMatchObject({ can_list_collabs: true })
+  })
+
+  it('looks up only the people who matter in the chats (a story mention, a rep): a scheduled run has 50 requests', async () => {
+    await connectInstagram()
+    // Twenty more chats with no story mention, from people who aren't reps.
+    for (let i = 0; i < 20; i++) {
+      apis.instagram.chats.push({ id: `conv-x${i}`, updated_time: '2026-10-18T08:00:00+0000',
+        participants: { data: [{ id: '17841400000000001', username: 'easy.beans.coffee' }, { id: `igsid-x${i}`, username: `customer${i}` }] },
+        messages: { data: [{ id: `mx${i}`, created_time: '2026-10-18T08:00:00+0000', from: { id: `igsid-x${i}`, username: `customer${i}` }, message: 'Open today?' }] } })
+    }
+    db.tables.sales_reps = [{ id: 'rep-1', name: 'Customer 3', instagram: 'customer3', instagram_followers: 10 }]
+    await check()
+    expect(apis.instagram.profileLookups).toBe(2) // Lucía (her story) and customer3 (a rep)
+  })
+
+  it('chats that can’t be read don’t stop collabs and tags being kept', async () => {
+    await connectInstagram()
+    apis.instagram.noMessages = true
+    apis.instagram.collabs = [reel('c1', 'nora.eats.mbl', 'DfNora0001', '2026-10-17T18:30:00+0000')]
+    expect(await check()).toBe(2) // the tag and the collab
+    expect(mentions().map(m => m.id).sort()).toEqual(['collab:DfNora0001', 'post:tag-1'])
+    expect(reps().map(r => r.instagram).sort()).toEqual(['nora.eats.mbl', 'sanpedro.eats'])
   })
 
   it('an admin adds a post Instagram doesn’t list by its link, and can take it off again', async () => {

@@ -19,6 +19,7 @@ import {
 } from '../../shared/townHolidays'
 import { collabId, collabMentions, isRecent, mentionTitle, mentionsIn, peopleToPutForward, shortcodeOf, type InstagramMention } from '../../shared/mentions'
 import { followerDays, ownPost, postAbout, postImpacts } from '../../shared/postImpact'
+import { creatorBoard } from '../../shared/creators'
 import { demoSports } from './demoSports'
 import { demoInbox, demoMessenger, demoWhatsApp } from './demoMessages'
 import { demoEmailPage, demoEmails } from './demoEmail'
@@ -5368,6 +5369,14 @@ export function createDemoApi(): Api {
       const before = repList.length
       putForward()
       return { id, put_forward: repList.length > before }
+    },
+    async postersBoard() {
+      requireAdmin()
+      // As worker/socialAnalytics.ts postersBoard: every post about the café, with the followers of its days.
+      const now = today()
+      const row = integ.integrations.find(i => i.provider === 'instagram')!
+      const days = row.status === 'connected' ? demoSocialReport('instagram', addDays(now, -30), addDays(now, -1), now, row).follower_days ?? [] : []
+      return creatorBoard(postImpacts(demoMentions().filter(m => m.username).map(postAbout), followerDays(days, null)))
     },
     async removePostByLink(id) {
       requireAdmin()

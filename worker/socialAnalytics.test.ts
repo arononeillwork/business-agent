@@ -119,6 +119,27 @@ describe('Instagram', () => {
     expect(db.tables.social_follower_days.find(d => d.day === '2026-09-03')).toMatchObject({ source: 'instagram', gained: 60 })
   })
 
+  it('who posts about the café: everyone with a post about it, best first, with the followers of their posts’ days', async () => {
+    apis.instagram.permissions = ALL
+    await connectOwn('instagram')
+    stats = instagramStats
+    db.tables.instagram_mentions = [
+      { id: 'collab:DfNora0001', kind: 'collab', username: 'nora.eats.mbl', permalink: 'https://www.instagram.com/reel/DfNora0001/', mentioned_at: '2026-09-02T18:30:00+0000',
+        video: true, likes: 1180, comments: 64, views: 14200 },
+      { id: 'post:t1', kind: 'post', username: 'tomas.runs', mentioned_at: '2026-08-20T10:00:00+0000', likes: 20 },
+      { id: 'story:s1', kind: 'story', username: null, mentioned_at: '2026-09-03T10:00:00+0000' },
+    ]
+    db.tables.social_follower_days = [{ source: 'instagram', day: '2026-09-02', gained: 40 }, { source: 'instagram', day: '2026-09-03', gained: 60 }, { source: 'instagram', day: '2026-09-04', gained: 10 }]
+    const res = await socialAnalytics.request(`${APP}/api/analytics/instagram/posters`, { headers: as('admin') }, env, ctx())
+    expect(res.status).toBe(200)
+    const board = await res.json() as { username: string; views: number; gained: number | null; posts: unknown[] }[]
+    expect(board.map(c => c.username)).toEqual(['nora.eats.mbl', 'tomas.runs'])
+    expect(board[0]).toMatchObject({ views: 14200, gained: 110 })
+    expect(board[1]).toMatchObject({ gained: null })
+    // Admins only.
+    expect((await socialAnalytics.request(`${APP}/api/analytics/instagram/posters`, { headers: as('staff') }, env, ctx())).status).toBe(403)
+  })
+
   it('three months are read 30 days at a time and added up; new followers only within the last 30 days', async () => {
     apis.instagram.permissions = ALL
     await connectOwn('instagram')

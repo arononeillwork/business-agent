@@ -118,6 +118,11 @@ built-in **AI connector** so owners can run it by talking to Claude.
   out and the two after against a usual three days (the middle day of the week before), with new followers day by day
   above. Instagram keeps those for 30 days; the app keeps them from then on (the `posts_about_the_cafe` migration,
   `worker/mentions.ts`, `shared/postImpact.ts`).
+- Posts about us: who brings the most (Sales reps & rewards, admins): a leaderboard of everyone who posted about the café on
+  Instagram, ranked by the followers the café gained in their posts' days over the usual, then views and likes, each with
+  whether they're a rep, waiting for an owner's OK, or not one yet (Add as a rep), and their posts to open
+  (`GET /api/analytics/instagram/posters`, `shared/creators.ts`). The Instagram check looks up only the people in the chats who
+  matter (a story mention, a rep): looking up all 25 used up the scheduled run's 50 requests before anything was kept.
 - Business Agent's own reps ([docs/REPS_PLAN.md](docs/REPS_PLAN.md)): people who know business owners sell Business
   Agent for us, run as a business of its own in the app, **Business Agent HQ**, on its Sales reps & rewards page. Each rep has
   a code (Julio, for cafés: JULIO27) and leads kinds of business (café, restaurant & bar, pub, salon & beauty, real estate,

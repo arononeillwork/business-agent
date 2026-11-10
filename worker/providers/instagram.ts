@@ -286,11 +286,14 @@ async function withPerson(cfg: InstagramConfig, c: InboxConversation): Promise<I
     ...(p.followers !== undefined ? { followers: p.followers } : {}) } }
 }
 
-/** The latest chats, newest first, each with its latest few messages. */
-export async function conversations(cfg: InstagramConfig, me: Me): Promise<InboxConversation[]> {
+/**
+ * The latest chats, newest first, each with its latest few messages. Each person's name, photo and
+ * followers is a request of its own: `lookUp` says whose to ask for (everyone's, unless it says).
+ */
+export async function conversations(cfg: InstagramConfig, me: Me, lookUp: (c: InboxConversation) => boolean = () => true): Promise<InboxConversation[]> {
   const res = await detailed<{ data: RawConversation[] }>(cfg,
     f => `me/conversations?platform=instagram&limit=25&fields=id,updated_time,participants,messages.limit(5){${f}}`)
-  const chats = await Promise.all(res.data.map(c => withPerson(cfg, toConversation(c, me))))
+  const chats = await Promise.all(res.data.map(c => { const chat = toConversation(c, me); return lookUp(chat) ? withPerson(cfg, chat) : chat }))
   return chats.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 }
 
