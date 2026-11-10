@@ -19,6 +19,7 @@ import * as square from './providers/square'
 import { fromSquareCatalog, squarePriceChanges, type SquareMenuItem } from '../shared/menuSquare'
 import { squareShelfChanges } from '../shared/freshBatches'
 import { businessConfig } from '../shared/business.config'
+import { defaultNumberFormat } from '../shared/time'
 import {
   MAX_PROMPT, aiRequest, buildPrompt, menuSections, modelOf, photoPrompt, readAiResult, imageShape, type AiModel, type AiResult, type MenuDesign, type MenuImage, type MenuItem,
   type PricePush,
@@ -327,11 +328,12 @@ async function generate(env: Env, db: SupabaseClient, origin: string, userId: st
     if (edit) prompt = words
     else {
       if (!words && d.mode === 'background') throw new MenuError('Describe the look you want: colours, style, what’s in it')
-      const [{ data: business }, { data: items }, { data: settings }] = await Promise.all([db.from('business').select('name').maybeSingle(), db.rpc('menu_list'),
+      const [{ data: business }, { data: items }, { data: settings }] = await Promise.all([db.from('business').select('name, country').maybeSingle(), db.rpc('menu_list'),
         db.from('settings').select('menu_sections').eq('id', 1).maybeSingle()])
-      const money = new Intl.NumberFormat('es-ES', { style: 'currency', currency: businessConfig.currency })
+      // Prices as the business's country writes them on a menu ("3,20 €" in Spain, "€3.20" in Ireland), whoever is making it.
       prompt = buildPrompt(words, { mode: d.mode, style: d.style, format: d.format, size: d.size, title: d.title ?? business?.name ?? businessConfig.name, subtitle: d.subtitle,
-        footer: d.footer, sections: menuSections((items ?? []) as MenuItem[], { only: d.categories, order: settings?.menu_sections ?? [] }), money: n => money.format(n) })
+        footer: d.footer, sections: menuSections((items ?? []) as MenuItem[], { only: d.categories, order: settings?.menu_sections ?? [] }),
+        numbers: defaultNumberFormat(business?.country as string | null | undefined) })
     }
   } else if (p.item_id) {
     const { data: item } = await db.from('recipes').select('name, description, category').eq('id', p.item_id).maybeSingle()

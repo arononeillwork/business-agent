@@ -11,6 +11,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Env } from './supabase'
 import { channelFor, notificationTopic, pushes } from '../shared/notify'
 import { languageOf, pushText } from '../shared/pushText'
+import { numberFormatOf } from '../shared/time'
 import type { AppNotification, Preferences } from '../shared/types'
 import { businessConfig } from '../shared/business.config'
 
@@ -115,8 +116,9 @@ type Pending = Pick<AppNotification, 'id' | 'title' | 'body' | 'link' | 'kind' |
 
 /**
  * Every minute, for one business: the notifications not pushed yet (from the last day) go to their
- * person's devices, as they chose, in their language. Ones they want only on their phone are marked
- * read once they've reached it, so the bell doesn't light up for them too.
+ * person's devices, as they chose, in their language and with their decimal mark (theirs, else the
+ * business's country's). Ones they want only on their phone are marked read once they've reached it, so
+ * the bell doesn't light up for them too.
  */
 export async function pushNotifications(env: Env, db: SupabaseClient) {
   const since = new Date(Date.now() - 86_400_000).toISOString()
@@ -131,11 +133,13 @@ export async function pushNotifications(env: Env, db: SupabaseClient) {
   if (!vapidJwk(env)) return 0
 
   const people = [...new Set(pending.map(n => n.profile_id))]
-  const [{ data: subs }, { data: profiles }, { data: settings }] = await Promise.all([
+  const [{ data: subs }, { data: profiles }, { data: settings }, { data: business }] = await Promise.all([
     db.from('push_subscriptions').select('id, profile_id, endpoint, p256dh, auth').in('profile_id', people),
     db.from('profiles').select('id, preferences').in('id', people),
     db.from('settings').select('languages').eq('id', 1).maybeSingle(),
+    db.from('business').select('country').maybeSingle(),
   ])
+  const country = (business as { country?: string | null } | null)?.country
   const team = (settings?.languages as string[] | null | undefined) ?? []
   const devices = new Map<string, Subscription[]>()
   for (const s of (subs ?? []) as (Subscription & { profile_id: string })[]) devices.set(s.profile_id, [...(devices.get(s.profile_id) ?? []), s])
@@ -147,7 +151,8 @@ export async function pushNotifications(env: Env, db: SupabaseClient) {
     const channel = channelFor(prefs.get(n.profile_id), n.kind === 'test' ? 'test' : notificationTopic(n))
     const to = (devices.get(n.profile_id) ?? []).filter(s => !gone.has(s.id))
     if (!pushes(channel) || !to.length) continue
-    const text = pushText(n, languageOf(prefs.get(n.profile_id), team))
+    const mine = prefs.get(n.profile_id)
+    const text = pushText(n, languageOf(mine, team), numberFormatOf(mine?.numberFormat, country))
     const results = await Promise.all(to.map(s => sendPush(env, s, { ...text, link: n.link, tag: `n${n.id}` })
       .then(r => { (r === 'gone' ? gone : r === 'ok' ? ok : failed).add(s.id); return r })))
     if (results.includes('ok')) {

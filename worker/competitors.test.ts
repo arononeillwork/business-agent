@@ -237,6 +237,11 @@ describe('Competitors: the AI tools', () => {
     expect(out.recent_price_changes).toEqual([expect.objectContaining({ competitor: 'Molino Coffee Lab', from_eur: 2.8, to_eur: 3 })])
     expect(out.findings).toContain('On 1 like-for-like items your prices are 7% above the area average.')
     expect(out.findings).toContain('1 of 1 opens before you on weekdays (at 07:30); you open at 08:00.')
+    // Amounts in the findings with the person's decimal mark: Spain's comma here, Ireland's point in a business there.
+    expect(out.findings).toContain('1 price rise nearby in the last 90 days: Molino Coffee Lab’s Flat white, €2,80 → €3,00.')
+    db.table('business')[0].country = 'IE'
+    expect((await run('list_competitors', {}) as { findings: string[] }).findings)
+      .toContain('1 price rise nearby in the last 90 days: Molino Coffee Lab’s Flat white, €2.80 → €3.00.')
   })
 
   it('adds a competitor by hand (a name that only looks like another’s is a new one), changes what it offers, and keeps notes and ideas', async () => {

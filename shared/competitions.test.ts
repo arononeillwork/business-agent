@@ -71,6 +71,13 @@ describe('competitions: ideas', () => {
     expect(keys).toContain('moment-blackfriday-2026')
     expect(keys.some(k => k.startsWith('quiet'))).toBe(false)
     expect(ideas.find(i => i.key === 'signup-2026-11-15')!.prize).toEqual({ text: 'A {amount} gift card', vars: { amount: 10 } })
+    expect(ideas.find(i => i.key === 'signup-2026-11-15')!.prize_es).toBe('una tarjeta regalo de 10 €')
+  })
+
+  it('a business in Ireland writes the gift card with its decimal point, in Spanish too', () => {
+    const ideas = suggest({ today: TODAY, business, takings: takings.slice(0, 10), country: 'IE' })
+    expect(ideas.find(i => i.key === 'signup-2026-11-15')!.prize_es).toBe('una tarjeta regalo de €10')
+    expect(basesLegales({ ...base, prize_value: 12.5 }, { name: 'Easy Beans Coffee' })).toContain('12,50 € (IVA incluido)')
   })
 })
 

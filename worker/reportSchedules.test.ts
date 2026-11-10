@@ -72,6 +72,20 @@ describe('scheduled reports', () => {
     expect(apis.microsoft.sent.length).toBe(before + 2)
   })
 
+  it('writes each person’s amounts with their decimal mark: in Ireland the point, unless they chose the comma', async () => {
+    await connectOutlook()
+    db.tables.business[0].country = 'IE'
+    db.tables.profiles.find(p => p.id === 'staff-1')!.preferences = { numberFormat: 'comma' }
+    db.tables.stock_items[0].on_hand = 4.5
+    db.tables.report_schedules = [schedule({ kinds: ['stock'] })]
+    expect(await sendDueReports(env, 1, MONDAY_8)).toBe(1)
+    const mails = vi.mocked(fetch).mock.calls.filter(([url]) => String(url).endsWith('/me/sendMail'))
+      .map(([, init]) => (JSON.parse(String(init!.body)) as { message: { toRecipients: { emailAddress: { address: string } }[]; body: { content: string } } }).message)
+    const textTo = (to: string) => mails.find(m => m.toRecipients[0].emailAddress.address === to)!.body.content
+    expect(textTo('lola@gestoria.es')).toContain('Oat milk (barista): 4.5 l left (reorder at 10 l)')
+    expect(textTo('julio@example.com')).toContain('Oat milk (barista): 4,5 l left (reorder at 10 l)')
+  })
+
   it('says why it didn’t go: no mailbox, or whoever last changed it is no longer an admin', async () => {
     db.tables.report_schedules = [schedule()]
     await sendDueReports(env, 1, MONDAY_8)

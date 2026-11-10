@@ -10,6 +10,7 @@ import { msg } from './i18n'
 import { ALLERGENS, dishAllergens, tagsOf, type Allergen, type MenuAllergens, type MenuFilter } from './allergens'
 import { RECIPE_CATEGORIES } from './recipes'
 import type { BrandColour } from './types'
+import { moneyText, type NumberFormat } from './time'
 
 // ---------------------------------------------------------------------------------------------
 // Menu items
@@ -431,11 +432,14 @@ export interface PromptInput {
   footer?: string | null
   /** The menu's sections, for a whole-menu image. */
   sections?: MenuSection[]
-  /** Prices as the menu shows them (3,20 €). */
-  money?: (n: number) => string
+  /**
+   * The prices' decimal mark: the business's country's, as printed menus and screens there write them
+   * (Spain's "3,20 €" unless given, Ireland's "€3.20"), whoever made the design.
+   */
+  numbers?: NumberFormat
 }
 
-/** A price on an image: the item's, with its variants' price changes after it (Oat milk +0,40 €). */
+/** A price on an image: the item's, with its variants' price changes after it (Oat milk +0,40 €, or +€0.40). */
 const priced = (i: MenuItem, money: (n: number) => string) => {
   const extras = i.variants.filter(v => v.price_change > 0).map(v => `${v.name} +${money(v.price_change)}`)
   return `${i.name}${i.sell_price === null ? '' : ` ${money(i.sell_price)}`}${extras.length ? ` (${extras.join(', ')})` : ''}`
@@ -460,7 +464,7 @@ export function buildPrompt(style: string, d: PromptInput): string {
     return [words, `Background artwork for ${where}, ${shape}.`, 'Keep the middle calm and plain, with room for the menu to be written over it.',
       'No text, no letters, no words, no numbers, no logos.'].filter(Boolean).join(' ')
   }
-  const money = d.money ?? ((n: number) => `${n.toFixed(2).replace('.', ',')} €`)
+  const money = (n: number) => moneyText(n, d.numbers ?? 'comma')
   const sections = (d.sections ?? []).map(s => `${(s.category ?? 'More').toUpperCase()}: ${s.items.map(i => priced(i, money)).join('; ')}`)
   return [words, `${where[0].toUpperCase()}${where.slice(1)}, ${shape}, with clear, readable lettering.`, `The heading reads "${d.title}".`,
     d.subtitle ? `Under it, smaller: "${d.subtitle}".` : '',

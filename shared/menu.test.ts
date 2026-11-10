@@ -311,6 +311,9 @@ describe('AI images', () => {
     expect(p).toContain('The heading reads "Easy Beans Coffee".')
     expect(p).toContain('COFFEE: Flat white 3,20 € (Oat milk +0,40 €) | BAKERY: Croissant 1,80 €')
     expect(p).toContain('At the bottom, small: "Prices include IVA".')
+    // An Irish business's menu, as Ireland writes prices.
+    expect(buildPrompt('Chalkboard', { mode: 'full', format: 'physical', size: 'a4_portrait', title: 'The Daily Grind', sections, numbers: 'point' }))
+      .toContain('COFFEE: Flat white €3.20 (Oat milk +€0.40) | BAKERY: Croissant €1.80')
   })
 
   it('describes a menu item for its photo', () => {

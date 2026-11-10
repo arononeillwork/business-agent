@@ -166,6 +166,24 @@ describe('every minute', () => {
     expect(delivered).toEqual([])
   })
 
+  it('writes amounts with each person’s decimal mark: an Irish business’s point, unless they chose the comma', async () => {
+    const sean = await browser('https://push.test/sean-phone')
+    const ines = await browser('https://push.test/ines-phone')
+    db.tables.business[0].country = 'IE'
+    db.tables.push_subscriptions = [
+      { id: 's1', profile_id: 'sean', ...sean.sub, failures: 0, last_ok_at: null },
+      { id: 'i1', profile_id: 'ines', ...ines.sub, failures: 0, last_ok_at: null },
+    ]
+    db.tables.profiles = [
+      { id: 'sean', role: 'admin', preferences: { notify: { other: 'push' } } },
+      { id: 'ines', role: 'admin', preferences: { notify: { other: 'push' }, numberFormat: 'comma' } },
+    ]
+    db.tables.notifications = [note(1, 'sean', { title: 'Expense to approve: Julio, 15.00 €' }), note(2, 'ines', { title: 'Expense to approve: Julio, 15.00 €' })]
+    expect(await pushNotifications(env, businessDb(env, 1))).toBe(2)
+    expect(await sean.open(delivered.find(d => d.endpoint.endsWith('sean-phone'))!.body)).toMatchObject({ title: 'Expense to approve: Julio, €15.00' })
+    expect(await ines.open(delivered.find(d => d.endpoint.endsWith('ines-phone'))!.body)).toMatchObject({ title: 'Expense to approve: Julio, 15,00 €' })
+  })
+
   it('forgets devices that are gone, and gives up on one that keeps failing', async () => {
     const gone = await browser('https://push.test/gone')
     const broken = await browser('https://push.test/broken')

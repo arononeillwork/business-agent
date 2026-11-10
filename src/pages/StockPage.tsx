@@ -29,7 +29,7 @@ import {
   stockValue, unitLabel, whatsappLink,
   type MovementReason, type StockCsvImport, type StockItem, type StockItemInput, type StockMovement, type Supplier, type SupplierOrder,
 } from '../../shared/stock'
-import { addDays, formatLocal, formatMoney, formatNumber, today } from '../../shared/time'
+import { addDays, defaultNumberFormat, formatLocal, formatMoney, formatNumber, today } from '../../shared/time'
 import { deliveryUseBy, isLastDay, isPastUseBy } from '../../shared/lastDayOffers'
 import { FreshlyMade } from './FreshlyMade'
 import { tokens } from '../theme'
@@ -386,8 +386,9 @@ function OrderList({ orders }: { orders: SupplierOrder[] }) {
       {orders.map(o => {
         const s = o.supplier
         const next = s ? nextOrderDay(s, new Date()) : null
-        // In Spanish: the suppliers are local.
-        const text = orderMessage(o, name, 'es', next?.arrives)
+        // In the suppliers' own language and decimal mark: they're local (Spain's, or Ireland's English and decimal point).
+        const country = countryProfile().code
+        const text = orderMessage(o, name, country === 'IE' ? 'en' : 'es', next?.arrives, defaultNumberFormat(country))
         const copy = async () => { await navigator.clipboard.writeText(text); notify(t('Order copied'), 'success') }
         return (
           <Card key={s?.id ?? 'none'} component="section" aria-label={s?.name ?? t('No supplier')} sx={{ p: 2 }}>

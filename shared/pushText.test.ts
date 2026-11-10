@@ -59,4 +59,26 @@ describe('push notifications in each person’s language', () => {
     expect(es('Real Madrid – Barça').title).toBe('Real Madrid – Barça')
     expect(pushText({ title: 'Follow up: Boda de Ana', body: null, kind: null }, 'en').title).toBe('Follow up: Boda de Ana')
   })
+
+  it('writes amounts and readings with the person’s decimal mark, whatever the language', () => {
+    const say = (title: string, lang: 'en' | 'es', numbers: 'comma' | 'point', body: string | null = null) => pushText({ title, body, kind: null }, lang, numbers)
+    const offer = '1.5 left on their last day, €1.96 until 15:00. Square isn’t changed: take the offer price at the till.'
+    // An Irish business (the point, as it has before anyone chooses), in English or Spanish.
+    expect(say('Expense to approve: Julio, 15.00 €', 'en', 'point').title).toBe('Expense to approve: Julio, €15.00')
+    expect(say('Expense to approve: Julio, 15.00 €', 'es', 'point').title).toBe('Gasto por aprobar: Julio, €15.00')
+    expect(say('Bonus for Marta: €25.00 to approve', 'en', 'point').title).toBe('Bonus for Marta: €25.00 to approve')
+    expect(say('Bonus for Marta: €25.00 to approve', 'es', 'point').title).toBe('Bonus para Marta: €25.00 por aprobar')
+    expect(say('Out of range: Fridge 1 8.4 °C', 'en', 'point').title).toBe('Out of range: Fridge 1 8.4 °C')
+    expect(say('On offer till closing: Scones', 'en', 'point', offer).body).toBe(offer)
+    expect(say('Expense approved: Taxi', 'en', 'point', '15.00 €')).toEqual({ title: 'Expense approved: Taxi', body: '€15.00' })
+    expect(say('Expense approved: Taxi', 'es', 'comma', '15.00 €').body).toBe('15,00 €')
+    // A Spanish business keeps its comma, read in English too.
+    expect(say('Expense to approve: Julio, 15.00 €', 'en', 'comma').title).toBe('Expense to approve: Julio, 15,00 €')
+    expect(say('Bonus for Marta: €1234.50 to approve', 'en', 'comma').title).toBe('Bonus for Marta: 1.234,50 € to approve')
+    expect(say('Out of range: Nevera 1 -3.0 °C', 'en', 'comma').title).toBe('Out of range: Nevera 1 -3,0 °C')
+    expect(say('On offer till closing: Scones', 'en', 'comma', offer).body).toBe(offer.replace('1.5', '1,5'))
+    expect(say('On offer till closing: Scones', 'es', 'comma', offer).body).toBe('Quedan 1,5 en su último día, a €1.96 hasta las 15:00. Square no cambia: cóbralo al precio de la oferta.')
+    // Text without numbers stays as written in English.
+    expect(say('Follow up: Boda de Ana', 'en', 'comma').title).toBe('Follow up: Boda de Ana')
+  })
 })

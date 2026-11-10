@@ -77,6 +77,12 @@ describe('the message to the supplier', () => {
       'Hello Paco, here\'s an order for Easy Beans Coffee (account C-1042):\n- 18 l · Oat milk (6 × 1 l, ref AV-1L)\n- 24 l · Whole milk\nThank you!')
   })
 
+  it('with the business’s country’s decimal mark: Spain’s comma, Ireland’s point', () => {
+    const [order] = orderList([item({ unit: 'kg', pack_size: null, supplier_sku: null, on_hand: 0, par_level: 1.5, reorder_at: 1, order_multiple: 0.5 })], [supplier()])
+    expect(orderMessage(order, 'Easy Beans Coffee', 'es')).toContain('\n- 1,5 kg · Oat milk\n')
+    expect(orderMessage(order, 'The Daily Grind', 'en', null, 'point')).toBe('Hello Paco, here\'s an order for The Daily Grind:\n- 1.5 kg · Oat milk\nThank you!')
+  })
+
   it('opens WhatsApp or email with it written', () => {
     expect(whatsappLink('+34 611 222 333', 'Hola, 2 × café')).toBe('https://wa.me/34611222333?text=Hola%2C%202%20%C3%97%20caf%C3%A9')
     expect(emailLink('a@b.es', 'Pedido', 'Hola\nGracias')).toBe('mailto:a@b.es?subject=Pedido&body=Hola%0AGracias')
