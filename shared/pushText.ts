@@ -47,10 +47,14 @@ export function pushText(n: Note, lang: Language, numbers: NumberFormat = defaul
     return { title: say(lang, TOWN_HOLIDAYS_TITLE, { town: d.town, year: d.year }), body: say(lang, TOWN_HOLIDAYS_BODY) }
   }
   if (n.kind === 'test') return { title: say(lang, msg('Test notification')), body: say(lang, msg('Notifications are working on this device.')) }
-  const mention = n.kind === 'instagram_mention' ? /^(@\S+|Someone) (mentioned you in their story|tagged you in a post)$/.exec(n.title) : null
+  const mention = n.kind === 'instagram_mention' ? /^(@\S+|Someone) (mentioned you in their story|tagged you in a post|posted a reel with you|posted with you)$/.exec(n.title) : null
   if (mention) {
     const who = mention[1] === 'Someone' ? say(lang, msg('Someone')) : mention[1]
-    return { title: mention[2].startsWith('mentioned') ? say(lang, msg('{who} mentioned you in their story'), { who }) : say(lang, msg('{who} tagged you in a post'), { who }), body: n.body }
+    const said: Record<string, string> = {
+      'mentioned you in their story': msg('{who} mentioned you in their story'), 'tagged you in a post': msg('{who} tagged you in a post'),
+      'posted a reel with you': msg('{who} posted a reel with you'), 'posted with you': msg('{who} posted with you'),
+    }
+    return { title: say(lang, said[mention[2]], { who }), body: n.body }
   }
   // The rest are written in English by the database and the Worker: each kind's wording is matched
   // and said again in this language; anything else (a caption, a name) stays as it was written.
@@ -106,6 +110,7 @@ const TITLES: Phrase[] = [
   [/^On offer till closing: (.+)$/, msg('On offer till closing: {name}'), m => ({ name: m[1] })],
   // A tip pool's share (the tips migration).
   [/^Your tips: (\d+\.\d\d) €$/, msg('Your tips: {amount}'), (m, _l, f) => ({ amount: euros(f, m[1]) }), 'numbers'],
+  [/^(.+) posted about the café: waiting for your OK as a rep$/, msg('{name} posted about the café: waiting for your OK as a rep'), m => ({ name: m[1] })],
 ]
 const BODIES: Phrase[] = [
   // An expense decided without a note says its amount (the expense claims migration).

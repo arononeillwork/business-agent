@@ -101,6 +101,24 @@ describe('Instagram', () => {
     expect(asked.length).toBe(before)
   })
 
+  it('what each post did: the café’s own and a customer’s collab, with the followers of their days, kept for later', async () => {
+    apis.instagram.permissions = ALL
+    await connectOwn('instagram')
+    stats = instagramStats
+    db.tables.instagram_mentions = [
+      { id: 'collab:DfNora0001', kind: 'collab', username: 'nora.eats.mbl', permalink: 'https://www.instagram.com/reel/DfNora0001/', caption: 'Best ube latte',
+        media_url: null, mentioned_at: '2026-09-02T18:30:00+0000', video: true, likes: 1180, comments: 64, views: 14200, shares: null, saves: null, added_by: null },
+      { id: 'collab:Before0001', kind: 'collab', username: 'tomas.runs', mentioned_at: '2026-08-20T10:00:00+0000', video: true },
+    ]
+    const r = await report('instagram')
+    expect(r.impact!.map(p => [p.id, p.by])).toEqual([['m1', 'you'], ['collab:DfNora0001', 'collab']])
+    // Instagram has the 2nd and 3rd so far: 40 and 60 new followers.
+    expect(r.impact![1]).toMatchObject({ username: 'nora.eats.mbl', likes: 1180, views: 14200, gained: 100, days: 2, soon: false })
+    expect(r.impact![0]).toMatchObject({ reach: 512, gained: null, soon: true }) // the 27th: Instagram hasn't counted it yet
+    // Kept, so the days are still there once Instagram has forgotten them.
+    expect(db.tables.social_follower_days.find(d => d.day === '2026-09-03')).toMatchObject({ source: 'instagram', gained: 60 })
+  })
+
   it('three months are read 30 days at a time and added up; new followers only within the last 30 days', async () => {
     apis.instagram.permissions = ALL
     await connectOwn('instagram')
@@ -108,8 +126,12 @@ describe('Instagram', () => {
     const r = await report('instagram', '2026-07-01', '2026-09-29')
     expect(asked.filter(u => u.includes('metric_type=total_value'))).toHaveLength(4) // 91 days: 30 + 30 + 30 + 1
     expect(metric(r, 'reach')!.value).toBe(400)
+    // Not a gain for the three months (Instagram has only the last 30 days of it)…
     expect(metric(r, 'followers')!.change).toBeNull()
-    expect(asked.some(u => u.includes('follower_count'))).toBe(false)
+    // …but those 30 days are read, day by day, for what each post did.
+    const followers = asked.filter(u => u.includes('follower_count')).map(u => new URL(u).searchParams)
+    expect(followers).toHaveLength(1)
+    expect(followers[0].get('since')).toBe(String(Date.parse('2026-09-01T00:00:00Z') / 1000))
   })
 
   it('connected without statistics: says so without asking Instagram, and posting still works', async () => {

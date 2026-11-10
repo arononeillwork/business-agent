@@ -4221,7 +4221,7 @@ test.describe('new connections and details', () => {
   test('Analytics shows Instagram: followers, reach and views against the period before, reach each day and the top posts', async ({ page }) => {
     await open(page, '/analytics?source=instagram')
     await expect(page.getByRole('combobox', { name: 'Source' })).toHaveText('Instagram')
-    await expect(page.getByRole('main').getByRole('link', { name: '@easy.beans.coffee' })).toHaveAttribute('href', 'https://www.instagram.com/easy.beans.coffee/')
+    await expect(page.getByRole('main').getByRole('link', { name: '@easy.beans.coffee', exact: true })).toHaveAttribute('href', 'https://www.instagram.com/easy.beans.coffee/')
     const tiles = page.getByRole('list', { name: 'At a glance' })
     for (const label of ['Followers', 'Accounts reached', 'Views', 'Accounts engaged', 'Likes', 'Comments', 'Saves', 'Taps on your links']) await expect(tiles).toContainText(label)
     await expect(tiles).toContainText('vs the 28 days before')
@@ -4230,6 +4230,43 @@ test.describe('new connections and details', () => {
     const posts = page.getByRole('region', { name: 'Top posts in this period' })
     await expect(posts.getByRole('columnheader')).toHaveText(['Post', 'Reach', 'Likes', 'Comments', 'Saves'])
     await expect(posts.getByRole('link').first()).toHaveAttribute('href', /^https:\/\/www\.instagram\.com\/p\//)
+  })
+
+  test('Analytics shows what each Instagram post did: customers’ collab reels with the followers they brought; one Instagram missed is added by its link', async ({ page }) => {
+    await open(page, '/analytics?source=instagram')
+    const impact = page.getByRole('region', { name: 'What each post did' })
+    await expect(impact.getByRole('img', { name: /^New followers per day/ })).toBeVisible()
+    await impact.getByRole('button', { name: /^About you/ }).click()
+    // Nora's reel with the café, three days ago: its followers against a usual three days.
+    const nora = impact.getByRole('group', { name: /^@nora\.eats\.mbl: / })
+    await expect(nora).toContainText('Collab reel')
+    await expect(nora).toContainText('14.200 views')
+    await expect(nora).toContainText(/\+\d+ followers/)
+    await expect(nora).toContainText('more than usual')
+    await expect(impact.getByRole('group', { name: /^@marbella\.brunchclub: / })).toContainText('Collab reel')
+    await expect(impact.getByRole('group', { name: /^@costa\.del\.sol\.food: / })).toContainText('Tagged you')
+    // The café's own posts are there too.
+    await impact.getByRole('button', { name: 'Your posts' }).click()
+    await expect(impact.getByRole('group', { name: /^Your post: / }).first()).toBeVisible()
+
+    // A reel Instagram didn't list: added by its link, and whoever posted it waits on Sales reps & rewards.
+    await impact.getByRole('button', { name: 'Add a post', exact: true }).click()
+    const add = page.getByRole('dialog', { name: 'Add a post by its link' })
+    await add.getByRole('textbox', { name: 'Link to the post or reel' }).fill('https://www.instagram.com/reel/DfLink0001/?igsh=abc')
+    await add.getByRole('textbox', { name: 'Who posted it' }).fill('Lola.Runs')
+    await add.getByRole('button', { name: 'Add' }).click()
+    await toast(page, 'Added. @lola.runs is waiting for your OK on Sales reps & rewards.')
+    await impact.getByRole('button', { name: /^About you/ }).click()
+    const lola = impact.getByRole('group', { name: /^@lola\.runs: / })
+    await expect(lola).toContainText('Collab reel')
+    await expect(lola).toContainText('Too soon to tell') // posted today: Instagram hasn't counted the day yet
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('region', { name: 'Sales' }).getByRole('link', { name: 'Reps & rewards' }).click()
+    await expect(page.getByRole('region', { name: 'Waiting for approval' }).getByRole('group', { name: '@lola.runs: new rep' })).toContainText('Found on Instagram')
+    await page.goBack()
+    await page.getByRole('region', { name: 'What each post did' }).getByRole('button', { name: /^About you/ }).click()
+    await page.getByRole('region', { name: 'What each post did' }).getByRole('group', { name: /^@lola\.runs: / }).getByRole('button', { name: 'Take off @lola.runs’s post' }).click()
+    await toast(page, 'Taken off')
+    await expect(page.getByRole('region', { name: 'What each post did' }).getByRole('group', { name: /^@lola\.runs: / })).toHaveCount(0)
   })
 
   test('Analytics shows TikTok once it is connected, and the LinkedIn Page’s statistics', async ({ page }) => {
@@ -6964,7 +7001,19 @@ test.describe('sales reps and rewards', () => {
     await expect(top.getByRole('listitem', { name: '2. Dani Ortega' })).toContainText('26,20')
 
     const waiting = page.getByRole('region', { name: 'Waiting for approval' })
-    await expect(waiting.getByRole('group')).toHaveCount(6)
+    await expect(waiting.getByRole('group')).toHaveCount(10)
+    // Customers who posted reels with the café (and a tag) were put forward by themselves, nobody paid.
+    const nora = waiting.getByRole('group', { name: '@nora.eats.mbl: new rep' })
+    await expect(nora).toContainText('Found on Instagram')
+    await expect(nora).toContainText('Posted a reel with the café')
+    await expect(nora).toContainText('Reaches 8.900 people')
+    await expect(nora.getByRole('link', { name: 'See it' })).toHaveAttribute('href', 'https://www.instagram.com/reel/DemoCollab1/')
+    await nora.getByRole('button', { name: 'Say yes' }).click()
+    await toast(page, '@nora.eats.mbl is a rep')
+    for (const who of ['@marbella.brunchclub', '@tomas.runs', '@costa.del.sol.food']) {
+      await waiting.getByRole('group', { name: `${who}: new rep` }).getByRole('button', { name: 'Say no' }).click()
+      await toast(page, `${who} isn’t a rep`)
+    }
     const toni = waiting.getByRole('group', { name: 'Toni Vega: new rep' })
     await expect(toni).toContainText('In Dani Ortega’s crew')
     await expect(toni).toContainText('Added from Dani Ortega’s page')
@@ -7130,6 +7179,11 @@ test.describe('sales reps and rewards', () => {
     await toast(page, /2,50.* for San Pedro Eats/)
     await expect(stories.getByRole('article', { name: '@sanpedro.eats' })).toHaveCount(0)
 
+    // Who tagged the café was put forward by themselves; an owner who said no can still add them by hand.
+    const found = page.getByRole('region', { name: 'Waiting for approval' }).getByRole('group', { name: '@costa.del.sol.food: new rep' })
+    await expect(found).toContainText('Tagged the café in a post')
+    await found.getByRole('button', { name: 'Say no' }).click()
+    await toast(page, '@costa.del.sol.food isn’t a rep')
     await stories.getByRole('article', { name: '@costa.del.sol.food' }).getByRole('button', { name: 'Add as a customer' }).click()
     const add = page.getByRole('dialog', { name: 'Add someone' })
     await expect(add.getByRole('radio', { name: /^Customer/ })).toHaveAttribute('aria-checked', 'true')

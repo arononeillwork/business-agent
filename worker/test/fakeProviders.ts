@@ -183,6 +183,10 @@ export class FakeProviders {
     profileLookups: 0,
     /** The Meta app doesn't have the Human Agent feature: replies after 24 hours are refused. */
     noHumanAgent: false,
+    /** Posts and reels the café is an accepted collaborator on (me/collaborative_media), newest first. */
+    collabs: [] as Json[],
+    /** Instagram won't list collabs for this account. */
+    noCollabs: false,
   }
   microsoft = {
     mail: 'cafe@outlook.com' as string | null,
@@ -696,6 +700,10 @@ export class FakeProviders {
         }
         this.instagram.sent.push(body())
         return json({ recipient_id: (body().recipient as Json).id, message_id: `mid-sent-${this.nextId++}` })
+      }
+      if (url.pathname.endsWith('/me/collaborative_media')) {
+        if (this.instagram.noCollabs) return json({ error: { message: '(#100) Tried accessing nonexisting field (collaborative_media) on node type (User)', code: 100 } }, 400)
+        return json({ data: this.instagram.collabs })
       }
       if (url.pathname.endsWith('/me/tags')) {
         if (this.instagram.noTags) return json({ error: { message: '(#10) Application does not have permission for this action', code: 10 } }, 400)

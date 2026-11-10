@@ -4,6 +4,7 @@
 // shape and go through the same steps as the real answers (shared/socialAnalytics.ts). Each day's
 // figures are fixed by its date, so a page shows the same thing every time.
 import { addDays } from '../../shared/time'
+import type { CollabMedia } from '../../shared/mentions'
 import {
   facebookReport, instagramReport, linkedinReport, msDay, noReport, tiktokReport,
   type FacebookStats, type InstagramStats, type LinkedInStats, type MetaInsight, type SocialReport, type SocialSource, type TikTokVideo,
@@ -52,11 +53,41 @@ const VIDEOS = [
   'Guess the coffee origin by taste',
 ]
 
+/**
+ * Three customers' reels with the café as collaborator (on its grid, nobody paid), days ago, and the
+ * new followers each brought the day it went out and the two after, on top of the usual.
+ */
+export const DEMO_COLLABS = [
+  { ago: 3, username: 'nora.eats.mbl', name: 'Nora Eats', followers: 8_900, views: 14_200, likes: 1_180, comments: 64, boost: [31, 17, 6],
+    caption: 'Found the prettiest ube latte in San Pedro 💜 @easy.beans.coffee', bg: '#E9DDF3', fg: '#6B4A8B', word: 'ube' },
+  { ago: 10, username: 'marbella.brunchclub', name: 'Marbella Brunch Club', followers: 23_400, views: 38_600, likes: 2_940, comments: 151, boost: [58, 29, 11],
+    caption: 'Brunch at Easy Beans: açaí bowl, eggs your way and the best flat white on the coast', bg: '#F6E7C8', fg: '#A86B2D', word: 'brunch' },
+  { ago: 17, username: 'tomas.runs', name: 'Tomás', followers: 1_350, views: 2_100, likes: 214, comments: 12, boost: [6, 3, 1],
+    caption: 'Post-run iced matcha at my favourite café 🍵', bg: '#DDE8D5', fg: '#4F6B45', word: 'matcha' },
+]
+
+const PIC = (bg: string, fg: string, word: string) => `data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400"><rect width="300" height="400" fill="${bg}"/><path d="M120 150l70 50-70 50z" fill="${fg}"/><text x="150" y="340" font-family="sans-serif" font-size="30" text-anchor="middle" fill="${fg}">${word}</text></svg>`)}`
+
+/** The demo's collabs as Instagram's collaborative_media lists them. */
+export const demoCollabs = (now: string): CollabMedia[] => DEMO_COLLABS.map((c, i) => ({
+  id: `1790000000000000${i + 1}`, username: c.username, caption: c.caption, media_type: 'VIDEO', media_product_type: 'REELS',
+  permalink: `https://www.instagram.com/reel/DemoCollab${i + 1}/`, timestamp: `${addDays(now, -c.ago)}T18:30:00+0000`, thumbnail_url: PIC(c.bg, c.fg, c.word),
+  total_like_count: c.likes, total_comments_count: c.comments, total_views_count: c.views,
+}))
+
+/** The extra new followers on a day from the collabs. */
+const collabBoost = (d: string, now: string) => DEMO_COLLABS.reduce((n, c) => {
+  const i = ageOf(d, addDays(now, -c.ago))
+  return n + (i >= 0 && i < c.boost.length ? c.boost[i] : 0)
+}, 0)
+
 function instagram(from: string, to: string, now: string, open: string): SocialReport {
   const day = (d: string) => {
     const age = ageOf(d, open), r = seed(`ig${d}`)
     const reach = d > now ? 0 : Math.round(420 * growth(age) * (weekend(d) ? 1.35 : 1) * (0.75 + 0.5 * r))
-    return { reach, views: Math.round(reach * (2.3 + 0.6 * seed(`igv${d}`))), gained: d > now || age < 0 ? 0 : Math.round(14 * growth(age) * (0.6 + 0.8 * r)) }
+    return { reach, views: Math.round(reach * (2.3 + 0.6 * seed(`igv${d}`))),
+      gained: d > now || age < 0 ? 0 : Math.round(14 * growth(age) * (0.6 + 0.8 * r)) + collabBoost(d, now) }
   }
   const all = days(from, to).map(d => ({ date: d, ...day(d) }))
   const reach = all.reduce((n, d) => n + d.reach, 0)
@@ -73,15 +104,19 @@ function instagram(from: string, to: string, now: string, open: string): SocialR
     return {
       id: `ig-${d}`, caption: CAPTIONS[(ageOf(d, open) / 2) % CAPTIONS.length], permalink: `https://www.instagram.com/p/EB${d.replace(/-/g, '')}/`,
       timestamp: `${d}T09:${String(10 + i % 40).padStart(2, '0')}:00+0000`, media_type: r > 0.5 ? 'VIDEO' : 'IMAGE',
+      media_product_type: r > 0.5 ? 'REELS' : 'FEED',
       like_count: Math.round(postReach * 0.11), comments_count: Math.round(postReach * 0.008),
       insights: { reach: postReach, likes: Math.round(postReach * 0.11), comments: Math.round(postReach * 0.008), saved: Math.round(postReach * 0.017),
-        shares: Math.round(postReach * 0.01), views: Math.round(postReach * 2.1) },
+        shares: Math.round(postReach * 0.01), views: Math.round(postReach * 2.1), ...(r > 0.5 ? {} : { follows: Math.round(postReach * 0.004) }) },
     }
   })
+  // New followers day by day, as Instagram keeps them: the last 30 days, from a week before the period, up to yesterday.
+  const since = [addDays(from, -7), addDays(now, -29)].sort()[1], last = to < addDays(now, -1) ? to : addDays(now, -1)
+  const follower_days = since <= last ? days(since, last).map(d => ({ date: d, value: day(d).gained })) : null
   return instagramReport({
-    username: 'easy.beans.coffee', followers, totals, media,
+    username: 'easy.beans.coffee', followers, totals, media, follower_days,
     reach_days: all.map(d => ({ date: d.date, value: d.reach })),
-    follower_gain: from >= addDays(now, -30) ? all.reduce((n, d) => n + d.gained, 0) : null,
+    follower_gain: from >= addDays(now, -29) ? all.reduce((n, d) => n + d.gained, 0) : null,
   }, from, to)
 }
 

@@ -1,6 +1,7 @@
 import type { InboxConversation, InboxMessage, MessageKind, TaggedPost } from '../../shared/messages'
 import type { PostKind, PostMedia } from '../../shared/types'
 import { insightTotals, type InstagramStats, type MetaInsight } from '../../shared/socialAnalytics'
+import type { CollabMedia } from '../../shared/mentions'
 
 // Instagram (professional account), connected by the business itself with one click: "Instagram API
 // with Instagram Login". The owner signs in on instagram.com and allows access; we keep a long-lived
@@ -319,6 +320,21 @@ export async function tagged(cfg: InstagramConfig): Promise<TaggedPost[]> {
   return res.data.map(p => ({ id: p.id, username: p.username, caption: p.caption, mediaUrl: p.thumbnail_url ?? p.media_url, permalink: p.permalink, at: p.timestamp }))
 }
 
+// Collab posts: a reel or post someone made with the café as an accepted collaborator. It's on the
+// café's own grid, but not in me/media; Instagram lists them on their own (collaborative_media).
+const COLLAB_FIELDS = 'id,username,caption,media_type,media_product_type,permalink,timestamp,thumbnail_url,media_url,'
+  + 'total_like_count,total_comments_count,total_views_count,shares_count,saved_count'
+// If Instagram refuses one of the figures, ask again for the plain ones.
+const COLLAB_PLAIN = 'id,username,caption,media_type,permalink,timestamp,thumbnail_url,media_url,like_count,comments_count'
+
+/** The latest posts and reels the café is an accepted collaborator on (up to 50), newest first. */
+export async function collabs(cfg: InstagramConfig): Promise<CollabMedia[]> {
+  const path = (fields: string) => `me/collaborative_media?fields=${fields}&limit=50`
+  const res = await graph<{ data: CollabMedia[] }>(cfg, path(COLLAB_FIELDS))
+    .catch(e => (/field|param/i.test(String(e)) ? graph<{ data: CollabMedia[] }>(cfg, path(COLLAB_PLAIN)) : Promise.reject(e)))
+  return res.data ?? []
+}
+
 // ---- Statistics (Analytics page) ---------------------------------------------------------------
 // The account's insights need instagram_business_manage_insights (asked for since Analytics came;
 // an account connected before is asked to connect again). Instagram adds each metric up over at
@@ -356,12 +372,19 @@ export async function mediaSince(cfg: InstagramConfig, since: string, pages = 4)
   return out
 }
 
-/** How one post did (reach, likes, comments, saves, shares, views); empty when Instagram won't say for that kind of post. */
-export async function postInsights(cfg: InstagramConfig, id: string): Promise<Record<string, number>> {
+const POST_METRICS = 'reach,likes,comments,saved,shares,views'
+
+/**
+ * How one post did (reach, likes, comments, saves, shares, views, and for a photo post the people who
+ * followed from it); empty when Instagram won't say for that kind of post.
+ */
+export async function postInsights(cfg: InstagramConfig, id: string, feed = false): Promise<Record<string, number>> {
+  const ask = async (metrics: string) =>
+    insightTotals((await graph<{ data: MetaInsight[] }>(cfg, `${encodeURIComponent(id)}/insights?metric=${metrics}`)).data)
   try {
-    const r = await graph<{ data: MetaInsight[] }>(cfg, `${encodeURIComponent(id)}/insights?metric=reach,likes,comments,saved,shares,views`)
-    return insightTotals(r.data)
+    return await ask(feed ? `${POST_METRICS},follows` : POST_METRICS)
   } catch {
-    return {}
+    // Follows isn't given for every photo post: ask again without it.
+    return feed ? ask(POST_METRICS).catch(() => ({})) : {}
   }
 }
