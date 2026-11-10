@@ -10,6 +10,7 @@ import AddLinkIcon from '@mui/icons-material/AddLinkRounded'
 import DeleteIcon from '@mui/icons-material/DeleteOutlineRounded'
 import PlayIcon from '@mui/icons-material/PlayArrowRounded'
 import { useState } from 'react'
+import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAction, useNotify } from '../app/Notify'
 import { BarChart, type BarPoint } from '../components/charts'
@@ -156,8 +157,8 @@ export function PostImpactCard({ impact, followerDays, from, to, periodName, col
           {t('Your posts, and the ones customers made about you: collab reels, tags and story mentions. Each shows the followers you gained the day it went out and the two days after, against a usual three days.')}
         </Typography>
         {!collabsListed && (
-          <Alert severity="info" sx={{ mb: 2 }} action={<Button size="small" onClick={() => setAdding(true)} sx={{ whiteSpace: 'nowrap' }}>{t('Add a post')}</Button>}>
-            {t('Instagram doesn’t share collab reels with the app. Add each one by its link: whoever posted it goes on Sales reps & rewards too.')}
+          <Alert severity="info" sx={{ mb: 2 }} action={<Button size="small" component={RouterLink} to="/connections" sx={{ whiteSpace: 'nowrap' }}>{t('Connections')}</Button>}>
+            {t('Collab reels come in through your Facebook Page: connect Facebook again on Connections and allow access to Instagram. From then on they come in by themselves, and whoever posted them goes on Sales reps & rewards.')}
           </Alert>
         )}
         <FollowersChart days={followerDays ?? []} posts={impact} from={from} to={to} periodName={periodName} />

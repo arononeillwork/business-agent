@@ -259,6 +259,23 @@ tag: add the **Human Agent** feature to the Meta app), after that only from Meta
 `pages_messaging` is optional: a Page connected before Messenger was added, or with that box
 unticked, keeps posting, and the Messages page asks to connect Facebook again.
 
+**Collab reels (`instagram_basic`).** A customer's reel or post with the café's Instagram as
+collaborator is on the café's grid, but Instagram Login (the Instagram connection) doesn't list them:
+it answers "nonexisting field (collaborative_media)". Facebook Login does, for the Instagram account
+linked to the Page, so connecting Facebook also asks for `instagram_basic`, and the Instagram check
+every 15 minutes reads them through the Page whenever Instagram can't (`worker/mentions.ts`). Once:
+
+1. The Meta app → **Use cases** → the Facebook Login / Pages use case → **Customize** → add the
+   `instagram_basic` permission (people with a role on the app have it straight away; App Review
+   grants it to others).
+2. The café's Instagram is a professional account **linked to the Page** (Instagram → Settings →
+   Accounts Center, or the Page's settings → Linked accounts).
+3. In the app: Connections → connect **Facebook** again and leave Instagram ticked.
+
+The Worker variable `FACEBOOK_COLLABS` (on) is what makes it ask: set it to `off` if the app can't
+have `instagram_basic` yet, because Facebook stops a developer's sign-in that asks for a permission
+the app doesn't have. Analytics → Instagram says when collab reels aren't coming in, and why.
+
 ## 8. TikTok (Social planner)
 
 1. <https://developers.tiktok.com> → Manage apps → **Create app** (platform **Web**, website

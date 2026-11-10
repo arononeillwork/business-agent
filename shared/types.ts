@@ -430,6 +430,10 @@ export interface Integration {
     username?: string
     /** Instagram: false once Instagram has said it doesn't list the posts the café is a collaborator on (Instagram Login doesn't). */
     can_list_collabs?: boolean
+    /** Instagram: where the collab reels come from (Instagram itself, or the Facebook Page's connection; null: neither can). */
+    collabs_via?: 'instagram' | 'facebook' | null
+    /** Facebook: allowed instagram_basic (the collab reels of the Instagram account linked to the Page), and that account's id (null: none linked). */
+    instagram?: boolean; instagram_id?: string | null
     /** Meta Ads and Google Ads: the ad accounts the person can use, and the chosen one. */
     accounts?: { id: string; name: string; currency: string }[]; account_id?: string; account_name?: string
     /** Meta Ads: allowed to pause, resume and change budgets (not only read). */

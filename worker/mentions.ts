@@ -9,7 +9,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { businessIdOf, type Env } from './supabase'
 import { reportError } from './errors'
 import * as instagram from './providers/instagram'
-import { instagramSession } from './connections'
+import { facebookSession, instagramSession } from './connections'
+import * as facebook from './providers/facebook'
 import { syncRepFollowers } from './repPage'
 import { refreshFollowerDays } from './socialAnalytics'
 import { mediaStorage, storeMedia } from './media'
@@ -33,7 +34,7 @@ export async function checkMentions(env: Env, db: SupabaseClient): Promise<numbe
     db.from('settings').select('alert_instagram_mentions').eq('id', 1).single(),
   ])
   if (row?.status !== 'connected') return 0
-  const ext = (row.external ?? {}) as { user_id?: string; username?: string; can_see_insights?: boolean; can_list_collabs?: boolean }
+  const ext = (row.external ?? {}) as InstagramExternal
   const cfg = await instagramSession(env, db)
   const business = businessIdOf(db)
   const self = ext.username ?? null
@@ -47,17 +48,15 @@ export async function checkMentions(env: Env, db: SupabaseClient): Promise<numbe
     }))))
   }
 
-  // 1. Tags and collabs. Tagged posts need "Manage comments"; collabs are asked for on their own.
-  //    Instagram Login doesn't list them (collaborative_media is Facebook Login's): once Instagram has
-  //    said so, it isn't asked again until Instagram is connected again (which starts the connection's
-  //    notes afresh), and Analytics says to add collabs by their link. HQ hears why, once.
-  let listed = ext.can_list_collabs !== false
-  const [tagged, collabs] = await Promise.all([
+  // 1. Tags and collabs. Tagged posts need "Manage comments"; collabs come from readCollabs.
+  const [tagged, found] = await Promise.all([
     instagram.tagged(cfg).catch(() => [] as TaggedPost[]),
-    listed ? instagram.collabs(cfg).catch(async e => { listed = false; await reportError(env, 'instagram collabs', e, { business }); return [] as CollabMedia[] })
-      : Promise.resolve([] as CollabMedia[]),
+    readCollabs(env, db, cfg, ext),
   ])
-  if (ext.can_list_collabs !== listed) await db.from('integrations').update({ external: { ...ext, can_list_collabs: listed } }).eq('provider', 'instagram')
+  const collabs = found.media ?? []
+  if (ext.can_list_collabs !== found.instagram || (ext.collabs_via ?? null) !== found.via) {
+    await db.from('integrations').update({ external: { ...ext, can_list_collabs: found.instagram, collabs_via: found.via } }).eq('provider', 'instagram')
+  }
   const posts = await keepMentions(db, mentionsIn([], tagged), collabMentions(collabs))
   await tell(posts)
   await putForward(db, self).catch(e => reportError(env, 'instagram: putting posters forward as reps', e, { business }))
@@ -79,9 +78,56 @@ export async function checkMentions(env: Env, db: SupabaseClient): Promise<numbe
     if (stories.length) await putForward(db, self, chats).catch(e => reportError(env, 'instagram: putting posters forward as reps', e, { business }))
   }
   await db.from('provider_cache').upsert({ key: 'instagram:mentions-check', fetched_at: new Date().toISOString(),
-    data: { tagged: tagged.length, collabs: listed ? collabs.length : null, chats: chats?.length ?? null, new: posts.length + stories.length } },
+    data: { tagged: tagged.length, collabs: found.media ? collabs.length : null, via: found.via, chats: chats?.length ?? null, new: posts.length + stories.length } },
   { onConflict: 'business_id,key' })
   return posts.length + stories.length
+}
+
+type InstagramExternal = {
+  user_id?: string; username?: string; can_see_insights?: boolean
+  /** False once Instagram Login has said it doesn't list collabs (it doesn't: collaborative_media is Facebook Login's). */
+  can_list_collabs?: boolean
+  /** Where the collabs come from: Instagram itself, or the Facebook Page's connection (null: neither can). */
+  collabs_via?: 'instagram' | 'facebook' | null
+}
+
+/**
+ * The posts and reels the café's Instagram is an accepted collaborator on (a customer's collab reel),
+ * and where they came from. Instagram Login doesn't list them: once it has said so it isn't asked again,
+ * until Instagram is connected again (which starts the connection's notes afresh). Facebook Login does,
+ * so they're read through the Facebook Page's connection once it was allowed instagram_basic and the
+ * café's Instagram is linked to the Page (the Instagram account's id is kept on the Facebook connection).
+ * media null: neither can, and Analytics says so. What fails, HQ hears about.
+ */
+export async function readCollabs(env: Env, db: SupabaseClient, cfg: instagram.InstagramConfig, ext: InstagramExternal):
+  Promise<{ media: CollabMedia[] | null; via: 'instagram' | 'facebook' | null; instagram: boolean }> {
+  const business = businessIdOf(db)
+  let fromInstagram = ext.can_list_collabs !== false
+  if (fromInstagram && ext.collabs_via !== 'facebook') {
+    try {
+      return { media: await instagram.collabs(cfg), via: 'instagram', instagram: true }
+    } catch (e) {
+      fromInstagram = false
+      if (ext.can_list_collabs !== false) await reportError(env, 'instagram collabs', e, { business })
+    }
+  }
+  const { data: fb } = await db.from('integrations').select('status, external').eq('provider', 'facebook').maybeSingle()
+  const fx = (fb?.external ?? {}) as { instagram?: boolean; instagram_id?: string | null }
+  if (fb?.status !== 'connected' || fx.instagram !== true || fx.instagram_id === null) return { media: null, via: null, instagram: fromInstagram }
+  try {
+    const s = await facebookSession(env, db)
+    let id: string | null | undefined = fx.instagram_id
+    if (!id) {
+      // Asked once: the Instagram account linked to the Page (none: noted as null, until Facebook is connected again).
+      id = (await facebook.linkedInstagram(s))?.id ?? null
+      await db.from('integrations').update({ external: { ...fx, instagram_id: id } }).eq('provider', 'facebook')
+      if (!id) return { media: null, via: null, instagram: fromInstagram }
+    }
+    return { media: await facebook.collabs(s, id), via: 'facebook', instagram: fromInstagram }
+  } catch (e) {
+    await reportError(env, 'instagram collabs through Facebook', e, { business })
+    return { media: null, via: null, instagram: fromInstagram }
+  }
 }
 
 /**

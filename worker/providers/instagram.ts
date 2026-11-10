@@ -325,10 +325,10 @@ export async function tagged(cfg: InstagramConfig): Promise<TaggedPost[]> {
 
 // Collab posts: a reel or post someone made with the café as an accepted collaborator. It's on the
 // café's own grid, but not in me/media; Instagram lists them on their own (collaborative_media).
-const COLLAB_FIELDS = 'id,username,caption,media_type,media_product_type,permalink,timestamp,thumbnail_url,media_url,'
+export const COLLAB_FIELDS = 'id,username,caption,media_type,media_product_type,permalink,timestamp,thumbnail_url,media_url,'
   + 'total_like_count,total_comments_count,total_views_count,shares_count,saved_count'
 // If Instagram refuses one of the figures, ask again for the plain ones.
-const COLLAB_PLAIN = 'id,username,caption,media_type,permalink,timestamp,thumbnail_url,media_url,like_count,comments_count'
+export const COLLAB_PLAIN = 'id,username,caption,media_type,permalink,timestamp,thumbnail_url,media_url,like_count,comments_count'
 
 /** The latest posts and reels the café is an accepted collaborator on (up to 50), newest first. */
 export async function collabs(cfg: InstagramConfig): Promise<CollabMedia[]> {

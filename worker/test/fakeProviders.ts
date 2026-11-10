@@ -221,6 +221,11 @@ export class FakeProviders {
     /** What Messenger's User Profile API says about people who messaged the Page (anyone else: not found). */
     people: { 'psid-1': { first_name: 'Lucía', last_name: 'García', profile_pic: 'https://platform-lookaside.fbsbx.test/psid-1.jpg' } } as Record<string, Json>,
     profileLookups: 0,
+    /** The Instagram account linked to the Page (instagram_business_account), and the posts and reels it's a collaborator on. */
+    instagram: { id: '17841400000000001', username: 'easy.beans.coffee' } as { id: string; username: string } | null,
+    collabs: [] as Json[],
+    /** How many times the linked Instagram was asked for. */
+    instagramLookups: 0,
   }
   tiktok = {
     scope: 'user.info.basic,video.publish',
@@ -951,11 +956,24 @@ export class FakeProviders {
       const chat = this.facebook.chats.find(c => c.id === messenger[3])
       return chat ? json(raw(chat, 20)) : json({ error: { message: 'Unsupported get request', code: 100 } }, 400)
     }
+    // The Page's Instagram's collab posts (Facebook Login, instagram_basic), with a Page token.
+    const igCollabs = url.host === 'graph.facebook.com' && url.pathname.match(/\/v[\d.]+\/(\d+)\/collaborative_media$/)
+    if (igCollabs) {
+      const token = new Headers(init.headers).get('authorization')?.replace('Bearer ', '')
+      if (this.facebook.revoked || !this.facebook.pages.some(p => p.access_token === token)) return json({ error: { message: 'Error validating access token', code: 190 } }, 400)
+      if (!this.facebook.granted.includes('instagram_basic')) return json({ error: { message: '(#10) Application does not have permission for this action', code: 10 } }, 400)
+      if (igCollabs[1] !== this.facebook.instagram?.id) return json({ error: { message: 'Unsupported get request', code: 100 } }, 400)
+      return json({ data: this.facebook.collabs })
+    }
     const pageCall = url.host === 'graph.facebook.com' && url.pathname.match(/\/v[\d.]+\/(page-[\w-]+)(\/photos|\/feed)?$/)
     if (pageCall) {
       const token = new Headers(init.headers).get('authorization')?.replace('Bearer ', '')
       const page = this.facebook.pages.find(p => p.id === pageCall[1])
       if (this.facebook.revoked || !page || token !== page.access_token) return json({ error: { message: 'Error validating access token: The session has been invalidated.', code: 190 } }, 400)
+      if (!pageCall[2] && (url.searchParams.get('fields') ?? '').includes('instagram_business_account')) {
+        this.facebook.instagramLookups++
+        return json({ id: page.id, ...(this.facebook.instagram ? { instagram_business_account: this.facebook.instagram } : {}) })
+      }
       if (!pageCall[2]) return json({ id: page.id, name: page.name, followers_count: 812 })
       const f = form()
       this.facebook.posts.push({ page: page.id, kind: pageCall[2] === '/photos' ? 'photos' : 'feed', caption: f.get('caption') ?? f.get('message') ?? undefined, url: f.get('url') ?? undefined })

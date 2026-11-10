@@ -41,7 +41,7 @@ import {
   CONNECTORS, PROVIDERS, READ_MAIL, ROW_COLUMNS, SCOPES, canReadMail, squareWebhookUrl, calendarSeen, calendarFetched, checkAll, checkOne, connectedOf, connectorConfigured,
   connectorGrant, explain, facebookOAuth, facebookSession, googleAdsConfig, googleConfig, googleSession, instagramOAuth, instagramSession, isCalendarApp, isGoogle,
   metaAdsOAuth, proveMetaAds,
-  asksForStats, lasting, linkedinOAuth, linkedinSession, markBroken, msConfig, proveFacebook, proveInstagram, proveLinkedIn, proveNew, proveSpotify, proveSquare, proveStripe,
+  asksForCollabs, asksForStats, lasting, linkedinOAuth, linkedinSession, markBroken, msConfig, proveFacebook, proveInstagram, proveLinkedIn, proveNew, proveSpotify, proveSquare, proveStripe,
   proveSumUp, proveTikTok, setIntegration, showInstagramHandle, showMailboxAddress, spotifyConfig, spotifySession, squareOAuth, squareSession, stripeOAuth,
   stripeSession, sumupOAuth, sumupSession, tellAdmins, tiktokOAuth, tiktokSession, waConfig, type Connector, type LinkedInExternal, type Provider,
 } from './connections'
@@ -916,7 +916,7 @@ const keep = async (env: Env, db: SupabaseClient, provider: Provider, secret: un
 integrations.post('/api/integrations/facebook/start', async c => {
   const cfg = facebookOAuth(c.env, new URL(c.req.url).origin)
   if (!cfg) return c.json({ error: 'Facebook needs the Meta app keys first (META_APP_ID and META_APP_SECRET; see docs/INTEGRATIONS.md).' }, 400)
-  return c.json({ url: facebook.authUrl(cfg, await startState(c, 'facebook'), asksForStats(c.env, 'facebook')) })
+  return c.json({ url: facebook.authUrl(cfg, await startState(c, 'facebook'), asksForStats(c.env, 'facebook'), asksForCollabs(c.env)) })
 })
 
 integrations.get('/api/integrations/facebook/callback', c => appCallback(c, 'facebook', async (state, origin, db) => {
@@ -931,7 +931,9 @@ integrations.get('/api/integrations/facebook/callback', c => appCallback(c, 'fac
     last_checked_at: proven.chosen ? now : null, last_error: null, account_label: proven.label,
     external: { ...proven.external, messenger: granted.includes('pages_messaging'),
       // The Page's statistics (read_insights, the Analytics page): optional the same way.
-      insights: granted.includes('read_insights') } })
+      insights: granted.includes('read_insights'),
+      // The Instagram account linked to the Page (instagram_basic): its collab reels, which Instagram Login doesn't list.
+      instagram: granted.includes('instagram_basic') } })
 }))
 
 // Which Page to post to (when the owner manages more than one): connected once that Page answers.

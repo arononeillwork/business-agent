@@ -123,6 +123,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
   whether they're a rep, waiting for an owner's OK, or not one yet (Add as a rep), and their posts to open
   (`GET /api/analytics/instagram/posters`, `shared/creators.ts`). The Instagram check looks up only the people in the chats who
   matter (a story mention, a rep): looking up all 25 used up the scheduled run's 50 requests before anything was kept.
+- Collab reels come in by themselves through the Facebook Page: Instagram Login (the Instagram connection) doesn't list the
+  posts the café is a collaborator on, Facebook Login does with `instagram_basic`, which connecting Facebook asks for (unless
+  `FACEBOOK_COLLABS` is off). The Instagram check reads them through the Page whenever Instagram can't, after a one-time
+  setup ([docs/INTEGRATIONS.md](docs/INTEGRATIONS.md), section 7).
 - Business Agent's own reps ([docs/REPS_PLAN.md](docs/REPS_PLAN.md)): people who know business owners sell Business
   Agent for us, run as a business of its own in the app, **Business Agent HQ**, on its Sales reps & rewards page. Each rep has
   a code (Julio, for cafés: JULIO27) and leads kinds of business (café, restaurant & bar, pub, salon & beauty, real estate,

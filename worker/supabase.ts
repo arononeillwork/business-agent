@@ -62,6 +62,7 @@ export interface Env {
   LINKEDIN_PAGES?: string             // 'off': post as the person only (the app has no Community Management API yet)
   LINKEDIN_VERSION?: string           // var: Posts API version, YYYYMM (default in connections.ts)
   STATS_SCOPES?: string               // var: the platforms whose statistics permissions sign-in asks for (Analytics), e.g. 'instagram,tiktok' or 'all'
+  FACEBOOK_COLLABS?: string           // var: 'off' stops connecting Facebook asking for instagram_basic (the collab reels Instagram Login doesn't list)
   GOOGLE_ADS_DEVELOPER_TOKEN?: string // Google Ads API developer token (Google Ads manager account → API Center): the Ads page
   GOOGLE_ADS_API_VERSION?: string     // var, e.g. v21 (default in providers/googleAds.ts)
   MS_CLIENT_ID?: string               // Microsoft app (Outlook email, OneDrive files); set by the Microsoft setup workflow
