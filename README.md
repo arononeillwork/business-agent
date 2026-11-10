@@ -911,3 +911,22 @@ the owner keeps what they tick. All of it lands on the Brand and Business pages 
 
 Every business shares the one database, Worker and app, each seeing only its own data
 (`docs/SEVERAL_BUSINESSES.md`). Easy Beans is business 1.
+
+## Help and error alerts
+
+**Help** in the account menu (`src/components/HelpDialog.tsx`) says how to reach The Business Agent
+(`LEGAL.supportEmail`), links the set-up guide (admins), points to AI assistants and has the privacy policy and
+terms.
+
+Errors reach HQ without a third-party service or any key. Something that breaks while a page draws shows a calm
+"Something went wrong" screen with Reload (`src/app/ErrorBoundary.tsx`, around the app and around each page, so the
+menu stays), and is reported, as are the window's errors and promises nobody caught (`src/app/errorReports.ts`: at
+most five a page, each different, with only the message, stack, path, build and browser; never a form's contents or a
+token). The Worker takes them at `POST /api/errors`, signed in or not (8 KB at most, a few at a time from one address),
+and keeps its own unexpected errors (`app.onError`, with the method and route) and the scheduled jobs' failures
+(`reportError`) the same way (`worker/errors.ts`). Each kind of error is one row of `app_errors` (where it happened and
+its message without the numbers, ids and addresses that change: `shared/appErrors.ts`), with how often, first and last
+seen, the last stack and path, and whose it was. A new kind, or one back after a quiet day, is a notification to HQ's
+admins, pushed to their phones like any other (once a day each at most, five an hour in all; the app_errors
+migration). HQ's Businesses page lists them under **Errors**, each opening to its stack. Only the Worker's service
+role writes the table and only HQ's admins read it; kinds unseen for 90 days go each night.

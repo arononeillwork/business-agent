@@ -5185,6 +5185,8 @@ export function createDemoApi(): Api {
       business, billing: demoBilling, team: () => profiles.filter(p => p.role !== 'partner'), shifts: () => shifts,
       timecards: () => entries.map(e => ({ ...e })), daysAgo,
     }),
+    // The demo tells nobody about its errors: they stay in the browser's console.
+    async reportError() {},
     async referrals() {
       requireAdmin()
       return { code: referralDemo.code, opens: referralDemo.opens, referrals: [...referralDemo.referrals] }

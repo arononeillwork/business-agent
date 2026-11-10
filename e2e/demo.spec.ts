@@ -11383,3 +11383,56 @@ test('a Spanish business adds its town’s two local holidays: asked at sign-up,
   await expect(page.getByRole('heading', { name: /Hola, Rocío/ })).toBeVisible()
   await expect(moved).toHaveCount(0)
 })
+
+test('Help in the account menu: how to reach The Business Agent, the set-up guide, an AI assistant, privacy and terms', async ({ page }) => {
+  await open(page, '/')
+  await fromAccountMenu(page, 'Help')
+  const help = page.getByRole('dialog', { name: 'Help' })
+  await expect(help.getByRole('link', { name: 'thebusinesssagent@gmail.com' })).toHaveAttribute('href', 'mailto:thebusinesssagent@gmail.com')
+  await expect(help.getByRole('link', { name: /^Set-up guide/ })).toHaveAttribute('href', '/setup')
+  await expect(help.getByRole('link', { name: /^Ask an AI assistant/ })).toHaveAttribute('href', '/ai-assistants')
+  await expect(help.getByRole('link', { name: 'Privacy policy' })).toHaveAttribute('href', '/privacy')
+  await expect(help.getByRole('link', { name: 'Terms of service' })).toHaveAttribute('href', '/terms')
+  await help.getByRole('link', { name: /^Ask an AI assistant/ }).click()
+  await expect(page.getByRole('heading', { name: 'AI assistants', level: 1 })).toBeVisible()
+  await expect(help).toHaveCount(0)
+
+  // Someone on the team who isn't an admin: the set-up guide is the admins', the rest is the same.
+  await signInAs(page, 'maria@example.com')
+  await fromAccountMenu(page, 'Help')
+  await expect(help.getByRole('link', { name: 'thebusinesssagent@gmail.com' })).toBeVisible()
+  await expect(help.getByRole('link', { name: /^Set-up guide/ })).toHaveCount(0)
+  await help.getByRole('button', { name: 'Close' }).click()
+  await expect(help).toHaveCount(0)
+})
+
+test('the back-office’s errors: what went wrong where, how often and when, opening to the stack; a café’s admin has none of it', async ({ page }) => {
+  await open(page, '/hq/businesses')
+  await expect(page.getByRole('heading', { level: 1, name: 'Businesses' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Errors' })).toHaveCount(0)
+
+  // The Business Agent HQ's admin.
+  await page.goto('/hq/businesses?hq&demo')
+  const errors = page.getByRole('region', { name: 'Errors' })
+  const table = errors.getByRole('table', { name: 'Errors' })
+  const row = (text: string) => table.getByRole('row').filter({ hasText: text })
+  // The latest first: on a phone at Café Lola two hours ago, three times so far.
+  await expect(table.getByRole('row').nth(1)).toContainText('Cannot read properties of undefined (reading \'starts_at\')')
+  await expect(row('Cannot read properties').getByRole('cell').nth(1)).toHaveText('app')
+  await expect(row('Cannot read properties').getByRole('cell').nth(2)).toHaveText('3')
+  await expect(row('Instagram answered 500').getByRole('cell').nth(1)).toHaveText('cron: outbox')
+  await expect(row('Instagram answered 500').getByRole('cell').nth(2)).toHaveText('12')
+
+  await row('Cannot read properties').getByRole('button', { name: 'Show details' }).click()
+  const stack = errors.getByLabel('Stack')
+  await expect(stack).toContainText('at WeekRow (https://businesssagent.com/assets/RotaPage-C81kq2Lm-r2.js:1:20412)')
+  await expect(errors.getByText('/rota', { exact: true })).toBeVisible()
+  await expect(errors.getByText('Café Lola', { exact: true })).toBeVisible()
+  await errors.getByRole('button', { name: 'Hide details' }).click()
+  await expect(stack).toHaveCount(0)
+
+  // One the Worker ran into: its route, and no stack kept.
+  await row('Stripe didn’t answer in time').getByRole('button', { name: 'Show details' }).click()
+  await expect(errors.getByText('No stack was kept for this one.')).toBeVisible()
+  await expect(errors.getByText('/api/hq/businesses/14/extend-trial', { exact: true })).toBeVisible()
+})

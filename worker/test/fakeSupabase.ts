@@ -8,6 +8,7 @@
 import { PROVIDERS } from '../connections'
 import { CONNECTION_FEATURE } from '../../shared/plans'
 import { forgetSignIns } from '../signedIn'
+import { ALERTS } from '../../shared/appErrors'
 
 export type Row = Record<string, unknown>
 
@@ -36,6 +37,8 @@ const UUID_ID = new Set(['competitors', 'competitor_items', 'competitor_prices',
 export const FIRST_BUSINESS = 1
 /** Tables that aren't any one business's, and the business row itself (its id is the business). */
 const UNSCOPED = new Set(['business', 'plan_limits', 'pay_per_use'])
+// The Business Agent's own error log (the app_errors migration).
+UNSCOPED.add('app_errors')
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 const bearerOf = (h: Headers) => h.get('authorization')?.replace(/^Bearer\s+/i, '') ?? ''
@@ -255,6 +258,14 @@ export class FakeSupabase {
         if (g) Object.assign(g, { stripe_invoice_item: a.p_invoice_item, charged_at: new Date().toISOString() })
         return json(null)
       }
+      // The app_errors migration: one row per kind of error, and HQ's admins told about a new one.
+      if (rpc[1] === 'record_app_error') return json(this.recordAppError(JSON.parse(String(init.body)) as Row))
+      if (rpc[1] === 'clear_old_app_errors') {
+        const before = this.table('app_errors').length
+        const cutoff = Date.now() - ALERTS.KEEP_DAYS * 86_400_000
+        this.tables.app_errors = this.table('app_errors').filter(r => Date.parse(String(r.last_seen)) >= cutoff)
+        return json(before - this.table('app_errors').length)
+      }
       // Migration 47: delete WhatsApp messages older than the chosen time, returning their files.
       if (rpc[1] === 'purge_whatsapp_messages') {
         const days = Number(this.table('settings')[0]?.whatsapp_retention_days ?? 90)
@@ -371,6 +382,45 @@ export class FakeSupabase {
     this.refreshTokens.set(refresh, uid)
     return { access_token: access, refresh_token: refresh, token_type: 'bearer', expires_in: expiresIn, expires_at: Math.floor(Date.now() / 1000) + expiresIn,
       user: { id: uid, aud: 'authenticated', role: 'authenticated', email: person.email, app_metadata: {}, user_metadata: {}, created_at: '' } }
+  }
+
+  /**
+   * public.record_app_error() (the app_errors migration; supabase/tests prove the real one): the kind's row
+   * counted, or made, with the last one's details; HQ's active admins told (notify_hq()) about a new kind, or one
+   * back after a quiet day, at most once a day each and ALERTS_AN_HOUR in all. Past NEW_AN_HOUR new kinds an hour,
+   * a new one is let go.
+   */
+  private recordAppError(a: Row): boolean {
+    const now = Date.now(), at = new Date(now).toISOString(), hour = 3_600_000
+    const time = (v: unknown) => (v ? Date.parse(String(v)) : -Infinity)
+    const rows = this.table('app_errors')
+    let row = rows.find(r => r.fingerprint === a.p_fingerprint)
+    if (!row && rows.filter(r => time(r.first_seen) > now - hour).length >= ALERTS.NEW_AN_HOUR) return false
+    const last = {
+      source: a.p_source, message: a.p_message, last_stack: a.p_stack ?? null, last_path: a.p_path ?? null, last_detail: a.p_detail ?? {},
+      business_id: this.table('business').some(b => b.id === a.p_business) ? a.p_business : null,
+      user_id: this.table('profiles').some(p => p.id === a.p_user) ? a.p_user : null,
+    }
+    if (row) {
+      Object.assign(row, last, { times: Number(row.times) + 1, alert_due: row.alert_due === true || time(row.last_seen) <= now - ALERTS.QUIET_HOURS * hour, last_seen: at })
+    } else {
+      row = { fingerprint: a.p_fingerprint, ...last, times: 1, first_seen: at, last_seen: at, alert_due: true, alerted_at: null }
+      rows.push(row)
+    }
+    if (!row.alert_due || time(row.alerted_at) > now - 24 * hour) return false
+    if (rows.filter(r => time(r.alerted_at) > now - hour).length >= ALERTS.ALERTS_AN_HOUR) return false
+    Object.assign(row, { alert_due: false, alerted_at: at })
+    const said = String(row.message).replace(/\s+/g, ' ')
+    const hq = this.table('business').find(b => b.is_hq === true)
+    for (const p of this.table('profiles')) {
+      if (!hq || (p.business_id ?? FIRST_BUSINESS) !== hq.id || p.active === false || p.role !== 'admin') continue
+      this.table('notifications').push({
+        id: this.nextId++, business_id: hq.id, profile_id: p.id, link: '/hq/businesses', created_at: at, read_at: null, pushed_at: null,
+        title: `${row.times === 1 ? 'New error: ' : 'An error is back: '}${said.length > 100 ? `${said.slice(0, 99)}…` : said}`,
+        body: `In ${String(row.source)}. The details are on Businesses, under Errors.`,
+      })
+    }
+    return true
   }
 
   /** Migration 28: connecting (or choosing) one app in a group disconnects the others. */

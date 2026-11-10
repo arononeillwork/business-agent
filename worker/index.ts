@@ -57,6 +57,7 @@ import { addNationalHolidays } from './holidays'
 import { remindTownHolidays } from './holidays'
 import { hq } from './hq'
 import { account } from './account'
+import { answerError, errors, reportError } from './errors'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
 // Every minute from 02:00 to 03:59 UTC: the night's connection checks, a few a run (checkDue), each
@@ -354,6 +355,9 @@ app.route('/', socialMusic)
 // Push notifications: the public key phones and computers subscribe with.
 app.route('/', push)
 
+// Errors the app runs into, for HQ (worker/errors.ts): signed in or not.
+app.route('/', errors)
+
 // REST API for scripts, n8n, Zapier (same tools and rules as the AI connector).
 app.route('/api/v1', rest)
 
@@ -381,7 +385,8 @@ app.get('/assets/*', async c => {
 app.on(['GET', 'HEAD'], '/video/*', c => serveVideo(c.env.ASSETS, c.req.raw))
 
 app.notFound(c => c.json({ error: 'Not found' }, 404))
-app.onError((err, c) => c.json({ error: err.message }, 500))
+// An unexpected error is kept for HQ, with its method and route (worker/errors.ts); the answer stays the same.
+app.onError(answerError)
 
 // The OAuth provider serves /register, /token, discovery metadata and guards /mcp;
 // everything else falls through to the Hono app (static assets are served before the Worker).
@@ -434,9 +439,11 @@ export default {
     const db = serviceClient(env)
     // The jobs in SQL go through every business in one call (each_business); one business's failing
     // doesn't stop the others'.
-    const each = (job: string) => Promise.resolve(db.rpc('each_business', { p_job: job })).then(({ data, error }) => {
-      if (error) console.error(`${job} failed`, error.message)
-      else if (data) console.error(`${job} failed for ${data} business(es)`)
+    // A job that fails is logged and kept for HQ, who hear about a new kind of failure (worker/errors.ts).
+    const failed = (job: string, id?: number) => (e: unknown) => reportError(env, `cron: ${job}`, e, { business: id })
+    const each = (job: string) => Promise.resolve(db.rpc('each_business', { p_job: job })).then(async ({ data, error }) => {
+      if (error) await failed(job)(error.message)
+      else if (data) await failed(job)(`${job} failed for ${data} business(es)`)
     })
     // The rest run here, for each business in turn, with that business's own connections.
     const forEach = async (job: (id: number, b: ReturnType<typeof businessDb>) => Promise<unknown>) => {
@@ -450,7 +457,7 @@ export default {
         let left = CHECKS_A_RUN
         for (const id of await businessIds(env)) {
           if (left <= 0) break
-          left -= await checkDue(env, businessDb(env, id), left).catch(e => { console.error('connection checks failed', id, e); return 0 })
+          left -= await checkDue(env, businessDb(env, id), left).catch(async e => { await failed('connection checks', id)(e); return 0 })
         }
       })())
       return
@@ -465,32 +472,34 @@ export default {
         await each('campaign_reminders')
         // Business Agent's reps: commission held 30 days counts now (the hq_reps migration).
         await each('release_rep_commission')
+        // Errors nobody has seen for 90 days go (HQ's Errors, the app_errors migration).
+        await Promise.resolve(db.rpc('clear_old_app_errors')).then(({ error }) => (error ? failed('clear old errors')(error.message) : undefined))
         // AI music tracks made while Stripe didn't answer go on the bill now.
-        await chargePendingAiMusic(env).catch(e => console.error('ai music charges failed', e))
+        await chargePendingAiMusic(env).catch(failed('ai music charges'))
         await forEach(async (id, b) => {
           // WhatsApp chats older than Data retention allows, with their photos and voice notes.
-          await purgeWhatsApp(b).catch(e => console.error('whatsapp purge failed', id, e))
+          await purgeWhatsApp(b).catch(failed('whatsapp purge', id))
           // The subscription, straight from Stripe (in case a webhook was missed).
-          await syncBilling(env, id).catch(e => console.error('billing sync failed', id, e))
+          await syncBilling(env, id).catch(failed('billing sync', id))
           // Instagram's likes and comments on posts with music, so suggestions learn what does well.
-          await syncMusicInsights(env, id).catch(e => console.error('music insights failed', id, e))
+          await syncMusicInsights(env, id).catch(failed('music insights', id))
           // Hours both ways first (an edit made on Google comes in, not overwritten), then re-send
           // closures and phone to Google Maps, in case a change was missed (changes also sync within a minute).
           if (await googleConnected(b)) {
             await syncGoogleBothWays(env, b)
               .then(done => (done === 'pushed' ? undefined : syncGoogle(env, b)))
-              .catch(e => console.error('nightly google sync failed', id, e))
+              .catch(failed('nightly google sync', id))
           }
           // Crests for new teams (flags straight away; a few club look-ups, the GitHub sync does the rest).
-          if (await sportsOn(b)) await syncCrests(b, 8).catch(e => console.error('crests failed', id, e))
+          if (await sportsOn(b)) await syncCrests(b, 8).catch(failed('crests', id))
           // Competitors: each followed place's weekly check on Google, and the weekly look around for new places.
-          await watchCompetitors(env, b).catch(e => console.error('competitors failed', id, e))
+          await watchCompetitors(env, b).catch(failed('competitors', id))
           // Outside services' answers kept over two days (provider_cache).
-          await clearOldCache(b).catch(e => console.error('cache clear failed', id, e))
+          await clearOldCache(b).catch(failed('cache clear', id))
           // Its country's public holidays for this year and next, and in Spain its region's, where it has none of them yet.
-          await addNationalHolidays(b).catch(e => console.error('national holidays failed', id, e))
+          await addNationalHolidays(b).catch(failed('national holidays', id))
           // In Spain, its town's two local holidays: admins are told once when a year's aren't in yet.
-          await remindTownHolidays(b).catch(e => console.error('town holiday reminder failed', id, e))
+          await remindTownHolidays(b).catch(failed('town holiday reminder', id))
         })
       })())
       return
@@ -504,48 +513,48 @@ export default {
       // Social planner: posts that are due become one outbox job per network (sent just below).
       await each('queue_due_social_posts')
       await forEach(async (id, b) => {
-        await drainOutbox(env, id).catch(e => console.error('outbox failed', id, e))
+        await drainOutbox(env, id).catch(failed('outbox', id))
         // Reports set to go by themselves (Dashboards → Reports), when they're due.
-        await sendDueReports(env, id).catch(e => console.error('scheduled reports failed', id, e))
+        await sendDueReports(env, id).catch(failed('scheduled reports', id))
         // Stock on its last day goes on offer by itself, from its rule's time until closing (before the
         // push just below, so admins hear about it the same minute).
-        await Promise.resolve(b.rpc('start_last_day_offers')).then(({ error }) => { if (error) console.error('last-day offers failed', id, error.message) })
+        await Promise.resolve(b.rpc('start_last_day_offers')).then(({ error }) => (error ? failed('last-day offers', id)(error.message) : undefined))
         // New notifications to people's phones and computers, as each person chose.
-        await pushNotifications(env, b).catch(e => console.error('push failed', id, e))
+        await pushNotifications(env, b).catch(failed('push', id))
         // Menu images whose webhook from Higgsfield hasn't come (asked about, or given up on after 3 hours).
-        await checkWaitingImages(env, b).catch(e => console.error('menu images failed', id, e))
+        await checkWaitingImages(env, b).catch(failed('menu images', id))
         // The jobs that read outside services, each in its own minute (worker/schedule.ts): a run may make
         // only 50 outside requests, so they're spread out rather than all landing on the quarter hours.
         const now = new Set(dueJobs(minute, id, await everyFor(b)))
         // Every 15 minutes (or as the business chose): opening hours both ways with Google Maps (after
         // the outbox, so a change made in the app has already gone to Google).
         if (now.has('hours') && await googleConnected(b)) {
-          await syncGoogleBothWays(env, b).catch(e => console.error('google hours sync failed', id, e))
+          await syncGoogleBothWays(env, b).catch(failed('google hours sync', id))
         }
         // Every minute, while the menu comes from Square: menu prices changed here (the AI connector's too) to Square.
-        if (await menuFromSquare(b)) await pushSquarePrices(env, b).catch(e => console.error('square prices failed', id, e))
+        if (await menuFromSquare(b)) await pushSquarePrices(env, b).catch(failed('square prices', id))
         // Every minute: the menu onto the Google Maps listing, when it changed since it was last sent
         // (only a fingerprint is compared; Google is called only for a new menu).
-        await pushGoogleMenu(env, b).catch(e => console.error('google menu failed', id, e))
+        await pushGoogleMenu(env, b).catch(failed('google menu', id))
         // Every 15 minutes (or as the business chose): new Instagram tags and story mentions, for admins to repost or ignore.
-        if (now.has('mentions')) await checkMentions(env, b).catch(e => console.error('instagram mentions failed', id, e))
+        if (now.has('mentions')) await checkMentions(env, b).catch(failed('instagram mentions', id))
         // Every hour (or as the business chose): Square customers added or changed since the last look, into Customers.
-        if (now.has('customers')) await syncSquareCustomers(env, b).catch(e => console.error('square customers failed', id, e))
+        if (now.has('customers')) await syncSquareCustomers(env, b).catch(failed('square customers', id))
         // Every hour (or as the business chose): the menu from the Square item library, when that's where it
         // comes from, in case a webhook from Square was missed.
         if (now.has('menu')) await syncSquareMenuIfChosen(env, b)
         // Every hour: new Google reviews, for admins to read and reply to; from Places only every third hour
         // (refreshReviews knows which).
         if (now.has('reviews') && await reviewsConfigured(env, b)) {
-          await refreshReviews(env, b, 5).catch(e => console.error('reviews failed', id, e))
+          await refreshReviews(env, b, 5).catch(failed('reviews', id))
         }
         // Sports only while it's switched on (Sports page).
-        if (await sportsOn(b)) await refreshStaleSports(b).catch(e => console.error('sports failed', id, e))
+        if (await sportsOn(b)) await refreshStaleSports(b).catch(failed('sports', id))
         // Every hour: the cameras' clips whose days are up, out of the business's storage (Cameras page).
-        if (now.has('cameras')) await purgeCameraClips(env, b).catch(e => console.error('camera clips purge failed', id, e))
+        if (now.has('cameras')) await purgeCameraClips(env, b).catch(failed('camera clips purge', id))
         // Every 5 minutes: the next track of the music starter pack, until the business has them all.
         if (now.has('music')) {
-          await fillStarterPack(env, new URL(businessConfig.appUrl).origin, id).catch(e => console.error('music starter pack failed', id, e))
+          await fillStarterPack(env, new URL(businessConfig.appUrl).origin, id).catch(failed('music starter pack', id))
         }
       })
     })())
