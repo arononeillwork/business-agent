@@ -108,9 +108,9 @@ const TITLES: Phrase[] = [
   [/^Meta Ads needs connecting again soon$/, msg('Meta Ads needs connecting again soon'), () => ({})],
   [/^Opening hours changed on Google Maps$/, msg('Opening hours changed on Google Maps'), () => ({})],
   [/^On offer till closing: (.+)$/, msg('On offer till closing: {name}'), m => ({ name: m[1] })],
+  [/^(.+) posted about the café: waiting for your OK as a rep$/, msg('{name} posted about the café: waiting for your OK as a rep'), m => ({ name: m[1] })],
   // A tip pool's share (the tips migration).
   [/^Your tips: (\d+\.\d\d) €$/, msg('Your tips: {amount}'), (m, _l, f) => ({ amount: euros(f, m[1]) }), 'numbers'],
-  [/^(.+) posted about the café: waiting for your OK as a rep$/, msg('{name} posted about the café: waiting for your OK as a rep'), m => ({ name: m[1] })],
 ]
 const BODIES: Phrase[] = [
   // An expense decided without a note says its amount (the expense claims migration).

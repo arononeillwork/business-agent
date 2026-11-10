@@ -140,10 +140,10 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'town holidays', files: [/shared\/townHolidays/, /components\/TownHolidays/, /i18n\/es\/townHolidays/], tests: String.raw`signs up|Business page|business in Ireland|holiday` },
   { name: 'legal pages', files: [/(Privacy|Terms|DataDeletion|LegalNotice|Dpa)Page/, /i18n\/es\/(legal|legalUpdate|legalNotice|dpa)\.ts$/],
     tests: String.raw`privacy|terms of service|data deletion|legal notice|data processing agreement` },
-  { name: 'country leftovers', files: [/i18n\/es\/countryLeftovers/],
-    tests: String.raw`in Ireland|customers|screen|profit and loss|P&L|competitors|roles and rules|account|contacts|outsourcing` },
   { name: 'posts about the café', files: [/pages\/PostImpact/, /shared\/(postImpact|mentions)\.ts$/, /i18n\/es\/postImpact/, /components\/(Mentions|RepBits)\.tsx$/, /demoSocialAnalytics/],
     tests: String.raw`Analytics|sales reps|Instagram mentions` },
+  { name: 'country leftovers', files: [/i18n\/es\/countryLeftovers/],
+    tests: String.raw`in Ireland|customers|screen|profit and loss|P&L|competitors|roles and rules|account|contacts|outsourcing` },
 ]
 
 /** The --grep pattern for these changed files, or 'all'. */
