@@ -1,18 +1,21 @@
 // Google Ads: spend, clicks and conversions per campaign and day for the Ads page, and pausing,
 // resuming or changing a campaign's daily budget from there. Signed in with the same Google app as
-// Gmail and Drive (adwords scope); every call also carries Business Agent's developer token, which
-// Google issues from a Google Ads manager account (API Center) and must approve for real accounts.
+// Gmail and Drive (adwords scope). Google retired developer tokens on 9 September 2026: real ad
+// accounts work once Google has given the Google Cloud project behind the sign-in (GOOGLE_CLIENT_ID)
+// Explorer access or higher (Google Cloud → Google Ads API → Overview); with Test access only, Google
+// answers CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION. No developer-token header is sent: Google
+// ignores it now and says a later version will refuse it.
 // Money comes in micros (a millionth of the account's currency).
 import type { AdAccount, AdCampaign, AdDay, CampaignStatus } from '../../shared/ads'
 
 export const GOOGLE_ADS_SCOPES = ['https://www.googleapis.com/auth/adwords', 'openid', 'email']
-export const GOOGLE_ADS_VERSION = 'v21'
+export const GOOGLE_ADS_VERSION = 'v26' // live until November 2027 (Google's sunset dates)
 
-export interface GoogleAdsConfig { developerToken: string; version: string }
+export interface GoogleAdsConfig { version: string }
 /** An ad account; `login`: the manager account it's reached through, when it isn't directly the person's. */
 export type GoogleAdsAccount = AdAccount & { login?: string }
 
-/** A Google Ads API error, with Google's own error code when it gives one (e.g. DEVELOPER_TOKEN_NOT_APPROVED). */
+/** A Google Ads API error, with Google's own error code when it gives one (e.g. CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION). */
 export class GoogleAdsError extends Error { constructor(message: string, readonly code?: string) { super(message) } }
 
 interface ApiError { error?: { message?: string; status?: string; details?: { errors?: { errorCode?: Record<string, string>; message?: string }[] }[] } }
@@ -20,7 +23,7 @@ interface ApiError { error?: { message?: string; status?: string; details?: { er
 async function ads<T>(cfg: GoogleAdsConfig, token: string, path: string, body?: unknown, login?: string): Promise<T> {
   const res = await fetch(`https://googleads.googleapis.com/${cfg.version}${path}`, {
     method: body ? 'POST' : 'GET',
-    headers: { authorization: `Bearer ${token}`, 'developer-token': cfg.developerToken, ...(login ? { 'login-customer-id': login } : {}),
+    headers: { authorization: `Bearer ${token}`, ...(login ? { 'login-customer-id': login } : {}),
       ...(body ? { 'content-type': 'application/json' } : {}) },
     ...(body ? { body: JSON.stringify(body) } : {}),
   })

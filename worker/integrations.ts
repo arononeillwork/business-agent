@@ -407,7 +407,6 @@ integrations.post('/api/integrations/connect/:provider/start', async c => {
   if (isGoogle(p)) {
     const cfg = googleConfig(c.env, origin)
     if (!cfg) return c.json({ error: `${optionName(p)} needs the Google keys first (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET; see docs/sign-in-setup.md).` }, 400)
-    if (p === 'google_ads' && !googleAdsConfig(c.env)) return c.json({ error: 'Google Ads needs The Business Agent’s Google Ads developer token first (GOOGLE_ADS_DEVELOPER_TOKEN; see docs/INTEGRATIONS.md).' }, 400)
     return c.json({ url: google.authUrl(cfg, state, scopes) })
   }
   const cfg = msConfig(c.env, origin)
