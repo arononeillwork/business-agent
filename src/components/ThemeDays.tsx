@@ -141,33 +141,17 @@ export function ThemeSummary({ theme, coffees }: { theme: DayTheme; coffees: Cof
   )
 }
 
-/**
- * Today's theme, big: its flag and name, the coffee and the playlist. On the Calendar it leads the
- * page with the next six days under it; elsewhere it's the card's top.
- */
-export function TodayTheme({ days, coffees, closures, withWeek, onSetUp }: {
-  days: ThemeDays | null; coffees: Coffee[]; closures?: Set<string>; withWeek?: boolean; onSetUp?: () => void
-}) {
-  const { business, isAdmin } = useApp()
+/** Today's theme, big: its flag and name, the coffee and the playlist (the top of Today's theme card). */
+export function TodayTheme({ days, coffees, closures }: { days: ThemeDays | null; coffees: Coffee[]; closures?: Set<string> }) {
+  const { business } = useApp()
   const d = today()
-  if (!days) return null
-  if (!days.themes.length) {
-    return isAdmin && onSetUp ? (
-      <Card component="section" aria-label={t('Theme days')} sx={{ mb: 2 }}>
-        <CardContent sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Typography sx={{ flex: 1, minWidth: 220 }}>{t('Give each day a theme: a coffee to serve and a playlist to go with it, like a Colombian day.')}</Typography>
-          <Button variant="outlined" onClick={onSetUp}>{t('Set up theme days')}</Button>
-        </CardContent>
-      </Card>
-    ) : null
-  }
-  const hours = business?.opening_hours
-  const on = themeOn(d, days, { hours, closures })
+  if (!days?.themes.length) return null
+  const on = themeOn(d, days, { hours: business?.opening_hours, closures })
   const theme = on.theme
   const note = on.source === 'date' ? days.dates.find(x => x.day === d)?.note : null
   return (
-    <Card component="section" aria-label={t('Today’s theme')} sx={{ mb: withWeek ? 2 : 0, overflow: 'hidden', borderLeft: `6px solid ${theme?.colour ?? tokens.line}` }}>
-      <Stack direction={{ xs: 'column', md: withWeek ? 'row' : 'column' }} spacing={2} sx={{ p: 2 }}>
+    <Card component="section" aria-label={t('Today’s theme')} sx={{ overflow: 'hidden', borderLeft: `6px solid ${theme?.colour ?? tokens.line}` }}>
+      <Stack spacing={2} sx={{ p: 2 }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="overline" sx={{ color: tokens.roseDeep, textTransform: 'capitalize' }}>{t('Today')} · {formatLocal(`${d}T12:00:00Z`, 'EEEE d MMMM')}</Typography>
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
@@ -181,23 +165,6 @@ export function TodayTheme({ days, coffees, closures, withWeek, onSetUp }: {
         </Box>
         {theme && <Box sx={{ flex: 1.2, minWidth: 0 }}><ThemeSummary theme={theme} coffees={coffees} /></Box>}
       </Stack>
-      {withWeek && (
-        <Box role="list" aria-label={t('The next few days')}
-          sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(3, minmax(0, 1fr))', sm: 'repeat(6, minmax(0, 1fr))' }, borderTop: `1px solid ${tokens.line}` }}>
-          {[1, 2, 3, 4, 5, 6].map(n => {
-            const day = addDays(d, n)
-            const x = themeOn(day, days, { hours, closures })
-            const label = formatLocal(`${day}T12:00:00Z`, 'EEEE d MMMM')
-            return (
-              <Box key={day} role="listitem" aria-label={`${label}: ${x.theme ? x.theme.name : x.closed ? t('Closed') : t('No theme')}`}
-                sx={{ px: 1.25, py: 1, minWidth: 0, borderLeft: `1px solid ${tokens.line}`, '&:first-of-type': { borderLeft: 0 } }}>
-                <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', textTransform: 'capitalize' }}>{formatLocal(`${day}T12:00:00Z`, 'EEE d')}</Typography>
-                {x.theme ? <ThemeBadge theme={x.theme} small /> : <Typography variant="caption" sx={{ color: 'text.disabled' }}>{x.closed ? t('Closed') : '—'}</Typography>}
-              </Box>
-            )
-          })}
-        </Box>
-      )}
     </Card>
   )
 }
