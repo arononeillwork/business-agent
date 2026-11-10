@@ -9,7 +9,8 @@ name: Deploy
 #   GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET, META_*, APPLE_*, SPOTIFY_*  optional integrations
 #   ANTHROPIC_API_KEY      optional: the in-app assistant (Claude)
 #   FIRECRAWL_API_KEY      optional: the set-up guide reads a business's website with Firecrawl
-#   TURNSTILE_SITE_KEY / TURNSTILE_SECRET_KEY  optional: the check on the sign-up form (docs/sign-in-setup.md)
+#   TURNSTILE_SITE_KEY / TURNSTILE_SECRET_KEY  optional: the check on the sign-up form; without them the deploy
+#                          makes its own Turnstile widget when the Cloudflare token may (docs/sign-in-setup.md)
 # "Log in with Facebook" is on; repo variable FACEBOOK_SIGN_IN=off switches it off (docs/sign-in-setup.md).
 on:
   push:
@@ -49,8 +50,7 @@ jobs:
     if: ${{ !cancelled() && needs.tested.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Only the deploy itself waits its turn, not the live tests after the previous one (they have
-    # their own queue); a newer push replaces one that's waiting.
+    # Only the deploy itself waits its turn; a newer push replaces one that's waiting.
     concurrency:
       group: deploy
       cancel-in-progress: false
@@ -99,9 +99,6 @@ jobs:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       # The set-up guide reads a business's website for its brand (worker/brandLookup.ts): with Firecrawl when set, its HTML only without it.
       FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
-      # The check on the sign-up form (worker/signupCheck.ts): Cloudflare Turnstile. Off without both.
-      TURNSTILE_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
-      TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
       # Optional repo variables: the model (after Actions → Music check), and "off" to stop the starter pack.
       ELEVENLABS_MUSIC_MODEL: ${{ vars.ELEVENLABS_MUSIC_MODEL }}
       MUSIC_STARTER: ${{ vars.MUSIC_STARTER }}
@@ -171,6 +168,16 @@ jobs:
         env:
           EMAIL_FORWARD_TO: ${{ secrets.EMAIL_FORWARD_TO }}
         run: node scripts/ops/email-routing.mjs
+      # The check on the sign-up form (worker/signupCheck.ts): its Turnstile keys, from the repository
+      # secrets or the widget the deploy makes in Cloudflare, for the two steps below (scripts/ops/turnstile.mjs).
+      - name: Sign-up check (Cloudflare Turnstile)
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          SECRET_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
+          SECRET_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          SITE_URL: ${{ steps.domain.outputs.site }}
+          WORKER_URL: ${{ steps.deploy.outputs.url }}
+        run: node scripts/ops/turnstile.mjs
       - name: Sync Worker secrets
         if: steps.gate.outputs.ready == 'true'
         run: |
@@ -216,11 +223,6 @@ jobs:
     uses: ./.github/workflows/sports-sync.yml
     secrets: inherit
 
-  # The whole app, every role, against the version just deployed.
-  live:
-    needs: deploy
-    if: ${{ !cancelled() && needs.deploy.result == 'success' }}
-    uses: ./.github/workflows/live-e2e.yml
-    with:
-      url: https://business-agent.arononeillwork.workers.dev
-    secrets: inherit
+  # The full live tests (every page, every role) no longer run after each deploy: they load the
+  # customers' database for about ten minutes, which is what tipped it into freezing. The smoke test
+  # above checks each deploy; live-e2e.yml runs the full set once a night (docs/supabase-freezes.md).

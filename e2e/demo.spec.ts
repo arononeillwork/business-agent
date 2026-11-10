@@ -2065,6 +2065,10 @@ test('self-serve: a new business signs up, creates its business and goes on to t
   // In Spain, its region too (it can be left for later): Madrid's own public holidays.
   await expect(page.getByRole('combobox', { name: 'Region' })).toHaveValue('')
   await page.getByRole('combobox', { name: 'Region' }).selectOption({ label: 'Madrid' })
+  // Creating it accepts the terms and the data processing agreement (opened in a new tab, so the form stays).
+  await expect(page.getByText('By creating your business you accept the terms of service and the data processing agreement.')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'terms of service' })).toHaveAttribute('href', '/terms')
+  await expect(page.getByRole('link', { name: 'data processing agreement' })).toHaveAttribute('href', '/dpa')
   await add.click()
   // She runs it now: on to the set-up guide, with a café's apps ready to connect.
   await expect(page).toHaveURL(/\/setup/)
@@ -3537,6 +3541,41 @@ test('the terms of service are public, linked from the sign-in page and the priv
   await page.getByRole('link', { name: 'Privacy policy', exact: true }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Privacy policy' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Terms of service', exact: true })).toBeVisible()
+})
+
+test('the legal notice and the data processing agreement are public, and the footers and the terms link to them', async ({ page }) => {
+  // The aviso legal, from the landing page's footer.
+  await page.goto('/?demo')
+  await page.getByRole('contentinfo').getByRole('link', { name: 'Legal notice' }).click()
+  await expect(page).toHaveURL(/\/legal-notice$/)
+  await expect(page.getByRole('heading', { level: 1, name: 'Legal notice' })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Email' })).toHaveCount(0) // no sign-in needed
+  await expect(page.getByText(/LSSI, article 10/)).toBeVisible()
+  // Who runs it: the details filled in so far (shared/legal.ts), never an empty label for one that isn't.
+  const who = page.getByRole('list').filter({ hasText: 'Website:' })
+  await expect(who).toContainText('Name: The Business Agent')
+  await expect(who).toContainText('Email: thebusinesssagent@gmail.com')
+  for (const li of await who.getByRole('listitem').all()) await expect(li).toHaveText(/:\s*\S/)
+  await expect(page.getByRole('heading', { name: '7. Law and courts' })).toBeVisible()
+  // The DPA, from the legal pages' own footer (exact: the notice also mentions it in a sentence).
+  await page.getByRole('link', { name: 'Data processing agreement', exact: true }).click()
+  await expect(page).toHaveURL(/\/dpa$/)
+  await expect(page.getByRole('heading', { level: 1, name: 'Data processing agreement' })).toBeVisible()
+  await expect(page.getByText(/the business is the data controller/)).toBeVisible()
+  await expect(page.getByRole('heading', { name: '6. Sub-processors' })).toBeVisible()
+  for (const name of ['Supabase', 'Cloudflare', 'Stripe', 'Anthropic']) await expect(page.getByText(name, { exact: true })).toBeVisible()
+  await expect(page.getByText(/standard contractual clauses/)).toBeVisible()
+  await expect(page.getByText(/working-hours record \(registro de jornada\), which we keep for four years/)).toBeVisible()
+  // The terms point at it where they say we're the business's processor, and so does the privacy policy.
+  await page.getByRole('link', { name: 'Terms of service', exact: true }).click()
+  await page.getByRole('link', { name: 'data processing agreement', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Data processing agreement' })).toBeVisible()
+  await page.getByRole('link', { name: 'Privacy policy', exact: true }).click()
+  await page.getByRole('link', { name: 'data processing agreement', exact: true }).click()
+  await expect(page).toHaveURL(/\/dpa$/)
+  // And the DPA's footer back to the legal notice.
+  await page.getByRole('link', { name: 'Legal notice', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Legal notice' })).toBeVisible()
 })
 
 test('every page in the menu shows its title, whatever buttons its header has', async ({ page }) => {

@@ -76,7 +76,9 @@ const deploys = await Promise.all(deployRuns.map(async (run, i) => {
     status: run.status, conclusion: run.conclusion,
     tests: (tests === 'skipped' && pick(n => n === 'tested') === 'passed' ? 'passed' : tests) ?? fallback,
     deploy: pick(n => n === 'deploy') ?? fallback,
-    live: pick(n => n.startsWith('live /')) ?? fallback,
+    // Deploys no longer run the full live tests (live-e2e.yml runs them nightly): a finished run
+    // without them is vouched for by its smoke test, in the deploy job.
+    live: jobs && finished && !jobs.some(j => j.name.startsWith('live /')) ? 'smoke' : pick(n => n.startsWith('live /')) ?? fallback,
   }
 }))
 
@@ -89,12 +91,12 @@ const liveRun = deploys.find(d => d.sha === liveSha) ?? null
 const { workflow_runs: liveTestRuns } = await gh('/actions/workflows/live-e2e.yml/runs?per_page=10').catch(() => ({ workflow_runs: [] }))
 const deployedAt = health?.deployed_at ?? liveRun?.updatedAt ?? null
 const liveCheckedLater = liveTestRuns.find(r => r.conclusion === 'success' && deployedAt && Date.parse(r.run_started_at) > Date.parse(deployedAt))
-const liveVerified = liveRun?.live === 'passed' || !!liveCheckedLater
+const liveVerified = liveRun?.live === 'passed' || (liveRun?.live === 'smoke' && liveRun.deploy === 'passed') || !!liveCheckedLater
 const oldestRunAt = deploys.at(-1)?.createdAt ?? null
 
 const deployState = (sha, mergedAt) => {
   if (liveSha && contains(liveSha, sha)) {
-    if (liveVerified || deploys.some(d => d.deploy === 'passed' && d.live === 'passed' && contains(d.sha, sha))) return 'verified'
+    if (liveVerified || deploys.some(d => d.deploy === 'passed' && (d.live === 'passed' || d.live === 'smoke') && contains(d.sha, sha))) return 'verified'
     if (oldestRunAt && Date.parse(mergedAt) < Date.parse(oldestRunAt)) return 'verified'
     return liveRun && (liveRun.live === 'running' || liveRun.live === 'waiting') ? 'checking' : 'checks_failed'
   }

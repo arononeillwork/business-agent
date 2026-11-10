@@ -1,4 +1,4 @@
-import { Autocomplete, Box, Button, ButtonBase, Divider, Stack, TextField, Typography } from '@mui/material'
+import { Autocomplete, Box, Button, ButtonBase, Divider, Link, Stack, TextField, Typography } from '@mui/material'
 import CafeIcon from '@mui/icons-material/LocalCafeOutlined'
 import RestaurantIcon from '@mui/icons-material/RestaurantOutlined'
 import SalonIcon from '@mui/icons-material/ContentCutOutlined'
@@ -190,6 +190,13 @@ export function NewBusinessPage() {
           <Button type="submit" variant="contained" size="large" disabled={busy || !name.trim()} sx={{ ...primaryBtn, py: 1.4 }}>
             {t('Add my business')}
           </Button>
+          {/* Creating the business accepts the terms and the data processing agreement (it's the controller, we're its processor). */}
+          <Typography variant="caption" sx={{ color: BA.faint, textAlign: 'center' }}>
+            {tr('By creating your business you accept the {terms} and the {dpa}.', {
+              terms: <Link href="/terms" target="_blank" rel="noopener" sx={{ color: 'inherit' }}>{t('terms of service')}</Link>,
+              dpa: <Link href="/dpa" target="_blank" rel="noopener" sx={{ color: 'inherit' }}>{t('data processing agreement')}</Link>,
+            })}
+          </Typography>
 
           <Divider />
           <Box>

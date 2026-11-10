@@ -135,3 +135,10 @@ What it checks: a sign-up with an email and a password needs a passed check. Sig
 Microsoft, Apple or Facebook go through (they already check for a person), and so do invites from the
 Team page. Signing in, sign-in codes and password resets never see it. To switch it off again, delete
 the two secrets and deploy.
+
+The deploy can also make the widget itself, so no keys need copying: when the two secrets are empty
+and the deploy's Cloudflare token has **Account → Turnstile → Edit** (Cloudflare → My Profile → API
+Tokens → the token → Edit → add it), the "Sign-up check" step finds or makes the widget *The Business
+Agent sign-up* for businesssagent.com, www.businesssagent.com and the workers.dev address, and hands
+its keys on (`scripts/ops/turnstile.mjs`). The deploy summary says which it did, or which permission is
+missing. Secrets, when both are set, win.

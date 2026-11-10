@@ -2,16 +2,14 @@ name: Live end-to-end tests
 # Drives the deployed app in a real browser against the real Supabase project: every page for
 # admin, employee and partner, sign-in buttons, clocking, time off, finances, the AI connector.
 # Test accounts use @business-agent.test and are deleted afterwards (with their data).
-# Runs after each successful deploy (called from deploy.yml), or by hand.
+# Runs once a night, when the businesses using the app are closed, and by hand (Actions → Live
+# end-to-end tests → Run workflow). Not after each deploy: about ten minutes of sign-ins and test
+# accounts on the customers' database is what tipped it into freezing (docs/supabase-freezes.md);
+# each deploy runs the smoke test instead.
 on:
-  workflow_call:
-    inputs:
-      url:
-        type: string
-        required: true
-  # Daily as well (scheduled runs only start once this is on the default branch).
+  # 02:17 UTC: 03:17 in Spain and 02:17 in Ireland in winter, an hour later in summer.
   schedule:
-    - cron: '17 5 * * *'
+    - cron: '17 2 * * *'
   workflow_dispatch:
     inputs:
       url:

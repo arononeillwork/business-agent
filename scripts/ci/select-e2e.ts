@@ -138,6 +138,8 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'ireland calendar, CSV and wording', files: [/i18n\/es\/irelandLocal/, /lib\/export\.ts$/],
     tests: String.raw`in Ireland|competition|export|CSV|hiring|sports` },
   { name: 'town holidays', files: [/shared\/townHolidays/, /components\/TownHolidays/, /i18n\/es\/townHolidays/], tests: String.raw`signs up|Business page|business in Ireland|holiday` },
+  { name: 'legal pages', files: [/(Privacy|Terms|DataDeletion|LegalNotice|Dpa)Page/, /i18n\/es\/(legal|legalUpdate|legalNotice|dpa)\.ts$/],
+    tests: String.raw`privacy|terms of service|data deletion|legal notice|data processing agreement` },
 ]
 
 /** The --grep pattern for these changed files, or 'all'. */

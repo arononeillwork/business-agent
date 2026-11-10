@@ -163,7 +163,7 @@ function SiteFooter() {
         {col(t('Product'), [[t('Demos'), '/demos'], [t('Features'), '/#features'], [t('Pricing'), '/pricing'], [t('Compare'), '/compare'], [ENTERPRISE.name, '/pricing#enterprise']])}
         {col(t('Account'), [[t('Log in'), '/#account'], [t('Start free trial'), '/#start']])}
         {col(t('Contact'), [[CONTACT.email, `mailto:${CONTACT.email}`]])}
-        {col(t('Legal'), [[t('Privacy policy'), '/privacy'], [t('Terms of service'), '/terms']])}
+        {col(t('Legal'), [[t('Privacy policy'), '/privacy'], [t('Terms of service'), '/terms'], [t('Legal notice'), '/legal-notice'], [t('Data processing agreement'), '/dpa']])}
       </Container>
       <Container maxWidth="lg" sx={{ py: 2.5, borderTop: `1px solid ${BA.line}` }}>
         <Typography variant="caption" sx={{ color: BA.faint }}>{t('© {year} The Business Agent. All rights reserved.', { year: new Date().getFullYear() })}</Typography>
