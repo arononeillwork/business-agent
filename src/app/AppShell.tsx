@@ -316,8 +316,8 @@ function AccountMenu({ children, label, sx }: { children: ReactNode; label?: str
         <MenuItem onClick={() => { close(); setHelp('home') }}><ListItemIcon><HelpIcon fontSize="small" /></ListItemIcon><ListItemText primary={t('Help')} /></MenuItem>
         <InstallMenuItem onClick={close} />
         <Divider />
-        {businessMenuItems(businesses, close, false)}
-        <Divider />
+        {businessMenuItems(businesses, close, false, false)}
+        {businesses.others.length > 0 && <Divider />}
         <MenuItem onClick={() => { close(); void api.signOut() }}><ListItemIcon><LogoutIcon fontSize="small" /></ListItemIcon><ListItemText primary={signOut} /></MenuItem>
       </Menu>
       <Opening account={businesses.opening} />

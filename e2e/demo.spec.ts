@@ -11494,10 +11494,14 @@ test('someone in two businesses adds the second, switches between them from the 
   await expect(page.getByRole('heading', { name: 'Add another business' })).toHaveCount(0)
 })
 
-test('@phone the account menu adds another business and switches back to the first', async ({ page }) => {
+test('@phone another business is added from My account, and the account menu switches back to the first', async ({ page }) => {
   await open(page)
+  // The account menu doesn't add businesses: with only one, it has no businesses at all.
   await page.getByRole('button', { name: /^Account menu/ }).click()
-  await page.getByRole('menuitem', { name: 'Add another business' }).click()
+  await expect(page.getByRole('menuitem', { name: 'Add another business' })).toHaveCount(0)
+  await expect(page.getByRole('menu')).not.toContainText('Your businesses')
+  await page.getByRole('menuitem', { name: 'My account' }).click()
+  await page.getByRole('region', { name: 'Your businesses' }).getByRole('button', { name: 'Add another business' }).click()
   await expect(page.getByRole('heading', { name: 'Add another business' })).toBeVisible()
   await page.getByRole('textbox', { name: 'Email' }).fill('maria@example.com')
   await page.getByRole('button', { name: 'Sign in', exact: true }).click()
@@ -11506,6 +11510,7 @@ test('@phone the account menu adds another business and switches back to the fir
   await page.getByRole('menuitem', { name: /aron@example\.com/ }).click()
   await page.getByRole('button', { name: /^Account menu/ }).click()
   await expect(page.getByRole('menuitem', { name: /maria@example\.com/ })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: 'Add another business' })).toHaveCount(0)
 })
 
 test('a Spanish business adds its town’s two local holidays: asked at sign-up, then a year at a time from Today, the bell and Business', async ({ page }) => {
