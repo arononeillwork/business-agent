@@ -8,7 +8,7 @@ import { drainOutbox, integrations, setTikTokWait, syncGoogle, syncGoogleBothWay
 import { fromGoogleHours, sameHours, toGoogleHours, toLocation } from './providers/google'
 import type { OpeningHours } from '../shared/types'
 import { calendarFeeds } from './calendarFeed'
-import { checkAll, checkDue, explain, hasScope, lasting, PROVIDERS } from './connections'
+import { checkAll, checkDue, explain, hasScope, lasting, myBusinessApiOff, PROVIDERS } from './connections'
 import { businessDb, type Env } from './supabase'
 import { seal, unseal } from './crypto'
 import { FakeSupabase, GROUP } from './test/fakeSupabase'
@@ -707,6 +707,12 @@ describe('Groups and permissions', () => {
     expect(maps).toMatch(/^The My Business Account Management API is switched off/)
     expect(maps).toContain('both My Business Account Management API and My Business Business Information API')
     expect(lasting('google_business', new Error('Google My Business API has not been used in project 1 before or it is disabled.'))).toBe(true)
+    // The Google My Business API (reviews, posts, the menu) is its own: named as such, not the two for connecting.
+    const v4 = new Error('Google My Business API has not been used in project 914610483740 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/mybusiness.googleapis.com/overview?project=914610483740 then retry.')
+    expect(explain('google_business', v4)).toMatch(/^Reviews, posts and the menu on Google need the Google My Business API, and it’s switched off for this app\. .*search for “Google My Business API”/)
+    expect(explain('google_business', v4)).not.toContain('My Business Account Management API')
+    expect(myBusinessApiOff(v4)).toBe(true)
+    expect(myBusinessApiOff(new Error('My Business Account Management API has not been used in project 1 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/mybusinessaccountmanagement.googleapis.com/overview?project=1 then retry.'))).toBe(false)
     // Before Google approves the project's Business Profile access, every call is over a quota of 0.
     const pending = explain('google_business', new Error("Quota exceeded for quota metric 'Requests' and limit 'Requests per minute' of service 'mybusinessaccountmanagement.googleapis.com' for consumer 'project_number:914610483740'."))
     expect(pending).toMatch(/waiting for Google to approve/)

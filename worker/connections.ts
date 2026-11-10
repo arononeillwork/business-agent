@@ -195,11 +195,19 @@ const API_NAME: Partial<Record<Provider, string>> = {
 }
 /**
  * The Google Cloud APIs that connecting Google Maps and syncing hours call (worker/providers/google.ts).
- * Posts also use the Google My Business API, which only shows in the API Library once Google has
- * approved the project's Business Profile API access.
+ * Reviews, posts and the menu on the listing also use the Google My Business API (GOOGLE_MY_BUSINESS_API),
+ * which only shows in the API Library once Google has approved the project's Business Profile API access.
  */
 export const GOOGLE_MAPS_APIS = ['My Business Account Management API', 'My Business Business Information API']
+export const GOOGLE_MY_BUSINESS_API = 'Google My Business API'
 const message = (e: unknown) => e instanceof Error ? e.message : String(e)
+
+/**
+ * Google says the Google My Business API (v4: reviews, posts, the menu) is off. The connection itself
+ * still works (hours go through the other two), so this isn't a reason to mark Google Maps broken.
+ */
+export const myBusinessApiOff = (e: unknown) =>
+  /Google My Business API has not been used in project|\/apis\/api\/mybusiness\.googleapis\.com\//i.test(message(e))
 
 export const missingPermission = (p: Provider) => `${optionName(p)} was connected without the permission it needs. Connect again and leave every box ticked.`
 
@@ -238,6 +246,9 @@ export function explain(p: Provider, e: unknown): string {
   }
   if (/has not been used in project|it is disabled|accessNotConfigured|SERVICE_DISABLED|not switched on/i.test(raw)) {
     if (p === 'google_business') {
+      if (myBusinessApiOff(e)) {
+        return `Reviews, posts and the menu on Google need the ${GOOGLE_MY_BUSINESS_API}, and it’s switched off for this app. Switch it on in Google Cloud (APIs & Services → Library, search for “${GOOGLE_MY_BUSINESS_API}”); it only shows there once Google has approved the app’s Business Profile access. Opening hours on Google Maps keep working meanwhile.`
+      }
       // Google names the API that's off ("My Business Account Management API has not been used in project …").
       const off = raw.match(/([A-Z][\w ]*?API) has not been used in project/)?.[1]
       return `${off ? `The ${off}` : 'A Business Profile API'} is switched off for this app. Google Maps needs both ${GOOGLE_MAPS_APIS.join(' and ')} switched on in Google Cloud (APIs & Services → Library). Then connect again.`

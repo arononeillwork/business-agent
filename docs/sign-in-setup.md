@@ -32,7 +32,7 @@ Google does not let apps create sign-in keys automatically, so this part is manu
    Information API** (connecting and syncing hours; the *Performance* API is not used). Google Maps
    also needs Google to switch on Business Profile access for the project once: request it with
    Google's "Business Profile API access" form (usually approved in a few days). After approval,
-   **Google My Business API** appears in the Library too: enable it for posting to Google.
+   **Google My Business API** appears in the Library too: enable it for reviews, posts and the menu on Google.
 5. **Clients → Create client → Web application**, name **Business Agent web**:
    - Authorised JavaScript origins: `https://businesssagent.com` and `https://business-agent.arononeillwork.workers.dev`
    - Authorised redirect URIs (all three):

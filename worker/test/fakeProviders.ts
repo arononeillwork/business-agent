@@ -36,7 +36,7 @@ export class FakeProviders {
     /** What the person allowed on the consent screen (default: everything asked for). */
     granted: GOOGLE_SCOPES,
     revoked: false,
-    /** APIs switched off in Google Cloud: 'gmail', 'drive', 'youtube'. */
+    /** APIs switched off in Google Cloud: 'gmail', 'drive', 'youtube', 'mybusiness' (v4: reviews, posts, menus). */
     disabled: new Set<string>(),
     sent: [] as string[],
     folders: new Map<string, { name: string; parent: string; trashed: boolean }>(),
@@ -618,6 +618,9 @@ export class FakeProviders {
         }
         return json(rows[dimensions.join(',')]?.length ? { rows: rows[dimensions.join(',')], responseAggregationType: 'byProperty' } : { responseAggregationType: 'byProperty' })
       }
+    }
+    if (url.host === 'mybusiness.googleapis.com' && this.google.disabled.has('mybusiness')) {
+      return googleError(403, 'Google My Business API has not been used in project 1234 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/mybusiness.googleapis.com/overview?project=1234 then retry.', 'accessNotConfigured')
     }
     if (url.host === 'mybusiness.googleapis.com' && /^\/v4\/accounts\/[^/]+\/locations\/[^/]+\/foodMenus$/.test(url.pathname)) {
       if (url.pathname !== '/v4/accounts/1/locations/1/foodMenus') return googleError(404, 'Requested entity was not found.', 'NOT_FOUND')

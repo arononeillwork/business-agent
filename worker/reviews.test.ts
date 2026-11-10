@@ -115,6 +115,24 @@ describe('Reviews', () => {
     expect(apis.google.replies.has(id)).toBe(false)
   })
 
+  it('the Google My Business API (reviews’ own) switched off: the page says which, Places fills in, and Google Maps stays connected', async () => {
+    await connectMaps()
+    apis.google.disabled.add('mybusiness')
+    apis.places.reviews = [{ name: 'places/ChIJeasybeans/reviews/p1', rating: 5, publishTime: daysAgo(2), originalText: { text: 'Riquísimo todo', languageCode: 'es' },
+      authorAttribution: { displayName: 'Marta' } }]
+    const s = await (await call(reviews, '/api/reviews', { headers: admin }, withPlaces)).json() as { feed: string; problem: string; reviews: unknown[] }
+    expect(s).toMatchObject({ feed: 'places', reviews: [expect.objectContaining({ id: 'places/ChIJeasybeans/reviews/p1' })] })
+    expect(s.problem).toMatch(/^Reviews, posts and the menu on Google need the Google My Business API, and it’s switched off/)
+    expect(s.problem).not.toMatch(/both My Business Account Management API/)
+    // Hours still sync through the other two APIs: the connection isn't marked broken, nor are admins told it stopped.
+    expect(db.integration('google_business')).toMatchObject({ status: 'connected' })
+    expect(db.table('notifications').filter(n => /stopped working/.test(String(n.title)))).toHaveLength(0)
+    // Switched on: the next look reads the profile.
+    apis.google.disabled.delete('mybusiness')
+    apis.google.reviews = [profileReview('new', 'FIVE', 'Great', 'Tom', 1)]
+    expect(await (await call(reviews, '/api/reviews', { headers: admin }, withPlaces)).json()).toMatchObject({ feed: 'business_profile', problem: null })
+  })
+
   it('until the profile is connected: Places’ five newest, with Google’s own totals and no replying', async () => {
     apis.places.reviews = [{ name: 'places/ChIJeasybeans/reviews/p1', rating: 5, publishTime: daysAgo(2), originalText: { text: 'Riquísimo todo', languageCode: 'es' },
       authorAttribution: { displayName: 'Marta' }, googleMapsUri: 'https://maps.google.com/?r=p1' }]
