@@ -225,6 +225,10 @@ export class FakeProviders {
     instagram: { id: '17841400000000001', username: 'easy.beans.coffee' } as { id: string; username: string } | null,
     /** How the Page names it: as its business account, as the account connected from Instagram's side, or not at all (it's still readable by its id). */
     namedAs: 'business' as 'business' | 'connected' | 'none',
+    /** The Page it's linked to. */
+    instagramPage: 'page-1',
+    /** A business portfolio holds the Page: its token doesn't see the Instagram (Meta wants business_management or ads_read), the person's own sign-in does. */
+    portfolio: false,
     collabs: [] as Json[],
     /** How many times the linked Instagram was asked for. */
     instagramLookups: 0,
@@ -908,7 +912,15 @@ export class FakeProviders {
       return json({ access_token: 'fb-user-short', token_type: 'bearer', expires_in: 3600 })
     }
     if (url.host === 'graph.facebook.com' && /\/me\/permissions$/.test(url.pathname)) return json({ data: this.facebook.granted.map(permission => ({ permission, status: 'granted' })) })
-    if (url.host === 'graph.facebook.com' && /\/me\/accounts$/.test(url.pathname)) return json({ data: this.facebook.pages })
+    if (url.host === 'graph.facebook.com' && /\/me\/accounts$/.test(url.pathname)) {
+      const ig = this.facebook.portfolio ? null : this.facebook.instagram
+      if (!(url.searchParams.get('fields') ?? '').includes('instagram_business_account')) return json({ data: this.facebook.pages })
+      return json({ data: this.facebook.pages.map(p => ({ id: p.id, ...(ig && p.id === this.facebook.instagramPage ? { instagram_business_account: ig } : {}) })) })
+    }
+    if (url.host === 'graph.facebook.com' && /\/me\/businesses$/.test(url.pathname)) {
+      const ig = this.facebook.instagram
+      return json({ data: [{ id: 'biz-1', instagram_business_accounts: { data: ig ? [ig] : [] } }] })
+    }
     // Meta Ads (Marketing API), with the person's own sign-in.
     const campaignId = url.pathname.match(/\/v[\d.]+\/(\d+)$/)?.[1]
     const adsCall = url.host === 'graph.facebook.com' && (url.pathname.match(/\/v[\d.]+\/(?:me\/(adaccounts)|(act_\d+)\/(campaigns|insights))$/)
@@ -962,9 +974,13 @@ export class FakeProviders {
     const igCollabs = url.host === 'graph.facebook.com' && url.pathname.match(/\/v[\d.]+\/(\d+)\/collaborative_media$/)
     if (igCollabs) {
       const token = new Headers(init.headers).get('authorization')?.replace('Bearer ', '')
-      if (this.facebook.revoked || !this.facebook.pages.some(p => p.access_token === token)) return json({ error: { message: 'Error validating access token', code: 190 } }, 400)
+      // A Page's token, or the person's own sign-in (Meta Ads).
+      const page = this.facebook.pages.find(p => p.access_token === token)
+      if (this.facebook.revoked || (!page && token !== 'fb-user-long')) return json({ error: { message: 'Error validating access token', code: 190 } }, 400)
       if (!this.facebook.granted.includes('instagram_basic')) return json({ error: { message: '(#10) Application does not have permission for this action', code: 10 } }, 400)
       if (igCollabs[1] !== this.facebook.instagram?.id) return json({ error: { message: 'Unsupported get request', code: 100 } }, 400)
+      if (page && this.facebook.portfolio) return json({ error: { message: '(#10) This endpoint requires the business_management permission', code: 10 } }, 400)
+      if (page && page.id !== this.facebook.instagramPage) return json({ error: { message: 'Unsupported get request', code: 100 } }, 400)
       return json({ data: this.facebook.collabs })
     }
     const pageCall = url.host === 'graph.facebook.com' && url.pathname.match(/\/v[\d.]+\/(page-[\w-]+)(\/photos|\/feed)?$/)
@@ -974,7 +990,7 @@ export class FakeProviders {
       if (this.facebook.revoked || !page || token !== page.access_token) return json({ error: { message: 'Error validating access token: The session has been invalidated.', code: 190 } }, 400)
       if (!pageCall[2] && (url.searchParams.get('fields') ?? '').includes('instagram_business_account')) {
         this.facebook.instagramLookups++
-        const ig = this.facebook.instagram
+        const ig = this.facebook.portfolio || page.id !== this.facebook.instagramPage ? null : this.facebook.instagram
         return json({ id: page.id, ...(ig && this.facebook.namedAs === 'business' ? { instagram_business_account: ig } : {}),
           ...(ig && this.facebook.namedAs === 'connected' && (url.searchParams.get('fields') ?? '').includes('connected_instagram_account') ? { connected_instagram_account: ig } : {}) })
       }

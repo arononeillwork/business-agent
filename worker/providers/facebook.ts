@@ -183,6 +183,28 @@ export async function linkedInstagram(s: PageAccess): Promise<{ id: string; user
   return r.instagram_business_account ?? r.connected_instagram_account ?? null
 }
 
+/**
+ * The Instagram professional accounts a person's own sign-in can see: those linked to the Pages they
+ * manage, and those of the business portfolios they're in (business_management). Each list Meta
+ * refuses is left out, with why.
+ */
+export async function personsInstagram(graphVersion: string, token: string): Promise<{ accounts: { id: string; username?: string }[]; refused: string[] }> {
+  type Account = { id: string; username?: string }
+  const auth = { headers: { authorization: `Bearer ${token}` } }
+  const refused: string[] = []
+  const [pages, businesses] = await Promise.all([
+    graph<{ data?: { instagram_business_account?: Account; connected_instagram_account?: Account }[] }>(
+      `${GRAPH(graphVersion)}/me/accounts?fields=instagram_business_account{id,username},connected_instagram_account{id,username}&limit=100`, auth)
+      .catch(e => { refused.push(`their Pages: ${String(e instanceof Error ? e.message : e)}`); return { data: [] } }),
+    graph<{ data?: { instagram_business_accounts?: { data?: Account[] } }[] }>(
+      `${GRAPH(graphVersion)}/me/businesses?fields=instagram_business_accounts{id,username}&limit=50`, auth)
+      .catch(e => { refused.push(`their business portfolios: ${String(e instanceof Error ? e.message : e)}`); return { data: [] } }),
+  ])
+  const all = [...(pages.data ?? []).flatMap(p => [p.instagram_business_account, p.connected_instagram_account]),
+    ...(businesses.data ?? []).flatMap(b => b.instagram_business_accounts?.data ?? [])].filter((a): a is Account => !!a?.id)
+  return { accounts: [...new Map(all.map(a => [a.id, a])).values()], refused }
+}
+
 /** The latest posts and reels that Instagram account is an accepted collaborator on (up to 50), newest first. */
 export async function collabs(s: PageAccess, instagramId: string): Promise<CollabMedia[]> {
   const url = (fields: string) => `${GRAPH(s.graphVersion)}/${encodeURIComponent(instagramId)}/collaborative_media?fields=${fields}&limit=50`

@@ -45,6 +45,14 @@ async function connectFacebook() {
   return url
 }
 
+/** Meta Ads: its own Facebook Login (the person's own sign-in, with business_management and ads_read). */
+async function connectMetaAds() {
+  const start = await integrations.request(`${APP}/api/integrations/meta_ads/start`, { method: 'POST', headers: as('admin'), body: '{}' }, env, ctx())
+  const state = new URL((await start.json() as { url: string }).url).searchParams.get('state')!
+  const res = await integrations.request(`${APP}/api/integrations/meta_ads/callback?code=c&state=${encodeURIComponent(state)}`, {}, env, ctx())
+  expect(new URL(res.headers.get('location')!).searchParams.get('connected')).toBe('meta_ads')
+}
+
 async function connectInstagram() {
   const start = await integrations.request(`${APP}/api/integrations/instagram/start`, { method: 'POST', headers: as('admin'), body: '{}' }, env, ctx())
   const state = new URL((await start.json() as { url: string }).url).searchParams.get('state')!
@@ -213,6 +221,52 @@ describe('Posts about the café', () => {
     await check()
     expect(apis.facebook.instagramLookups).toBe(2)
     expect(mentions().some(m => m.id === 'collab:DfNora0001')).toBe(true)
+  })
+
+  it('a business portfolio holds the Page (its token doesn’t see the Instagram): the collabs come through the Meta Ads sign-in', async () => {
+    await connectInstagram()
+    apis.instagram.noCollabs = true
+    apis.facebook.granted = [...apis.facebook.granted, 'instagram_basic', 'ads_read', 'business_management']
+    apis.facebook.portfolio = true
+    apis.facebook.collabs = [reel('c1', 'nora.eats.mbl', 'DfNora0001', '2026-10-17T18:30:00+0000')]
+    await connectFacebook()
+    await connectMetaAds()
+    await check()
+    expect(mentions().some(m => m.id === 'collab:DfNora0001')).toBe(true)
+    expect(db.integration('facebook').external).toMatchObject({ instagram_id: '17841400000000001', instagram_via: 'ads', instagram_why: null })
+    // From then on straight through that sign-in: the Page isn't asked again.
+    apis.facebook.collabs.push(reel('c2', 'tomas.runs', 'DfTomas001', '2026-10-19T08:00:00+0000'))
+    const lookups = apis.facebook.instagramLookups
+    await check()
+    expect(mentions().some(m => m.id === 'collab:DfTomas001')).toBe(true)
+    expect(apis.facebook.instagramLookups).toBe(lookups)
+  })
+
+  it('the café’s Instagram is linked to another of the person’s Pages: read through that one', async () => {
+    await connectInstagram()
+    apis.instagram.noCollabs = true
+    apis.facebook.granted = [...apis.facebook.granted, 'instagram_basic']
+    apis.facebook.pages.push({ id: 'page-2', name: 'Easy Beans Shop', access_token: 'page-token-2' })
+    apis.facebook.instagramPage = 'page-2'
+    apis.facebook.collabs = [reel('c1', 'nora.eats.mbl', 'DfNora0001', '2026-10-17T18:30:00+0000')]
+    await connectFacebook()
+    expect((await integrations.request(`${APP}/api/integrations/facebook/page`, { method: 'POST', headers: as('admin'), body: JSON.stringify({ page_id: 'page-1' }) }, env, ctx())).status).toBe(200)
+    await check()
+    expect(mentions().some(m => m.id === 'collab:DfNora0001')).toBe(true)
+    expect(db.integration('facebook').external).toMatchObject({ instagram_via: 'page', instagram_page: 'page-2' })
+  })
+
+  it('when no way reads it, what Meta said to each is kept, for HQ and to tell the owner what to change', async () => {
+    await connectInstagram()
+    apis.instagram.noCollabs = true
+    apis.facebook.granted = [...apis.facebook.granted, 'instagram_basic']
+    apis.facebook.portfolio = true
+    await connectFacebook()
+    await check()
+    const why = String((db.integration('facebook').external as { instagram_why?: string }).instagram_why)
+    expect(why).toContain('Page Easy Beans Coffee: no Instagram linked to it')
+    expect(why).toContain('business_management')
+    expect(why).toContain('Meta Ads')
   })
 
   it('FACEBOOK_COLLABS=off: connecting Facebook doesn’t ask for instagram_basic', async () => {

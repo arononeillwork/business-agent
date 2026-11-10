@@ -9,7 +9,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { businessIdOf, type Env } from './supabase'
 import { reportError } from './errors'
 import * as instagram from './providers/instagram'
-import { facebookSession, instagramSession } from './connections'
+import { facebookPages, graphVersion as graphVersionOf, instagramSession, metaAdsSession } from './connections'
 import * as facebook from './providers/facebook'
 import { syncRepFollowers } from './repPage'
 import { refreshFollowerDays } from './socialAnalytics'
@@ -136,18 +136,30 @@ type InstagramExternal = {
   collabs_via?: 'instagram' | 'facebook' | null
 }
 
-/** How long the Page's answer that no Instagram is linked to it stands before it's asked again. */
+/** How long it stands that no way through Facebook reads the café's Instagram, before every way is tried again. */
 const ASK_LINK_AGAIN_MS = 6 * 3_600_000
+
+/** What the Facebook connection keeps about reading the café's Instagram through it. */
+type FacebookInstagram = {
+  instagram?: boolean
+  /** The café's Instagram account as Facebook knows it (null: no way read it), and when every way was last tried. */
+  instagram_id?: string | null; instagram_asked_at?: string
+  /** The way that reads it: a Page's sign-in (which Page), or the person's own Meta Ads sign-in. */
+  instagram_via?: 'page' | 'ads'; instagram_page?: string | null
+  /** What Meta said to each way, when none read it (for HQ, and to tell the owner what to change). */
+  instagram_why?: string | null
+}
+type Way = { id: string; token: string; via: 'page' | 'ads'; page: string | null }
 
 /**
  * The posts and reels the café's Instagram is an accepted collaborator on (a customer's collab reel),
  * and where they came from. Instagram Login doesn't list them: once it has said so it isn't asked again,
  * until Instagram is connected again (which starts the connection's notes afresh). Facebook Login does,
- * so they're read through the Facebook Page's connection once it was allowed instagram_basic: for the
- * Instagram account the Page names as linked to it, or else the café's own (Instagram Login's id), which
- * the Page can read when the two are linked. The account's id is kept on the Facebook connection; when
- * neither answers, the Page is asked again some hours later (an owner may link them meanwhile).
- * media null: neither can, and Analytics says so. What fails, HQ hears about.
+ * once the Facebook connection was allowed instagram_basic: through the Page the café's Instagram is
+ * linked to, or (when a business portfolio holds the Page, and Meta wants business_management or
+ * ads_read for it) through the Meta Ads sign-in. The way that works is kept on the Facebook connection
+ * and used from then on; when none does, every way is tried again some hours later, and what Meta said
+ * to each is kept (instagram_why) and goes to HQ. media null: none can, and Analytics says so.
  */
 export async function readCollabs(env: Env, db: SupabaseClient, cfg: instagram.InstagramConfig, ext: InstagramExternal, now = Date.now()):
   Promise<{ media: CollabMedia[] | null; via: 'instagram' | 'facebook' | null; instagram: boolean }> {
@@ -163,30 +175,91 @@ export async function readCollabs(env: Env, db: SupabaseClient, cfg: instagram.I
   }
   const none = { media: null, via: null, instagram: fromInstagram }
   const { data: fb } = await db.from('integrations').select('status, external').eq('provider', 'facebook').maybeSingle()
-  const fx = (fb?.external ?? {}) as { instagram?: boolean; instagram_id?: string | null; instagram_asked_at?: string }
+  const fx = (fb?.external ?? {}) as FacebookInstagram
   if (fb?.status !== 'connected' || fx.instagram !== true) return none
   if (fx.instagram_id === null && fx.instagram_asked_at && now - Date.parse(fx.instagram_asked_at) < ASK_LINK_AGAIN_MS) return none
+  const keep = (patch: FacebookInstagram) => db.from('integrations').update({ external: { ...fx, ...patch } }).eq('provider', 'facebook')
   try {
-    const s = await facebookSession(env, db)
-    if (fx.instagram_id) return { media: await facebook.collabs(s, fx.instagram_id), via: 'facebook', instagram: fromInstagram }
-    // The Instagram account linked to the Page, or the café's own; kept once one answers.
-    const named = (await facebook.linkedInstagram(s))?.id ?? null
-    const tries = [...new Set([named, ext.user_id ?? null].filter((x): x is string => !!x))]
-    let lastError: unknown = null
-    for (const id of tries) {
-      try {
-        const media = await facebook.collabs(s, id)
-        await db.from('integrations').update({ external: { ...fx, instagram_id: id, instagram_asked_at: new Date(now).toISOString() } }).eq('provider', 'facebook')
-        return { media, via: 'facebook', instagram: fromInstagram }
-      } catch (e) { lastError = e }
+    if (fx.instagram_id) {
+      // The way that worked before.
+      const token = fx.instagram_via === 'ads' ? (await metaAdsSession(env, db)).token
+        : await facebookPages(env, db).then(p => p.pages[fx.instagram_page ?? p.chosen ?? ''] ?? Promise.reject(new Error('That Facebook Page is no longer connected')))
+      return { media: await facebook.collabs({ graphVersion: graphVersionOf(env), pageId: fx.instagram_page ?? '', token }, fx.instagram_id), via: 'facebook', instagram: fromInstagram }
     }
-    await db.from('integrations').update({ external: { ...fx, instagram_id: null, instagram_asked_at: new Date(now).toISOString() } }).eq('provider', 'facebook')
-    await reportError(env, 'instagram collabs through Facebook', lastError ?? new Error('The Facebook Page has no Instagram account linked to it'), { business })
+    const found = await findInstagramThroughFacebook(env, db, { id: ext.user_id ?? null, username: ext.username ?? null })
+    const asked = new Date(now).toISOString()
+    if (found.way) {
+      await keep({ instagram_id: found.way.id, instagram_via: found.way.via, instagram_page: found.way.page, instagram_asked_at: asked, instagram_why: null })
+      return { media: found.media, via: 'facebook', instagram: fromInstagram }
+    }
+    const why = found.why.join(' | ').slice(0, 1500)
+    await keep({ instagram_id: null, instagram_asked_at: asked, instagram_why: why })
+    await reportError(env, 'instagram collabs through Facebook', new Error(`No way through Facebook reads the café’s Instagram: ${why}`), { business })
     return none
   } catch (e) {
     await reportError(env, 'instagram collabs through Facebook', e, { business })
     return none
   }
+}
+
+/**
+ * Every way Meta may let the café's Instagram (Instagram Login's account) be read through Facebook,
+ * until one reads its collabs: each Page the person manages (the chosen one first), asked which
+ * Instagram is linked to it; the café's own account through the chosen Page; and the person's Meta Ads
+ * sign-in (business_management, ads_read), on its own account and on the accounts of their Pages and
+ * business portfolios. What Meta said to each that didn't, in `why`.
+ */
+async function findInstagramThroughFacebook(env: Env, db: SupabaseClient, own: { id: string | null; username: string | null }):
+  Promise<{ way: Way | null; media: CollabMedia[] | null; why: string[] }> {
+  const why: string[] = []
+  const said = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/^Facebook: /, '').slice(0, 200)
+  const graphVersion = graphVersionOf(env)
+  const isOurs = (a: { id: string; username?: string }) => !own.id || a.id === own.id || (!!own.username && a.username?.toLowerCase() === own.username.toLowerCase())
+  const tried = new Set<string>()
+  const attempt = async (way: Way, label: string) => {
+    const key = `${way.via}:${way.page}:${way.id}`
+    if (tried.has(key)) return null
+    tried.add(key)
+    try { return await facebook.collabs({ graphVersion, pageId: way.page ?? '', token: way.token }, way.id) } catch (e) { why.push(`${label}: ${said(e)}`); return null }
+  }
+  // 1. The Pages.
+  const fb = await facebookPages(env, db)
+  const order = [...(fb.chosen ? [fb.chosen] : []), ...Object.keys(fb.pages).filter(id => id !== fb.chosen)]
+  for (const pageId of order) {
+    const token = fb.pages[pageId]
+    try {
+      const ig = await facebook.linkedInstagram({ graphVersion, pageId, token })
+      if (!ig) { why.push(`Page ${fb.nameOf(pageId)}: no Instagram linked to it`); continue }
+      if (!isOurs(ig)) { why.push(`Page ${fb.nameOf(pageId)}: linked to @${ig.username ?? ig.id}`); continue }
+      const way: Way = { id: ig.id, token, via: 'page', page: pageId }
+      const media = await attempt(way, `Page ${fb.nameOf(pageId)}, its Instagram`)
+      if (media) return { way, media, why }
+    } catch (e) { why.push(`Page ${fb.nameOf(pageId)}: ${said(e)}`) }
+  }
+  // 2. The café's own Instagram, through the chosen Page.
+  if (own.id && fb.chosen) {
+    const way: Way = { id: own.id, token: fb.pages[fb.chosen], via: 'page', page: fb.chosen }
+    const media = await attempt(way, `Page ${fb.nameOf(fb.chosen)}, the café’s Instagram`)
+    if (media) return { way, media, why }
+  }
+  // 3. The Meta Ads sign-in: what Meta wants when a business portfolio holds the Page.
+  const ads = await metaAdsSession(env, db).catch(e => { why.push(`Meta Ads: ${said(e)}`); return null })
+  if (ads) {
+    if (own.id) {
+      const way: Way = { id: own.id, token: ads.token, via: 'ads', page: null }
+      const media = await attempt(way, 'Meta Ads sign-in, the café’s Instagram')
+      if (media) return { way, media, why }
+    }
+    const seen = await facebook.personsInstagram(graphVersion, ads.token).catch(e => ({ accounts: [], refused: [said(e)] }))
+    why.push(...seen.refused.map(r => `Meta Ads sign-in, ${r}`))
+    for (const ig of seen.accounts.filter(isOurs)) {
+      const way: Way = { id: ig.id, token: ads.token, via: 'ads', page: null }
+      const media = await attempt(way, `Meta Ads sign-in, @${ig.username ?? ig.id}`)
+      if (media) return { way, media, why }
+    }
+    if (!seen.accounts.some(isOurs)) why.push('Meta Ads sign-in: the café’s Instagram isn’t among its accounts')
+  }
+  return { way: null, media: null, why }
 }
 
 /** The café account's figures asked for a post's days (profile_views isn't given for every account: asked again without it). */

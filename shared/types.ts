@@ -434,6 +434,8 @@ export interface Integration {
     collabs_via?: 'instagram' | 'facebook' | null
     /** Facebook: allowed instagram_basic (the collab reels of the Instagram account linked to the Page), that account's id (null: none answered), and when the Page was last asked. */
     instagram?: boolean; instagram_id?: string | null; instagram_asked_at?: string
+    /** Facebook: the way that reads the café's Instagram (a Page's sign-in, which Page; or the Meta Ads sign-in), or what Meta said to each way when none does. */
+    instagram_via?: 'page' | 'ads'; instagram_page?: string | null; instagram_why?: string | null
     /** Meta Ads and Google Ads: the ad accounts the person can use, and the chosen one. */
     accounts?: { id: string; name: string; currency: string }[]; account_id?: string; account_name?: string
     /** Meta Ads: allowed to pause, resume and change budgets (not only read). */
