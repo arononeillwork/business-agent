@@ -108,6 +108,16 @@ built-in **AI connector** so owners can run it by talking to Claude.
   10), each its own line, so monthly limits and approvals work as for one; the assistant's `log_reward` takes
   `times` too. The usual rewards keep customers' credit small (50 cents a story, €1 a post or a friend brought
   in, more for a bigger reach) and give reps commission (€3 a new customer, up to 20 a month).
+- Posts about the café (Sales reps & rewards, Analytics): a customer's reel or post with the café as collaborator
+  shows on the café's own grid, but Instagram lists it apart from the café's posts (`collaborative_media`). The
+  Instagram check every 15 minutes keeps these collabs, however old, with their likes, comments and views, alongside
+  tags and story mentions. Whoever posts a reel or post about the café (or mentions it in a story with 1,000 followers or
+  more) goes on Sales reps & rewards by themselves, waiting for an owner's OK, with a link to the post; an owner's no
+  stands when they post again. One Instagram doesn't list is added by its link on Analytics. Analytics → Instagram →
+  **What each post did** shows the café's own posts and the ones about it, each with the new followers of the day it went
+  out and the two after against a usual three days (the middle day of the week before), with new followers day by day
+  above. Instagram keeps those for 30 days; the app keeps them from then on (the `posts_about_the_cafe` migration,
+  `worker/mentions.ts`, `shared/postImpact.ts`).
 - Business Agent's own reps ([docs/REPS_PLAN.md](docs/REPS_PLAN.md)): people who know business owners sell Business
   Agent for us, run as a business of its own in the app, **Business Agent HQ**, on its Sales reps & rewards page. Each rep has
   a code (Julio, for cafés: JULIO27) and leads kinds of business (café, restaurant & bar, pub, salon & beauty, real estate,

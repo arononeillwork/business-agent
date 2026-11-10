@@ -15,6 +15,7 @@ import {
   METRIC_LABELS, SOCIAL_NAMES, type PostColumn, type SocialDay, type SocialMetric, type SocialMetricId, type SocialReport, type SocialSource,
 } from '../../shared/socialAnalytics'
 import { Change } from './AnalyticsPage'
+import { PostImpactCard } from './PostImpact'
 
 const COLUMNS: Record<PostColumn, string> = {
   views: msg('Views'), reach: msg('Reach'), likes: msg('Likes'), comments: msg('Comments'), shares: msg('Shares'), saves: msg('Saves'),
@@ -118,6 +119,7 @@ export function SocialAnalytics({ source, days, periodName, vs, frame }: {
           </CardContent>
         </Card>
       )}
+      {r.impact && <PostImpactCard impact={r.impact} followerDays={r.follower_days} from={r.from} to={r.to} periodName={periodName} />}
       {r.post_columns.length > 0 && <TopPosts report={r} />}
     </>
   )

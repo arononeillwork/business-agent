@@ -15,9 +15,11 @@ import * as tiktok from './providers/tiktok'
 import * as linkedin from './providers/linkedin'
 import * as facebook from './providers/facebook'
 import {
-  FACEBOOK_METRICS, SOCIAL_NAMES, chunks, facebookReport, insightDays, insightTotals, instagramReport, isSocialSource, linkedinReport, noReport,
-  statsRefused, tiktokReport, unixDay, type SocialAccess, type SocialReport, type SocialSource,
+  FACEBOOK_METRICS, SOCIAL_NAMES, chunks, facebookReport, fillDays, insightDays, insightTotals, instagramReport, isSocialSource, linkedinReport, noReport,
+  statsRefused, tiktokReport, unixDay, type SocialAccess, type SocialDay, type SocialReport, type SocialSource,
 } from '../shared/socialAnalytics'
+import { BASELINE_DAYS, IMPACT_DAYS, followerDays, ownPost, postAbout, postImpacts, type PostImpact } from '../shared/postImpact'
+import type { Mention } from '../shared/mentions'
 import { minutesFor } from './refresh'
 import { addDays, today } from '../shared/time'
 import { signInCheck, signedInUser } from './signedIn'
@@ -45,26 +47,33 @@ const POSTS_READ = 25
 
 /**
  * Instagram over from–to: the account's metrics (30 days at a time, added up), reach day by day,
- * new followers (only within the last 30 days, which is all Instagram keeps), and the period's posts.
+ * new followers day by day (only within the last 30 days, which is all Instagram keeps; from a week
+ * before the period, so a post early in it has a usual to go by), and the period's posts.
  */
 export async function readInstagram(cfg: instagram.InstagramConfig, from: string, to: string, now = today()): Promise<SocialReport> {
   const parts = chunks(from, to, 30)
   const span = (p: { from: string; to: string }) => [unixDay(p.from), unixDay(addDays(p.to, 1))] as const
-  const [who, totals, reach, gained, media] = await Promise.all([
+  const before = addDays(from, -BASELINE_DAYS), kept = addDays(now, -29)
+  const since = before > kept ? before : kept
+  const [who, totals, reach, newFollowers, media] = await Promise.all([
     instagram.statsProfile(cfg),
     Promise.all(parts.map(p => instagram.accountInsights(cfg, INSTAGRAM_METRICS, ...span(p)))),
     Promise.all(parts.map(p => instagram.accountDays(cfg, 'reach', ...span(p)))),
-    parts.length === 1 && from >= addDays(now, -30)
-      ? instagram.accountDays(cfg, 'follower_count', ...span(parts[0])).then(m => (m ? insightDays(m).reduce((n, d) => n + d.value, 0) : null), () => null)
+    since <= to
+      ? instagram.accountDays(cfg, 'follower_count', ...span({ from: since, to })).then(m => (m ? insightDays(m) : null), () => null)
       : Promise.resolve(null),
     instagram.mediaSince(cfg, from),
   ])
   const added: Record<string, number> = {}
   for (const part of totals) for (const [k, v] of Object.entries(insightTotals(part))) added[k] = (added[k] ?? 0) + v
   const inPeriod = media.filter(m => m.timestamp.slice(0, 10) >= from && m.timestamp.slice(0, 10) <= to).slice(0, POSTS_READ)
-  const insights = await Promise.all(inPeriod.map(m => instagram.postInsights(cfg, m.id)))
+  const insights = await Promise.all(inPeriod.map(m => instagram.postInsights(cfg, m.id, m.media_product_type === 'FEED')))
+  // Days Instagram hasn't counted yet (a day or two late) aren't days with no one new.
+  const last = newFollowers?.reduce((a, d) => (d.date > a ? d.date : a), '') ?? ''
+  const followerDays = newFollowers && last ? fillDays(newFollowers.filter(d => d.date >= since), since, last) : null
+  const gained = followerDays && from >= since ? followerDays.filter(d => d.date >= from && d.date <= to).reduce((n, d) => n + d.value, 0) : null
   return instagramReport({
-    username: who.username, followers: who.followers_count ?? null, totals: added, follower_gain: gained,
+    username: who.username, followers: who.followers_count ?? null, totals: added, follower_gain: gained, follower_days: followerDays,
     reach_days: reach.flatMap(m => insightDays(m)), media: inPeriod.map((m, i) => ({ ...m, insights: insights[i] })),
   }, from, to)
 }
@@ -100,6 +109,62 @@ export async function readFacebook(s: facebook.PageAccess, from: string, to: str
   const refused = metrics.find((r): r is PromiseRejectedResult => r.status === 'rejected')
   if (!read.length && refused) throw refused.reason
   return facebookReport({ page, insights: read, posts }, from, to)
+}
+
+// ---- What each post did (Instagram) -------------------------------------------------------------
+
+/**
+ * The day after the last one whose posts about the café are shown: a period runs to yesterday (the
+ * platforms are a day behind), but a post about the café from today shows in it too (too soon to tell),
+ * so one just added is there.
+ */
+export const aboutUntil = (to: string, now = today()) => (to >= addDays(now, -1) ? addDays(now, 1) : addDays(to, 1))
+
+const MENTION_FIELDS = 'id, kind, username, media_url, permalink, caption, mentioned_at, video, likes, comments, views, shares, saves, added_by'
+
+/** Keep Instagram's new followers each day (it forgets them after 30 days). Never throws. */
+export async function keepFollowerDays(db: SupabaseClient, days: SocialDay[] | null | undefined) {
+  if (!days?.length) return
+  const at = new Date().toISOString()
+  const { error } = await db.from('social_follower_days')
+    .upsert(days.map(d => ({ source: 'instagram', day: d.date, gained: Math.max(0, Math.round(d.value)), updated_at: at })), { onConflict: 'business_id,source,day' })
+  if (error) console.error('keeping new followers', error.message)
+}
+
+/**
+ * Once a day (from the Instagram check every 15 minutes): the last 30 days of new followers, kept, so
+ * What each post did can go further back than Instagram does. Only with statistics allowed.
+ */
+export async function refreshFollowerDays(db: SupabaseClient, cfg: instagram.InstagramConfig, now = today()) {
+  await cached(db, 'instagram:follower-days', 20 * 60, async () => {
+    const since = addDays(now, -29)
+    const m = await instagram.accountDays(cfg, 'follower_count', unixDay(since), unixDay(now))
+    const days = m ? insightDays(m) : []
+    const last = days.reduce((a, d) => (d.date > a ? d.date : a), '')
+    if (last) await keepFollowerDays(db, fillDays(days.filter(d => d.date >= since), since, last))
+    return { days: days.length }
+  })
+}
+
+/**
+ * The café's own posts of the period and the ones about it (collabs, tags, story mentions), each with
+ * the followers gained the day it went out and the two after, against the week before. Null for
+ * anything but Instagram with statistics.
+ */
+export async function postImpact(db: SupabaseClient, report: SocialReport): Promise<PostImpact[] | null> {
+  if (report.source !== 'instagram' || report.access !== 'ok') return null
+  await keepFollowerDays(db, report.follower_days)
+  const [{ data: kept, error: e1 }, { data: about, error: e2 }] = await Promise.all([
+    db.from('social_follower_days').select('day, gained').eq('source', 'instagram')
+      .gte('day', addDays(report.from, -BASELINE_DAYS)).lte('day', addDays(report.to, IMPACT_DAYS)),
+    db.from('instagram_mentions').select(MENTION_FIELDS)
+      .gte('mentioned_at', `${report.from}T00:00:00Z`).lt('mentioned_at', `${aboutUntil(report.to)}T00:00:00Z`)
+      .order('mentioned_at', { ascending: false }).limit(100),
+  ])
+  if (e1 || e2) throw new Error((e1 ?? e2)!.message)
+  const days = followerDays((kept ?? []).map(d => ({ date: String(d.day), value: Number(d.gained) })), report.follower_days)
+  const own = (report.all_posts ?? report.posts).map(ownPost)
+  return postImpacts([...own, ...((about ?? []) as (Mention & { added_by: string | null })[]).map(postAbout)], days)
 }
 
 // ---- The route ----------------------------------------------------------------------------------
@@ -157,7 +222,8 @@ socialAnalytics.get('/api/analytics/:source', async c => {
   if (gap) return missing(gap)
   try {
     const { data: report, fetched_at } = await cached(db, `social:${source}:${from}:${to}`, minutesFor(db, 'social'), () => readSource(c.env, db, source, row, from, to))
-    return c.json({ ...report, fetched_at })
+    const impact = await postImpact(db, report).catch(e => { console.error('what each post did', e); return null })
+    return c.json({ ...report, ...(impact ? { impact } : {}), fetched_at })
   } catch (e) {
     // Not allowed to read statistics: ask to connect again; the connection itself is fine.
     if (statsRefused(source, e instanceof Error ? e.message : String(e))) return missing('needs_scope')

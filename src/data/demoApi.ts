@@ -17,13 +17,14 @@ import {
   isTownHoliday, TOWN_HOLIDAY_TITLE, TOWN_HOLIDAYS_BODY, townHolidayId, townHolidaysLink, townHolidaysMissing, townHolidaysProblem,
   townHolidaysTitle, townHolidaysToTell, townHolidayYearsToSet,
 } from '../../shared/townHolidays'
-import { mentionTitle, mentionsIn, type InstagramMention } from '../../shared/mentions'
+import { collabId, collabMentions, isRecent, mentionTitle, mentionsIn, peopleToPutForward, shortcodeOf, type InstagramMention } from '../../shared/mentions'
+import { followerDays, ownPost, postAbout, postImpacts } from '../../shared/postImpact'
 import { demoSports } from './demoSports'
 import { demoInbox, demoMessenger, demoWhatsApp } from './demoMessages'
 import { demoEmailPage, demoEmails } from './demoEmail'
 import { demoEmailFull, demoFileLines, demoPicture, demoReplies } from './demoEmail'
 import { DEMO_CAFE_AT, DEMO_PLACES, demoCompetitors } from './demoCompetitors'
-import { demoSocialReport } from './demoSocialAnalytics'
+import { DEMO_COLLABS, demoCollabs, demoSocialReport } from './demoSocialAnalytics'
 import { SOCIAL_NAMES } from '../../shared/socialAnalytics'
 import { distanceM, instagramHandle, suggestedThreat, type Competitor, type NearbyPlace } from '../../shared/localCompetitors'
 import { DEFAULT_WHATSAPP_RETENTION, isRetention, replyWindow } from '../../shared/messages'
@@ -155,17 +156,42 @@ export function createDemoApi(): Api {
   const inbox = demoInbox()
   const messenger = demoMessenger()
   const whatsappChats = demoWhatsApp()
-  // Instagram mentions from the sample inbox: the bell tells every admin once (as the Worker does).
+  // Instagram mentions from the sample inbox, and three customers' collab reels: the bell tells every
+  // admin once about the last week's (as the Worker does), and the people who posted are put forward as reps.
   let mentions: InstagramMention[] | null = null
+  const putForwardDone = new Set<string>()
   const demoMentions = () => {
     if (mentions) return mentions
     const { conversations, tagged } = inbox.state()
-    mentions = mentionsIn(conversations, tagged).map(m => ({ ...m, status: 'new' as const, reposted_url: null, decided_at: null }))
-    for (const m of mentions) for (const a of profiles.filter(p => p.role === 'admin' && p.active)) {
+    const collabs = collabMentions(demoCollabs(today()), conversations)
+      .map(m => ({ ...m, followers: DEMO_COLLABS.find(c => c.username === m.username)?.followers ?? null }))
+    mentions = [...mentionsIn(conversations, tagged), ...collabs].sort((a, b) => b.mentioned_at.localeCompare(a.mentioned_at))
+      .map(m => ({ ...m, status: 'new' as const, reposted_url: null, decided_at: null }))
+    for (const m of mentions.filter(x => isRecent(x))) for (const a of profiles.filter(p => p.role === 'admin' && p.active)) {
       notes.push({ id: notes.length + 1, profile_id: a.id, title: mentionTitle(m), body: m.caption, link: '/notifications',
         created_at: m.mentioned_at, read_at: null, kind: 'instagram_mention', data: { mention: m.id } })
     }
+    putForward()
     return mentions
+  }
+  /** As worker/mentions.ts putForward: the people who posted about the café, waiting for an owner's OK. */
+  const putForward = () => {
+    const unchecked = (mentions ?? []).filter(m => !putForwardDone.has(m.id))
+    const known = new Set([...repList.map(r => r.instagram).filter((x): x is string => !!x),
+      ...(mentions ?? []).filter(m => putForwardDone.has(`brought:${m.id}`)).map(m => m.username ?? '')])
+    for (const p of peopleToPutForward(unchecked, known, 'easy.beans.coffee', inbox.state().conversations)) {
+      const m = mentions!.find(x => x.id === p.mention_id)!
+      const rep = salesRep({ id: uid(), name: p.name ?? `@${p.username}`, kind: 'customer', code: codeFor(p.username, new Set(repList.map(r => r.code))),
+        instagram: p.username, instagram_followers: p.followers, followers_checked_at: p.followers === null ? null : nowIso(), picture_url: p.picture,
+        approved: false, found_mention_id: p.mention_id, created_by: null, created_at: m.mentioned_at > daysAgo(1) ? m.mentioned_at : nowIso() })
+      repList.push(rep)
+      putForwardDone.add(`brought:${m.id}`)
+      for (const a of profiles.filter(x => x.role === 'admin' && x.can_see_pay && x.active)) {
+        notes.push({ id: notes.length + 1, profile_id: a.id, title: `${rep.name} posted about the café: waiting for your OK as a rep`,
+          body: rep.reach > 0 ? `Reaches ${rep.reach.toLocaleString('en')} people` : null, link: '/sales-reps', created_at: nowIso(), read_at: null })
+      }
+    }
+    for (const m of unchecked) putForwardDone.add(m.id)
   }
   const decideMention = (id: string, status: 'reposted' | 'ignored') => {
     const m = demoMentions().find(x => x.id === id)
@@ -4142,6 +4168,8 @@ export function createDemoApi(): Api {
     },
 
     async salesReps() {
+      // The Worker puts forward the people who post about the café every 15 minutes: here, as soon as anyone looks.
+      if (isStaff()) demoMentions()
       return isStaff() ? clone(repList).sort((a, b) => a.name.localeCompare(b.name)) : []
     },
     // Only Business Agent HQ (?hq) has businesses its reps introduced.
@@ -4988,7 +5016,14 @@ export function createDemoApi(): Api {
       requireAdmin()
       const row = integ.integrations.find(i => i.provider === source)!
       if (row.status !== 'connected') throw new Error(`Connect ${SOCIAL_NAMES[source]} on the Connections page to see its statistics`)
-      return { ...demoSocialReport(source, from, to, today(), row), fetched_at: nowIso() }
+      const report = demoSocialReport(source, from, to, today(), row)
+      if (source !== 'instagram' || report.access !== 'ok') return { ...report, fetched_at: nowIso() }
+      // What each post did, as worker/socialAnalytics.ts adds it: the café's own and the ones about it.
+      // To yesterday, and today's too when the period is the latest (as aboutUntil in worker/socialAnalytics.ts).
+      const until = to >= addDays(today(), -1) ? today() : to
+      const about = demoMentions().filter(m => m.mentioned_at.slice(0, 10) >= from && m.mentioned_at.slice(0, 10) <= until)
+      const impact = postImpacts([...(report.all_posts ?? []).map(ownPost), ...about.map(postAbout)], followerDays([], report.follower_days))
+      return { ...report, impact, fetched_at: nowIso() }
     },
     async chooseFacebookPage(pageId) {
       requireAdmin()
@@ -5314,6 +5349,31 @@ export function createDemoApi(): Api {
       requireAdmin()
       demoMentions()
       return 0
+    },
+    async addPostByLink({ link, username, on }) {
+      requireAdmin()
+      const code = shortcodeOf(link)
+      if (!code) throw new Error('Paste the link to the post or reel on Instagram (it has /p/ or /reel/ in it)')
+      const who = cleanInstagram(username)
+      if (!who) throw new Error('Add the @ of whoever posted it')
+      const id = collabId(code)
+      const list = demoMentions()
+      if (list.some(m => m.id === id)) throw new Error('That post is in already')
+      const video = /\/(reels?|tv)\//i.test(link)
+      list.push({ id, kind: 'collab', username: who, media_url: null, permalink: `https://www.instagram.com/${video ? 'reel' : 'p'}/${code}/`, caption: null,
+        mentioned_at: zonedIso(on && on <= today() ? on : today(), '12:00'), video, status: 'new', reposted_url: null, decided_at: null, added_by: currentUser })
+      list.sort((a, b) => b.mentioned_at.localeCompare(a.mentioned_at))
+      const before = repList.length
+      putForward()
+      return { id, put_forward: repList.length > before }
+    },
+    async removePostByLink(id) {
+      requireAdmin()
+      const list = demoMentions()
+      const i = list.findIndex(m => m.id === id && m.added_by)
+      if (i < 0) throw new Error('Only a post added by its link can be taken off')
+      list.splice(i, 1)
+      for (const r of repList) if (r.found_mention_id === id) r.found_mention_id = null
     },
     async eventAlerts() { return clone(alerts) },
     async holidayReminders() {

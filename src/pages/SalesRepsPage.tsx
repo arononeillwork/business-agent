@@ -184,6 +184,8 @@ export function SalesRepsPage() {
               {waitingPeople.map(r => {
                 const leader = allReps.find(x => x.id === r.leader_id)
                 const by = r.created_by ? personName(r.created_by) : null
+                // Put forward by themselves: the post about the café that brought them.
+                const found = r.found_mention_id ? (mentions.data ?? []).find(m => m.id === r.found_mention_id) ?? null : null
                 return (
                   <Stack key={r.id} role="group" aria-label={t('{name}: new rep', { name: r.name })} direction={{ xs: 'column', sm: 'row' }} spacing={1.5}
                     sx={{ alignItems: { sm: 'center' }, py: 1, borderTop: 1, borderColor: 'divider', '&:first-of-type': { borderTop: 0 } }}>
@@ -196,9 +198,11 @@ export function SalesRepsPage() {
                           {r.reach > 0 && <ReachBadge reach={r.reach} />}
                         </Stack>
                         <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                          {[t('Wants to be a rep'), r.reach > 0 ? t('Reaches {n} people', { n: formatNumber(r.reach) }) : null,
+                          {[r.found_mention_id ? t('Found on Instagram') : t('Wants to be a rep'), found ? `${mentionWords(found)} · ${formatLocal(found.mentioned_at, 'd MMM')}` : null,
+                            r.reach > 0 ? t('Reaches {n} people', { n: formatNumber(r.reach) }) : null,
                             leader ? t('In {name}’s crew', { name: leader.name }) : null,
                             by ? t('Added by {name}', { name: by }) : leader ? t('Added from {name}’s page', { name: leader.name }) : null, r.notes].filter(Boolean).join(' · ')}
+                          {found?.permalink && <> · <Link href={found.permalink} target="_blank" rel="noopener">{t('See it')}</Link></>}
                         </Typography>
                       </Box>
                     </Stack>
@@ -708,6 +712,10 @@ function Medal({ place }: { place: number }) {
 }
 
 /** A story or post about the café: reward who shared it, or add them first. */
+/** What someone did about the café on Instagram. */
+const mentionWords = (m: Pick<Mention, 'kind' | 'video'>) => (m.kind === 'story' ? t('Mentioned the café in their story')
+  : m.kind === 'collab' ? (m.video ? t('Posted a reel with the café') : t('Posted with the café')) : t('Tagged the café in a post'))
+
 function MentionCard({ item, onReward, onAdd }: { item: MentionToReward; onReward: (rep: SalesRep) => void; onAdd: () => void }) {
   const { mention: m, rep } = item
   return (
@@ -718,7 +726,7 @@ function MentionCard({ item, onReward, onAdd }: { item: MentionToReward; onRewar
       <Box sx={{ minWidth: 0, flex: 1 }}>
         <Typography variant="body2" sx={{ fontWeight: 500 }}>@{m.username}</Typography>
         <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
-          {m.kind === 'story' ? t('Mentioned the café in their story') : t('Tagged the café in a post')} · {formatLocal(m.mentioned_at, 'd MMM')}
+          {mentionWords(m)} · {formatLocal(m.mentioned_at, 'd MMM')}
           {rep && rep.reach > 0 && ` · ${t('Reaches {n}', { n: formatReach(rep.reach) })}`}
         </Typography>
         {rep

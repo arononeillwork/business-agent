@@ -25,12 +25,12 @@ export function MentionActions({ mention: m }: { mention: InstagramMention }) {
   const who = m.username ? `@${m.username}` : t('Someone')
   return (
     <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-      <Button size="small" variant="contained" startIcon={<RepostIcon />} aria-label={t('Repost {who}’s {what} to your story', { who, what: m.kind === 'story' ? t('story') : t('post') })}
+      <Button size="small" variant="contained" startIcon={<RepostIcon />} aria-label={t('Repost {who}’s {what} to your story', { who, what: m.kind === 'story' ? t('story') : m.video ? t('reel') : t('post') })}
         onClick={e => { e.stopPropagation(); run(() => api.repostMention(m.id), t('Reposted to your Instagram story')) }}>
         {t('Repost')}
       </Button>
       <Button size="small" onClick={e => { e.stopPropagation(); run(() => api.ignoreMention(m.id), t('Ignored')) }}
-        aria-label={t('Ignore {who}’s {what}', { who, what: m.kind === 'story' ? t('story') : t('post') })}>
+        aria-label={t('Ignore {who}’s {what}', { who, what: m.kind === 'story' ? t('story') : m.video ? t('reel') : t('post') })}>
         {t('Ignore')}
       </Button>
       {m.permalink && (
@@ -54,7 +54,9 @@ export function MentionRow({ mention: m }: { mention: InstagramMention }) {
         <Typography sx={{ fontWeight: 500 }}>
           {m.kind === 'story'
             ? t('{who} mentioned you in their story', { who: m.username ? `@${m.username}` : t('Someone') })
-            : t('{who} tagged you in a post', { who: m.username ? `@${m.username}` : t('Someone') })}
+            : m.kind === 'collab'
+              ? (m.video ? t('{who} posted a reel with you', { who: m.username ? `@${m.username}` : t('Someone') }) : t('{who} posted with you', { who: m.username ? `@${m.username}` : t('Someone') }))
+              : t('{who} tagged you in a post', { who: m.username ? `@${m.username}` : t('Someone') })}
         </Typography>
         {m.caption && <Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>{m.caption}</Typography>}
         <Typography variant="caption" sx={{ color: 'text.disabled', display: 'block', mb: 0.75 }}>{formatLocal(m.mentioned_at, 'EEE d MMM, HH:mm')}</Typography>

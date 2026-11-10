@@ -1153,6 +1153,13 @@ export interface Api {
   ignoreMention(id: string): Promise<void>
   /** Look for new mentions now (the Worker also looks every 15 minutes); how many were new. */
   checkMentions(): Promise<number>
+  /**
+   * A post or reel about the café that Instagram doesn't list, added by its link, with who posted it
+   * and the day (admins). Its poster is put forward as a rep; Analytics shows what it did.
+   */
+  addPostByLink(input: { link: string; username: string; on: string }): Promise<{ id: string; put_forward: boolean }>
+  /** One added by its link, taken off again. */
+  removePostByLink(id: string): Promise<void>
   eventAlerts(): Promise<EventAlert[]>
   setEventAlert(kind: EventAlert['kind'], refId: string, on: boolean): Promise<boolean>
   /** Bank holiday reminders (admins): the holidays left out, and the ones reminded about. */

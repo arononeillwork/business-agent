@@ -5,6 +5,7 @@
 // turn each platform's answers into it.
 import { msg } from './i18n'
 import { addDays } from './time'
+import type { PostImpact } from './postImpact'
 
 export type SocialSource = 'instagram' | 'tiktok' | 'linkedin' | 'facebook'
 export const SOCIAL_SOURCES: SocialSource[] = ['instagram', 'tiktok', 'linkedin', 'facebook']
@@ -59,6 +60,10 @@ export interface SocialPost {
   comments?: number | null
   shares?: number | null
   saves?: number | null
+  /** A reel or video. */
+  video?: boolean
+  /** People who followed the account from it (Instagram, its own photo posts). */
+  follows?: number | null
 }
 export type PostColumn = 'views' | 'reach' | 'likes' | 'comments' | 'shares' | 'saves'
 
@@ -87,6 +92,12 @@ export interface SocialReport {
   post_columns: PostColumn[]
   /** A note on what the figures cover, when it isn't obvious. */
   note?: 'tiktok_videos' | null
+  /** Instagram: new followers each day as far as Instagram keeps them (30 days), from a week before the period. */
+  follower_days?: SocialDay[] | null
+  /** Instagram: every post of the period, newest first (`posts` has the best ten). */
+  all_posts?: SocialPost[]
+  /** Instagram: what each post did, the café's own and the ones about it, newest first (worker/socialAnalytics.ts adds it). */
+  impact?: PostImpact[] | null
   fetched_at?: string
 }
 
@@ -163,8 +174,10 @@ export interface InstagramStats {
   reach_days: SocialDay[]
   /** New followers over the period (Instagram keeps the last 30 days, and nothing under 100 followers). */
   follower_gain: number | null
+  /** New followers each day, as far as Instagram keeps them. */
+  follower_days?: SocialDay[] | null
   media: {
-    id: string; caption?: string; permalink?: string; timestamp: string; media_type?: string
+    id: string; caption?: string; permalink?: string; timestamp: string; media_type?: string; media_product_type?: string
     thumbnail_url?: string; media_url?: string; like_count?: number; comments_count?: number
     insights?: Record<string, number>
   }[]
@@ -178,9 +191,12 @@ export function instagramReport(s: InstagramStats, from: string, to: string): So
     reach: m.insights?.reach ?? null, views: m.insights?.views ?? null,
     likes: m.insights?.likes ?? m.like_count ?? null, comments: m.insights?.comments ?? m.comments_count ?? null,
     saves: m.insights?.saved ?? m.insights?.saves ?? null, shares: m.insights?.shares ?? null,
+    video: m.media_type === 'VIDEO' || m.media_product_type === 'REELS', follows: m.insights?.follows ?? null,
   }))
   return {
     source: 'instagram', from, to, access: 'ok', account: `@${s.username}`, profile_url: `https://www.instagram.com/${s.username}/`,
+    follower_days: s.follower_days ?? null,
+    all_posts: [...posts].sort((a, b) => b.at.localeCompare(a.at)),
     metrics: [
       { id: 'followers', kind: 'now', value: s.followers, change: s.follower_gain },
       { id: 'reach', kind: 'period', value: total('reach') },

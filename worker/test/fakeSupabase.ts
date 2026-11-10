@@ -26,6 +26,7 @@ const KEYS: Record<string, string[]> = {
   square_team_links: ['profile_id'],
   square_pins: ['profile_id'],
   newsletter: ['business_id'],
+  instagram_mentions: ['id'], social_follower_days: ['source', 'day'],
 }
 /** Keyed tables that still get a numeric id of their own (an identity column beside the unique key). */
 const AUTO_ID = new Set(['whatsapp_messages'])
@@ -323,8 +324,9 @@ export class FakeSupabase {
       return prefer.includes('return=representation') ? respond(out, 201) : new Response(null, { status: 201 })
     }
     if (method === 'DELETE') {
+      const gone = rows.filter(match)
       this.tables[name] = rows.filter(r => !match(r))
-      return new Response(null, { status: 204 })
+      return prefer.includes('return=representation') ? respond(gone) : new Response(null, { status: 204 })
     }
     return json({ message: `fake Supabase: ${method} not supported` }, 405)
   }
