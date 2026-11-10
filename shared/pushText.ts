@@ -65,6 +65,9 @@ type Phrase = [RegExp, string, (m: RegExpExecArray, lang: Language) => Record<st
 // Kept in step with what writes them: the social, enquiry, expense, campaign, food safety, licence,
 // sales rep and event alert migrations, and worker/{reviews,competitors,connections,integrations}.ts.
 const TITLES: Phrase[] = [
+  // Error alerts to HQ's admins (the app_errors migration): first, as the error's own message could read like another's.
+  [/^New error: (.+)$/s, msg('New error: {message}'), m => ({ message: m[1] })],
+  [/^An error is back: (.+)$/s, msg('An error is back: {message}'), m => ({ message: m[1] })],
   [/^Time to post your (post|carousel|reel|story) on (.+)$/, msg('Time to post your {what} on {where}'), (m, l) => ({
     what: say(l, WHAT[m[1]]),
     where: m[2] === 'social media' ? say(l, msg('social media')) : m[2].split(' and ').join(say(l, msg(' and '))),
@@ -92,6 +95,7 @@ const TITLES: Phrase[] = [
   [/^On offer till closing: (.+)$/, msg('On offer till closing: {name}'), m => ({ name: m[1] })],
 ]
 const BODIES: Phrase[] = [
+  [/^In (.+)\. The details are on Businesses, under Errors\.$/s, msg('In {where}. The details are on Businesses, under Errors.'), m => ({ where: m[1] })],
   [/^Coming up (\w{3}) (\d\d) (\w{3}), (\d\d:\d\d)\. You asked to be reminded\.$/, msg('Coming up {when}. You asked to be reminded.'), (m, l) => ({
     when: l === 'es' ? `${DAY[m[1]] ?? m[1]} ${Number(m[2])} ${MONTH[m[3]] ?? m[3]}, ${m[4]}` : `${m[1]} ${m[2]} ${m[3]}, ${m[4]}`,
   })],

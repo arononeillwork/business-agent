@@ -3,6 +3,7 @@
 // Each business's acts (HqBusinessActions.tsx): make it complimentary or end that (hq_set_complimentary()),
 // give a free trial longer (the Worker, through Stripe), and which ones asked to close.
 // Under the totals, the funnel and cancellations by month (HqFunnel.tsx, the hq_funnel migration).
+// Under the list, the errors the app, the Worker and the scheduled jobs ran into (HqErrors.tsx, the app_errors migration).
 import { Alert, Box, Chip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from '@mui/material'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
@@ -12,6 +13,7 @@ import type { HqBusiness } from '../data/api'
 import { t, tn } from '../i18n'
 import { HqBusinessActions, closingLabel } from './HqBusinessActions'
 import { HqFunnel } from '../components/HqFunnel'
+import { HqErrors } from '../components/HqErrors'
 
 const PAYING = new Set(['active', 'past_due'])
 const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—')
@@ -34,6 +36,7 @@ function statusLabel(b: HqBusiness): { label: string; color: 'default' | 'succes
 
 export function HqBusinessesPage() {
   const { api } = useApp()
+  const { business } = useApp()
   const { data, error, reload } = useAsync('hq-businesses', () => api.hqBusinesses(), [])
   const closures = useAsync('hq-closures', () => api.hqClosures(), [])
   const list = data ?? []
@@ -104,6 +107,7 @@ export function HqBusinessesPage() {
           </Table>
         </TableContainer>
       )}
+      {business?.is_hq && <HqErrors businesses={new Map(list.map(b => [b.id, b.name]))} />}
     </>
   )
 }

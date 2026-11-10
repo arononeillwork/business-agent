@@ -17,6 +17,7 @@ import { NewVersionNotice, reloadForNewVersion } from './app/newVersion'
 import { Fragment, lazy, Suspense, useEffect, type ComponentType, type ReactNode } from 'react'
 import { preferredLanguage, setLanguage, useLanguage } from './i18n'
 import { isShortLink } from '../shared/screens'
+import { AppErrorBoundary } from './app/ErrorBoundary'
 
 // Pages load when first opened, so the first screen is quick on phones. A page whose code a deploy
 // replaced waits for the reload that picks up the new version, or says it didn't open when reloading
@@ -320,6 +321,8 @@ export function App() {
     <QueryClientProvider client={queryClient}>
     <ThemeProvider theme={theme} defaultMode="system" disableTransitionOnChange>
       <CssBaseline />
+      {/* Something that breaks shows a calm screen with Reload, and The Business Agent hears about it. */}
+      <AppErrorBoundary>
       <NotifyProvider>
         <AppProvider>
           <AppearanceSync />
@@ -329,6 +332,7 @@ export function App() {
           </Router>
         </AppProvider>
       </NotifyProvider>
+      </AppErrorBoundary>
     </ThemeProvider>
     </QueryClientProvider>
   )

@@ -8,6 +8,7 @@ import type { InboxConversation, InboxState, InboxThread } from '../../shared/me
 import type { ReferralState } from '../../shared/referrals'
 import type { ReferralOpen, RepIntroduction } from '../../shared/hqReps'
 import type { HqFunnelRow } from '../../shared/hqFunnel'
+import type { ClientErrorReport } from '../../shared/appErrors'
 import type { KindInfo } from '../../shared/social'
 import type { InstagramMention } from '../../shared/mentions'
 import type { FilingRecord, Quarter, TaxDocKind, TaxDocument, TaxSettings } from '../../shared/tax'
@@ -120,6 +121,23 @@ export interface HqClosure {
   closing_requested_at: string
   closes_at: string
   requested_by: string | null
+}
+
+/** A kind of error the app, the Worker or a scheduled job ran into, on HQ's back-office (public.app_errors, the app_errors migration). */
+export interface HqError {
+  fingerprint: string
+  /** Where: "app", "worker POST /api/…" or "cron: …". */
+  source: string
+  message: string
+  times: number
+  first_seen: string
+  last_seen: string
+  last_stack: string | null
+  last_path: string | null
+  /** The last one's method and route, or kind, build and browser, and the version that was live. */
+  last_detail: { method?: string; route?: string; kind?: string; build?: string | null; user_agent?: string | null; version?: string | null }
+  /** Whose it was the last time, when someone was signed in. */
+  business_id: number | null
 }
 
 /** Create with AI turned down (an artist or a song named): ElevenLabs' own rewording, when it gives one. */
@@ -1120,6 +1138,10 @@ export interface Api {
   hqClosures(): Promise<HqClosure[]>
   /** HQ's admins: each business's week two and whether and when it cancelled, for the funnel (anyone else gets none). */
   hqFunnel(): Promise<HqFunnelRow[]>
+  /** HQ's admins: the errors of the last 90 days, the latest first (anyone else gets none). */
+  hqErrors(): Promise<HqError[]>
+  /** Tell The Business Agent about an error the app ran into (src/app/errorReports.ts); the demo tells nobody. */
+  reportError(report: ClientErrorReport): Promise<void>
   /** Owners: everything the business keeps, one CSV file per table in a zip, to save. */
   exportData(): Promise<{ filename: string; blob: Blob }>
   /** Owners: close the account; it closes in 30 days (returns when) and the subscription stops renewing. */

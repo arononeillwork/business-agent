@@ -3,6 +3,7 @@ import { PromptError, SOCIAL_PROVIDERS, type AiTrackResult, type Api, type Billi
 import type { ApiKey, AppNotification, Brand, Business, Customer, SocialPost, EventAlert, Expense, Integration, MusicPlaylist, OutboxItem, Profile, Settings, TimeEntry, TimeOff, Todo, TodoCategory, CafeTrack, MusicPlayerState } from '../../shared/types'
 import type { HolidayReminder, PushDevice } from '../../shared/types'
 import type { HqClosure } from './api'
+import type { HqError } from './api'
 import type { HqFunnelRow } from '../../shared/hqFunnel'
 import type { AiMusicQuote, MusicGeneration, MusicTrack } from '../../shared/types'
 import type { InstagramMention } from '../../shared/mentions'
@@ -1807,6 +1808,16 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
     },
     async hqFunnel() {
       return check(await sb.rpc('hq_funnel')) as HqFunnelRow[]
+    },
+    async hqErrors() {
+      return check(await sb.from('app_errors').select('fingerprint, source, message, times, first_seen, last_seen, last_stack, last_path, last_detail, business_id')
+        .order('last_seen', { ascending: false }).limit(100)) as HqError[]
+    },
+    async reportError(report) {
+      // With the sign-in when there is one, so the Worker knows whose it was; sent even as the page closes.
+      const token = (await sb.auth.getSession().catch(() => null))?.data.session?.access_token
+      await fetch('/api/errors', { method: 'POST', keepalive: true, body: JSON.stringify(report),
+        headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) } })
     },
     // An owner's own data and account (the Worker: worker/account.ts).
     async exportData() {

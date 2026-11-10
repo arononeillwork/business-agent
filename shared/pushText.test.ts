@@ -59,4 +59,14 @@ describe('push notifications in each person’s language', () => {
     expect(es('Real Madrid – Barça').title).toBe('Real Madrid – Barça')
     expect(pushText({ title: 'Follow up: Boda de Ana', body: null, kind: null }, 'en').title).toBe('Follow up: Boda de Ana')
   })
+
+  it('says an error alert to HQ’s admins (the app_errors migration) in Spanish, the error’s own message as it was', () => {
+    const es = (title: string, body: string | null = null) => pushText({ title, body, kind: null }, 'es')
+    const body = 'In cron: outbox. The details are on Businesses, under Errors.'
+    expect(es('New error: Square stopped working', body)).toEqual({ title: 'Error nuevo: Square stopped working',
+      body: 'En cron: outbox. Los detalles están en Negocios, en Errores.' })
+    expect(es('An error is back: Cannot read properties of undefined (reading \'x\')').title)
+      .toBe('Ha vuelto un error: Cannot read properties of undefined (reading \'x\')')
+    expect(pushText({ title: 'New error: Square stopped working', body, kind: null }, 'en')).toEqual({ title: 'New error: Square stopped working', body })
+  })
 })

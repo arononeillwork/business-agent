@@ -12,6 +12,8 @@ export const CORE = String.raw`sign-in|sign in|signed out|landing page|guest lin
 const EVERYTHING = [
   /^src\/(App|main)\.tsx$/, /^src\/app\/(AppShell|AppContext|hooks|query|Notify|features|QuickActions)\.tsx?$/,
   /^src\/theme\.ts$/, /^src\/components\/(common|legal|Logo|dnd)\.tsx?$/, /^src\/data\//, /^src\/assets\//,
+  // The error screen around every page, and the error reports every page makes.
+  /^src\/app\/(ErrorBoundary|errorReports)\.tsx?$/,
   /^shared\/(types|time|business\.config|numberFormat|fonts)\.ts$/, /^index\.html$/, /^public\//,
   /^package(-lock)?\.json$/, /^playwright\.config\.ts$/, /^vite(\.demo)?\.config\.ts$/, /^tsconfig/, /^e2e\//,
   /^scripts\/ci\//, /^\.github\/workflows\/ci\.yml$/,
@@ -91,6 +93,8 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'hq-businesses', files: [/HqBusinessesPage/, /i18n\/es\/hqBusinesses/], tests: String.raw`back-office` },
   { name: 'hq actions', files: [/HqBusinessActions/, /i18n\/es\/hqActions/, /shared\/hqActions/], tests: String.raw`back-office` },
   { name: 'hq funnel', files: [/HqFunnel/, /i18n\/es\/hqFunnel/, /shared\/hqFunnel/, /demoBackOffice/], tests: String.raw`back-office` },
+  { name: 'hq errors', files: [/HqErrors/, /i18n\/es\/hqErrors/, /shared\/appErrors/], tests: String.raw`back-office` },
+  { name: 'help', files: [/components\/HelpDialog/, /i18n\/es\/help\.ts$/], tests: String.raw`Help in the account menu|account menu` },
   { name: 'closing the account', files: [/AccountDataCard/, /app\/ClosingBanner/, /i18n\/es\/closeAccount/, /shared\/(accountClosing|dataExport)/],
     tests: String.raw`closes the account|billing` },
   { name: 'compare', files: [/ComparePage/, /marketing\/compareCharts/, /shared\/compare/, /i18n\/es\/compare/], tests: String.raw`compare|landing` },

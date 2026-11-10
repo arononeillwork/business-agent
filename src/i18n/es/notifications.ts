@@ -214,4 +214,8 @@ export default {
   'On offer till closing: {name}': 'En oferta hasta el cierre: {name}',
   '{n} left on their last day, {price} until {time}. Square isn’t changed: take the offer price at the till.':
     'Quedan {n} en su último día, a {price} hasta las {time}. Square no cambia: cóbralo al precio de la oferta.',
+  // Error alerts to HQ's admins (the app_errors migration).
+  'New error: {message}': 'Error nuevo: {message}',
+  'An error is back: {message}': 'Ha vuelto un error: {message}',
+  'In {where}. The details are on Businesses, under Errors.': 'En {where}. Los detalles están en Negocios, en Errores.',
 } satisfies Record<string, string>
