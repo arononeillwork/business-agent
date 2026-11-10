@@ -26,7 +26,7 @@ import { demoInbox, demoMessenger, demoWhatsApp } from './demoMessages'
 import { demoEmailPage, demoEmails } from './demoEmail'
 import { demoEmailFull, demoFileLines, demoPicture, demoReplies } from './demoEmail'
 import { DEMO_CAFE_AT, DEMO_PLACES, demoCompetitors } from './demoCompetitors'
-import { DEMO_COLLABS, demoCollabs, demoSocialReport } from './demoSocialAnalytics'
+import { DEMO_COLLABS, demoAccountWindow, demoCollabs, demoSocialReport } from './demoSocialAnalytics'
 import { SOCIAL_NAMES } from '../../shared/socialAnalytics'
 import { distanceM, instagramHandle, suggestedThreat, type Competitor, type NearbyPlace } from '../../shared/localCompetitors'
 import { DEFAULT_WHATSAPP_RETENTION, isRetention, replyWindow } from '../../shared/messages'
@@ -170,7 +170,7 @@ export function createDemoApi(): Api {
     const collabs = collabMentions(demoCollabs(today()), conversations)
       .map(m => ({ ...m, followers: DEMO_COLLABS.find(c => c.username === m.username)?.followers ?? null }))
     mentions = [...mentionsIn(conversations, tagged), ...collabs].sort((a, b) => b.mentioned_at.localeCompare(a.mentioned_at))
-      .map(m => ({ ...m, status: 'new' as const, reposted_url: null, decided_at: null }))
+      .map(m => ({ ...m, status: 'new' as const, reposted_url: null, decided_at: null, account_window: demoAccountWindow(m.username, m.mentioned_at, today()) }))
     for (const m of mentions.filter(x => isRecent(x))) for (const a of profiles.filter(p => p.role === 'admin' && p.active)) {
       notes.push({ id: notes.length + 1, profile_id: a.id, title: mentionTitle(m), body: m.caption, link: '/notifications',
         created_at: m.mentioned_at, read_at: null, kind: 'instagram_mention', data: { mention: m.id } })

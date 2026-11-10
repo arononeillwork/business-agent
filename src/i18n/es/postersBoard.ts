@@ -1,4 +1,4 @@
-// Spanish for Sales reps & rewards → Posts about us: who brings the most (src/pages/PostersBoard.tsx).
+// Spanish for Sales reps & rewards → People who post about us (src/pages/PostersBoard.tsx).
 export default {
   'Posts about us: who brings the most': 'Publicaciones sobre nosotros: quién aporta más',
   'Everyone who posted about the café on Instagram: collab reels, tags and story mentions. Ranked by the followers you gained the day each post went out and the two after, over a usual three days, then by views.':
@@ -20,4 +20,17 @@ export default {
   'Add as a rep': 'Añadir como comercial',
   'Add {name} as a rep': 'Añadir a {name} como comercial',
   'Message {name} on Instagram': 'Escribir a {name} en Instagram',
+  'People who post about us': 'Quién publica sobre nosotros',
+  'Not a rep yet': 'Aún no es comercial',
+  '{n} followers': '{n} seguidores',
+  '{name}’s posts': 'Publicaciones de {name}',
+  'Show all {n} posts': 'Mostrar las {n} publicaciones',
+  'Instagram doesn’t share a story’s views or likes with the café.': 'Instagram no comparte con la cafetería las reproducciones ni los me gusta de una historia.',
+  'Instagram doesn’t share a tagged post’s views or likes with the café.': 'Instagram no comparte con la cafetería las reproducciones ni los me gusta de una publicación en la que te etiquetan.',
+  'Your Instagram the day it went out and the 2 after': 'Tu Instagram el día que salió y los 2 siguientes',
+  'Too soon to tell: Instagram counts each day a day or two later.': 'Aún es pronto: Instagram cuenta cada día uno o dos días después.',
+  'New followers': 'Nuevos seguidores',
+  'Profile visits': 'Visitas al perfil',
+  'Link taps': 'Toques en enlaces',
+  'Reach and profile visits come in once its three days are in.': 'El alcance y las visitas al perfil llegan cuando pasan sus tres días.',
 }
