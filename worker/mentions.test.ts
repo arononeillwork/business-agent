@@ -164,4 +164,22 @@ describe('Posts about the café', () => {
     expect((await remove('collab:DfLink0001')).status).toBe(200)
     expect(mentions().some(m => m.id === 'collab:DfLink0001')).toBe(false)
   })
+
+  it('a post added without its day is today’s where the business is: Dublin’s in Ireland, Madrid’s in Spain', async () => {
+    await connectInstagram()
+    vi.useFakeTimers({ now: Date.parse('2026-11-10T23:30:00Z'), toFake: ['Date'] }) // 23:30 in Dublin, 00:30 on the 11th in Madrid
+    try {
+      const add = (code: string) => integrations.request(`${APP}/api/integrations/instagram/mentions`,
+        { method: 'POST', headers: as('admin'), body: JSON.stringify({ link: `https://www.instagram.com/p/${code}/`, username: 'nora.eats.mbl' }) }, env, ctx())
+      const day = (code: string) => mentions().find(m => m.id === `collab:${code}`)?.mentioned_at
+      Object.assign(db.table('business')[0], { country: 'IE', timezone: 'Europe/Dublin' })
+      await add('DfDublin01')
+      expect(day('DfDublin01')).toBe('2026-11-10T12:00:00.000Z')
+      Object.assign(db.table('business')[0], { country: 'ES', timezone: 'Europe/Madrid' })
+      await add('DfMadrid01')
+      expect(day('DfMadrid01')).toBe('2026-11-11T11:00:00.000Z')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

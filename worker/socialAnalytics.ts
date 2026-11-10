@@ -24,6 +24,7 @@ import { reportError } from './errors'
 import type { Mention } from '../shared/mentions'
 import { minutesFor } from './refresh'
 import { addDays, today } from '../shared/time'
+import { zoneOf } from './zone'
 import { signInCheck, signedInUser } from './signedIn'
 
 export const socialAnalytics = new Hono<{ Bindings: Env; Variables: { userId: string } }>()
@@ -160,7 +161,7 @@ export async function postImpact(db: SupabaseClient, report: SocialReport): Prom
     db.from('social_follower_days').select('day, gained').eq('source', 'instagram')
       .gte('day', addDays(report.from, -BASELINE_DAYS)).lte('day', addDays(report.to, IMPACT_DAYS)),
     db.from('instagram_mentions').select(MENTION_FIELDS)
-      .gte('mentioned_at', `${report.from}T00:00:00Z`).lt('mentioned_at', `${aboutUntil(report.to)}T00:00:00Z`)
+      .gte('mentioned_at', `${report.from}T00:00:00Z`).lt('mentioned_at', `${aboutUntil(report.to, today(await zoneOf(db)))}T00:00:00Z`)
       .order('mentioned_at', { ascending: false }).limit(100),
   ])
   if (e1 || e2) throw new Error((e1 ?? e2)!.message)
@@ -223,13 +224,13 @@ async function readSource(env: Env, db: SupabaseClient, source: SocialSource, ro
   switch (source) {
     case 'instagram':
       if (!instagramOAuth(env, '')) throw new Error('Instagram is not set up')
-      return readInstagram(await instagramSession(env, db), from, to)
+      return readInstagram(await instagramSession(env, db), from, to, today(await zoneOf(db)))
     case 'tiktok':
       return readTikTok(await tiktokSession(env, db), typeof ext.username === 'string' ? ext.username : null, from, to)
     case 'linkedin': {
       const s = await linkedinSession(env, db)
       const id = s.external.page_id!
-      return readLinkedIn(s.cfg.version, s.token, { id, name: s.external.page_name ?? row.account_label ?? `Page ${id}` }, from, to)
+      return readLinkedIn(s.cfg.version, s.token, { id, name: s.external.page_name ?? row.account_label ?? `Page ${id}` }, from, to, today(await zoneOf(db)))
     }
     case 'facebook':
       return readFacebook(await facebookSession(env, db), from, to)

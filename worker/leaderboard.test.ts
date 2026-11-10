@@ -97,6 +97,17 @@ describe('who sold most, from Square', () => {
     // A shop manager runs the shop without the takings.
     expect((await till('manager-token')).people[0].gross).toBeNull()
   })
+
+  it('a day is the business’s own: Aron’s €9.00 at 23:30 in Dublin is the 28th’s in Ireland, the 29th’s in Spain (00:30 in Madrid)', async () => {
+    await connectSquare()
+    db.table('square_team_links').push({ profile_id: 'staff-1', team_member_id: 'TM_julio', created_in_square: false })
+    const day = async () => (await (await get('/api/leaderboard/till?from=2026-09-28&to=2026-09-28')).json()) as TillBoard
+    Object.assign(db.table('business')[0], { country: 'ES', timezone: 'Europe/Madrid' })
+    expect((await day()).unlinked).toEqual({ sales: 0, gross: 0 })
+    Object.assign(db.table('business')[0], { country: 'IE', timezone: 'Europe/Dublin' })
+    expect((await day()).unlinked).toEqual({ sales: 1, gross: 9 })
+    expect((await day()).people).toEqual([{ profile_id: 'staff-1', sales: 2, gross: 15.5 }])
+  })
 })
 
 describe('Square logins', () => {

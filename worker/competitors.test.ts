@@ -165,6 +165,21 @@ describe('Competitors: Google', () => {
     expect(row('by-hand')).toMatchObject({ name: 'La Plaza', threat: 'low', place_id: 'p-plaza', google_rating: 4.3 }) // the admin's name and threat stay
   })
 
+  it('keeps a snapshot on the business’s own day: Dublin’s for a business in Ireland, Madrid’s in Spain', async () => {
+    vi.useFakeTimers({ now: Date.parse('2026-11-10T23:30:00Z'), toFake: ['Date'] }) // 23:30 in Dublin, 00:30 on the 11th in Madrid
+    try {
+      const takenOn = (id: string) => db.table('competitor_snapshots').find(x => x.competitor_id === id)?.taken_on
+      db.table('business')[0].timezone = 'Europe/Madrid'
+      const molino = (await (await post('/api/competitors/follow', { place_id: 'p-molino' })).json() as { id: string }).id
+      expect(takenOn(molino)).toBe('2026-11-11')
+      db.table('business')[0].timezone = 'Europe/Dublin'
+      const plaza = (await (await post('/api/competitors/follow', { place_id: 'p-plaza' })).json() as { id: string }).id
+      expect(takenOn(plaza)).toBe('2026-11-10')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('checks each place once a week, keeps a snapshot, says once when one closes, and carries on past one Google no longer finds', async () => {
     await post('/api/competitors/follow', { place_id: 'p-molino' })
     await post('/api/competitors/follow', { place_id: 'p-plaza' })

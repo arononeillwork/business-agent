@@ -17,6 +17,8 @@ import {
   collabId, collabMentions, isRecent, mentionTitle, mentionsIn, peopleToPutForward, shortcodeOf, type CollabMedia, type Mention,
 } from '../shared/mentions'
 import type { InboxConversation, TaggedPost } from '../shared/messages'
+import { today } from '../shared/time'
+import { zoneOf } from './zone'
 
 /**
  * Look for new mentions and tell every admin about each one. Returns how many were new.
@@ -61,7 +63,8 @@ export async function checkMentions(env: Env, db: SupabaseClient): Promise<numbe
   }
   await putForward(db, ext.username ?? null, chats).catch(e => reportError(env, 'instagram: putting posters forward as reps', e, { business }))
   // Once a day: new followers, kept for What each post did (Analytics).
-  if (ext.can_see_insights !== false) await refreshFollowerDays(db, cfg).catch(e => reportError(env, 'instagram: keeping new followers', e, { business }))
+  // Today where the business is (Dublin's day for a business in Ireland).
+  if (ext.can_see_insights !== false) await refreshFollowerDays(db, cfg, today(await zoneOf(db))).catch(e => reportError(env, 'instagram: keeping new followers', e, { business }))
   return added.length
 }
 

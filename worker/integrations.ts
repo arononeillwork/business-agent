@@ -46,7 +46,8 @@ import {
   stripeSession, sumupOAuth, sumupSession, tellAdmins, tiktokOAuth, tiktokSession, waConfig, type Connector, type LinkedInExternal, type Provider,
 } from './connections'
 import type { Business, CalendarEvent, OpeningHours, PostKind, PostMedia, SalesDay, SalesItems, SalesProvider, SpotifyPlaylist } from '../shared/types'
-import { addDays, today, zonedIso } from '../shared/time'
+import { addDays, isTimeZone, today, zonedIso } from '../shared/time'
+import { zoneOf } from './zone'
 import { mergeSales } from '../shared/sales'
 import { LEGAL } from '../shared/legal'
 import { businessConfig } from '../shared/business.config'
@@ -95,14 +96,14 @@ interface HoursMemory { synced_hours?: OpeningHours; google_hours?: OpeningHours
 /** Push the app's hours, closures and phone to Google. Returns the hours sent. */
 async function pushGoogle(db: SupabaseClient, s: GoogleSession) {
   if (!s.location) throw new Error('Choose which Google listing to update')
-  const [{ data: b }, { data: events }] = await Promise.all([
-    db.from('business').select('opening_hours, phone').single(),
-    db.from('calendar_events').select('*').gte('starts_on', today()),
-  ])
-  const biz = b as Pick<Business, 'opening_hours' | 'phone'>
+  const { data: b } = await db.from('business').select('opening_hours, phone, timezone').single()
+  const biz = b as Pick<Business, 'opening_hours' | 'phone' | 'timezone'>
+  // Closures from today where the business is (Dublin's day in Ireland, not Madrid's).
+  const day = today(isTimeZone(biz.timezone) ? biz.timezone : undefined)
+  const { data: events } = await db.from('calendar_events').select('*').gte('starts_on', day)
   await google.updateLocation(s.token, s.location, {
     regularHours: google.toGoogleHours(biz.opening_hours),
-    specialHours: google.toSpecialHours((events ?? []) as CalendarEvent[], today(), s.closedOnHolidays),
+    specialHours: google.toSpecialHours((events ?? []) as CalendarEvent[], day, s.closedOnHolidays),
     phone: biz.phone,
   })
   return biz.opening_hours
@@ -1154,7 +1155,9 @@ async function takingsRequest(c: Ctx) {
   const ps = PAYMENT_SYSTEMS.filter(p => rows?.some(r => r.provider === p && r.status === 'connected'))
   if (!ps.length) return { error: c.json({ error: 'Connect Square, SumUp or Stripe on the Connections page to see takings' }, 400) }
   const end = new Date(Date.parse(`${to}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
-  return { db, ps, fromIso: zonedIso(from, '00:00'), toIso: zonedIso(end, '00:00') }
+  // The business's days: from its midnight (Dublin's for a business in Ireland), added up by its days.
+  const tz = await zoneOf(db)
+  return { db, ps, tz, fromIso: zonedIso(from, '00:00', tz), toIso: zonedIso(end, '00:00', tz) }
 }
 const PAYMENT_SYSTEMS: SalesProvider[] = ['square', 'sumup', 'stripe']
 
@@ -1167,7 +1170,7 @@ export async function readTakings(env: Env, db: SupabaseClient, from: string, to
   const ps = PAYMENT_SYSTEMS.filter(p => rows?.some(r => r.provider === p && r.status === 'connected'))
   if (!ps.length) return null
   const fromIso = zonedIso(from, '00:00', tz), toIso = zonedIso(addDays(to, 1), '00:00', tz)
-  const read = await Promise.all(ps.map(p => cached(db, `sales:${p}:${fromIso}:${toIso}`, minutesFor(db, 'takings').then(m => takingsMinutes(toIso, Date.now(), m)), () => salesOf(env, db, p, fromIso, toIso))
+  const read = await Promise.all(ps.map(p => cached(db, `sales:${p}:${fromIso}:${toIso}`, minutesFor(db, 'takings').then(m => takingsMinutes(toIso, Date.now(), m)), () => salesOf(env, db, p, fromIso, toIso, tz))
     .then(({ data: sales }) => ({ provider: p, sales }), (e: unknown) => ({ provider: p, error: explain(p, e) }))))
   const ok = read.filter((x): x is { provider: SalesProvider; sales: Awaited<ReturnType<typeof salesOf>> } => 'sales' in x)
   if (!ok.length) return { error: (read[0] as { error: string }).error }
@@ -1193,15 +1196,15 @@ export async function readBestSellers(env: Env, db: SupabaseClient, from: string
   }
 }
 
-/** One payment system's takings per day. */
-async function salesOf(env: Env, db: SupabaseClient, p: SalesProvider, fromIso: string, toIso: string) {
+/** One payment system's takings per day: the business's days (`tz`; Madrid's when not given). */
+async function salesOf(env: Env, db: SupabaseClient, p: SalesProvider, fromIso: string, toIso: string, tz?: string) {
   if (p === 'stripe') {
     const s = await stripeSession(env, db)
-    return stripe.salesByDay(s.secretKey, s.accountId, fromIso, toIso)
+    return stripe.salesByDay(s.secretKey, s.accountId, fromIso, toIso, tz)
   }
-  if (p === 'sumup') return sumup.salesByDay(await sumupSession(env, db), fromIso, toIso)
+  if (p === 'sumup') return sumup.salesByDay(await sumupSession(env, db), fromIso, toIso, tz)
   const s = await squareSession(env, db)
-  return square.salesByDay(s.sandbox, s.token, s.locationIds, fromIso, toIso)
+  return square.salesByDay(s.sandbox, s.token, s.locationIds, fromIso, toIso, tz)
 }
 
 // Takings per day from the payment systems (the till, Square or SumUp, plus Stripe when that's
@@ -1211,8 +1214,8 @@ async function salesOf(env: Env, db: SupabaseClient, p: SalesProvider, fromIso: 
 integrations.get('/api/integrations/payments/sales', async c => {
   const r = await takingsRequest(c)
   if ('error' in r) return r.error
-  const { db, ps, fromIso, toIso } = r
-  const read = await Promise.all(ps.map(p => cached(db, `sales:${p}:${fromIso}:${toIso}`, minutesFor(db, 'takings').then(m => takingsMinutes(toIso, Date.now(), m)), () => salesOf(c.env, db, p, fromIso, toIso))
+  const { db, ps, tz, fromIso, toIso } = r
+  const read = await Promise.all(ps.map(p => cached(db, `sales:${p}:${fromIso}:${toIso}`, minutesFor(db, 'takings').then(m => takingsMinutes(toIso, Date.now(), m)), () => salesOf(c.env, db, p, fromIso, toIso, tz))
     .then(({ data: sales, fetched_at }) => ({ provider: p, sales, fetched_at }), async (e: unknown) => {
       const why = explain(p, e)
       if (lasting(p, e)) await markBroken(db, p, why)
@@ -1315,14 +1318,16 @@ integrations.post('/api/integrations/instagram/mentions', async c => {
   if (!code) return c.json({ error: 'Paste the link to the post or reel on Instagram (it has /p/ or /reel/ in it)' }, 400)
   const username = cleanInstagram(typeof body.username === 'string' ? body.username : '')
   if (!username) return c.json({ error: 'Add the @ of whoever posted it' }, 400)
-  const on = typeof body.on === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.on) && body.on <= today() ? body.on : today()
-  const video = /\/(reels?|tv)\//i.test(link)
   const db = businessDb(c.env, c.get('businessId'))
+  // The day it went out, where the business is (today there when not said, or said as a day still to come).
+  const tz = await zoneOf(db)
+  const on = typeof body.on === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.on) && body.on <= today(tz) ? body.on : today(tz)
+  const video = /\/(reels?|tv)\//i.test(link)
   const id = collabId(code)
   const { data: had } = await db.from('instagram_mentions').select('id').eq('id', id).maybeSingle()
   if (had) return c.json({ error: 'That post is in already' }, 400)
   const { error } = await db.from('instagram_mentions').insert({
-    id, kind: 'collab', username, permalink: `https://www.instagram.com/${video ? 'reel' : 'p'}/${code}/`, mentioned_at: zonedIso(on, '12:00'),
+    id, kind: 'collab', username, permalink: `https://www.instagram.com/${video ? 'reel' : 'p'}/${code}/`, mentioned_at: zonedIso(on, '12:00', tz),
     video, added_by: c.get('userId'),
   })
   if (error) return c.json({ error: error.message }, 400)

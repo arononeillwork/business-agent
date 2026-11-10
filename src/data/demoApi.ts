@@ -154,6 +154,8 @@ export function createDemoApi(): Api {
     sports_enabled: true,
     updated_at: nowIso(),
   }
+  /** An amount in the database's refusals, the business's country's way ("€12.50" in Ireland, "€12,50" in Spain: the error_amounts_by_country migration). */
+  const sqlMoney = (n: number) => countryMoney(n, business.country ?? 'ES')
   const inbox = demoInbox()
   const messenger = demoMessenger()
   const whatsappChats = demoWhatsApp()
@@ -1617,7 +1619,7 @@ export function createDemoApi(): Api {
     const spent = month.reduce((n, g) => n + g.price_cents, 0)
     const reason = included === undefined ? 'AI music tracks need a paid plan. Choose one on the Billing page.'
       : price > 0 && demoBilling.status === 'comped' ? 'This month\'s free AI track is used. More next month.'
-      : price > 0 && spent + price > payPerUseLimitCents ? `That would go over this month's limit of €${(payPerUseLimitCents / 100).toFixed(2)} for pay per use. Raise it on the Billing page.`
+      : price > 0 && spent + price > payPerUseLimitCents ? `That would go over this month's limit of ${sqlMoney(payPerUseLimitCents / 100)} for pay per use. Raise it on the Billing page.`
       : null
     return { allowed: included !== undefined, plan, uses, free, free_left: freeLeft, included: included ?? 0, unit_cents: unit, price_cents: price,
       spent_cents: spent, limit_cents: payPerUseLimitCents, reason }
@@ -2110,7 +2112,7 @@ export function createDemoApi(): Api {
     profitEntry(2, 215.1), profitEntry(3, 198.65), profitEntry(4, 162.3),
   ]
   const kittyLeft = () => kittyBalance(kittyEntryList, kittyGoalList)
-  const kittyEuros = (n: number) => Math.max(0, n).toFixed(2)
+  const kittyEuros = (n: number) => sqlMoney(Math.max(0, n))
 
   /** The customers table's rules (supabase/migrations/…_customers.sql): tidy what's typed, and someone to reach. */
   function tidyCustomer(c: Customer): Customer {
@@ -4337,7 +4339,7 @@ export function createDemoApi(): Api {
       if (rep.profile_id === currentUser) throw new Error('Someone else pays out your own commission')
       if (!(amount > 0)) throw new Error('Give an amount above 0')
       const balance = repBalance(repId)
-      if (round2(amount) > balance) throw new Error(`${rep.name} has €${balance.toFixed(2)} ${rep.kind === 'customer' ? 'of credit' : 'owed'}`)
+      if (round2(amount) > balance) throw new Error(`${rep.name} has ${sqlMoney(balance)} ${rep.kind === 'customer' ? 'of credit' : 'owed'}`)
       const credit = rep.kind === 'customer'
       rewardList.push({ id: uid(), rep_id: repId, kind: credit ? 'redeem' : 'payout', rule_id: null, label: credit ? USED_AT_TILL : COMMISSION_PAID,
         sale_amount: null, amount: -round2(amount), status: 'approved', proof_url: null, mention_id: null, bonus_for: null, multiplier: null, note: note?.trim() || null,
@@ -4385,7 +4387,7 @@ export function createDemoApi(): Api {
       if ((next.spent === null) !== (next.bought_on === null)) throw new Error('new row for relation "kitty_goals" violates check constraint "kitty_goals_bought"')
       if (next.spent !== null && next.spent !== (existing?.spent ?? null)) {
         const left = kittyLeft() + (existing?.spent ?? 0)
-        if (next.spent > left) throw new Error(`The kitty has €${kittyEuros(left)}: put more in first`)
+        if (next.spent > left) throw new Error(`The kitty has ${kittyEuros(left)}: put more in first`)
       }
       if (existing) Object.assign(existing, next)
       else kittyGoalList.push(next)
@@ -4413,14 +4415,14 @@ export function createDemoApi(): Api {
         if (entry.month.slice(0, 7) >= thisMonth) throw new Error('A month’s profit goes in once the month is over')
         if (kittyEntryList.some(x => x.kind === 'profit' && x.month === entry.month)) throw new Error('duplicate key value violates unique constraint "kitty_entries_month_idx"')
       }
-      if (entry.amount < 0 && kittyLeft() + entry.amount < 0) throw new Error(`The kitty has €${kittyEuros(kittyLeft())}`)
+      if (entry.amount < 0 && kittyLeft() + entry.amount < 0) throw new Error(`The kitty has ${kittyEuros(kittyLeft())}`)
       kittyEntryList.push(entry)
     },
     async deleteKittyEntry(id) {
       requireAdmin()
       const i = kittyEntryList.findIndex(x => x.id === id)
       if (i < 0) return
-      if (kittyEntryList[i].amount > 0 && kittyLeft() - kittyEntryList[i].amount < 0) throw new Error(`That money has been spent: the kitty has €${kittyEuros(kittyLeft())}`)
+      if (kittyEntryList[i].amount > 0 && kittyLeft() - kittyEntryList[i].amount < 0) throw new Error(`That money has been spent: the kitty has ${kittyEuros(kittyLeft())}`)
       kittyEntryList.splice(i, 1)
     },
     async grantProfile() {
@@ -5204,7 +5206,7 @@ export function createDemoApi(): Api {
     },
     async setPayPerUseLimit(euros) {
       requireAdmin()
-      if (!(euros >= 0 && euros <= 1000)) throw new Error('The limit must be between €0 and €1,000')
+      if (!(euros >= 0 && euros <= 1000)) throw new Error(`The limit must be between ${sqlMoney(0).replace(/[.,]00$/, '')} and ${sqlMoney(1000).replace(/[.,]00$/, '')}`)
       payPerUseLimitCents = Math.round(euros * 100)
     },
     async renderPostMusic(req) {

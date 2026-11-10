@@ -2925,7 +2925,7 @@ test.describe('social planner', () => {
     await fromAccountMenu(page, 'Billing')
     const ppu = page.getByRole('region', { name: 'Pay per use' })
     await expect(ppu).toContainText('1 AI track')
-    await expect(ppu).toContainText('1 of 1 free used · €0.00 so far')
+    await expect(ppu).toContainText('1 of 1 free used · €0,00 so far')
     await expect(ppu.getByRole('list', { name: 'AI tracks this month' })).toContainText('Free')
   })
 
@@ -3061,14 +3061,14 @@ test.describe('social planner', () => {
     await page.getByRole('button', { name: 'Music', exact: true }).click()
     await page.getByRole('dialog', { name: 'Music' }).getByRole('button', { name: 'Create with AI' }).click()
     const ai = page.getByRole('dialog', { name: 'Create with AI' })
-    await expect(ai.getByLabel('Price')).toHaveText('€0.99, added to your monthly bill')
-    await ai.getByRole('button', { name: 'Make 2 versions · €0.99' }).click()
-    await expect(ai).toContainText('€0.99 added to your monthly bill.')
+    await expect(ai.getByLabel('Price')).toHaveText('€0,99, added to your monthly bill')
+    await ai.getByRole('button', { name: 'Make 2 versions · €0,99' }).click()
+    await expect(ai).toContainText('€0,99 added to your monthly bill.')
     await ai.getByRole('button', { name: 'Keep this one' }).first().click()
     await page.getByRole('dialog', { name: 'Music' }).getByRole('button', { name: 'Close' }).click()
     await fromAccountMenu(page, 'Billing')
     const ppu = page.getByRole('region', { name: 'Pay per use' })
-    await expect(ppu).toContainText('€0.99 so far')
+    await expect(ppu).toContainText('€0,99 so far')
     // A €1 limit: the next one would go over it.
     await ppu.getByRole('button', { name: 'Change the limit' }).click()
     await ppu.getByLabel('Limit (€ a month)').fill('1')
@@ -3077,7 +3077,7 @@ test.describe('social planner', () => {
     await page.getByRole('link', { name: 'Social planner' }).first().click()
     await page.getByRole('button', { name: 'Music', exact: true }).click()
     await page.getByRole('dialog', { name: 'Music' }).getByRole('button', { name: 'Create with AI' }).click()
-    await expect(page.getByRole('dialog', { name: 'Create with AI' })).toContainText('over this month\'s limit of €1.00')
+    await expect(page.getByRole('dialog', { name: 'Create with AI' })).toContainText('over this month\'s limit of €1,00')
   })
 
   test('without storage, posts are reminders: it’s your turn, copy the caption, mark it posted', async ({ page }) => {

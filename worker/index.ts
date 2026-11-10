@@ -1,7 +1,8 @@
 import { Hono } from 'hono'
 import { OAuthProvider } from '@cloudflare/workers-oauth-provider'
 import { setAppFetch } from './appFetch'
-import { bearer, businessDb, businessIds, joinBusiness, serviceClient, userClient, type Env } from './supabase'
+import { bearer, businessDb, businessZones, joinBusiness, serviceClient, userClient, type Env } from './supabase'
+import { inTimeZone } from './zone'
 import { rest } from './rest'
 import { drainOutbox, integrations, pushGoogleMenu, syncGoogle, syncGoogleBothWays } from './integrations'
 import { checkDue } from './connections'
@@ -445,9 +446,10 @@ export default {
       if (error) await failed(job)(error.message)
       else if (data) await failed(job)(`${job} failed for ${data} business(es)`)
     })
-    // The rest run here, for each business in turn, with that business's own connections.
+    // The rest run here, for each business in turn, with that business's own connections, in its own time
+    // zone: a day or an hour a job works out is that business's (Dublin's for a business in Ireland).
     const forEach = async (job: (id: number, b: ReturnType<typeof businessDb>) => Promise<unknown>) => {
-      for (const id of await businessIds(env)) await job(id, businessDb(env, id))
+      for (const { id, timezone } of await businessZones(env)) await inTimeZone(timezone, () => job(id, businessDb(env, id)))
     }
     const minute = Math.floor(event.scheduledTime / 60_000)
     // Prove every connection still works; admins get a notification when one stops working. A few
@@ -455,9 +457,9 @@ export default {
     if (event.cron === CHECKS) {
       ctx.waitUntil((async () => {
         let left = CHECKS_A_RUN
-        for (const id of await businessIds(env)) {
+        for (const { id, timezone } of await businessZones(env)) {
           if (left <= 0) break
-          left -= await checkDue(env, businessDb(env, id), left).catch(async e => { await failed('connection checks', id)(e); return 0 })
+          left -= await inTimeZone(timezone, () => checkDue(env, businessDb(env, id), left)).catch(async e => { await failed('connection checks', id)(e); return 0 })
         }
       })())
       return

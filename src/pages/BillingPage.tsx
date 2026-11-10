@@ -9,7 +9,7 @@ import { FEATURES, shows } from '../app/features'
 import { planName, usePlan } from '../app/plan'
 import { PageHeader, SectionTitle } from '../components/common'
 import { COMPLIMENTARY_LABEL, ENTERPRISE, PAY_PER_USE, PLANS, TRIAL_MONTHS, effectivePlan, payPerUse, paymentProblem, perUsePrice, plan as planById, planHighlights, type Billing, type Interval, type PlanId } from '../../shared/plans'
-import { formatLocal } from '../../shared/time'
+import { formatEuroAmount, formatEuros, formatLocal } from '../../shared/time'
 import { t, tn, tr } from '../i18n'
 import { AccountDataCard } from './AccountDataCard'
 
@@ -36,7 +36,8 @@ function Meter({ label, used, max }: { label: string; used: number; max: number 
   )
 }
 
-const euros = (cents: number) => `€${(cents / 100).toFixed(2)}`
+/** The Business Agent's own prices, in euros with the reader's decimal mark ("€0.99", "€0,99"). */
+const euros = (cents: number) => formatEuros(cents / 100)
 
 /**
  * Pay per use (PAY_PER_USE in shared/plans.ts): this month's AI music tracks, the free ones, what
@@ -203,7 +204,7 @@ export function BillingPage() {
                 {b?.status === 'trialing' && b.trial_ends_at && !paymentProblem(b) && (
                   <Typography color="text.secondary" sx={{ mt: 0.5 }}>
                     {t(b.interval === 'year' ? 'Free until {date}. Then €{price} a year goes on your card, unless you cancel before.' : 'Free until {date}. Then €{price} a month goes on your card, unless you cancel before.',
-                      { date: formatLocal(b.trial_ends_at, 'd MMMM yyyy'), price: planById(b.plan)[b.interval === 'year' ? 'yearly' : 'monthly'] })}
+                      { date: formatLocal(b.trial_ends_at, 'd MMMM yyyy'), price: formatEuroAmount(planById(b.plan)[b.interval === 'year' ? 'yearly' : 'monthly'], { whole: true }) })}
                   </Typography>
                 )}
                 {b?.status === 'comped' && (
@@ -272,8 +273,8 @@ export function BillingPage() {
                       <Typography variant="h6" component="h3">{planName(p)}</Typography>
                       {trial && <Chip size="small" color="info" label={t('{n} months free', { n: TRIAL_MONTHS })} />}
                     </Stack>
-                    <Typography sx={{ mt: 1 }}>{tr('{price} / month', { price: <b style={{ fontSize: '1.6rem' }}>€{price}</b> })}</Typography>
-                    <Typography variant="caption" color="text.secondary">{p.monthly === 0 ? t('Free for ever') : interval === 'year' ? t('€{price} billed yearly, plus VAT', { price: p.yearly }) : t('Billed monthly, plus VAT')}</Typography>
+                    <Typography sx={{ mt: 1 }}>{tr('{price} / month', { price: <b style={{ fontSize: '1.6rem' }}>{formatEuros(price, { whole: true })}</b> })}</Typography>
+                    <Typography variant="caption" color="text.secondary">{p.monthly === 0 ? t('Free for ever') : interval === 'year' ? t('€{price} billed yearly, plus VAT', { price: formatEuroAmount(p.yearly, { whole: true }) }) : t('Billed monthly, plus VAT')}</Typography>
                     <Stack component="ul" spacing={0.75} sx={{ listStyle: 'none', p: 0, m: 0, mt: 2, flex: 1 }}>
                       {planHighlights(p, t).map(h => (
                         <Stack component="li" key={h} direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
@@ -282,7 +283,7 @@ export function BillingPage() {
                       ))}
                     </Stack>
                     {PAY_PER_USE.filter(shows).map(u => {
-                      const price = perUsePrice(u, p.id, t, n => `€${n.toFixed(2)}`)
+                      const price = perUsePrice(u, p.id, t, n => formatEuros(n))
                       return price && (
                         <Typography key={u.id} variant="caption" color="text.secondary" sx={{ mt: 1.5, display: 'block' }}>
                           {t('Pay per use:')} {t('{what}: {price}', { what: t(u.short), price })}
