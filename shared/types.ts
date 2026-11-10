@@ -405,13 +405,22 @@ export interface MusicNow {
   onApprovedPlaylist: boolean
 }
 
+/**
+ * A Google Maps listing the connected Google account manages, with what Google says of it (read again while
+ * none is chosen): verified for the owner, Google's "duplicate of" another, closed, and its page on Maps.
+ */
+export interface GoogleListing {
+  name: string; title: string; address?: string
+  verified?: boolean; duplicate_of?: string; closed?: 'permanently' | 'temporarily'; maps_url?: string; place_id?: string
+}
+
 export interface Integration {
   provider: IntegrationProvider
   /** 'connected' only once the Worker has proven it works; 'pending' = chosen, waiting to be proven. */
   status: 'connected' | 'pending' | 'needs_setup' | 'error' | 'disconnected'
   account_label: string | null
   external: {
-    locations?: { name: string; title: string; address?: string }[]; location?: string; closed_on_holidays?: boolean; playlist?: SpotifyPlaylist
+    locations?: GoogleListing[]; location?: string; closed_on_holidays?: boolean; playlist?: SpotifyPlaylist
     /** Facebook and LinkedIn: the Pages the account manages, and the chosen one (LinkedIn: 'me' = the person's own profile). */
     pages?: { id: string; name: string }[]; page_id?: string; page_name?: string
     /** LinkedIn: who signed in, and when the 60-day access runs out. */

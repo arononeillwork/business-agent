@@ -820,9 +820,10 @@ async function stillWorks(env: Env, db: SupabaseClient, row: Row): Promise<Parti
     }
     case 'google_business': {
       const s = await googleSession(env, db)
-      if (s.location) await google.getLocationHours(s.token, s.location)
-      else await google.listLocations(s.token)
-      return {}
+      if (s.location) { await google.getLocationHours(s.token, s.location); return {} }
+      // No listing chosen yet: the account's listings again, with what Google says of each now (verified, a
+      // duplicate, closed), so Connections can show which is the café's.
+      return { external: { ...row.external, locations: await google.listLocations(s.token) } }
     }
   }
   return {}

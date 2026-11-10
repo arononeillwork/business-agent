@@ -393,3 +393,31 @@ export function madeHere(menu: { id: string; name: string; category: string | nu
   })
   return [...kept, ...found]
 }
+
+// ---------------------------------------------------------------------------------------------
+// What kind of thing it is: Freshly made's filters
+// ---------------------------------------------------------------------------------------------
+
+/** What something made here is, for Freshly made's filters: a pastry, a cake (or cheesecake, brownie…), a pot, or something else. */
+export type FreshKind = 'pastry' | 'cake' | 'pot' | 'other'
+export const FRESH_KINDS: { id: Exclude<FreshKind, 'other'>; label: string }[] = [
+  { id: 'pastry', label: msg('Pastries') }, { id: 'cake', label: msg('Cakes') }, { id: 'pot', label: msg('Yoghurts & chia pots') },
+]
+/** By name first (the first that fits: a chia pudding is a pot, a pastel de nata a pastry), in English or Spanish, without accents. */
+const KIND_BY_NAME: [FreshKind, RegExp][] = [
+  ['pot', /chia|yogh?urt|yogur|overnight oats|parfait|granola pot|fruit (cup|can|pot)|\bpots?\b/],
+  ['pastry', /croissant|cruasan|pain au|napolitana|swirl|danish|palmera|ensaimada|scone|donut|doughnut|\bbuns?\b|cinnamon roll|sausage roll|pastry|pastries|bolleria|pastel(es)? de (nata|belem)|pasteis|empanada|twist/],
+  ['cake', /cake|tarta|\btarts?\b|brownie|blondie|flapjack|cookie|galleta|loaf|banana bread|muffin|magdalena|bizcocho|pastel|traybake|pudding|mousse|postre|natillas/],
+]
+/** Then by the menu section it's in. */
+const KIND_BY_SECTION: [FreshKind, RegExp][] = [
+  ['pot', /chia|parfait|yog/],
+  ['pastry', /pastr|bolleria|bakery|bakes|panaderia|viennoiserie/],
+  ['cake', /cake|pasteleria|dessert|postre|tarta/],
+]
+
+/** What kind of thing an item or batch is, from its name and its menu section. */
+export function freshKind(name: string, section: string | null = null): FreshKind {
+  const n = plain(name), s = plain(section)
+  return KIND_BY_NAME.find(([, re]) => re.test(n))?.[0] ?? KIND_BY_SECTION.find(([, re]) => re.test(s))?.[0] ?? 'other'
+}

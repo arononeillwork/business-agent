@@ -191,6 +191,15 @@ Connect works from Messages or Connections (it's one connection). What Instagram
 An account that declined messages still connects (posting is what "connected" needs); the Messages
 page then asks to connect again with "Manage messages" ticked.
 
+When Instagram refuses messages, the Messages page shows Meta's own words after the advice (for
+example "(#3) Application does not have the capability…"), so what was refused can be seen. The
+switch on Instagram's side is only in the phone app (Settings and activity → Messages and story
+replies → Message controls → Connected tools → Allow access to messages); the "Message requests"
+settings on instagram.com are something else. If the chat list loads but one chat won't open,
+that's usually Meta's development-mode limit: until App Review grants Advanced Access for
+`instagram_business_manage_messages`, chats with people who have no role on the Meta app may not be
+shared. Reply to those in the Instagram app until then.
+
 Not possible through Meta's API: editing the Instagram bio. Keep the bio link pointing at a page
 that shows current hours (Google Maps listing), which the app keeps up to date.
 

@@ -15,15 +15,18 @@ import { DecimalField, Empty, ErrorBox, PageHeader, StatGrid, StatTile, Tag } fr
 import { ExportButton, SortCell, toEnter, useSort } from '../components/tables'
 import type { ExportTable } from '../lib/export'
 import {
-  DEFAULT_TARGET_MARGIN, RECIPE_CATEGORIES, costing, lineCost, linesFor, priceForTarget, unitsFor, type Recipe, type RecipeInput, type RecipeLine, type RecipeVariant,
+  DEFAULT_TARGET_MARGIN, RECIPE_CATEGORIES, categoryKey, costing, lineCost, linesFor, priceForTarget, recipeCategories, unitsFor,
+  type Recipe, type RecipeInput, type RecipeLine, type RecipeVariant,
 } from '../../shared/recipes'
 import { unitLabel, type StockItem } from '../../shared/stock'
 import { addDays, formatMoney, formatNumber, today } from '../../shared/time'
 import { tokens } from '../theme'
-import { t, tc, tn } from '../i18n'
+import { msg, t, tc, tn } from '../i18n'
 import { countryProfile, vatChoices } from '../../shared/country'
 
 const pct = (n: number | null) => (n === null ? '—' : `${formatNumber(n)}%`)
+/** The category filter's choice for items with no category. */
+const NO_CATEGORY = '-'
 /** empty: nothing entered for what goes in, so no cost or margin yet. pending: empty, or an ingredient without a cost. */
 type Row = Recipe & { c: ReturnType<typeof costing>; empty: boolean; pending: boolean }
 const SORT_BY: Record<string, (r: Row) => string | number | null> = {
@@ -48,11 +51,16 @@ export function RecipesPage() {
   const items = useMemo(() => stock.data ?? [], [stock.data])
   const all: Row[] = (data.data ?? []).filter(r => r.active).map(r => row(r, items))
   const below = all.filter(r => r.c.below)
-  const shown = all.filter(r => (!category || r.category === category) && (!belowOnly || r.c.below) && (!q.trim() || r.name.toLowerCase().includes(q.trim().toLowerCase())))
+  // A category picked matches its items whatever their capitals ("Cold drinks" and "Cold Drinks" from Square are one).
+  const inCategory = (r: Row) => !category || (category === NO_CATEGORY ? !categoryKey(r.category) : categoryKey(r.category) === category)
+  const shown = all.filter(r => inCategory(r) && (!belowOnly || r.c.below) && (!q.trim() || r.name.toLowerCase().includes(q.trim().toLowerCase())))
   const { rows, sort } = useSort(shown, SORT_BY, { by: 'pct', dir: 'asc' })
   const priced = all.filter(r => r.c.marginPct !== null)
   const average = priced.length ? Math.round(priced.reduce((s, r) => s + r.c.marginPct!, 0) / priced.length * 10) / 10 : null
-  const categories = [...new Set([...RECIPE_CATEGORIES.filter(c => all.some(r => r.category === c)), ...all.map(r => r.category).filter((c): c is string => !!c)])]
+  // The menu's categories A to Z, each once, with how many items are in it; and those with none.
+  const categories = recipeCategories(all).sort((a, b) => t(a.name).localeCompare(t(b.name)))
+  const uncategorised = all.filter(r => !categoryKey(r.category)).length
+  const categoryName = (key: string) => (key === NO_CATEGORY ? t('No category') : t(categories.find(c => c.key === key)?.name ?? key))
 
   const table = (): ExportTable => ({
     title: t('Menu costing'),
@@ -99,10 +107,15 @@ export function RecipesPage() {
           <Chip size="small" clickable label={`${t('Below target')} ${below.length}`} onClick={() => setBelowOnly(v => !v)} aria-pressed={belowOnly}
             variant={belowOnly ? 'filled' : 'outlined'} color={belowOnly ? 'error' : 'default'} />
           <Box sx={{ flex: 1 }} />
-          <TextField select size="small" value={category} onChange={e => setCategory(e.target.value)} sx={{ width: { xs: '100%', sm: 180 } }}
-            slotProps={{ select: { displayEmpty: true, SelectDisplayProps: { 'aria-label': t('Category') } } }}>
+          <TextField select size="small" value={category} onChange={e => setCategory(e.target.value)} sx={{ width: { xs: '100%', sm: 220 } }}
+            slotProps={{ select: { displayEmpty: true, SelectDisplayProps: { 'aria-label': t('Category') }, renderValue: v => (v ? categoryName(String(v)) : t('Every category')),
+              MenuProps: { slotProps: { paper: { sx: { maxHeight: 420 } } } } } }}>
             <MenuItem value="">{t('Every category')}</MenuItem>
-            {categories.map(c => <MenuItem key={c} value={c}>{t(c)}</MenuItem>)}
+            {[...categories, ...(uncategorised ? [{ key: NO_CATEGORY, name: msg('No category'), count: uncategorised }] : [])].map(c => (
+              <MenuItem key={c.key} value={c.key}>
+                {t(c.name)}<Box component="span" sx={{ ml: 'auto', pl: 2, color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>{c.count}</Box>
+              </MenuItem>
+            ))}
           </TextField>
           <TextField size="small" placeholder={t('Search the menu…')} value={q} onChange={e => setQ(e.target.value)} sx={{ width: { xs: '100%', sm: 220 } }}
             slotProps={{ htmlInput: { 'aria-label': t('Search the menu') }, input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> } }} />
@@ -158,7 +171,7 @@ export function RecipesPage() {
           {t('Margin: the menu price without VAT, less what goes in (with its waste allowance), as a share of that price. Costs come from Stock: change a supplier’s price there and every recipe follows.')}
         </Typography>
       </>}
-      {open && <RecipeDialog recipe={open === 'new' ? null : open} items={items} readOnly={isPartner} onClose={() => setOpen(null)} />}
+      {open && <RecipeDialog recipe={open === 'new' ? null : open} items={items} categories={categories.map(c => c.name)} readOnly={isPartner} onClose={() => setOpen(null)} />}
       {importing && <SquareImport existing={data.data ?? []} onClose={() => setImporting(false)} />}
     </>
   )
@@ -167,13 +180,19 @@ export function RecipesPage() {
 const blank = (): RecipeInput => ({ name: '', category: 'Coffee', square_item: null, sell_price: null, vat_rate: countryProfile().defaultVat, target_margin: DEFAULT_TARGET_MARGIN,
   wastage_pct: 0, notes: null, active: true, variants: [], lines: [] })
 
-/** One menu item: its price, what goes in, its variants, and the cost and margin as you type. */
-function RecipeDialog({ recipe, items, readOnly, onClose }: { recipe: Recipe | null; items: StockItem[]; readOnly: boolean; onClose: () => void }) {
+/**
+ * One menu item: its price, what goes in, its variants, and the cost and margin as you type. Its category is one
+ * of the menu's own (`categories`, as on the till), one of the usual ones, or a new one typed in.
+ */
+function RecipeDialog({ recipe, items, categories, readOnly, onClose }: {
+  recipe: Recipe | null; items: StockItem[]; categories: string[]; readOnly: boolean; onClose: () => void
+}) {
   const { api } = useApp()
   const run = useAction()
   const phone = useMediaQuery(useTheme().breakpoints.down('sm'))
   const [r, setR] = useState<RecipeInput>(() => (recipe ? structuredClone(recipe) : blank()))
   const [deleting, setDeleting] = useState(false)
+  const [categoryText, setCategoryText] = useState(() => (r.category ? t(r.category) : ''))
   const set = (patch: Partial<RecipeInput>) => setR(x => ({ ...x, ...patch }))
   const setLine = (i: number, patch: Partial<RecipeLine>) => set({ lines: r.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) })
   const addLine = (variant_id: string | null) => {
@@ -181,12 +200,15 @@ function RecipeDialog({ recipe, items, readOnly, onClose }: { recipe: Recipe | n
     if (first) set({ lines: [...r.lines, { item_id: first.id, quantity: 1, unit: unitsFor(first.unit)[0], variant_id, replaces_item_id: null }] })
   }
   const base = costing(r, items)
+  const choices = [...categories, ...RECIPE_CATEGORIES.filter(c => !categories.some(x => categoryKey(x) === categoryKey(c)))]
   const save = () => run(async () => {
     if (!r.name.trim()) throw new Error(t('Give it a name'))
     if (r.sell_price !== null && !(r.sell_price >= 0)) throw new Error(t('Enter numbers like 12 or 1,45'))
     if (r.lines.some(l => !(l.quantity > 0))) throw new Error(t('Every ingredient needs a quantity'))
     if (r.variants.some(v => !v.name.trim())) throw new Error(t('Give every variant a name'))
-    await api.saveRecipe({ ...r, name: r.name.trim(), variants: r.variants.map(v => ({ ...v, name: v.name.trim() })) })
+    // A category typed the way one on the menu is, with other capitals, is that one.
+    const category = r.category?.trim() ? (choices.find(c => categoryKey(c) === categoryKey(r.category)) ?? r.category.trim()) : null
+    await api.saveRecipe({ ...r, name: r.name.trim(), category, variants: r.variants.map(v => ({ ...v, name: v.name.trim() })) })
     onClose()
   }, recipe ? t('Saved') : t('Added {name}', { name: r.name.trim() }))
   const remove = () => run(async () => { await api.deleteRecipe(recipe!.id); onClose() }, t('Deleted {name}', { name: recipe!.name }))
@@ -240,10 +262,12 @@ function RecipeDialog({ recipe, items, readOnly, onClose }: { recipe: Recipe | n
         <Stack spacing={2} sx={{ pt: 1 }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField fullWidth label={t('Name')} value={r.name} onChange={e => set({ name: e.target.value })} disabled={readOnly} autoFocus={!recipe} slotProps={{ htmlInput: { maxLength: 120 } }} />
-            <TextField select fullWidth label={t('Category')} value={r.category ?? ''} disabled={readOnly} onChange={e => set({ category: e.target.value || null })}>
-              <MenuItem value="">{'—'}</MenuItem>
-              {[...new Set([...RECIPE_CATEGORIES, ...(r.category ? [r.category] : [])])].map(c => <MenuItem key={c} value={c}>{t(c)}</MenuItem>)}
-            </TextField>
+            <Autocomplete freeSolo fullWidth options={[...choices].sort((a, b) => t(a).localeCompare(t(b)))} getOptionLabel={c => t(c)} disabled={readOnly}
+              value={r.category ?? null} inputValue={categoryText}
+              onChange={(_, v) => set({ category: v || null })}
+              // Picked or typed: the menu's category it reads as (in this language), or the new one as typed.
+              onInputChange={(_, v) => { setCategoryText(v); set({ category: choices.find(c => t(c) === v) ?? (v.trim() || null) }) }}
+              renderInput={p => <TextField {...p} label={t('Category')} placeholder={t('Pick one or type a new one')} />} />
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <DecimalField fullWidth label={t('Menu price, with VAT')} value={r.sell_price} disabled={readOnly} onNumber={n => set({ sell_price: n })}

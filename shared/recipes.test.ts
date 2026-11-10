@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { convert, costing, lineCost, linesFor, priceForTarget, unitsFor, wasteSummary, type Recipe } from './recipes'
+import { convert, costing, lineCost, linesFor, priceForTarget, recipeCategories, unitsFor, wasteSummary, type Recipe } from './recipes'
 import type { StockItem } from './stock'
 
 const item = (id: string, unit: StockItem['unit'], cost: number | null, name = id): StockItem => ({
@@ -86,5 +86,17 @@ describe('waste', () => {
     expect(s.top.map(t => [t.name, t.quantity, t.cost])).toEqual([['oat', 3, 4.35], ['beans', 0.1, 1.85]])
     expect(s.ofPurchases).toBe(8.6) // 6.20 of 71.80 delivered
     expect(wasteSummary([], items)).toEqual({ cost: 0, top: [], ofPurchases: null })
+  })
+})
+
+describe('recipeCategories', () => {
+  it('lists each of the menu’s categories once whatever its capitals, spelt as most of its items have it', () => {
+    const menu = [...Array(13).fill('Cold drinks'), ...Array(4).fill('Cold Drinks'), 'Classics', ' Classics ', 'deals', null, '']
+      .map(category => ({ category }))
+    expect(recipeCategories(menu)).toEqual([
+      { key: 'cold drinks', name: 'Cold drinks', count: 17 },
+      { key: 'classics', name: 'Classics', count: 2 },
+      { key: 'deals', name: 'deals', count: 1 },
+    ])
   })
 })

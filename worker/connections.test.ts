@@ -5,7 +5,7 @@
 //   - when a working connection stops working, it says why and admins are told (once)
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { drainOutbox, integrations, setTikTokWait, syncGoogle, syncGoogleBothWays } from './integrations'
-import { fromGoogleHours, sameHours, toGoogleHours } from './providers/google'
+import { fromGoogleHours, sameHours, toGoogleHours, toLocation } from './providers/google'
 import type { OpeningHours } from '../shared/types'
 import { calendarFeeds } from './calendarFeed'
 import { checkAll, checkDue, explain, hasScope, lasting, PROVIDERS } from './connections'
@@ -347,6 +347,22 @@ describe('Instagram and Google Maps: one click, connected once they really work'
     expect(back.searchParams.get('connected')).toBe('google_business')
     expect(db.integration('google_business')).toMatchObject({ status: 'connected', account_label: 'Easy Beans Coffee', external: { location: 'locations/1' } })
     expect(db.secret('google_business')).toBeTruthy()
+  })
+
+  it('Google Maps: two listings of the same café wait for the admin, each with what Google says of it; checking reads them again', async () => {
+    apis.google.listings = [
+      { name: 'locations/45', title: 'Easy Beans Coffee', storefrontAddress: { addressLines: ['Calle Pizarro, 8'] }, metadata: { duplicateLocation: 'locations/12' } },
+      { name: 'locations/12', title: 'Easy Beans Coffee', storefrontAddress: { addressLines: ['C. Pizarro, 8'] }, metadata: { hasVoiceOfMerchant: true, mapsUri: 'https://maps.google.com/?cid=12' } },
+    ]
+    await connectOwn('google')
+    expect(db.integration('google_business')).toMatchObject({ status: 'connected', account_label: '2 listings found',
+      external: { locations: [{ name: 'locations/45', verified: false, duplicate_of: 'locations/12' }, { name: 'locations/12', verified: true, maps_url: 'https://maps.google.com/?cid=12' }] } })
+    expect(db.integration('google_business').external).not.toHaveProperty('location')
+    // Kept from before Google's word was read: the check reads it, and nothing is sent to either.
+    db.integration('google_business').external = { locations: [{ name: 'locations/45', title: 'Easy Beans Coffee', account: 'accounts/1' }, { name: 'locations/12', title: 'Easy Beans Coffee', account: 'accounts/1' }] }
+    expect(await (await post('/api/integrations/google_business/check')).json()).toMatchObject({ status: 'connected' })
+    expect(db.integration('google_business').external).toMatchObject({ locations: [{ name: 'locations/45', verified: false }, { name: 'locations/12', verified: true }] })
+    expect(apis.google.edits).toHaveLength(0)
   })
 
   it('Google Maps: an account without a listing is not connected, and its access isn’t kept', async () => {
@@ -1576,7 +1592,12 @@ describe('Messages: the Instagram inbox (read and answer DMs)', () => {
     apis.instagram.noMessages = true
     const res = await get('/api/integrations/instagram/inbox')
     expect(res.status).toBe(400)
-    expect((await res.json() as { error: string }).error).toMatch(/Connect Instagram again.*Allow access to messages/)
+    const error = (await res.json() as { error: string }).error
+    expect(error).toMatch(/Connect Instagram again.*Connected tools → Allow access to messages/)
+    expect(error).toContain('Instagram said: “(#3) Application does not have the capability to make this API call.”')
+    // One chat that won't open: Meta's limit until App Review, or the same permission; what Instagram said either way.
+    const chat = await (await get('/api/integrations/instagram/inbox/conv-1')).json() as { error: string }
+    expect(chat.error).toMatch(/^Instagram didn’t share this chat\. If other chats open.*App Review.*Allow access to messages.*Instagram said: “\(#3\)/)
   })
 
   it('staff can’t read the business’s messages', async () => {
@@ -1593,3 +1614,16 @@ describe('Messages: the Instagram inbox (read and answer DMs)', () => {
     expect(back.searchParams.get('connected')).toBe('instagram')
   })
 })
+
+describe('Google listings (toLocation)', () => {
+  it('keeps what Google says of each: verified, a duplicate, closed, and its page on Maps', () => {
+    expect(toLocation({ name: 'locations/1222', title: 'Easy Beans Coffee', storefrontAddress: { addressLines: ['C. Pizarro, 8'], locality: 'San Pedro Alcántara' },
+      metadata: { hasVoiceOfMerchant: true, mapsUri: 'https://maps.google.com/maps?cid=42', placeId: 'ChIJabc' }, openInfo: { status: 'OPEN' } }, 'accounts/1'))
+      .toEqual({ name: 'locations/1222', title: 'Easy Beans Coffee', account: 'accounts/1', address: 'C. Pizarro, 8, San Pedro Alcántara', verified: true,
+        maps_url: 'https://maps.google.com/maps?cid=42', place_id: 'ChIJabc' })
+    expect(toLocation({ name: 'locations/4539', title: 'Easy Beans Coffee', metadata: { duplicateLocation: 'locations/1222', mapsUri: 'javascript:alert(1)' },
+      openInfo: { status: 'CLOSED_PERMANENTLY' } }, 'accounts/1'))
+      .toEqual({ name: 'locations/4539', title: 'Easy Beans Coffee', account: 'accounts/1', address: '', verified: false, duplicate_of: 'locations/1222', closed: 'permanently' })
+  })
+})
+

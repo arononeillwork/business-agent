@@ -3,6 +3,7 @@ import {
   batchFromItem, batchesOf, defaultDiscountAt, freshItemProblem, freshOfferPrice, freshProblem, freshState, goodUntil, likeLastTime, newFreshBatch, newFreshItem, onCounter, shelfShare,
   squareShelfChanges, type FreshBatch,
   madeHere, menuShelfLife, type FreshItem, NO_SECOND_DISCOUNT, NO_SECOND_OFFER, discountNow, defaultSecondAt, DISCOUNT_LEADS, batchScreens, offerScreens,
+  freshKind,
 } from './freshBatches'
 import { countryMoney } from './offers'
 
@@ -228,5 +229,20 @@ describe('where a batch’s offer shows', () => {
     expect(offerScreens({ screen_ids: [], screen_mode: 'turns' }, screens)).toEqual({ screen_ids: ['s-counter', 's-window'], screen_mode: 'turns' })
     expect(offerScreens({ screen_ids: ['s-gone'], screen_mode: 'turns' }, screens)).toEqual({ screen_ids: ['s-counter', 's-window'], screen_mode: 'turns' })
     expect(offerScreens({ screen_ids: ['s-window'], screen_mode: 'none' }, screens)).toEqual({ screen_ids: [], screen_mode: 'turns' })
+  })
+})
+
+describe('freshKind (Freshly made\u2019s filters)', () => {
+  it('sorts a café’s counter into pastries, cakes and pots by name, then by menu section', () => {
+    const kinds = (names: string[], section: string | null = null) => names.map(n => freshKind(n, section))
+    expect(kinds(['Almond Croissant', 'Cinnamon Swirl', 'Pain au Chocolat', 'Raisin Butter Swirl', 'Roasted ham & cheese croissant', 'Napolitana de chocolate', 'Pastel de nata']))
+      .toEqual(Array(7).fill('pastry'))
+    expect(kinds(['Pistachio Cheesecake', 'Gluten Free Brownie', 'Chocolate Cake', 'Cake', 'Tarta de queso', 'Banana bread'])).toEqual(Array(6).fill('cake'))
+    expect(kinds(['Mango chia pudding', 'Chia Fruit Parfait', 'Greek yoghurt & granola', 'Yogur con fruta', 'Fruit can'])).toEqual(Array(5).fill('pot'))
+    // Named for neither: the menu section says; nothing says: something else.
+    expect(freshKind('Pastel de Belém', 'Bollería')).toBe('pastry')
+    expect(freshKind('Lemon drizzle', 'Cakes')).toBe('cake')
+    expect(freshKind('Mango & passion fruit', 'Chia pots')).toBe('pot')
+    expect(freshKind('Bacon sandwich', 'Kitchen')).toBe('other')
   })
 })

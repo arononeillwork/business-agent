@@ -1277,11 +1277,21 @@ async function instagramInbox(c: Ctx) {
   return { db, cfg: await instagramSession(c.env, db), me: { id: ext.user_id ?? '', username: ext.username } }
 }
 
-/** Instagram's errors, in words for the Messages page (a missing permission means connecting again). */
-function inboxError(e: unknown) {
+/** Where Instagram's own switch for apps reading messages is: in the phone app only, and not the "Message requests" settings. */
+const ALLOW_MESSAGES = 'in the Instagram app on your phone, turn on Settings and activity → Messages and story replies → Message controls → Connected tools → Allow access to messages (not the Message requests settings)'
+
+/**
+ * Instagram's errors, in words for the Messages page (a missing permission means connecting again), with
+ * what Instagram itself said, so what it refused can be seen. `chat`: one chat wouldn't open while the list did.
+ */
+function inboxError(e: unknown, chat = false) {
   const raw = e instanceof Error ? e.message : String(e)
   if (/permission|capability|\(#3\)|\(#10\)|\(#200\)/i.test(raw)) {
-    return 'Instagram hasn’t allowed this app to read messages. Connect Instagram again and leave “Manage messages” ticked; in the Instagram app, also turn on Settings → Messages and story replies → Message controls → Allow access to messages.'
+    const said = ` Instagram said: “${raw.replace(/\s+/g, ' ').trim().slice(0, 200)}”`
+    // The list came but this chat didn't: Meta only shares chats with people who have a role on the Meta app until
+    // App Review gives it Advanced Access for messages (docs/INTEGRATIONS.md, Instagram).
+    if (chat) return `Instagram didn’t share this chat. If other chats open, it’s Meta’s limit until the app passes App Review for messages: reply in the Instagram app for now. If none open, connect Instagram again with “Manage messages” ticked, and ${ALLOW_MESSAGES}.${said}`
+    return `Instagram hasn’t allowed this app to read messages. Connect Instagram again and leave “Manage messages” ticked; also, ${ALLOW_MESSAGES}.${said}`
   }
   if (/24 hour|outside of allowed window|window/i.test(raw)) return 'Instagram only allows replies within 24 hours of their last message (7 days as a personal reply). Reply in the Instagram app instead.'
   return explain('instagram', e)
@@ -1388,7 +1398,7 @@ integrations.get('/api/integrations/instagram/inbox/:id', async c => {
     const { cfg, me } = await instagramInbox(c)
     return c.json(await instagram.conversation(cfg, me, c.req.param('id')))
   } catch (e) {
-    return c.json({ error: inboxError(e) }, 400)
+    return c.json({ error: inboxError(e, true) }, 400)
   }
 })
 

@@ -26,8 +26,6 @@ export default {
   '{name}: sold out': '{name}: agotado',
   '{name}: thrown away': '{name}: tirado',
   'Freshly made': 'Recién hecho',
-  'What’s been made for the counter today: when, how long it keeps, and when it goes on offer. A discount puts it on Offers & specials by itself until it has to be gone.':
-    'Lo que se ha hecho hoy para el mostrador: cuándo, cuánto aguanta y cuándo sale en oferta. Un descuento lo pone solo en Ofertas y especiales hasta que tenga que retirarse.',
   'Record a batch': 'Apuntar una hornada',
   'Nothing on the counter. Record what you make (a banana bread, the day’s sandwiches) to see how long it keeps.':
     'Nada en el mostrador. Apunta lo que haces (un pan de plátano, los bocadillos del día) para ver cuánto aguanta.',
@@ -108,10 +106,6 @@ export default {
   'Start the offer before its shelf life ends': 'Empieza la oferta antes de que acabe su vida útil',
   // The menu's perishables, on Made here by themselves (the `fresh_items_made_here` migration).
   'From the menu': 'De la carta',
-  'One item comes from the menu, with how long it usually keeps: set it to change that or give it an offer, or take it off the list if it isn’t made here.':
-    'Un producto viene de la carta, con lo que suele durar: fíjalo para cambiarlo o ponerle una oferta, o quítalo de la lista si no se hace aquí.',
-  '{n} items come from the menu, each with how long it usually keeps: set one to change that or give it an offer, or take it off the list if it isn’t made here.':
-    '{n} productos vienen de la carta, cada uno con lo que suele durar: fija uno para cambiarlo o ponerle una oferta, o quítalo de la lista si no se hace aquí.',
   // A second, deeper discount, and the discount from up to 4 days before (the `fresh_second_discount` migration).
   '2 days before': '2 días antes',
   '3 days before': '3 días antes',

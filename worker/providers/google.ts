@@ -107,20 +107,41 @@ async function gfetch<T>(token: string, url: string, init: RequestInit = {}): Pr
   return json
 }
 
-export interface GoogleLocation { name: string; title: string; account: string; address?: string }
+/**
+ * A listing the Google account manages, with what Google says of it, to tell two of the same café apart:
+ * `verified` (Google lets the owner manage it: hasVoiceOfMerchant), `duplicate_of` (Google's own "this
+ * listing duplicates that one"), `closed`, and its page on Google Maps (`maps_url`, `place_id`).
+ */
+export interface GoogleLocation {
+  name: string; title: string; account: string; address?: string
+  verified?: boolean; duplicate_of?: string; closed?: 'permanently' | 'temporarily'; maps_url?: string; place_id?: string
+}
+interface RawLocation {
+  name: string; title: string; storefrontAddress?: { addressLines?: string[]; locality?: string }
+  metadata?: { hasVoiceOfMerchant?: boolean; duplicateLocation?: string; mapsUri?: string; placeId?: string }
+  openInfo?: { status?: 'OPEN' | 'CLOSED_PERMANENTLY' | 'CLOSED_TEMPORARILY' | 'OPEN_FOR_BUSINESS_UNSPECIFIED' }
+}
 
-/** All locations the signed-in Google user manages. */
+/** A listing as Business Information gives it, as the app keeps it. */
+export function toLocation(l: RawLocation, account: string): GoogleLocation {
+  const m = l.metadata ?? {}
+  const closed = l.openInfo?.status === 'CLOSED_PERMANENTLY' ? 'permanently' : l.openInfo?.status === 'CLOSED_TEMPORARILY' ? 'temporarily' : null
+  return { name: l.name, title: l.title, account,
+    address: [...(l.storefrontAddress?.addressLines ?? []), l.storefrontAddress?.locality].filter(Boolean).join(', '),
+    verified: !!m.hasVoiceOfMerchant,
+    ...(m.duplicateLocation ? { duplicate_of: m.duplicateLocation } : {}), ...(closed ? { closed } : {}),
+    ...(m.mapsUri && /^https:\/\//.test(m.mapsUri) ? { maps_url: m.mapsUri } : {}), ...(m.placeId ? { place_id: m.placeId } : {}) }
+}
+
+/** All locations the signed-in Google user manages, with what Google says of each. */
 export async function listLocations(token: string): Promise<GoogleLocation[]> {
   const { accounts = [] } = await gfetch<{ accounts?: { name: string }[] }>(token,
     'https://mybusinessaccountmanagement.googleapis.com/v1/accounts')
   const out: GoogleLocation[] = []
   for (const a of accounts) {
-    const { locations = [] } = await gfetch<{ locations?: { name: string; title: string; storefrontAddress?: { addressLines?: string[]; locality?: string } }[] }>(token,
-      `https://mybusinessbusinessinformation.googleapis.com/v1/${a.name}/locations?readMask=name,title,storefrontAddress&pageSize=100`)
-    for (const l of locations) {
-      out.push({ name: l.name, title: l.title, account: a.name,
-        address: [...(l.storefrontAddress?.addressLines ?? []), l.storefrontAddress?.locality].filter(Boolean).join(', ') })
-    }
+    const { locations = [] } = await gfetch<{ locations?: RawLocation[] }>(token,
+      `https://mybusinessbusinessinformation.googleapis.com/v1/${a.name}/locations?readMask=name,title,storefrontAddress,metadata,openInfo&pageSize=100`)
+    for (const l of locations) out.push(toLocation(l, a.name))
   }
   return out
 }
