@@ -26,6 +26,13 @@ describe('which browser tests a change runs', () => {
     }
   })
 
+  it('the legal pages run the tests of the legal pages', () => {
+    const p = selectTests(['src/pages/DpaPage.tsx', 'src/pages/LegalNoticePage.tsx', 'src/i18n/es/dpa.ts', 'src/i18n/es/legalNotice.ts'])
+    for (const t of ['the legal notice and the data processing agreement are public, and the footers and the terms link to them',
+      'the data deletion instructions are public and linked from the privacy policy']) expect(matches(p, t)).toBe(true)
+    expect(matches(p, 'adds a calendar event')).toBe(false)
+  })
+
   it('every area names files and tests', () => {
     for (const a of AREAS) { expect(a.files.length, a.name).toBeGreaterThan(0); expect(a.tests, a.name).not.toBe('') }
   })

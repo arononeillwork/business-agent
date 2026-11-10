@@ -12,6 +12,7 @@ export function TermsPage() {
   const L = LEGAL
   const support = <Mail to={L.supportEmail} />
   const privacy = <Link component={RouterLink} to="/privacy">{t('privacy policy')}</Link>
+  const dpa = <Link component={RouterLink} to="/dpa">{t('data processing agreement')}</Link>
   const service = L.service
   return (
     <LegalPage title={t('Terms of service')} updated={L.termsUpdated}>
@@ -46,7 +47,7 @@ export function TermsPage() {
 
       <H>{t('4. Your data')}</H>
       <P>
-        {tr('The business owns the data it puts into {service}: its team’s details, working hours, rota, expenses, posts and so on. We use it only to provide the service, as our {privacy} explains. For the team members’ data, we act as the business’s data processor, on its instructions; a data processing agreement (GDPR article 28) is available on request at {support}.', { service, privacy, support })}
+        {tr('The business owns the data it puts into {service}: its team’s details, working hours, rota, expenses, posts and so on. We use it only to provide the service, as our {privacy} explains. For the team members’ data, and the customers and contacts the business adds, we act as its data processor, on its instructions, under our {dpa} (GDPR article 28), which is part of these terms.', { service, privacy, dpa })}
       </P>
       <P>
         {t('Admins can export working-hours records and timecards at any time. When a business closes its account, we delete its data within 30 days, except what the law requires us to keep (for example working-hours records, kept for four years).')}

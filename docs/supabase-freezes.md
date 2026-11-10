@@ -54,3 +54,8 @@ before it changes anything, and the switch takes a few minutes of downtime. Runn
 tests less often (for example at most once an hour, with the smoke test after every deploy) would
 also take most of the load off, at the cost of the Feature board's "checked on the live site" step
 waiting for the next run.
+
+Since 8 November 2026 that's how it runs: each deploy runs only the smoke test (`e2e/smoke.spec.ts`,
+a few requests), and the full live tests run once a night at 02:17 UTC, when the businesses are
+closed (`.github/workflows/live-e2e.yml`), or by hand from Actions → Live end-to-end tests → Run
+workflow. The Feature board counts a deploy whose smoke test passed as live.
