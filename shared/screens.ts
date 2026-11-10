@@ -7,6 +7,8 @@ import type { MenuDesign, MenuItem } from './menu'
 import type { MenuAllergens } from './allergens'
 import type { BrandColour } from './types'
 import type { Offer, ScreenOffer } from './offers'
+import type { Country } from './country'
+import { setBusinessTimeZone, setCurrency, setNumberFormat } from './time'
 
 export type SlideKind = 'image' | 'video' | 'youtube' | 'vimeo' | 'instagram' | 'web' | 'menu' | 'offers'
 export const SLIDE_KINDS: { id: SlideKind; label: string }[] = [
@@ -304,7 +306,8 @@ export interface DisplayFeed {
   sections: string[]
   /** The business's name, and its brand (Brand page) for the menus: logo, fonts and colours. */
   /** id: the business's number (the Worker adds it; 1 is Easy Beans). */
-  business: { id?: number; name: string; logo: string | null; heading_font?: string; body_font?: string; colours?: BrandColour[] }
+  /** country, currency and timezone (the Worker adds them): how the screen writes its prices and times, with nobody signed in. */
+  business: { id?: number; name: string; logo: string | null; heading_font?: string; body_font?: string; colours?: BrandColour[]; country?: Country; currency?: string; timezone?: string }
   /** The digital menus on its slides, by design id. */
   menus: Record<string, { design: Omit<MenuDesign, 'images'> & { image_url: string | null }; items: MenuItem[] }>
   /** What goes into each menu item and its ingredients' allergens (as the Allergens page has them, without the ingredients' names), for its allergens and diets. */
@@ -313,6 +316,18 @@ export interface DisplayFeed {
   offers?: ScreenOffer[]
   /** With a live offers' pictures slide: the other offers with a picture that haven't ended, each shown as its picture while it's on. */
   offer_pictures?: OfferPicture[]
+}
+
+/**
+ * A screen writes amounts the way its business's country does, whatever the browser or whoever is signed in
+ * on it (Ireland's "€3.20", Spain's "€3,20"), and its times in the business's time zone ("Until 15:00" in
+ * Dublin time). A feed from before they were sent is Spain's. The page calls it before the slides draw, as
+ * the app does for someone signed in.
+ */
+export function playAs(business: Pick<DisplayFeed['business'], 'country' | 'currency' | 'timezone'>) {
+  setNumberFormat(undefined, business.country)
+  setCurrency(business.currency)
+  setBusinessTimeZone(business.timezone)
 }
 
 /** An offer's picture for the live offers' pictures slide. */

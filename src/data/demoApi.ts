@@ -82,7 +82,7 @@ import {
   type MenuKind, type MenuLanguage, type SquarePriceNote,
 } from '../../shared/menu'
 import { HOME_BUSINESS, LINK_NAME, linkName, parseShortLink, screenProblem, type DisplayFeed, type OfferPicture, type Screen } from '../../shared/screens'
-import { offerProblem, type Offer, type ScreenOffer } from '../../shared/offers'
+import { countryMoney, offerProblem, type Offer, type ScreenOffer } from '../../shared/offers'
 import type { LatestPosts } from './api'
 import { closingOn, deliveryUseBy, dueLastDayOffers, lastDayNote, lastDayPrice, lastDayRuleProblem, type LastDayRule } from '../../shared/lastDayOffers'
 import { cameraProblem, type Camera } from '../../shared/cameras'
@@ -1077,7 +1077,8 @@ export function createDemoApi(): Api {
   const lastDayMade = new Set<string>()
   let lastDaySeeded = false
   const startLastDayOffer = (item: StockItem, rule: LastDayRule, starts: string, ends: string, id: string = uid()) => {
-    const { price, was_price } = lastDayPrice(rule, item.sell_price)
+    // As the database writes them: the business's country's way ("€1,96" in Spain, "€1.96" in Ireland).
+    const { price, was_price } = lastDayPrice(rule, item.sell_price, n => countryMoney(n, business.country ?? 'ES'))
     const screens = rule.screen_ids.length ? rule.screen_ids : screenList.filter(x => x.active).map(x => x.id)
     offerList.push({ id, title: item.name.slice(0, 80), details: null, price, was_price, image_url: item.name === 'Butter croissants' ? demoPhoto('Butter croissants', true) : null,
       starts_at: starts, ends_at: ends, screen_ids: screens, screen_mode: rule.screen_mode, seconds: 15, post_id: null, active: true, updated_at: starts,
@@ -1111,7 +1112,7 @@ export function createDemoApi(): Api {
     .filter(o => o.active && o.screen_ids.includes(screenId) && Date.parse(o.ends_at) > Date.now() && Date.parse(o.starts_at) < Date.now() + 2 * 86_400_000)
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
     .map(({ id, title, details, price, was_price, image_url, starts_at, ends_at, screen_mode, seconds }) => ({ id, title, details, price, was_price, image_url, starts_at, ends_at, screen_mode, seconds }))
-  /** As display_feed(): what a screen's link plays. */
+  /** As display_feed(), with the business's country, currency and time zone the Worker adds: what a screen's link plays. */
   const feedOf = (s: Screen | undefined): DisplayFeed => {
     if (!s) throw new Error('This screen’s link has changed or the screen was removed. Open the new link from the Screens page.')
     s.last_seen_at = nowIso()
@@ -1127,7 +1128,8 @@ export function createDemoApi(): Api {
       }
     }
     return { screen, sections: [...(settings.menu_sections ?? [])],
-      business: { name: business.name, logo: brand.logo_mark ?? brand.logo, heading_font: brand.heading_font, body_font: brand.body_font, colours: clone(brand.colours) }, menus,
+      business: { name: business.name, logo: brand.logo_mark ?? brand.logo, heading_font: brand.heading_font, body_font: brand.body_font, colours: clone(brand.colours),
+        country: business.country ?? 'ES', currency: business.currency ?? 'EUR', timezone: business.timezone }, menus,
       allergens: s.active ? displayAllergens() : null, offers: s.active ? (runLastDayOffers(), screenOffers(s.id)) : [],
       offer_pictures: s.active ? offerPictures(s) : [] }
   }
@@ -1468,6 +1470,7 @@ export function createDemoApi(): Api {
   const freshApi = demoFreshApi({
     isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, reads: () => partnerCan('finances'), me: () => currentUser, uid,
     offers: offerList, screens: () => screenList.map(x => ({ id: x.id, active: x.active })), menu: () => recipes.filter(r => r.active),
+    money: n => countryMoney(n, business.country ?? 'ES'),
   })
   // Post ideas (Social planner → Ideas): as the `post_ideas` migration; the coffees idea, one Julio's making, one Maria handed in.
   const ideasApi = demoPostIdeasApi({

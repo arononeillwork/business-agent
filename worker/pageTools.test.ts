@@ -59,7 +59,7 @@ describe('page tools', () => {
     expect(row.name).toBe('Colombia Decaf')
     expect(row.photo).toMatch(/^\[file kept in the app: image\/jpeg/)
     expect(row.api_token).toBe('[hidden]')
-    const select = calls[0].ops.find(([m]) => m === 'select')![1][0] as string
+    const select = calls.find(c => c.table === 'coffees')!.ops.find(([m]) => m === 'select')![1][0] as string
     expect(select).toContain('photo')
     expect(select).not.toBe('*')
   })

@@ -12,6 +12,7 @@ import { downloadBlob } from '../lib/export'
 import { CLOSING_DAYS, canStillKeep, closesAt } from '../../shared/accountClosing'
 import type { Billing } from '../../shared/plans'
 import { formatLocal } from '../../shared/time'
+import { currentCountry } from '../../shared/country'
 import { t } from '../i18n'
 
 const long = (iso: string) => formatLocal(iso, 'd MMMM yyyy')
@@ -97,7 +98,9 @@ export function AccountDataCard({ billing }: { billing: Billing | null }) {
               </Typography>
             )}
             <Typography component="li" variant="body2">
-              {t('When it closes, everyone on the team loses access and The Business Agent deletes the business’s data, except the working-hours records (registro de jornada) Spanish law requires us to keep for four years.')}
+              {currentCountry() === 'IE'
+                ? t('When it closes, everyone on the team loses access and The Business Agent deletes the business’s data, except the working time records Irish law requires to be kept for three years.')
+                : t('When it closes, everyone on the team loses access and The Business Agent deletes the business’s data, except the working-hours records (registro de jornada) Spanish law requires us to keep for four years.')}
             </Typography>
             <Typography component="li" variant="body2">{t('Download your data before it closes.')}</Typography>
           </Stack>

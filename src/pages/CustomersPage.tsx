@@ -19,6 +19,7 @@ import type { ExportTable } from '../lib/export'
 import { EMAIL, SOURCES, customerName, decodeCsv, matchesSearch, readCustomersCsv, sourceLabel, withoutDuplicates, type CsvImport, type ImportField } from '../../shared/customers'
 import type { Customer, CustomerInput, CustomerKind, CustomerSource } from '../../shared/types'
 import { formatLocal, localDate, today, zonedIso } from '../../shared/time'
+import { currentCountry } from '../../shared/country'
 import { tokens } from '../theme'
 import { msg, t, tn } from '../i18n'
 
@@ -191,7 +192,9 @@ export function CustomersPage() {
           </Box>
         </Card>
         <Typography variant="body2" sx={{ color: 'text.secondary', mt: 2 }}>
-          {t('Marketing OK: they agreed to receive offers and news from you. In Spain (GDPR) only send marketing to these people.')}
+          {currentCountry() === 'IE'
+            ? t('Marketing OK: they agreed to receive offers and news from you. In Ireland (GDPR) only send marketing to these people.')
+            : t('Marketing OK: they agreed to receive offers and news from you. In Spain (GDPR) only send marketing to these people.')}
         </Typography>
       </>}
 

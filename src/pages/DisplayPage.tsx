@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { ScreenPlayer } from '../components/ScreenPlayer'
-import { isShortLink, type DisplayFeed } from '../../shared/screens'
+import { isShortLink, playAs, type DisplayFeed } from '../../shared/screens'
 import { t } from '../i18n'
 
 const CACHE = (token: string) => `eb-display-${token}`
@@ -44,6 +44,9 @@ export function DisplayPage() {
   }, [api, token, short])
 
   useEffect(() => { if (feed) document.title = feed.screen.name }, [feed])
+  // Nobody signs in on a TV: its prices are written the way the business's country writes them (Ireland's
+  // "€3.20", Spain's "€3,20"), set before the slides draw.
+  if (feed) playAs(feed.business)
 
   // Keep the screen from going to sleep (asked again whenever the page comes back into view).
   useEffect(() => {

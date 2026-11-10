@@ -54,6 +54,18 @@ describe('the assistant', () => {
     expect(results[1]).toMatchObject({ is_error: true, content: 'There is no tool called create_shift' })
   })
 
+  it('tells Claude which country’s law, tax and holidays apply: Ireland’s for a business there, Spain’s for one in Spain', async () => {
+    const systemFor = async (country?: 'ES' | 'IE') => {
+      const { claude, create } = scripted({ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Hi' }] })
+      await answer(claude, { sb: fakeSb(null), me: maria }, [], [{ role: 'user', text: 'Hi' }], 'Easy Beans', country)
+      return String((create.mock.calls[0][0] as unknown as { system: string }).system)
+    }
+    expect(await systemFor('IE')).toContain('The business is in Ireland: answer about employment law, tax and public holidays for Ireland (VAT, Revenue, PRSI')
+    expect(await systemFor('IE')).not.toContain('Estatuto')
+    expect(await systemFor('ES')).toContain('The business is in Spain: answer about employment law, tax and public holidays for Spain (IVA')
+    expect(await systemFor()).toContain('The business is in Spain')
+  })
+
   it('tells Claude how this person writes amounts, as the app shows them; whoami says so too', async () => {
     const systemFor = async (numbers: 'comma' | 'point') => {
       const { claude, create } = scripted({ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Hi' }] })

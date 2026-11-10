@@ -102,6 +102,19 @@ describe('newsletter sign-ups', () => {
     expect(JSON.stringify(signups)).not.toContain('203.0.113.7')
   })
 
+  it('takes an Irish business’s phone numbers the Irish way, and its form in English for a browser with neither language', async () => {
+    db.tables.business[0].country = 'IE'
+    turnOn()
+    const res = await post('/api/site/1/signup', { email: 'aoife@example.ie', phone: '087 123 4567' })
+    expect(res.status).toBe(200)
+    expect(signups[0]).toMatchObject({ p_phone: '+353 87 123 4567' })
+    expect(await (await call('/api/site/1/newsletter', { headers: { 'accept-language': 'fr-FR' } })).text()).toContain('<html lang="en">')
+    // A Spanish business's form, for the same visitor: Spanish, and an Irish number written that way isn't one.
+    db.tables.business[0].country = 'ES'
+    expect(await (await call('/api/site/1/newsletter', { headers: { 'accept-language': 'fr-FR' } })).text()).toContain('<html lang="es">')
+    expect(await (await post('/api/site/1/signup', { email: 'aoife@example.ie', phone: '087 123 4567' })).json()).toMatchObject({ problem: 'invalidPhone' })
+  })
+
   it('says which came through the form the app hosts', async () => {
     turnOn()
     await post('/api/site/1/signup', { email: 'ana@example.com', name: 'Ana Ruiz' }, { origin: APP })

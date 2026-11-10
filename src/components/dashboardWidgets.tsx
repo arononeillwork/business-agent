@@ -273,7 +273,7 @@ function LowStock() {
 function StockValue() {
   const stock = useStock()
   if (!stock.data) return <Note>{stock.error ?? t('Loading…')}</Note>
-  return <Figure value={formatMoney(stockValue(stock.data))} note={tn(stock.data.filter(i => i.active).length, '{n} item at cost, without IVA', '{n} items at cost, without IVA')} />
+  return <Figure value={formatMoney(stockValue(stock.data))} note={tn(stock.data.filter(i => i.active).length, '{n} item at cost, without VAT', '{n} items at cost, without VAT')} />
 }
 
 function Waste({ r }: { r: DashRange }) {

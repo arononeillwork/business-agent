@@ -614,7 +614,7 @@ function ContractorDialog({ contractor, hasJobs, onClose }: { contractor: Contra
             <TextField fullWidth label={t('Their work: Instagram or portfolio')} type="url" placeholder={'https://'} value={c.portfolio_url ?? ''}
               onChange={e => set({ portfolio_url: e.target.value })} />
           </Stack>
-          <TextField label={t('Location')} value={c.location ?? ''} onChange={e => set({ location: e.target.value })} placeholder={t('e.g. Marbella, or Remote')}
+          <TextField label={t('Location')} value={c.location ?? ''} onChange={e => set({ location: e.target.value })} placeholder={currentCountry() === 'IE' ? t('e.g. Cork, or Remote') : t('e.g. Marbella, or Remote')}
             slotProps={{ htmlInput: { maxLength: 120 } }} />
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField fullWidth label={t('Usual rate without VAT')} value={rate} inputMode="decimal" onChange={e => setRate(e.target.value)}

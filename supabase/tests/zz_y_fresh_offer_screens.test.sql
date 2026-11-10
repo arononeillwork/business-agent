@@ -87,7 +87,7 @@ select pg_temp.act_as('julio@test');
 update public.fresh_batches set percent_off = 40 where name = 'FO Muffin';
 reset role;
 do $$ begin
-  assert (select screen_ids = array[(select id from public.screens where name = 'FO window TV')] and price = '€1.50'
+  assert (select screen_ids = array[(select id from public.screens where name = 'FO window TV')] and price = '€1,50'
             from public.offers where title = 'FO Muffin'), 'the new discount, on the screen Maria picked';
 end $$;
 

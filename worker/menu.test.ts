@@ -269,6 +269,19 @@ describe('A screen’s link', () => {
     expect((await open('0123456789abcdef0123456789abcdef')).status).toBe(404)
     expect((await open('not-a-token')).status).toBe(404)
   })
+
+  it('says the business’s country, currency and time zone, so the TV writes prices and times its way', async () => {
+    const token = 'c0ffee00beef00c0ffee00beef00cafe'
+    db.tables.screens = [{ id: 'screen-1', token, business_id: 1 }]
+    db.rpcs.display_feed = () => ({ screen: { name: 'Counter TV', slides: [] }, business: { name: 'Easy Beans', logo: null }, menus: {} })
+    // A business in Spain: its comma and Madrid time.
+    expect(((await (await open(token)).json()) as { business: unknown }).business)
+      .toMatchObject({ name: 'Easy Beans', id: 1, country: 'ES', currency: 'EUR', timezone: 'Europe/Madrid' })
+    // One in Ireland: its decimal point and Dublin time.
+    Object.assign(db.tables.business[0], { name: 'The Coffee Dock', country: 'IE', timezone: 'Europe/Dublin' })
+    expect(((await (await open(token)).json()) as { business: unknown }).business)
+      .toMatchObject({ id: 1, country: 'IE', currency: 'EUR', timezone: 'Europe/Dublin' })
+  })
 })
 
 describe('A screen’s short link', () => {

@@ -59,7 +59,7 @@ export const LICENCE_TOOLS: ToolDef[] = [
   tool({
     name: 'list_licences',
     title: 'Licences and renewals',
-    description: 'The licences, permits, insurance, safety checks and certificates the business keeps (SGAE and AGEDI music licences, the terrace permit, the opening licence…): each one\'s issuer, reference number, when it runs out and its status (ran out, renew soon, up to date), how often it renews, the cost, its document (file name and link) and the link where it\'s renewed. Then what they cost a year and the usual ones for a café in Spain that aren\'t on file yet (with a preset key for save_licence). Costs are euros.',
+    description: 'The licences, permits, insurance, safety checks and certificates the business keeps (music licences such as SGAE and AGEDI in Spain or IMRO and PPI in Ireland, the terrace permit or Section 254 licence, the opening licence…): each one\'s issuer, reference number, when it runs out and its status (ran out, renew soon, up to date), how often it renews, the cost, its document (file name and link) and the link where it\'s renewed. Then what they cost a year and the usual ones for a café in Spain that aren\'t on file yet (with a preset key for save_licence). Costs are euros.',
     admin: true,
     partner: ['finances'],
     readOnly: true,
@@ -88,14 +88,14 @@ export const LICENCE_TOOLS: ToolDef[] = [
   tool({
     name: 'save_licence',
     title: 'Add or update a licence',
-    description: 'Add a licence (or permit, insurance, safety check, certificate, contract) or change one on file, found by `licence` (its name or id). `preset` fills a usual one for a café in Spain (e.g. "sgae", "agedi", "terraza") with its name, issuer, category and renewal. `link` is where its document is or where it\'s renewed, e.g. the Google Drive link of the signed SGAE form. `renewed: true` moves its last day on by one renewal period. Fields left out stay as they are. Summarise what will change and get a yes before saving.',
+    description: 'Add a licence (or permit, insurance, safety check, certificate, contract) or change one on file, found by `licence` (its name or id). `preset` fills a usual one for a café in the business’s country (in Spain e.g. "sgae", "agedi", "terraza"; in Ireland the ie_ ones, e.g. "ie_imro", "ie_ppi", "ie_section254") with its name, issuer, category and renewal. `link` is where its document is or where it\'s renewed, e.g. the Google Drive link of the signed SGAE form. `renewed: true` moves its last day on by one renewal period. Fields left out stay as they are. Summarise what will change and get a yes before saving.',
     admin: true,
     input: z.object({
       licence: z.string().optional().describe('The licence to change: its name (or part of it) or id. Leave out to add a new one.'),
       preset: z.enum(PRESET_KEYS).optional().describe('A usual one to start from: ' + PRESET_KEYS.join(', ')),
       name: z.string().min(1).max(120).optional(),
       category: z.enum(CATEGORY_IDS).optional(),
-      issuer: z.string().max(120).nullable().optional().describe('Who gives it: SGAE, Ayuntamiento de Marbella, the insurer…'),
+      issuer: z.string().max(120).nullable().optional().describe('Who gives it: SGAE or IMRO, the town hall or council, the insurer…'),
       reference: z.string().max(80).nullable().optional().describe('Its number: contract, policy or expediente number'),
       holder: z.string().max(120).nullable().optional().describe('Whose it is when it\'s a person\'s (a food handler\'s certificate)'),
       starts_on: date.nullable().optional(),

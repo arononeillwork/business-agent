@@ -54,7 +54,7 @@ declare b public.fresh_batches := (select b from public.fresh_batches b where na
 begin
   assert b.recipe_id = (select id from public.recipes where name = 'FB Banana bread'), 'the menu item of that name';
   assert o.id is not null, 'its offer is on Offers & specials';
-  assert o.title = 'fb banana BREAD' and o.price = '€2.45' and o.was_price = '€3.50', format('30%% off the menu price: %s', to_jsonb(o));
+  assert o.title = 'fb banana BREAD' and o.price = '€2,45' and o.was_price = '€3,50', format('30%% off the menu price: %s', to_jsonb(o));
   assert o.starts_at = b.discount_at and o.ends_at = b.good_until and o.active, 'from the discount until it has to be gone';
   assert (select id from public.screens where name = 'FB counter TV') = any (o.screen_ids), 'on the screens that are on';
   assert o.business_id = b.business_id, 'the business''s own';
@@ -79,7 +79,7 @@ select pg_temp.expect_error($q$insert into public.fresh_batches (name, shelf_lif
 update public.fresh_batches set discount = 'price', price = ' 2 for €5 ', discount_at = now() - interval '10 minutes' where name = 'fb banana BREAD';
 reset role;
 do $$ declare o public.offers := (select o from public.offers o join public.fresh_batches b on b.id = o.fresh_batch_id where b.name = 'fb banana BREAD'); begin
-  assert o.price = '2 for €5' and o.was_price = '€3.50', format('the set price: %s', to_jsonb(o));
+  assert o.price = '2 for €5' and o.was_price = '€3,50', format('the set price: %s', to_jsonb(o));
   assert o.starts_at < now(), 'on now';
   assert (select count(*) from public.offers where fresh_batch_id = o.fresh_batch_id) = 1, 'still the one offer';
 end $$;
@@ -167,8 +167,8 @@ declare b  public.fresh_batches := (select b from public.fresh_batches b where n
         o1 public.offers := (select o from public.offers o where fresh_batch_id = b.id and coalesce(fresh_stage, 1) = 1);
         o2 public.offers := (select o from public.offers o where fresh_batch_id = b.id and fresh_stage = 2);
 begin
-  assert o1.price = '€2.45' and o1.starts_at = b.discount_at and o1.ends_at = b.discount2_at, format('30%% off until the second: %s', to_jsonb(o1));
-  assert o2.price = '€1.75' and o2.was_price = '€3.50' and o2.starts_at = b.discount2_at and o2.ends_at = b.good_until,
+  assert o1.price = '€2,45' and o1.starts_at = b.discount_at and o1.ends_at = b.discount2_at, format('30%% off until the second: %s', to_jsonb(o1));
+  assert o2.price = '€1,75' and o2.was_price = '€3,50' and o2.starts_at = b.discount2_at and o2.ends_at = b.good_until,
     format('then 50%% off until the end: %s', to_jsonb(o2));
 end $$;
 select pg_temp.act_as('julio@test');

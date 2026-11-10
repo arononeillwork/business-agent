@@ -25,13 +25,14 @@ import {
 } from '../components/competitorDialogs'
 import type { ExportTable } from '../lib/export'
 import {
-  BASKET, FEATURE_GROUPS, FEATURES, IDEA_STATUSES, KINDS, NOTE_KINDS, RADII, THREATS, analyse, featuresOf, hoursOf, insights, matchRecipe, priceLevelLabel,
+  FEATURE_GROUPS, FEATURES, basketFor, IDEA_STATUSES, KINDS, NOTE_KINDS, RADII, THREATS, analyse, featuresOf, hoursOf, insights, matchRecipe, priceLevelLabel,
   walkMinutes, type Analysis, type Competitor, type CompetitorData, type CompetitorInput, type CompetitorKind, type CompetitorNoteInput, type Feature,
   type Insight, type NearbyPlace, type Threat,
 } from '../../shared/localCompetitors'
 import type { Business, DayKey, OpeningHours } from '../../shared/types'
 import { kindOfBusiness, RIVALS } from '../../shared/businessKind'
 import { formatLocal, formatMoney, today } from '../../shared/time'
+import { currentCountry } from '../../shared/country'
 import { tokens } from '../theme'
 import { msg, t, tn } from '../i18n'
 
@@ -101,9 +102,11 @@ export function CompetitorsPage() {
   const found = a ? insights(a, { money: formatMoney, rating: oneDecimal, label: s => t(s) }) : []
   const places = !!google.data?.places
   const newNote = (p: Partial<CompetitorNoteInput> = {}) => setNoting({ competitor_id: null, kind: 'visit', text: '', observed_on: now, status: null, ...p })
+  // The usual basket where the business is (Spain's café con leche and tostada, Ireland's scone and toastie).
+  const usual = basketFor()
   const usualBasket = () => run(async () => {
-    for (const [i, name] of BASKET.entries()) await api.savePriceItem({ name: t(name), recipe_id: matchRecipe(t(name), menu)?.id ?? null, sort: i + 1 })
-  }, tn(BASKET.length, '{n} item added', '{n} items added'))
+    for (const [i, name] of usual.entries()) await api.savePriceItem({ name: t(name), recipe_id: matchRecipe(t(name), menu)?.id ?? null, sort: i + 1 })
+  }, tn(usual.length, '{n} item added', '{n} items added'))
   const follow = (p: NearbyPlace) => run(() => api.followPlace(p.place_id), t('Following {name}', { name: p.name }))
 
   const nearest = a?.rivals.filter(c => c.distance_m !== null).sort((x, y) => x.distance_m! - y.distance_m!)[0]
@@ -355,7 +358,10 @@ function PricesView({ a, d, onRecord, onBasket, onUsual }: {
           </Stack>}>{t('Prices')}</SectionTitle>
           {d.items.length === 0
             ? <Empty>
-                <Typography variant="body2" sx={{ mb: 1.5 }}>{t('Choose what to compare at every place: the usual basket for a café in Spain, or your own items.')}</Typography>
+                <Typography variant="body2" sx={{ mb: 1.5 }}>
+                  {currentCountry() === 'IE' ? t('Choose what to compare at every place: the usual basket for a café in Ireland, or your own items.')
+                    : t('Choose what to compare at every place: the usual basket for a café in Spain, or your own items.')}
+                </Typography>
                 <Stack direction="row" spacing={1} sx={{ justifyContent: 'center' }}>
                   <Button variant="contained" onClick={onUsual}>{t('Add the usual basket')}</Button>
                   <Button variant="outlined" onClick={onBasket}>{t('Choose items')}</Button>

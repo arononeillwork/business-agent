@@ -66,6 +66,16 @@ describe('a sign-up', () => {
     expect(readSignup({ email: 'a@b.es', phone: '12' }, TOPICS, false)).toEqual({ problem: 'invalidPhone' })
   })
 
+  it('takes a phone without its country code as the business’s country’s, wherever it is read (the Worker too)', () => {
+    // An Irish mobile, typed the Irish way, on an Irish business's form.
+    expect(readSignup({ email: 'aoife@example.ie', phone: '087 123 4567' }, TOPICS, false, 'IE')).toMatchObject({ signup: { phone: '+353 87 123 4567' } })
+    // In Spain it isn't a number: nine digits are.
+    expect(readSignup({ email: 'aoife@example.ie', phone: '087 123 4567' }, TOPICS, false, 'ES')).toEqual({ problem: 'invalidPhone' })
+    expect(readSignup({ email: 'lucia@example.com', phone: '600 111 222' }, TOPICS, false, 'ES')).toMatchObject({ signup: { phone: '+34 600 111 222' } })
+    // With its country code, it's the same anywhere.
+    expect(readSignup({ email: 'a@b.es', phone: '+34 600 111 222' }, TOPICS, false, 'IE')).toMatchObject({ signup: { phone: '+34 600 111 222' } })
+  })
+
   it('knows a sign-up date: a day, a time, a Spanish date; not one still to come', () => {
     vi.useFakeTimers({ now: new Date('2026-11-06T10:00:00Z') })
     expect(signedUpAt('2026-10-17T09:30:00Z')).toBe('2026-10-17T09:30:00.000Z')
@@ -77,10 +87,14 @@ describe('a sign-up', () => {
 })
 
 describe('the form', () => {
-  it('speaks the language asked for, else the browser’s, else Spanish', () => {
+  it('speaks the language asked for, else the browser’s, else the business’s country’s', () => {
     expect(formLanguage('en', 'es-ES')).toBe('en')
     expect(formLanguage(null, 'fr-FR,fr;q=0.9,en;q=0.8')).toBe('en')
     expect(formLanguage('de', null)).toBe('es')
+    // A visitor whose browser has neither: Spanish in Spain, English in Ireland.
+    expect(formLanguage(null, 'fr-FR', 'ES')).toBe('es')
+    expect(formLanguage(null, 'fr-FR', 'IE')).toBe('en')
+    expect(formLanguage(null, 'es-ES', 'IE')).toBe('es')
   })
 
   it('pastes into a website as a frame that grows to fit, listening only to the app', () => {

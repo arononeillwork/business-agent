@@ -1276,6 +1276,16 @@ describe('Sign-in emails from The Business Agent (Supabase send-email hook)', ()
     expect(sent.text).toContain('https://db.test/auth/v1/verify?token=hash-abc&type=recovery&redirect_to=https%3A%2F%2Fapp.test%2Faccount')
   })
 
+  it('greets someone in a business in Ireland in English, as the rest of the email is; in Spain, "Hola"', async () => {
+    await connect('gmail')
+    db.tables.business[0].country = 'IE'
+    await hook(email('invite'))
+    expect(readGmail(apis.google.sent.at(-1)!).text).toContain('Hi Eva,')
+    db.tables.business[0].country = 'ES'
+    await hook(email('invite'))
+    expect(readGmail(apis.google.sent.at(-1)!).text).toContain('Hola Eva,')
+  })
+
   it('sends invites and sign-in codes from Outlook when that is the mailbox', async () => {
     await connect('outlook')
     expect((await hook(email('invite'))).status).toBe(200)

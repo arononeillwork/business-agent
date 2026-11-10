@@ -5,6 +5,7 @@
 // same rules; the Worker's routes are in worker/newsletter.ts and the contract in docs/WEBSITE.md.
 import { EMAIL, cleanDate, cleanPhone, parseCsv } from './customers'
 import { msg } from './i18n'
+import type { Country } from './country'
 
 /** The languages the form speaks. */
 export type FormLanguage = 'en' | 'es'
@@ -127,15 +128,16 @@ export type SignupProblem = 'invalidEmail' | 'invalidPhone'
 const text = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null)
 
 /**
- * What a form or website sent, checked: an email that is one; a phone that is one, or none; the
- * topics the business has. A name is split in two ("Lucía García López" → Lucía, García López).
- * `when` (a date or a time) is kept only from a website's server (`trusted`), for a list brought in.
+ * What a form or website sent, checked: an email that is one; a phone that is one, or none (without its
+ * country code, the business's country's: an Irish "087 123 4567" is +353 87 123 4567); the topics the
+ * business has. A name is split in two ("Lucía García López" → Lucía, García López). `when` (a date or a
+ * time) is kept only from a website's server (`trusted`), for a list brought in.
  */
-export function readSignup(body: Record<string, unknown>, interests: NewsletterInterest[], trusted: boolean): { signup: Signup } | { problem: SignupProblem } {
+export function readSignup(body: Record<string, unknown>, interests: NewsletterInterest[], trusted: boolean, country?: Country): { signup: Signup } | { problem: SignupProblem } {
   const email = (text(body.email, 300) ?? '').toLowerCase()
   if (!EMAIL.test(email) || email.length > 254) return { problem: 'invalidEmail' }
   const rawPhone = text(body.phone, 40)
-  const phone = rawPhone ? cleanPhone(rawPhone) : null
+  const phone = rawPhone ? cleanPhone(rawPhone, country) : null
   if (rawPhone && !phone) return { problem: 'invalidPhone' }
   let first = text(body.first_name, 100), last = text(body.last_name, 100)
   const name = text(body.name, 200)
@@ -165,15 +167,15 @@ export function signedUpAt(v: unknown): string | null {
   return new Date(t).toISOString()
 }
 
-/** The language a visitor reads: the one asked for, else their browser's first we have, else Spanish (the businesses are in Spain). */
-export function formLanguage(asked: string | null | undefined, acceptLanguage: string | null | undefined): FormLanguage {
+/** The language a visitor reads: the one asked for, else their browser's first we have, else the business's country's (Ireland's English, Spain's Spanish). */
+export function formLanguage(asked: string | null | undefined, acceptLanguage: string | null | undefined, country?: string | null): FormLanguage {
   const a = (asked ?? '').toLowerCase().slice(0, 2)
   if ((FORM_LANGUAGES as string[]).includes(a)) return a as FormLanguage
   for (const part of (acceptLanguage ?? '').split(',')) {
     const l = part.trim().toLowerCase().slice(0, 2)
     if ((FORM_LANGUAGES as string[]).includes(l)) return l as FormLanguage
   }
-  return 'es'
+  return country === 'IE' ? 'en' : 'es'
 }
 
 /** The form's words. Its own (the business's heading and intro) win over these. */

@@ -5,6 +5,7 @@ import {
 } from './lastDayOffers'
 import type { StockItem } from './stock'
 import type { OpeningHours } from './types'
+import { countryMoney } from './offers'
 
 const TZ = 'Europe/Madrid'
 // Friday 30 October 2026: Madrid is UTC+1 (the clocks went back on the 25th).
@@ -53,10 +54,15 @@ describe('last-day offers', () => {
   })
 
   it('takes the discount off the shop price, crossing out the usual', () => {
-    expect(lastDayPrice(rule({ percent_off: 30 }), 2.8)).toEqual({ price: '€1.96', was_price: '€2.80' })
-    expect(lastDayPrice(rule({ percent_off: 50 }), 3.5)).toEqual({ price: '€1.75', was_price: '€3.50' })
-    expect(lastDayPrice(rule({ percent_off: 30 }), null)).toEqual({ price: '-30%', was_price: null })
-    expect(lastDayPrice(rule({ discount: 'price', price: '2 for €3' }), 2.1)).toEqual({ price: '2 for €3', was_price: '€2.10' })
+    // An Irish business's, as the database saves it: a decimal point.
+    const irish = (n: number) => countryMoney(n, 'IE')
+    expect(lastDayPrice(rule({ percent_off: 30 }), 2.8, irish)).toEqual({ price: '€1.96', was_price: '€2.80' })
+    expect(lastDayPrice(rule({ percent_off: 50 }), 3.5, irish)).toEqual({ price: '€1.75', was_price: '€3.50' })
+    expect(lastDayPrice(rule({ percent_off: 30 }), null, irish)).toEqual({ price: '-30%', was_price: null })
+    expect(lastDayPrice(rule({ discount: 'price', price: '2 for €3' }), 2.1, irish)).toEqual({ price: '2 for €3', was_price: '€2.10' })
+    // A Spanish one's: a decimal comma, as its screens write amounts (and as a screen shows them before anyone chooses).
+    expect(lastDayPrice(rule({ percent_off: 30 }), 2.8, n => countryMoney(n, 'ES'))).toEqual({ price: '€1,96', was_price: '€2,80' })
+    expect(lastDayPrice(rule({ percent_off: 30 }), 2.8)).toEqual({ price: '€1,96', was_price: '€2,80' })
   })
 
   it('puts an item on offer once, from the rule’s time until closing', () => {

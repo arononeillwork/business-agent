@@ -219,4 +219,6 @@ export default {
   'On offer till closing: {name}': 'En oferta hasta el cierre: {name}',
   '{n} left on their last day, {price} until {time}. Square isn’t changed: take the offer price at the till.':
     'Quedan {n} en su último día, a {price} hasta las {time}. Square no cambia: cóbralo al precio de la oferta.',
+  // A tip pool's share (the tips migration), its amount in the person's number format.
+  'Your tips: {amount}': 'Tus propinas: {amount}',
 } satisfies Record<string, string>

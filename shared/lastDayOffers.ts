@@ -4,7 +4,7 @@
 // start_last_day_offers()); this is the same reckoning, for the pages, the demo and the tests.
 // Nothing is charged or changed in Square: the till takes the offer price as the team rings it up.
 import { msg } from './i18n'
-import { addDays, dayKey, localDate, zonedIso } from './time'
+import { addDays, dayKey, formatMoney, localDate, zonedIso } from './time'
 import type { OpeningHours } from './types'
 import type { StockItem } from './stock'
 import type { ScreenMode } from './offers'
@@ -96,10 +96,14 @@ export function offerWindow(rule: Pick<LastDayRule, 'minutes_before_close'>, hou
   return { starts: new Date(Date.parse(ends) - rule.minutes_before_close * 60_000).toISOString(), ends }
 }
 
-const euro = (n: number) => `€${(Math.round(n * 100) / 100).toFixed(2)}`
-
-/** What it's shown for and the usual price crossed out: 30% off the shop price ("€1.96", was "€2.80"); without one, "-30%". */
-export function lastDayPrice(rule: Pick<LastDayRule, 'discount' | 'percent_off' | 'price'>, sellPrice: number | null): { price: string; was_price: string | null } {
+/**
+ * What it's shown for and the usual price crossed out: 30% off the shop price ("€1.96", was "€2.80"); without
+ * one, "-30%". The amounts as `money` writes them: this screen's way (Spain's "€1,96"), or, for what's saved,
+ * the business's country's (countryMoney in shared/offers.ts), as the database writes them.
+ */
+export function lastDayPrice(rule: Pick<LastDayRule, 'discount' | 'percent_off' | 'price'>, sellPrice: number | null,
+  money: (n: number) => string = formatMoney): { price: string; was_price: string | null } {
+  const euro = (n: number) => money(Math.round(n * 100) / 100)
   const was = sellPrice === null ? null : euro(sellPrice)
   if (rule.discount === 'price') return { price: rule.price ?? '', was_price: was }
   if (sellPrice === null) return { price: `-${rule.percent_off}%`, was_price: null }

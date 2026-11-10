@@ -19,6 +19,7 @@ import { bearer, businessDb, requestDb, type Env } from './supabase'
 import { FORM_TEXT, formLanguage, readSignup, type ListRow, type NewsletterInterest, type NewsletterSettings, type Signup, type SignupProblem } from '../shared/newsletter'
 import { formPage, offPage } from '../shared/newsletterForm'
 import { signInCheck } from './signedIn'
+import type { Country } from '../shared/country'
 
 export const newsletter = new Hono<{ Bindings: Env }>()
 
@@ -47,6 +48,12 @@ async function addressHash(env: Env, business: number, ip: string) {
     { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
   const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${business}:${ip}`))
   return [...new Uint8Array(mac)].map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+/** Where the business is: a phone typed without its country code is that country's, and the form is in its language when the browser has neither. */
+async function countryOf(env: Env, business: number): Promise<Country> {
+  const { data } = await businessDb(env, business).from('business').select('country').eq('id', business).maybeSingle()
+  return (data as { country?: string } | null)?.country === 'IE' ? 'IE' : 'ES'
 }
 
 /** The business's set-up; null when it has none or it's off (and on a database error, `failed`). */
@@ -96,8 +103,8 @@ newsletter.options('/api/site/:business/unsubscribe', c => c.body(null, 204, COR
 // The form, as a page.
 newsletter.get('/api/site/:business/newsletter', async c => {
   const business = businessIn(c.req.param('business'))
-  const lang = formLanguage(c.req.query('lang'), c.req.header('accept-language'))
-  const { on, failed } = business ? await config(c.env, business) : { on: null }
+  const [{ on, failed }, country] = business ? await Promise.all([config(c.env, business), countryOf(c.env, business)]) : [{ on: null, failed: false }, undefined]
+  const lang = formLanguage(c.req.query('lang'), c.req.header('accept-language'), country)
   if (failed) return c.html(offPage(lang, FORM_TEXT[lang].failed), 503, { 'cache-control': 'no-store' })
   if (!business || !on) return c.html(offPage(lang, FORM_TEXT[lang].off), 404, { 'cache-control': 'public, max-age=60' })
   const look = await lookOf(c.env, business)
@@ -108,7 +115,8 @@ newsletter.get('/api/site/:business/newsletter', async c => {
 newsletter.post('/api/site/:business/signup', async c => {
   const business = businessIn(c.req.param('business'))
   const { body, html } = await bodyOf(c)
-  const lang = formLanguage(typeof body.lang === 'string' ? body.lang : null, c.req.header('accept-language'))
+  const country = business ? await countryOf(c.env, business) : undefined
+  const lang = formLanguage(typeof body.lang === 'string' ? body.lang : null, c.req.header('accept-language'), country)
   const answer = async (status: 200 | 400 | 401 | 404 | 429 | 503, json: Record<string, unknown>, problem?: SignupProblem | 'tooMany' | 'failed') => {
     if (!html || !business) return c.json(problem ? { ...json, problem } : json, status, CORS)
     // A plain form post (no JavaScript): the page again, saying how it went.
@@ -126,7 +134,7 @@ newsletter.post('/api/site/:business/signup', async c => {
   if (trusted === 'wrong') return c.json(BAD_KEY, 401, CORS)
   // A field people can't see: only a robot fills it in. It's told it worked, and nothing is saved.
   if (typeof body.website === 'string' && body.website.trim()) return answer(200, { ok: true, interests: [], ignored: [] })
-  const read = readSignup(body, on.interests, trusted)
+  const read = readSignup(body, on.interests, trusted, country)
   if ('problem' in read) return answer(400, { error: FORM_TEXT.en[read.problem] }, read.problem)
   let ipHash: string | null = null
   if (!trusted) {

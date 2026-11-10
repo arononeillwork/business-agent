@@ -4,6 +4,7 @@
 // Amounts and readings in them follow the person's number format (Ireland's "€15.00", Spain's "15,00 €"), not the language.
 import { LANGUAGES, msg, type Language } from './i18n'
 import { defaultNumberFormat, formatNumberAs, moneyText, type NumberFormat } from './time'
+import { priceAmount } from './offers'
 import type { AppNotification, Preferences } from './types'
 import spanish from '../src/i18n/es/notifications'
 import regions from '../src/i18n/es/regions'
@@ -63,6 +64,8 @@ const MONTH: Record<string, string> = { Jan: 'ene', Feb: 'feb', Mar: 'mar', Apr:
 const decimals = (f: NumberFormat, n: string) => formatNumberAs(Number(n), f, n.split('.')[1]?.length ?? 0)
 /** An amount as written ("12.50"), as money in a sentence in the person's number format: "€12.50" or "12,50 €". */
 const euros = (f: NumberFormat, n: string) => moneyText(Number(n), f)
+/** An offer's price as the database wrote it: a plain amount ("€1.96", or Spain's "€1,96") as money in the person's way; "2 for €3" as written. */
+const offerPrice = (f: NumberFormat, p: string) => { const n = priceAmount(p); return n === null ? p : moneyText(n, f) }
 
 /**
  * A wording, the template it's said with, and what goes in it (lang: the language to say it in; f: the
@@ -71,7 +74,7 @@ const euros = (f: NumberFormat, n: string) => moneyText(Number(n), f)
 type Phrase = [RegExp, string, (m: RegExpExecArray, lang: Language, f: NumberFormat) => Record<string, string>, 'numbers'?]
 
 // Kept in step with what writes them: the social, enquiry, expense, campaign, food safety, licence,
-// sales rep and event alert migrations, and worker/{reviews,competitors,connections,integrations}.ts.
+// sales rep, tips, last-day offer and event alert migrations, and worker/{reviews,competitors,connections,integrations}.ts.
 const TITLES: Phrase[] = [
   [/^Time to post your (post|carousel|reel|story) on (.+)$/, msg('Time to post your {what} on {where}'), (m, l) => ({
     what: say(l, WHAT[m[1]]),
@@ -98,6 +101,8 @@ const TITLES: Phrase[] = [
   [/^Meta Ads needs connecting again soon$/, msg('Meta Ads needs connecting again soon'), () => ({})],
   [/^Opening hours changed on Google Maps$/, msg('Opening hours changed on Google Maps'), () => ({})],
   [/^On offer till closing: (.+)$/, msg('On offer till closing: {name}'), m => ({ name: m[1] })],
+  // A tip pool's share (the tips migration).
+  [/^Your tips: (\d+\.\d\d) €$/, msg('Your tips: {amount}'), (m, _l, f) => ({ amount: euros(f, m[1]) }), 'numbers'],
 ]
 const BODIES: Phrase[] = [
   // An expense decided without a note says its amount (the expense claims migration).
@@ -113,7 +118,7 @@ const BODIES: Phrase[] = [
   [/^The app now uses the hours from your Google listing\.$/, msg('The app now uses the hours from your Google listing.'), () => ({})],
   [/^(\d+(?:\.\d+)?) left on their last day, (.+) until (\d\d:\d\d)\. Square isn’t changed: take the offer price at the till\.$/,
     msg('{n} left on their last day, {price} until {time}. Square isn’t changed: take the offer price at the till.'),
-    (m, _l, f) => ({ n: decimals(f, m[1]), price: m[2], time: m[3] }), 'numbers'],
+    (m, _l, f) => ({ n: decimals(f, m[1]), price: offerPrice(f, m[2]), time: m[3] }), 'numbers'],
 ]
 
 function phrase(lang: Language, f: NumberFormat, text: string, phrases: Phrase[]) {

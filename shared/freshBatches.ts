@@ -134,8 +134,12 @@ export const onCounter = (b: Pick<FreshBatch, 'good_until' | 'discount_at' | 'cl
 export const shelfShare = (b: Pick<FreshBatch, 'made_at' | 'good_until'>, now = Date.now()) =>
   Math.min(1, Math.max(0, (now - Date.parse(b.made_at)) / Math.max(1, Date.parse(b.good_until) - Date.parse(b.made_at))))
 
-/** Its offer price and the usual one crossed out, as on Offers & specials: 30% off the menu price ("€2.45", was "€3.50"). */
-export const freshOfferPrice = (b: Pick<FreshBatch, 'discount' | 'percent_off' | 'price'>, sellPrice: number | null) => lastDayPrice(b, sellPrice)
+/**
+ * Its offer price and the usual one crossed out, as on Offers & specials: 30% off the menu price ("€2.45", was
+ * "€3.50"), the amounts as `money` writes them (this screen's way, unless it's the saved one: lastDayPrice).
+ */
+export const freshOfferPrice = (b: Pick<FreshBatch, 'discount' | 'percent_off' | 'price'>, sellPrice: number | null, money?: (n: number) => string) =>
+  lastDayPrice(b, sellPrice, money)
 
 /** The second discount, shaped as a first one (for its price and its words). */
 export const secondDiscount = (b: Pick<FreshBatch, 'discount2' | 'percent_off2' | 'price2'>) => ({ discount: b.discount2, percent_off: b.percent_off2, price: b.price2 })

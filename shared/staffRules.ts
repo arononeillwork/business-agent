@@ -1,8 +1,9 @@
 // Staff rules: the house rules everyone on the team follows (being on time and clocking in, uniform
 // and hygiene, food safety, phones, breaks, customers, the till, safety, respect), in sections.
-// Admins write them or start from the usual ones for a café in Spain; each employee confirms they've
-// read them, and is asked again when a section is added or changed after that.
+// Admins write them or start from the usual ones for a café in Spain (or Ireland: rulePresets); each
+// employee confirms they've read them, and is asked again when a section is added or changed after that.
 import { msg } from './i18n'
+import { currentCountry, type Country } from './country'
 
 export interface RuleSection {
   id: string
@@ -112,3 +113,18 @@ export const RULE_PRESETS: RulePreset[] = [
     msg('Anything worrying you? Talk to the owner: it stays between you.'),
   ] },
 ]
+
+/**
+ * Ireland's differ where its law does: the record of hours is the working time records, free tap water is a
+ * kindness rather than the law, and there's no official complaints form (Spain's hoja de reclamaciones) to hand over.
+ */
+const IRISH_RULES: Record<string, string | null> = {
+  [msg('Clock in when you start and out when you finish, on the café tablet or your phone. The law asks for a record of everyone’s hours (registro de jornada).')]:
+    msg('Clock in when you start and out when you finish, on the café tablet or your phone. The law asks for a record of everyone’s hours (working time records).'),
+  [msg('Tap water is free for customers who ask for it: it’s the law.')]: msg('Tap water is free for customers who ask for it.'),
+  [msg('If someone asks for the complaints form (hoja de quejas y reclamaciones), give it to them straight away and tell the shift lead.')]: null,
+}
+
+/** The usual house rules where the business is: Spain's, or Ireland's. */
+export const rulePresets = (country: Country = currentCountry()): RulePreset[] => (country !== 'IE' ? RULE_PRESETS
+  : RULE_PRESETS.map(p => ({ ...p, rules: p.rules.flatMap(r => (r in IRISH_RULES ? (IRISH_RULES[r] ? [IRISH_RULES[r]] : []) : [r])) })))

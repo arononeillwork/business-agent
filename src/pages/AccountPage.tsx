@@ -14,6 +14,7 @@ import { TimeZoneField } from '../components/TimeZoneField'
 import { DeviceBusinesses, useSignOutLabel } from '../components/BusinessSwitcher'
 import { t, tc, tn } from '../i18n'
 import { roleNamesOf } from '../../shared/roles'
+import { currentCountry } from '../../shared/country'
 import { teamRoleLabel } from '../../shared/teamRoles'
 import type { ContactMethod } from '../../shared/types'
 import { DEFAULT_WHATSAPP_RETENTION, RETENTION_LABEL, WHATSAPP_RETENTION_DAYS, isRetention, type WhatsAppRetention } from '../../shared/messages'
@@ -129,7 +130,9 @@ export function AccountPage() {
               <SectionTitle>{t('Your data')}</SectionTitle>
               <Typography variant="body2" color="text.secondary">
                 {isPartner ? t('Your access is read-only. Use what you see only for the work agreed with {business}. Data is stored in the EU.', { business: business?.name ?? t('your business') })
-                  : t('We record your clock-in and clock-out times and breaks, as Spanish law requires (registro de jornada, kept 4 years). Times come from our server, not your phone. Your location is never tracked. Data is stored in the EU.')}
+                  : currentCountry() === 'IE'
+                    ? t('We record your clock-in and clock-out times and breaks, as Irish law requires (working time records, kept 3 years). Times come from our server, not your phone. Your location is never tracked. Data is stored in the EU.')
+                    : t('We record your clock-in and clock-out times and breaks, as Spanish law requires (registro de jornada, kept 4 years). Times come from our server, not your phone. Your location is never tracked. Data is stored in the EU.')}
               </Typography>
               {!isPartner && <Button component={RouterLink} to="/registro" variant="outlined" size="small" sx={{ mt: 1.5 }}>{t('My monthly hours record')}</Button>}
             </CardContent>

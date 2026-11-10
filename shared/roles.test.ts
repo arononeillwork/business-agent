@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ROLE_PRESETS, dutiesByWhen, dutiesFromLines, linesOf, presetPosition, roleProblem, sortRoles } from './roles'
-import { RULE_PRESETS, readState, rulesChangedAt, rulesFromLines, sectionProblem } from './staffRules'
+import { RULE_PRESETS, readState, rulePresets, rulesChangedAt, rulesFromLines, sectionProblem } from './staffRules'
 
 describe('roles', () => {
   it('reads duties one per line, tidied, and writes them back', () => {
@@ -45,6 +45,20 @@ describe('staff rules', () => {
     expect(sectionProblem({ title: 'Phones', intro: null, rules: [] })).toBe('Write at least one rule')
     expect(sectionProblem({ title: '', intro: null, rules: ['x'] })).toBe('Give the section a title')
     for (const p of RULE_PRESETS) expect(sectionProblem({ title: p.title, intro: p.intro ?? null, rules: p.rules })).toBeNull()
+    for (const p of rulePresets('IE')) expect(sectionProblem({ title: p.title, intro: p.intro ?? null, rules: p.rules })).toBeNull()
+  })
+
+  it('starts an Irish café from Ireland’s house rules, and a Spanish one from Spain’s', () => {
+    const all = (c: 'ES' | 'IE') => rulePresets(c).flatMap(p => p.rules).join('\n')
+    expect(rulePresets('ES')).toBe(RULE_PRESETS)
+    expect(all('ES')).toContain('(registro de jornada)')
+    expect(all('ES')).toContain('hoja de quejas y reclamaciones')
+    expect(all('ES')).toContain('Tap water is free for customers who ask for it: it’s the law.')
+    expect(all('IE')).toContain('(working time records)')
+    expect(all('IE')).not.toMatch(/registro de jornada|hoja de quejas|it’s the law/)
+    expect(all('IE')).toContain('Tap water is free for customers who ask for it.')
+    // The same sections, in the same order.
+    expect(rulePresets('IE').map(p => p.title)).toEqual(RULE_PRESETS.map(p => p.title))
   })
 
   it('asks again after a change: never, before the change, or since', () => {
