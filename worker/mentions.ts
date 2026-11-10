@@ -14,11 +14,13 @@ import * as facebook from './providers/facebook'
 import { syncRepFollowers } from './repPage'
 import { refreshFollowerDays } from './socialAnalytics'
 import { mediaStorage, storeMedia } from './media'
+import { insightTotals, unixDay } from '../shared/socialAnalytics'
 import {
   collabId, collabMentions, isRecent, mentionTitle, mentionsIn, peopleToPutForward, shortcodeOf, type CollabMedia, type Mention,
+  type AccountFigures, type AccountWindow,
 } from '../shared/mentions'
 import type { InboxConversation, TaggedPost } from '../shared/messages'
-import { today } from '../shared/time'
+import { addDays, today } from '../shared/time'
 import { zoneOf } from './zone'
 
 /**
@@ -31,26 +33,67 @@ import { zoneOf } from './zone'
  * (provider_cache 'instagram:mentions-check'), so a look that didn't finish shows.
  */
 export async function checkMentions(env: Env, db: SupabaseClient): Promise<number> {
-  const [{ data: row }, { data: set }] = await Promise.all([
-    db.from('integrations').select('status, external').eq('provider', 'instagram').single(),
-    db.from('settings').select('alert_instagram_mentions').eq('id', 1).single(),
-  ])
+  const { data: row } = await db.from('integrations').select('status, external').eq('provider', 'instagram').single()
   if (row?.status !== 'connected') return 0
   const ext = (row.external ?? {}) as InstagramExternal
   const cfg = await instagramSession(env, db)
   const business = businessIdOf(db)
   const self = ext.username ?? null
-  const tell = async (added: Mention[]) => {
-    if (!added.length || set?.alert_instagram_mentions === false) return
-    const { data: admins } = await db.from('profiles').select('id').eq('role', 'admin').eq('active', true)
-    if (!admins?.length) return
-    await db.from('notifications').insert(added.flatMap(m => admins.map(a => ({
-      profile_id: a.id, title: mentionTitle(m), body: m.caption ? String(m.caption).slice(0, 140) : null,
-      link: '/notifications', kind: 'instagram_mention', data: { mention: m.id },
-    }))))
-  }
 
-  // 1. Tags and collabs. Tagged posts need "Manage comments"; collabs come from readCollabs.
+  // 1. Tags and collabs, their posters put forward as reps.
+  const look = await lookForPosts(env, db, cfg, ext)
+
+  // 2. Once a day: new followers, kept for What each post did (Analytics). Today where the business is
+  //    (Dublin's day for a business in Ireland).
+  if (ext.can_see_insights !== false) {
+    const day = today(await zoneOf(db))
+    await refreshFollowerDays(db, cfg, day).catch(e => reportError(env, 'instagram: keeping new followers', e, { business }))
+    // One post about the café whose days are in: what the café's account did in them (Sales reps & rewards).
+    await readPostWindow(db, cfg, day).catch(e => reportError(env, 'instagram: a post’s days', e, { business }))
+  }
+  // Noted before the chats too: a look that ran out of requests in them still shows what it found.
+  let stories: Mention[] = []
+  const note = (chats: number | null) => db.from('provider_cache').upsert({ key: 'instagram:mentions-check', fetched_at: new Date().toISOString(),
+    data: { tagged: look.tagged, collabs: look.collabs, via: look.via, chats, new: look.added.length + (chats === null ? 0 : stories.length) } },
+  { onConflict: 'business_id,key' })
+  await note(null)
+
+  // 3. Story mentions arrive as messages: the chats, last. Reps among these people get their followers
+  //    as Instagram says now (Sales reps & rewards).
+  const reps = new Set(((await db.from('sales_reps').select('instagram').not('instagram', 'is', null)).data ?? []).map(r => String(r.instagram)))
+  const matters = (c: InboxConversation) => reps.has(c.with.username.toLowerCase()) || c.recent.some(m => m.kind === 'story_mention' && !m.fromMe)
+  const chats = await instagram.conversations(cfg, { id: ext.user_id ?? '', username: ext.username }, matters)
+    .catch(async e => { await reportError(env, 'instagram mentions: chats', e, { business }); return null })
+  if (chats) {
+    await syncRepFollowers(db, chats).catch(() => 0)
+    stories = await keepMentions(db, mentionsIn(chats, []), [])
+    await tellAdmins(db, stories)
+    if (stories.length) await putForward(db, self, chats).catch(e => reportError(env, 'instagram: putting posters forward as reps', e, { business }))
+    await note(chats.length)
+  }
+  return look.added.length + stories.length
+}
+
+/** Every admin hears about each new mention (the bell), unless the café switched that off. */
+async function tellAdmins(db: SupabaseClient, added: Mention[]) {
+  if (!added.length) return
+  const [{ data: set }, { data: admins }] = await Promise.all([
+    db.from('settings').select('alert_instagram_mentions').eq('id', 1).single(),
+    db.from('profiles').select('id').eq('role', 'admin').eq('active', true),
+  ])
+  if (set?.alert_instagram_mentions === false || !admins?.length) return
+  await db.from('notifications').insert(added.flatMap(m => admins.map(a => ({
+    profile_id: a.id, title: mentionTitle(m), body: m.caption ? String(m.caption).slice(0, 140) : null,
+    link: '/notifications', kind: 'instagram_mention', data: { mention: m.id },
+  }))))
+}
+
+/**
+ * The tags and collab reels: new ones kept and told about, every collab's figures brought up to date, and
+ * their posters put forward as reps. Tagged posts need "Manage comments"; collabs come from readCollabs.
+ */
+export async function lookForPosts(env: Env, db: SupabaseClient, cfg: instagram.InstagramConfig, ext: InstagramExternal) {
+  const business = businessIdOf(db)
   const [tagged, found] = await Promise.all([
     instagram.tagged(cfg).catch(() => [] as TaggedPost[]),
     readCollabs(env, db, cfg, ext),
@@ -59,33 +102,30 @@ export async function checkMentions(env: Env, db: SupabaseClient): Promise<numbe
   if (ext.can_list_collabs !== found.instagram || (ext.collabs_via ?? null) !== found.via) {
     await db.from('integrations').update({ external: { ...ext, can_list_collabs: found.instagram, collabs_via: found.via } }).eq('provider', 'instagram')
   }
-  const posts = await keepMentions(db, mentionsIn([], tagged), collabMentions(collabs))
-  await tell(posts)
-  await putForward(db, self).catch(e => reportError(env, 'instagram: putting posters forward as reps', e, { business }))
+  const added = await keepMentions(db, mentionsIn([], tagged), collabMentions(collabs))
+  await tellAdmins(db, added)
+  await putForward(db, ext.username ?? null).catch(e => reportError(env, 'instagram: putting posters forward as reps', e, { business }))
+  return { added, tagged: tagged.length, collabs: found.media ? collabs.length : null, via: found.via }
+}
 
-  // 2. Once a day: new followers, kept for What each post did (Analytics). Today where the business is
-  //    (Dublin's day for a business in Ireland).
-  if (ext.can_see_insights !== false) {
-    await refreshFollowerDays(db, cfg, today(await zoneOf(db))).catch(e => reportError(env, 'instagram: keeping new followers', e, { business }))
-  }
+/** How long a look at the tags and collabs counts for, when Sales reps & rewards opens. */
+const LOOK_FRESH_MS = 5 * 60_000
 
-  // 3. Story mentions arrive as messages: the chats, last. Reps among these people get their followers
-  //    as Instagram says now (Sales reps & rewards).
-  const reps = new Set(((await db.from('sales_reps').select('instagram').not('instagram', 'is', null)).data ?? []).map(r => String(r.instagram)))
-  const matters = (c: InboxConversation) => reps.has(c.with.username.toLowerCase()) || c.recent.some(m => m.kind === 'story_mention' && !m.fromMe)
-  const chats = await instagram.conversations(cfg, { id: ext.user_id ?? '', username: ext.username }, matters)
-    .catch(async e => { await reportError(env, 'instagram mentions: chats', e, { business }); return null })
-  let stories: Mention[] = []
-  if (chats) {
-    await syncRepFollowers(db, chats).catch(() => 0)
-    stories = await keepMentions(db, mentionsIn(chats, []), [])
-    await tell(stories)
-    if (stories.length) await putForward(db, self, chats).catch(e => reportError(env, 'instagram: putting posters forward as reps', e, { business }))
-  }
-  await db.from('provider_cache').upsert({ key: 'instagram:mentions-check', fetched_at: new Date().toISOString(),
-    data: { tagged: tagged.length, collabs: found.media ? collabs.length : null, via: found.via, chats: chats?.length ?? null, new: posts.length + stories.length } },
-  { onConflict: 'business_id,key' })
-  return posts.length + stories.length
+/**
+ * When an admin opens Sales reps & rewards: a look at the tags and collab reels, unless one was made in
+ * the last few minutes, so a reel posted since the last scheduled look is there already (that look
+ * shares its run's requests with every other job; this one has its own).
+ */
+export async function lookIfDue(env: Env, db: SupabaseClient, now = Date.now()): Promise<void> {
+  const [{ data: row }, { data: last }] = await Promise.all([
+    db.from('integrations').select('status, external').eq('provider', 'instagram').maybeSingle(),
+    db.from('provider_cache').select('fetched_at').eq('key', 'instagram:posts-look').maybeSingle(),
+  ])
+  if (row?.status !== 'connected') return
+  if (last?.fetched_at && now - Date.parse(String(last.fetched_at)) < LOOK_FRESH_MS) return
+  await db.from('provider_cache').upsert({ key: 'instagram:posts-look', fetched_at: new Date(now).toISOString(), data: {} }, { onConflict: 'business_id,key' })
+  const cfg = await instagramSession(env, db)
+  await lookForPosts(env, db, cfg, (row.external ?? {}) as InstagramExternal)
 }
 
 type InstagramExternal = {
@@ -96,15 +136,20 @@ type InstagramExternal = {
   collabs_via?: 'instagram' | 'facebook' | null
 }
 
+/** How long the Page's answer that no Instagram is linked to it stands before it's asked again. */
+const ASK_LINK_AGAIN_MS = 6 * 3_600_000
+
 /**
  * The posts and reels the café's Instagram is an accepted collaborator on (a customer's collab reel),
  * and where they came from. Instagram Login doesn't list them: once it has said so it isn't asked again,
  * until Instagram is connected again (which starts the connection's notes afresh). Facebook Login does,
- * so they're read through the Facebook Page's connection once it was allowed instagram_basic and the
- * café's Instagram is linked to the Page (the Instagram account's id is kept on the Facebook connection).
+ * so they're read through the Facebook Page's connection once it was allowed instagram_basic: for the
+ * Instagram account the Page names as linked to it, or else the café's own (Instagram Login's id), which
+ * the Page can read when the two are linked. The account's id is kept on the Facebook connection; when
+ * neither answers, the Page is asked again some hours later (an owner may link them meanwhile).
  * media null: neither can, and Analytics says so. What fails, HQ hears about.
  */
-export async function readCollabs(env: Env, db: SupabaseClient, cfg: instagram.InstagramConfig, ext: InstagramExternal):
+export async function readCollabs(env: Env, db: SupabaseClient, cfg: instagram.InstagramConfig, ext: InstagramExternal, now = Date.now()):
   Promise<{ media: CollabMedia[] | null; via: 'instagram' | 'facebook' | null; instagram: boolean }> {
   const business = businessIdOf(db)
   let fromInstagram = ext.can_list_collabs !== false
@@ -116,22 +161,73 @@ export async function readCollabs(env: Env, db: SupabaseClient, cfg: instagram.I
       if (ext.can_list_collabs !== false) await reportError(env, 'instagram collabs', e, { business })
     }
   }
+  const none = { media: null, via: null, instagram: fromInstagram }
   const { data: fb } = await db.from('integrations').select('status, external').eq('provider', 'facebook').maybeSingle()
-  const fx = (fb?.external ?? {}) as { instagram?: boolean; instagram_id?: string | null }
-  if (fb?.status !== 'connected' || fx.instagram !== true || fx.instagram_id === null) return { media: null, via: null, instagram: fromInstagram }
+  const fx = (fb?.external ?? {}) as { instagram?: boolean; instagram_id?: string | null; instagram_asked_at?: string }
+  if (fb?.status !== 'connected' || fx.instagram !== true) return none
+  if (fx.instagram_id === null && fx.instagram_asked_at && now - Date.parse(fx.instagram_asked_at) < ASK_LINK_AGAIN_MS) return none
   try {
     const s = await facebookSession(env, db)
-    let id: string | null | undefined = fx.instagram_id
-    if (!id) {
-      // Asked once: the Instagram account linked to the Page (none: noted as null, until Facebook is connected again).
-      id = (await facebook.linkedInstagram(s))?.id ?? null
-      await db.from('integrations').update({ external: { ...fx, instagram_id: id } }).eq('provider', 'facebook')
-      if (!id) return { media: null, via: null, instagram: fromInstagram }
+    if (fx.instagram_id) return { media: await facebook.collabs(s, fx.instagram_id), via: 'facebook', instagram: fromInstagram }
+    // The Instagram account linked to the Page, or the café's own; kept once one answers.
+    const named = (await facebook.linkedInstagram(s))?.id ?? null
+    const tries = [...new Set([named, ext.user_id ?? null].filter((x): x is string => !!x))]
+    let lastError: unknown = null
+    for (const id of tries) {
+      try {
+        const media = await facebook.collabs(s, id)
+        await db.from('integrations').update({ external: { ...fx, instagram_id: id, instagram_asked_at: new Date(now).toISOString() } }).eq('provider', 'facebook')
+        return { media, via: 'facebook', instagram: fromInstagram }
+      } catch (e) { lastError = e }
     }
-    return { media: await facebook.collabs(s, id), via: 'facebook', instagram: fromInstagram }
+    await db.from('integrations').update({ external: { ...fx, instagram_id: null, instagram_asked_at: new Date(now).toISOString() } }).eq('provider', 'facebook')
+    await reportError(env, 'instagram collabs through Facebook', lastError ?? new Error('The Facebook Page has no Instagram account linked to it'), { business })
+    return none
   } catch (e) {
     await reportError(env, 'instagram collabs through Facebook', e, { business })
-    return { media: null, via: null, instagram: fromInstagram }
+    return none
+  }
+}
+
+/** The café account's figures asked for a post's days (profile_views isn't given for every account: asked again without it). */
+const WINDOW_METRICS = ['reach', 'views', 'accounts_engaged', 'profile_links_taps', 'profile_views']
+
+/** The café account's figures over from–to (inclusive), each null when Instagram didn't give it. */
+async function accountFigures(cfg: instagram.InstagramConfig, from: string, to: string): Promise<AccountFigures> {
+  const span = [unixDay(from), unixDay(addDays(to, 1))] as const
+  const data = await instagram.accountInsights(cfg, WINDOW_METRICS, ...span)
+    .catch(e => (/profile_views|metric/i.test(String(e)) ? instagram.accountInsights(cfg, WINDOW_METRICS.filter(m => m !== 'profile_views'), ...span) : Promise.reject(e)))
+  const t = insightTotals(data)
+  const n = (k: string) => (k in t ? Math.round(t[k]) : null)
+  return { reach: n('reach'), views: n('views'), engaged: n('accounts_engaged'), link_taps: n('profile_links_taps'), profile_visits: n('profile_views') }
+}
+
+/**
+ * One post about the café a look, newest first, whose days are in (the day it went out and the two
+ * after; Instagram is a day or two late) and that's of the last 90 days: what the café's own account
+ * did in those days, and a usual three days (the week before's, for three). Kept on the post, read once.
+ * Returns whether one was read.
+ */
+export async function readPostWindow(db: SupabaseClient, cfg: instagram.InstagramConfig, day: string): Promise<boolean> {
+  const { data, error } = await db.from('instagram_mentions').select('id, mentioned_at').is('window_read_at', null)
+    .lt('mentioned_at', `${addDays(day, -3)}T00:00:00Z`).gte('mentioned_at', `${addDays(day, -90)}T00:00:00Z`)
+    .order('mentioned_at', { ascending: false }).limit(1)
+  if (error) throw new Error(error.message)
+  const post = data?.[0] as { id: string; mentioned_at: string } | undefined
+  if (!post) return false
+  const day0 = String(post.mentioned_at).slice(0, 10)
+  const at = new Date().toISOString()
+  try {
+    const [during, before] = await Promise.all([accountFigures(cfg, day0, addDays(day0, 2)), accountFigures(cfg, addDays(day0, -7), addDays(day0, -1))])
+    const three = (n: number | null) => (n === null ? null : Math.round(n / 7 * 3))
+    const usual: AccountFigures = { reach: three(before.reach), views: three(before.views), engaged: three(before.engaged),
+      link_taps: three(before.link_taps), profile_visits: three(before.profile_visits) }
+    await db.from('instagram_mentions').update({ account_window: { ...during, usual } satisfies AccountWindow, window_read_at: at }).eq('id', post.id)
+    return true
+  } catch (e) {
+    // Read once all the same (not asked again every look), and the failure goes where HQ sees it.
+    await db.from('instagram_mentions').update({ window_read_at: at }).eq('id', post.id)
+    throw e
   }
 }
 

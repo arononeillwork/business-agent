@@ -7,7 +7,7 @@
 //   - a post Instagram doesn't list can be added by its link (admins), and taken off again
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { integrations } from './integrations'
-import { checkMentions, putForward } from './mentions'
+import { checkMentions, putForward, readPostWindow } from './mentions'
 import { businessDb, type Env } from './supabase'
 import { FakeSupabase, type Row } from './test/fakeSupabase'
 import { FakeProviders } from './test/fakeProviders'
@@ -174,6 +174,47 @@ describe('Posts about the café', () => {
     expect(db.integration('instagram').external).toMatchObject({ collabs_via: null })
   })
 
+  it('the Page names its Instagram either way, or not at all: then the café’s own account (Instagram Login’s) is read through it', async () => {
+    await connectInstagram()
+    apis.instagram.noCollabs = true
+    apis.facebook.granted = [...apis.facebook.granted, 'instagram_basic']
+    apis.facebook.collabs = [reel('c1', 'nora.eats.mbl', 'DfNora0001', '2026-10-17T18:30:00+0000')]
+    // Linked from Instagram's side: the Page's connected account.
+    apis.facebook.namedAs = 'connected'
+    await connectFacebook()
+    await check()
+    expect(mentions().some(m => m.id === 'collab:DfNora0001')).toBe(true)
+    expect(db.integration('facebook').external).toMatchObject({ instagram_id: '17841400000000001' })
+    // Not named at all: the café's own Instagram, by Instagram Login's id.
+    apis.facebook.namedAs = 'none'
+    apis.facebook.collabs.push(reel('c2', 'tomas.runs', 'DfTomas001', '2026-10-19T08:00:00+0000'))
+    await connectFacebook()
+    await check()
+    expect(mentions().some(m => m.id === 'collab:DfTomas001')).toBe(true)
+    expect(db.integration('facebook').external).toMatchObject({ instagram_id: '17841400000000001' })
+    expect(db.integration('instagram').external).toMatchObject({ collabs_via: 'facebook' })
+  })
+
+  it('no Instagram the Page can read: asked again some hours later (the owner may link them meanwhile), and HQ hears why', async () => {
+    await connectInstagram()
+    apis.instagram.noCollabs = true
+    apis.facebook.granted = [...apis.facebook.granted, 'instagram_basic']
+    apis.facebook.instagram = null
+    await connectFacebook()
+    await check()
+    await check()
+    expect(apis.facebook.instagramLookups).toBe(1)
+    expect(db.tables.app_errors?.some(e => /collabs through Facebook/.test(String(e.source)))).toBe(true)
+    // Linked now; seven hours on, the Page is asked again.
+    apis.facebook.instagram = { id: '17841400000000001', username: 'easy.beans.coffee' }
+    apis.facebook.collabs = [reel('c1', 'nora.eats.mbl', 'DfNora0001', '2026-10-17T18:30:00+0000')]
+    const fb = db.integration('facebook')
+    fb.external = { ...(fb.external as object), instagram_asked_at: new Date(Date.now() - 7 * 3_600_000).toISOString() }
+    await check()
+    expect(apis.facebook.instagramLookups).toBe(2)
+    expect(mentions().some(m => m.id === 'collab:DfNora0001')).toBe(true)
+  })
+
   it('FACEBOOK_COLLABS=off: connecting Facebook doesn’t ask for instagram_basic', async () => {
     const start = await integrations.request(`${APP}/api/integrations/facebook/start`, { method: 'POST', headers: as('admin'), body: '{}' },
       { ...env, FACEBOOK_COLLABS: 'off' } as Env, ctx())
@@ -244,5 +285,37 @@ describe('Posts about the café', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('what the café’s own account did in a post’s days, against a usual three days: one post a look, read once', async () => {
+    db.tables.instagram_mentions = [
+      { id: 'collab:old', kind: 'collab', username: 'nora.eats.mbl', mentioned_at: '2026-10-14T18:00:00Z', window_read_at: null },
+      { id: 'collab:new', kind: 'collab', username: 'tomas.runs', mentioned_at: '2026-10-19T10:00:00Z', window_read_at: null }, // its days aren't in yet
+    ]
+    const base = globalThis.fetch
+    let refuseProfileViews = false
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init: RequestInit = {}) => {
+      const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
+      if (url.host !== 'graph.instagram.com' || !url.pathname.endsWith('/me/insights')) return base(input, init)
+      const metrics = url.searchParams.get('metric')!.split(',')
+      if (refuseProfileViews && metrics.includes('profile_views')) return new Response(JSON.stringify({ error: { message: '(#100) metric[4] must be one of the following values', code: 100 } }), { status: 400 })
+      const during = url.searchParams.get('since') === String(Date.parse('2026-10-14T00:00:00Z') / 1000)
+      const value: Record<string, number> = during
+        ? { reach: 3400, views: 9100, accounts_engaged: 210, profile_links_taps: 12, profile_views: 240 }
+        : { reach: 2800, views: 7000, accounts_engaged: 140, profile_links_taps: 14, profile_views: 140 }
+      return new Response(JSON.stringify({ data: metrics.map(name => ({ name, period: 'day', total_value: { value: value[name] } })) }), { status: 200 })
+    }))
+    const cfg = { token: 'ig', graphVersion: 'v23.0' } as Parameters<typeof readPostWindow>[1]
+    expect(await readPostWindow(businessDb(env, 1), cfg, '2026-10-20')).toBe(true)
+    expect(mentions().find(m => m.id === 'collab:old')!.account_window).toEqual({
+      reach: 3400, views: 9100, engaged: 210, link_taps: 12, profile_visits: 240,
+      usual: { reach: 1200, views: 3000, engaged: 60, link_taps: 6, profile_visits: 60 },
+    })
+    // Read once; the newer post's days aren't in yet.
+    expect(await readPostWindow(businessDb(env, 1), cfg, '2026-10-20')).toBe(false)
+    // Two days on: the newer one, where Instagram doesn't give profile visits.
+    refuseProfileViews = true
+    expect(await readPostWindow(businessDb(env, 1), cfg, '2026-10-23')).toBe(true)
+    expect(mentions().find(m => m.id === 'collab:new')!.account_window).toMatchObject({ profile_visits: null, usual: { profile_visits: null } })
   })
 })

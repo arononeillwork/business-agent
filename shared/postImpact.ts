@@ -4,7 +4,7 @@
 // against what three days usually bring. Instagram keeps new followers day by day for 30 days only;
 // the Worker keeps them (social_follower_days), so posts further back still show theirs.
 import { addDays } from './time'
-import type { Mention } from './mentions'
+import type { AccountWindow, Mention } from './mentions'
 import type { SocialDay, SocialPost } from './socialAnalytics'
 
 /** Who posted it: the café, a customer with the café as collaborator, a customer tagging it, or in their story. */
@@ -29,6 +29,8 @@ export interface PostImpact {
   saves: number | null
   /** People who followed the café from it, as Instagram counts them (its own photo posts only). */
   follows: number | null
+  /** A post about the café: what the café's own account did in its days, against the usual (null: not read yet). */
+  account?: AccountWindow | null
   /** New followers the day it went out and the days after (IMPACT_DAYS in all). Null: not known that far back. */
   gained: number | null
   /** What those days usually bring: a usual day of the week before (the middle one, so another post's jump doesn't count), for as many days. Null: no week before to go by. */
@@ -66,7 +68,7 @@ const BY: Record<Mention['kind'], PostBy> = { collab: 'collab', post: 'tagged', 
 export const postAbout = (m: Mention & { added_by?: string | null }): Figures => ({
   id: m.id, by: BY[m.kind], username: m.username, url: m.permalink, caption: m.caption ?? '', at: m.mentioned_at, thumbnail: m.media_url,
   video: !!m.video, views: m.views ?? null, reach: null, likes: m.likes ?? null, comments: m.comments ?? null, shares: m.shares ?? null,
-  saves: m.saves ?? null, follows: null, added: !!m.added_by,
+  saves: m.saves ?? null, follows: null, added: !!m.added_by, account: m.account_window ?? null,
 })
 
 /** New followers each day, as far as known: what's kept, with what Instagram says now over it. */

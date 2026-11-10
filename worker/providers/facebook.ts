@@ -172,11 +172,15 @@ export async function pagePosts(s: PageAccess, since: number, until: number) {
 // The Page's Instagram (instagram_basic): the posts and reels it's an accepted collaborator on.
 // ---------------------------------------------------------------------------------------------
 
-/** The Instagram professional account linked to the Page, or null when none is. */
+/**
+ * The Instagram professional account linked to the Page, or null when none is. Meta names it either way:
+ * as the Page's business account, or (linked from the Instagram side) its connected account.
+ */
 export async function linkedInstagram(s: PageAccess): Promise<{ id: string; username?: string } | null> {
-  const r = await graph<{ instagram_business_account?: { id: string; username?: string } }>(
-    `${GRAPH(s.graphVersion)}/${s.pageId}?fields=instagram_business_account{id,username}`, asPage(s))
-  return r.instagram_business_account ?? null
+  type Account = { id: string; username?: string }
+  const r = await graph<{ instagram_business_account?: Account; connected_instagram_account?: Account }>(
+    `${GRAPH(s.graphVersion)}/${s.pageId}?fields=instagram_business_account{id,username},connected_instagram_account{id,username}`, asPage(s))
+  return r.instagram_business_account ?? r.connected_instagram_account ?? null
 }
 
 /** The latest posts and reels that Instagram account is an accepted collaborator on (up to 50), newest first. */

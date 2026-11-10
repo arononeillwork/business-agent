@@ -223,6 +223,8 @@ export class FakeProviders {
     profileLookups: 0,
     /** The Instagram account linked to the Page (instagram_business_account), and the posts and reels it's a collaborator on. */
     instagram: { id: '17841400000000001', username: 'easy.beans.coffee' } as { id: string; username: string } | null,
+    /** How the Page names it: as its business account, as the account connected from Instagram's side, or not at all (it's still readable by its id). */
+    namedAs: 'business' as 'business' | 'connected' | 'none',
     collabs: [] as Json[],
     /** How many times the linked Instagram was asked for. */
     instagramLookups: 0,
@@ -972,7 +974,9 @@ export class FakeProviders {
       if (this.facebook.revoked || !page || token !== page.access_token) return json({ error: { message: 'Error validating access token: The session has been invalidated.', code: 190 } }, 400)
       if (!pageCall[2] && (url.searchParams.get('fields') ?? '').includes('instagram_business_account')) {
         this.facebook.instagramLookups++
-        return json({ id: page.id, ...(this.facebook.instagram ? { instagram_business_account: this.facebook.instagram } : {}) })
+        const ig = this.facebook.instagram
+        return json({ id: page.id, ...(ig && this.facebook.namedAs === 'business' ? { instagram_business_account: ig } : {}),
+          ...(ig && this.facebook.namedAs === 'connected' && (url.searchParams.get('fields') ?? '').includes('connected_instagram_account') ? { connected_instagram_account: ig } : {}) })
       }
       if (!pageCall[2]) return json({ id: page.id, name: page.name, followers_count: 812 })
       const f = form()
