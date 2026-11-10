@@ -109,6 +109,25 @@ export function filterReviews(reviews: Review[], f: ReviewFilter) {
   return reviews
 }
 
+export type ReviewSort = 'newest' | 'oldest' | 'best' | 'worst'
+export const REVIEW_SORTS: { id: ReviewSort; label: string }[] = [
+  { id: 'newest', label: msg('Most recent') },
+  { id: 'oldest', label: msg('Oldest first') },
+  { id: 'best', label: msg('Best first') },
+  { id: 'worst', label: msg('Worst first') },
+]
+/** A sorted copy: by date, or by stars with the newest first among the same stars. */
+export function sortReviews(reviews: Review[], s: ReviewSort) {
+  const newest = (a: Review, b: Review) => Date.parse(b.created_at) - Date.parse(a.created_at)
+  const by: Record<ReviewSort, (a: Review, b: Review) => number> = {
+    newest,
+    oldest: (a, b) => -newest(a, b),
+    best: (a, b) => b.rating - a.rating || newest(a, b),
+    worst: (a, b) => a.rating - b.rating || newest(a, b),
+  }
+  return [...reviews].sort(by[s])
+}
+
 /** A low rating that's worth a quick, careful reply (and a flag on the notification). */
 export const isLow = (r: Pick<Review, 'rating'>) => r.rating <= 3
 

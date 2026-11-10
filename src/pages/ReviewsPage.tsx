@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Card, CardContent, Chip, Link, Stack, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Card, CardContent, Chip, Link, MenuItem, Stack, TextField, Typography } from '@mui/material'
 import ReplyIcon from '@mui/icons-material/ReplyOutlined'
 import { useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
@@ -11,7 +11,9 @@ import { ExportButton } from '../components/tables'
 import { Freshness } from '../components/Freshness'
 import type { ExportTable } from '../lib/export'
 import { formatLocal, formatNumber, today } from '../../shared/time'
-import { REVIEW_FILTERS, filterReviews, isLow, suggestedReply, summarise, MAX_REPLY, type Review, type ReviewFilter } from '../../shared/reviews'
+import {
+  REVIEW_FILTERS, REVIEW_SORTS, filterReviews, isLow, sortReviews, suggestedReply, summarise, MAX_REPLY, type Review, type ReviewFilter, type ReviewSort,
+} from '../../shared/reviews'
 import { tokens } from '../theme'
 import { t, tn } from '../i18n'
 
@@ -21,15 +23,17 @@ const month = (ym: string) => formatLocal(`${ym}-15T12:00:00Z`, 'MMM')
 /** "within 5 hours", "within 2 days". */
 const within = (hours: number) => (hours < 48 ? tn(Math.max(1, Math.round(hours)), '{n} hour', '{n} hours') : tn(Math.round(hours / 24), '{n} day', '{n} days'))
 
-/** Reviews: what people say on Google, with figures, and replies (templates edited before sending). Admins only. */
+/** Reviews: what people say on Google, with figures, and replies (templates edited before sending). Admins only.
+ * The list filters by stars or replies and sorts by date or by stars. */
 export function ReviewsPage() {
   const { api, business } = useApp()
   const [filter, setFilter] = useState<ReviewFilter>('all')
+  const [sort, setSort] = useState<ReviewSort>('newest')
   const data = useAsync('reviews', () => api.reviews(), [])
   const s = data.data
   const list = s?.reviews ?? []
   const sum = summarise(list)
-  const shown = filterReviews(list, filter)
+  const shown = sortReviews(filterReviews(list, filter), sort)
 
   const table = (): ExportTable => ({
     title: t('Google reviews'),
@@ -86,11 +90,16 @@ export function ReviewsPage() {
         <Card component="section" aria-label={t('Google reviews')} sx={{ mb: 3 }}>
           <CardContent>
             <SectionTitle>{t('Google reviews')}</SectionTitle>
-            <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', mb: 2 }} role="group" aria-label={t('Show')}>
-              {REVIEW_FILTERS.map(f => (
-                <Chip key={f.id} label={t(f.label)} color={filter === f.id ? 'primary' : 'default'} variant={filter === f.id ? 'filled' : 'outlined'}
-                  onClick={() => setFilter(f.id)} aria-pressed={filter === f.id} />
-              ))}
+            <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap', mb: 2 }}>
+              <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }} role="group" aria-label={t('Show')}>
+                {REVIEW_FILTERS.map(f => (
+                  <Chip key={f.id} label={t(f.label)} color={filter === f.id ? 'primary' : 'default'} variant={filter === f.id ? 'filled' : 'outlined'}
+                    onClick={() => setFilter(f.id)} aria-pressed={filter === f.id} />
+                ))}
+              </Stack>
+              <TextField select size="small" label={t('Sort by')} value={sort} onChange={e => setSort(e.target.value as ReviewSort)} sx={{ ml: 'auto', minWidth: 180 }}>
+                {REVIEW_SORTS.map(o => <MenuItem key={o.id} value={o.id}>{t(o.label)}</MenuItem>)}
+              </TextField>
             </Stack>
             {shown.length === 0
               ? <Empty>{list.length ? t('No reviews match.') : t('No reviews yet.')}</Empty>
