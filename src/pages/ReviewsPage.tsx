@@ -44,12 +44,12 @@ export function ReviewsPage() {
       {s?.feed && <Box sx={{ mt: -2, mb: 2 }}><Freshness id="reviews" at={s.fetched_at} /></Box>}
       <ErrorBox error={data.error} />
       {!s && !data.error && <Loading />}
-      {s?.feed === 'places' && (
+      {s?.feed === 'places' && !s.problem && (
         <Alert severity="info" sx={{ mb: 3 }} action={<Button component={RouterLink} to="/connections" color="inherit">{t('Connections')}</Button>}>
           {t('These are the newest reviews on your public Google listing (Google shares 5 at a time) and can’t be replied to here. Connect Google Maps (your Business Profile) to see every review and reply to them: Google has to approve the app for that first.')}
         </Alert>
       )}
-      {s?.problem && s.feed !== 'places' && (
+      {s?.problem && (
         <Alert severity={s.feed ? 'warning' : 'info'} sx={{ mb: 3 }} action={<Button component={RouterLink} to="/connections" color="inherit">{t('Connections')}</Button>}>
           {t(s.problem)}
         </Alert>
