@@ -54,6 +54,24 @@ describe('the assistant', () => {
     expect(results[1]).toMatchObject({ is_error: true, content: 'There is no tool called create_shift' })
   })
 
+  it('tells Claude how this person writes amounts, as the app shows them; whoami says so too', async () => {
+    const systemFor = async (numbers: 'comma' | 'point') => {
+      const { claude, create } = scripted({ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Hi' }] })
+      await answer(claude, { sb: fakeSb(null), me: maria, numbers }, [], [{ role: 'user', text: 'Hi' }], 'Easy Beans')
+      return String((create.mock.calls[0][0] as unknown as { system: string }).system)
+    }
+    // An Irish business (or anyone who chose the point): €15.00.
+    expect(await systemFor('point')).toContain('with a decimal point: €15.00, €1,234.50. The tools give amounts as plain numbers (12.5 is €12.50).')
+    // A Spanish business keeps its comma.
+    expect(await systemFor('comma')).toContain('with a decimal comma: €15,00 or 15,00 €, €1.234,50. The tools give amounts as plain numbers (12.5 is €12,50).')
+
+    const whoami = TOOLS.find(t => t.name === 'whoami')!
+    const ireland = fakeSb({ name: 'The Daily Grind', timezone: 'Europe/Dublin', country: 'IE' })
+    expect(await whoami.run({ sb: ireland, me: maria }, {})).toMatchObject({ country: 'Ireland', amounts: '€1,234.50, with a decimal point' })
+    expect(await whoami.run({ sb: ireland, me: { ...maria, preferences: { numberFormat: 'comma' } } }, {})).toMatchObject({ amounts: '€1.234,50, with a decimal comma' })
+    expect(await whoami.run({ sb: fakeSb({ name: 'Easy Beans', timezone: 'Europe/Madrid', country: 'ES' }), me: maria }, {})).toMatchObject({ amounts: '€1.234,50, with a decimal comma' })
+  })
+
   it('says so plainly when Claude declines', async () => {
     const { claude } = scripted({ stop_reason: 'refusal', content: [] })
     expect(await answer(claude, { sb: fakeSb(null), me: maria }, [], [{ role: 'user', text: '…' }], 'Easy Beans')).toBe('I can’t help with that one.')

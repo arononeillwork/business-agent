@@ -155,6 +155,10 @@ describe('Menu images', () => {
     await post('/api/menu/images', { design_id: 'd1', prompt: 'Chalkboard', model: 'ideogram' })
     expect(sent.at(-1)!.url.pathname).toBe('/ideogram/v4.0')
     expect(String(sent.at(-1)!.body!.prompt)).toMatch(/The heading reads "Easy Beans"\..*COFFEE: Flat white 3,20\s€/)
+    // A business in Ireland: its prices as Ireland writes them, whoever makes the design.
+    db.tables.business[0].country = 'IE'
+    await post('/api/menu/images', { design_id: 'd1', prompt: 'Chalkboard', model: 'ideogram' })
+    expect(String(sent.at(-1)!.body!.prompt)).toMatch(/COFFEE: Flat white €3\.20/)
   })
 
   it('a finished image comes by webhook, is copied into the café’s storage, once', async () => {

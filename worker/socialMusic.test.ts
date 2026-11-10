@@ -252,6 +252,9 @@ describe('the AI assistant\'s music tools (MCP and the API)', () => {
     expect(out.tracks.map(t => t.track_id)).not.toContain(ROCK)
     expect(out.ai_music).toEqual({ can_make: true, cost: 'Free (included in the plan this month)' })
     db.music.freeLeft = 0
+    // With the person's decimal mark: Spain's comma here, Ireland's point in a business there.
+    expect((await call('suggest_music', {}) as { ai_music: Row }).ai_music).toEqual({ can_make: true, cost: '€0,99, added to the monthly bill' })
+    db.tables.business[0].country = 'IE'
     expect((await call('suggest_music', {}) as { ai_music: Row }).ai_music).toEqual({ can_make: true, cost: '€0.99, added to the monthly bill' })
     db.music.reason = 'AI music is on paid plans.'
     expect((await call('suggest_music', {}) as { ai_music: Row }).ai_music).toEqual({ can_make: false, why: 'AI music is on paid plans.' })
@@ -263,7 +266,7 @@ describe('the AI assistant\'s music tools (MCP and the API)', () => {
     // A 60 s story is one use: the fade's two seconds don't make it two.
     expect(apis.elevenlabs.asked[0]).toMatchObject({ music_length_ms: 60000 })
     expect(String(apis.elevenlabs.asked[0].prompt)).toMatch(/acoustic .*for a social media story from a specialty café\. slow Sunday brunch\. Around \d+ bpm\. No vocals\.$/)
-    expect(out.cost).toBe('€0.99, added to the monthly bill')
+    expect(out.cost).toBe('€0,99, added to the monthly bill')
     expect(out.versions.map(v => v.title)).toEqual(['Brunch', 'Brunch (2)'])
     expect(stripe.items.size).toBe(1)
     apis.elevenlabs.refuse = true

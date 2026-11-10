@@ -4,7 +4,7 @@
 import { z } from 'zod'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { shiftPaidMinutes, shiftWarnings } from '../shared/rules'
-import { addDays, isTimeZone, localDate, localTime, today, weekStart, zonedIso, formatLocal } from '../shared/time'
+import { addDays, isTimeZone, localDate, localTime, today, weekStart, zonedIso, formatLocal, formatMoneyAs, formatNumberAs, numberFormatOf, type NumberFormat } from '../shared/time'
 import { TIME_OFF_KINDS, type Business, type CalendarEvent, type Customer, type PartnerArea, type PayRate, type Position, type Profile, type Settings, type Shift, type TimeOff, type TimeOffKind } from '../shared/types'
 import { COUNTRY_NAME, ENTITLEMENTS, LAW_CHECKED, PAYER_LABEL, leaveYear, type Benefit, type LeaveAllowance } from '../shared/benefits'
 import { dutiesByWhen, sortRoles, type JobRole } from '../shared/roles'
@@ -46,6 +46,8 @@ export interface ToolContext {
   origin?: string
   /** The person's session token, for reading what a page reads live through the Worker (worker/pageTools.ts). */
   accessToken?: string
+  /** Their decimal mark, when already known (the assistant reads it to tell Claude); else numbersOf reads it. */
+  numbers?: NumberFormat
 }
 
 export interface ToolDef<S extends z.ZodType = z.ZodType> {
@@ -77,6 +79,16 @@ function check<T>(res: { data: T; error: { message: string } | null }): NonNulla
 
 /** For `.then(rowsAs<T>())`: check the response and type the rows. */
 const rowsAs = <T,>() => (res: { data: unknown; error: { message: string } | null }) => check(res) as T
+
+/**
+ * The decimal mark of the amounts the tools write as text ("€12.50", "€12,50"): the person's own choice
+ * (My account → Appearance), else their business's country's. Amounts given as numbers stay numbers.
+ */
+async function numbersOf({ sb, me, numbers }: Pick<ToolContext, 'sb' | 'me' | 'numbers'>): Promise<NumberFormat> {
+  if (numbers) return numbers
+  const { data } = await sb.from('business').select('country').maybeSingle()
+  return numberFormatOf(me.preferences?.numberFormat, (data as { country?: string | null } | null)?.country)
+}
 
 const PROFILE_COLUMNS = 'id, business_id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, partner_company, partner_access'
 const MUSIC_COLUMNS = 'id, source, title, artist, url, duration_s, bpm, energy, moods, genre, vocals, highlight_s, saved'
@@ -221,7 +233,7 @@ async function resolveRep(sb: SupabaseClient, who: string): Promise<SalesRep> {
   throw new Error(`"${who}" matches several reps: ${matches.map(r => `${r.name} (${r.code})`).join(', ')}`)
 }
 
-const worth = (r: Pick<RewardRule, 'basis' | 'amount'>) => (r.basis === 'percent' ? `${r.amount}% of the sale` : `€${r.amount.toFixed(2)}`)
+const worth = (r: Pick<RewardRule, 'basis' | 'amount'>, f: NumberFormat) => (r.basis === 'percent' ? `${r.amount}% of the sale` : formatMoneyAs(r.amount, f))
 const monthNow = () => today().slice(0, 7)
 
 export const ALL_TOOLS: ToolDef[] = [
@@ -234,11 +246,13 @@ export const ALL_TOOLS: ToolDef[] = [
     readOnly: true,
     async run({ sb, me }) {
       const b = check(await sb.from('business').select('name, timezone, country').single()) as { name: string; timezone: string; country?: string }
+      const numbers = numberFormatOf(me.preferences?.numberFormat, b.country)
       return { name: me.full_name, email: me.email, role: me.role, ...(teamRole(me) ? { team_role: teamRole(me) } : {}), can_see_pay: me.can_see_pay, business: b.name,
         ...(me.role === 'partner' ? { partner_company: me.partner_company, partner_can_see: ['business details', ...(me.partner_access ?? [])],
           partner_note: 'Read-only: you can look but not change anything.' } : {}),
         country: b.country === 'IE' ? 'Ireland' : 'Spain', timezone: b.timezone, today: today(isTimeZone(b.timezone) ? b.timezone : undefined),
-        note: `Dates are YYYY-MM-DD, times are 24-hour local (${b.timezone}).` }
+        amounts: `${formatMoneyAs(1234.5, numbers)}, with a decimal ${numbers === 'point' ? 'point' : 'comma'}`,
+        note: `Dates are YYYY-MM-DD, times are 24-hour local (${b.timezone}). Write amounts as the app shows them to this person (amounts); the tools give them as plain numbers.` }
     },
   }),
 
@@ -1251,7 +1265,8 @@ export const ALL_TOOLS: ToolDef[] = [
     description: 'The people who sell the café: the team, ambassadors from outside it and customers who spread the word, each with the code on their business cards. Customers earn credit to spend in the café, the team and ambassadors commission. With each rep: their balance (credit to spend, or commission owed; admins see everyone\'s, the team customers\' and their own), their reach (followers on Instagram, TikTok, YouTube and Facebook plus the people they see in person) and its step (rewards that grow with reach are ×2 from 1,000 people, ×5 from 10,000, ×10 from 50,000), the crew they lead or are in (a crew\'s leader earns a share of what the crew earns), and this month\'s rewards. Also the list of what earns a reward, and what\'s waiting for an admin: rewards, and people an employee or a crew\'s leader added.',
     readOnly: true,
     input: z.object({ search: z.string().optional().describe('Part of a name, a code or an Instagram handle') }),
-    async run({ sb, me }, a) {
+    async run({ sb, me, numbers }, a) {
+      const f = await numbersOf({ sb, me, numbers })
       const [reps, rules, rewards] = await Promise.all([
         sb.from('sales_reps').select('*').order('name').then(rowsAs<SalesRep[]>()),
         sb.from('reward_rules').select('*').order('sort').then(rowsAs<RewardRule[]>()),
@@ -1270,7 +1285,7 @@ export const ALL_TOOLS: ToolDef[] = [
           balance: sees(r) ? balanceOf(ledger, r.id) : null, notes: r.notes,
         })),
         top_this_month: leaderboard(reps.filter(r => r.active && r.approved !== false), ledger, month).slice(0, 5).map(s => ({ name: s.rep.name, rewards: s.rewards, earned: sees(s.rep) ? s.earned : null })),
-        rewards_list: rules.filter(r => r.active).map(r => ({ name: r.name, for: r.who, worth: worth({ ...r, amount: Number(r.amount) }),
+        rewards_list: rules.filter(r => r.active).map(r => ({ name: r.name, for: r.who, worth: worth({ ...r, amount: Number(r.amount) }, f),
           grows_with_reach: !!r.scales_with_reach, needs_approval: r.needs_approval, monthly_limit: r.monthly_limit })),
         people_waiting_for_ok: reps.filter(r => !r.approved).map(r => ({ rep_id: r.id, name: r.name, kind: r.kind, reach: Number(r.reach ?? 0),
           in_crew_of: reps.find(x => x.id === r.leader_id)?.name ?? null, notes: r.notes })),
@@ -1289,14 +1304,15 @@ export const ALL_TOOLS: ToolDef[] = [
       link: z.string().url().optional().describe('The story or post'), date: date.optional(),
       times: z.number().int().min(1).max(50).optional().describe('How many times (a set amount only): one for each new person they brought in'),
     }),
-    async run({ sb }, a) {
+    async run({ sb, me, numbers }, a) {
       const rep = await resolveRep(sb, a.rep)
       const rules = (check(await sb.from('reward_rules').select('*').eq('active', true)) as RewardRule[]).map(r => ({ ...r, amount: Number(r.amount) }))
       const q = a.reward.trim().toLowerCase()
       const fits = rules.filter(r => ruleFits(r, rep.kind))
       const matches = fits.filter(r => r.name.toLowerCase() === q).length ? fits.filter(r => r.name.toLowerCase() === q) : fits.filter(r => r.name.toLowerCase().includes(q))
       if (matches.length !== 1) {
-        throw new Error(`${matches.length ? `"${a.reward}" matches several rewards` : `No reward for ${rep.name} matches "${a.reward}"`}. ${rep.name} can earn: ${fits.map(r => `${r.name} (${worth(r)})`).join('; ') || 'nothing on the list yet'}`)
+        const f = await numbersOf({ sb, me, numbers })
+        throw new Error(`${matches.length ? `"${a.reward}" matches several rewards` : `No reward for ${rep.name} matches "${a.reward}"`}. ${rep.name} can earn: ${fits.map(r => `${r.name} (${worth(r, f)})`).join('; ') || 'nothing on the list yet'}`)
       }
       const rule = matches[0]
       const times = rule.basis === 'fixed' ? a.times ?? 1 : 1
@@ -1436,8 +1452,8 @@ export const ALL_TOOLS: ToolDef[] = [
     admin: true,
     readOnly: true,
     input: z.object({ include_notes: z.boolean().default(true) }),
-    async run({ sb }, a) {
-      const { data, recipes, business } = await competitorData(sb)
+    async run({ sb, me, numbers }, a) {
+      const [{ data, recipes, business }, f] = await Promise.all([competitorData(sb), numbersOf({ sb, me, numbers })])
       const now = today()
       const an = analyse(data, recipes, business.opening_hours, now)
       const offers = (c: Competitor, has: boolean) => FEATURES.filter(f => featuresOf(c)[f.key] === has).map(f => f.label)
@@ -1464,7 +1480,7 @@ export const ALL_TOOLS: ToolDef[] = [
           area_average_eur: r.avg, cheapest_eur: r.min, dearest_eur: r.max, places_with_a_price: r.n })),
         price_index: { yours: an.ourIndex.index, on_items: an.ourIndex.items, meaning: '100 is the area average; 110 is 10% dearer' },
         recent_price_changes: an.changes.slice(0, 20).map(ch => ({ competitor: nameOf(ch.competitor_id), item: itemName(ch.item_id), from_eur: ch.from, to_eur: ch.to, seen_on: ch.on })),
-        findings: insights(an, { money: n => `€${n.toFixed(2)}`, rating: n => n.toFixed(1), label: l => l }).map(insightText),
+        findings: insights(an, { money: n => formatMoneyAs(n, f), rating: n => formatNumberAs(n, f, 1), label: l => l }).map(insightText),
         notes: a.include_notes ? data.notes.slice(0, 40).map(n => ({ note_id: n.id, about: nameOf(n.competitor_id), kind: n.kind, text: n.text, seen_on: n.observed_on,
           idea_status: n.status })) : undefined,
         nearby_not_followed: an.untracked.slice(0, 20).map(p => ({ name: p.name, distance_m: p.distance_m, google_rating: p.rating, google_reviews: p.review_count })),
@@ -1560,13 +1576,14 @@ export const ALL_TOOLS: ToolDef[] = [
       hour: z.number().int().min(0).max(23).optional().describe('The hour it goes out, Madrid time'),
       limit: z.number().int().min(1).max(20).default(5),
     }),
-    async run({ sb }, { kind, caption, seconds, hour, limit }) {
-      const [tracks, brand, posts, quote] = await Promise.all([
+    async run({ sb, me, numbers }, { kind, caption, seconds, hour, limit }) {
+      const [tracks, brand, posts, quote, f] = await Promise.all([
         sb.from('music_tracks').select(MUSIC_COLUMNS).eq('hidden', false).limit(500).then(rowsAs<MusicTrack[]>()),
         sb.from('brand').select('sound_moods, sound_avoid').eq('id', 1).maybeSingle().then(rowsAs<Pick<Brand, 'sound_moods' | 'sound_avoid'> | null>()),
         sb.from('social_posts').select('music, insights, scheduled_at, published_at').not('music', 'is', null)
           .order('created_at', { ascending: false }).limit(100).then(rowsAs<Pick<SocialPost, 'music' | 'insights' | 'scheduled_at' | 'published_at'>[]>()),
         sb.rpc('ai_music_quote', { p_seconds: aiSeconds(seconds) }).then(rowsAs<AiMusicQuote>()),
+        numbersOf({ sb, me, numbers }),
       ])
       const ranked = suggest(tracks, {
         kind, seconds, caption, hour: hour ?? null, sound: { moods: brand?.sound_moods ?? [], avoid: brand?.sound_avoid ?? [] },
@@ -1580,7 +1597,7 @@ export const ALL_TOOLS: ToolDef[] = [
         })),
         in_library: tracks.length,
         ai_music: quote.allowed
-          ? { can_make: true, cost: quote.price_cents ? `€${(quote.price_cents / 100).toFixed(2)}, added to the monthly bill` : 'Free (included in the plan this month)' }
+          ? { can_make: true, cost: quote.price_cents ? `${formatMoneyAs(quote.price_cents / 100, f)}, added to the monthly bill` : 'Free (included in the plan this month)' }
           : { can_make: false, why: quote.reason },
       }
     },
@@ -1600,7 +1617,7 @@ export const ALL_TOOLS: ToolDef[] = [
       title: z.string().min(1).max(70).optional(),
       post_id: z.string().uuid().optional().describe('The planned post it is for, if any'),
     }),
-    async run({ sb, me, env, origin }, a) {
+    async run({ sb, me, env, origin, numbers }, a) {
       if (!env || !origin) throw new Error('Making music needs the app’s server: use the API or the MCP connection')
       const b = check(await sb.from('business').select('name, business_type').single()) as Pick<Business, 'name' | 'business_type'>
       const what = b.business_type?.split(',')[0]?.trim()
@@ -1610,8 +1627,9 @@ export const ALL_TOOLS: ToolDef[] = [
           prompt, seconds: aiSeconds(a.seconds), title: a.title ?? `AI track · ${formatLocal(new Date().toISOString(), 'd MMM')}`,
           moods: a.moods, energy: a.energy, bpm: energyOf(a.energy).bpm, post_id: a.post_id ?? null,
         })
+        const f = await numbersOf({ sb, me, numbers })
         return {
-          cost: made.generation.price_cents ? `€${(made.generation.price_cents / 100).toFixed(2)}, added to the monthly bill` : 'Free (included in the plan)',
+          cost: made.generation.price_cents ? `${formatMoneyAs(made.generation.price_cents / 100, f)}, added to the monthly bill` : 'Free (included in the plan)',
           versions: made.tracks.map(t => ({ track_id: t.id, title: t.title, listen: t.url, length: formatTime(t.duration_s) })),
           note: 'Both versions are in Music. Use one with set_post_music; the other can be hidden in the app.',
         }
@@ -1718,7 +1736,8 @@ export const toolsFor = (me: Profile) => me.role === 'partner'
 export async function loadMe(sb: SupabaseClient, accessToken: string): Promise<Profile> {
   const { data: user } = await sb.auth.getUser(accessToken)
   if (!user.user) throw new Error('Session expired. Sign in again.')
-  const me = check(await sb.from('profiles').select(PROFILE_COLUMNS).eq('id', user.user.id).single()) as Profile
+  // Their preferences too: their decimal mark, for the amounts the tools write (numbersOf).
+  const me = check(await sb.from('profiles').select(`${PROFILE_COLUMNS}, preferences`).eq('id', user.user.id).single()) as Profile
   if (!me.active || me.role === 'kiosk') throw new Error('This account cannot use the API')
   if (me.role === 'partner' && !me.partner_access) me.partner_access = []
   return me

@@ -8413,7 +8413,7 @@ test.describe('food safety and allergens', () => {
 
     await signInAs(page, 'aron@example.com')
     await page.getByRole('button', { name: /Notifications, \d+ new/ }).first().click()
-    await expect(page.getByText('Out of range: Milk fridge (bar) 6.0 °C')).toBeVisible()
+    await expect(page.getByText('Out of range: Milk fridge (bar) 6,0 °C')).toBeVisible() // Spain's decimal comma, read in English too
   })
 
   test('the menu with its tags, narrowed to what a customer needs; an item’s allergens and diet entered make its dishes known', async ({ page }) => {

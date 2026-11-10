@@ -12,6 +12,7 @@ import { bearer, businessDb, userClient, type BusinessDb, type Env } from './sup
 import { loadMe, runTool, toolsFor, type ToolContext, type ToolDef } from './tools'
 import { permissionsOf, type JobRole } from '../shared/roles'
 import { businessConfig } from '../shared/business.config'
+import { defaultNumberFormat, formatMoneyAs, moneyText, numberFormatOf, type NumberFormat } from '../shared/time'
 
 const MODEL = 'claude-opus-5-5'
 /** Rounds of tool use in one answer before it gives up. */
@@ -23,10 +24,18 @@ export interface ChatTurn { role: 'user' | 'assistant'; text: string }
 /** The part of the SDK client the assistant uses, so tests can stand in for Claude. */
 export type Claude = Pick<Anthropic['beta']['messages'], 'create'>
 
+/**
+ * How to write amounts for this person, as the app shows them: Ireland's "€15.00", with a decimal point;
+ * Spain's "€15,00" or "15,00 €", with a decimal comma (their own choice on Appearance wins either way).
+ */
+const amounts = (f: NumberFormat) => `Write amounts the way the app shows them here, with a decimal ${f === 'point' ? 'point' : 'comma'}: ${formatMoneyAs(15, f)}`
+  + `${f === 'point' ? '' : ` or ${moneyText(15, f)}`}, ${formatMoneyAs(1234.5, f)}. The tools give amounts as plain numbers (12.5 is ${formatMoneyAs(12.5, f)}).`
+
 const instructions = (ctx: ToolContext, business: string) => `You are the assistant inside ${business}'s team app (rota, clock-ins, time off, the to-do list, stock, the menu and more).
 You are talking with ${ctx.me.full_name}. Answer questions about the business and the app, using the tools to look things up rather than guessing.
 The tools run as them: they show and change only what they could in the app. Call whoami first when you need to know who they are or what they can do.
 Dates are YYYY-MM-DD and times 24-hour in the business's time zone. Answer in the language they write in, briefly, in plain words, without markdown tables.
+${amounts(ctx.numbers ?? defaultNumberFormat())}
 Before deleting anything or changing several things at once, say what you will do and ask them to confirm. Everything you change is logged as made via AI on their behalf.`
 
 /** A question, answered: Claude runs the person's tools as it needs them, then replies. */
@@ -123,11 +132,14 @@ assistant.post('/api/assistant', async c => {
   const db = me.business_id && c.env.SUPABASE_SERVICE_ROLE_KEY ? businessDb(c.env, me.business_id) : null
   const allowance = db ? await countQuestion(db) : null
   if (allowance && !allowance.allowed) return c.json({ error: outOfQuestions(allowance), allowance }, 429)
-  const { data: business } = await sb.from('business').select('name').maybeSingle()
+  const { data: business } = await sb.from('business').select('name, country').maybeSingle()
+  const biz = business as { name?: string; country?: string | null } | null
+  // Their decimal mark (their own choice, else the business's country's): Claude is told it, and the tools write with it.
+  const numbers = numberFormatOf(me.preferences?.numberFormat, biz?.country)
   const claude = new Anthropic({ apiKey: c.env.ANTHROPIC_API_KEY }).beta.messages
   try {
-    const reply = await answer(claude, { sb, me, env: c.env, origin: new URL(c.req.url).origin }, toolsFor(me), history,
-      (business as { name?: string } | null)?.name ?? businessConfig.name)
+    const reply = await answer(claude, { sb, me, env: c.env, origin: new URL(c.req.url).origin, numbers }, toolsFor(me), history,
+      biz?.name ?? businessConfig.name)
     return c.json({ reply })
   } catch (e) {
     // Not answered: the question doesn't count.

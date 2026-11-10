@@ -6,6 +6,7 @@
 // The terms and warnings are a careful starting point, not legal advice: each says to check.
 import { msg } from './i18n'
 import { currentCountry, type Country } from './country'
+import { defaultNumberFormat, moneyText, type NumberFormat } from './time'
 import { EMAIL, cleanPhone, mapHeadings, parseCsv, type ImportField } from './customers'
 // Easter and Ireland's bank holidays as the team calendar has them: plain date sums, nothing of the Worker's.
 import { easter, irelandPublicHolidays } from '../worker/holidays.ts'
@@ -277,7 +278,8 @@ export interface CompetitionIdea {
   score: number
 }
 
-const money = (n: number) => `${Math.round(n * 100) / 100}`.replace('.', ',') + ' €'
+/** An amount in the Spanish texts, with the business's country's decimal mark: "45 €", "12,50 €" (Ireland's "€12.50"). */
+const money = (n: number, f: NumberFormat = 'comma') => moneyText(Math.round(n * 100) / 100, f, { whole: true })
 const moneyEn = (n: number) => `€${Math.round(n * 100) / 100}`
 
 /** A prize from the stock: the shop item there's most of beyond what's needed, else a gift card. */
@@ -287,7 +289,8 @@ function prizeIdea(input: SuggestInput, giftCard: number): { name: Words; value:
     .filter(x => x.value > 0)
     .sort((a, b) => b.value - a.value)[0]
   if (spare) return { name: w(msg('{item} from the shop'), { item: spare.i.name }), value: Math.round(spare.value * 100) / 100, item: spare.i.id, es: spare.i.name, en: spare.i.name }
-  return { name: w(msg('A {amount} gift card'), { amount: giftCard }), value: giftCard, item: null, es: `una tarjeta regalo de ${money(giftCard)}`, en: `a ${moneyEn(giftCard)} gift card` }
+  const es = money(giftCard, defaultNumberFormat(input.country ?? currentCountry()))
+  return { name: w(msg('A {amount} gift card'), { amount: giftCard }), value: giftCard, item: null, es: `una tarjeta regalo de ${es}`, en: `a ${moneyEn(giftCard)} gift card` }
 }
 
 /** Is something like it already set up (live or planned) for those days? */
