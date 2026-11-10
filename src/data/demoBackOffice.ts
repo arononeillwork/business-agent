@@ -5,6 +5,9 @@
 // - Owners: the export is made here, from the demo's own data, into the same zip of CSV files; closing the
 //   account stops the plan renewing, and keeping it starts it again.
 // - HQ's errors (the app_errors migration): a few the app, the Worker and a scheduled job ran into.
+// - Support tickets (the support_tickets migration): the demo's own person sends them from Help (an idea HQ
+//   answered is there already), with the database's limits; HQ (?hq) lists a few from other businesses too,
+//   answers them, and hears about "Something isn't working" as HQ's admins would.
 import type { Api, BillingInfo, HqBusiness, HqClosure } from './api'
 import type { HqError } from './api'
 import type { Business, Profile, Shift } from '../../shared/types'
@@ -12,6 +15,10 @@ import { closesAt, canStillKeep } from '../../shared/accountClosing'
 import { complimentaryBlock, isTrialExtension } from '../../shared/hqActions'
 import type { HqFunnelRow } from '../../shared/hqFunnel'
 import { exportFileName, exportReadme, toCsvFile, zipFiles } from '../../shared/dataExport'
+import {
+  SUPPORT, SUPPORT_LINK, MY_REQUESTS_LINK, alertText, answerText, cleanDraft, hqOrder, messageProblem, newTicketCheck,
+  type HqSupportTicket, type SupportTicket,
+} from '../../shared/supportTickets'
 
 interface Who {
   /** The sample business is The Business Agent HQ (?hq), and an admin of it is signed in. */
@@ -24,11 +31,16 @@ interface Who {
   shifts: () => Shift[]
   timecards: () => Record<string, unknown>[]
   daysAgo: (d: number) => string
+  /** A bell notification for someone in the demo's team. */
+  notify: (profileId: string, title: string, body: string | null, link: string) => void
+  /** Who sent the demo's own sample ticket (the café's owner). */
+  owner: string
 }
 
 type BackOfficeApi = Pick<Api, 'hqBusinesses' | 'hqSetComplimentary' | 'hqEndComplimentary' | 'hqExtendTrial' | 'hqClosures' | 'hqFunnel'
   | 'exportData' | 'closeAccount' | 'keepAccount'>
   & Pick<Api, 'hqErrors'>
+  & Pick<Api, 'reportProblem' | 'mySupportTickets' | 'hqSupportTickets' | 'hqAnswerSupportTicket'>
 
 export function demoBackOfficeApi(w: Who): BackOfficeApi {
   const day = 86_400_000
@@ -71,6 +83,42 @@ export function demoBackOfficeApi(w: Who): BackOfficeApi {
       first_seen: hoursAgo(50), last_seen: hoursAgo(50), last_path: '/api/hq/businesses/14/extend-trial', business_id: 1, last_stack: null,
       last_detail: { method: 'POST', route: '/api/hq/businesses/:id/extend-trial', version: '9f8e7d6' } },
   ]
+  // Support tickets: Lola at Café Lola told us about the rota error above from the error screen, Peluquería Sol
+  // asked a question HQ is looking at, and the café's owner had an idea HQ answered.
+  type DemoTicket = HqSupportTicket & { alert_due: boolean; alerted_at: string | null }
+  const ticket = (t: Partial<DemoTicket> & Pick<DemoTicket, 'id' | 'business_id' | 'kind' | 'message' | 'created_at'>): DemoTicket => ({
+    business_name: list.find(b => b.id === t.business_id)?.name ?? null, user_id: null, person: null, email: null, page: null,
+    app_version: 'index-Bf3x9QaL-r2', browser: null, error_fingerprint: null, status: 'open', reply: null, replied_at: null, replied_by_name: null,
+    updated_at: t.created_at, alert_due: false, alerted_at: null, ...t })
+  const tickets: DemoTicket[] = [
+    ticket({ id: 3, business_id: 9, user_id: 'demo-lola', person: 'Lola Martín', email: 'lola@cafelola.es', kind: 'not_working', page: '/rota',
+      message: 'I opened next week’s rota on my phone and it went blank: “Something went wrong”. Reloading fixed it, but it happened twice.',
+      browser: errors[0].last_detail.user_agent ?? null, error_fingerprint: errors[0].fingerprint, created_at: hoursAgo(2), alerted_at: hoursAgo(2) }),
+    ticket({ id: 2, business_id: 14, user_id: 'demo-sol', person: 'Sol Romero', email: 'sol@peluqueriasol.es', kind: 'question', page: '/rota',
+      message: 'Can two people share one shift on the rota, for a training day?', status: 'looking', created_at: hoursAgo(20), updated_at: hoursAgo(3) }),
+    ticket({ id: 1, business_id: 1, user_id: w.owner, kind: 'idea', page: '/rota',
+      message: 'It would help to see the weather forecast on the rota, so we can plan the terrace.', status: 'answered',
+      reply: 'Thanks, that’s a good one! It’s on our list: we’ll tell you here when it’s in.', replied_at: w.daysAgo(1), replied_by_name: 'The Business Agent',
+      created_at: w.daysAgo(3), updated_at: w.daysAgo(1) }),
+  ]
+  let nextTicket = 4
+  const person = (id: string | null) => w.team().find(p => p.id === id)
+  const mine = (t: DemoTicket): SupportTicket => ({
+    id: t.id, kind: t.kind, message: t.message, page: t.page, app_version: t.app_version, browser: t.browser, error_fingerprint: t.error_fingerprint,
+    status: t.status, reply: t.reply, replied_at: t.replied_at, created_at: t.created_at, updated_at: t.updated_at })
+  // As public.alert_support_tickets(): HQ's admins (the demo's, when it's HQ) hear about problem reports, once
+  // every 15 minutes at most, how many came in.
+  const alertHq = () => {
+    if (!w.business.is_hq) return
+    const now = Date.now()
+    if (tickets.some(t => t.alerted_at && Date.parse(t.alerted_at) > now - SUPPORT.ALERT_MINUTES * 60_000)) return
+    const due = tickets.filter(t => t.alert_due).sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id - a.id)
+    if (!due.length) return
+    for (const t of due) Object.assign(t, { alert_due: false, alerted_at: new Date(now).toISOString() })
+    const { title, body } = alertText(due.length, due[0].message)
+    for (const p of w.team()) if (p.role === 'admin' && p.active) w.notify(p.id, title, body, SUPPORT_LINK)
+  }
+
   const find = (id: number) => {
     const b = list.find(x => x.id === id)
     if (!b) throw new Error('No such business')
@@ -81,6 +129,51 @@ export function demoBackOfficeApi(w: Who): BackOfficeApi {
   let stoppedRenewal = false
 
   return {
+    // As public.create_support_ticket(): signed in, the limits, the same words twice in a day being the one sent.
+    async reportProblem(draft) {
+      const me = w.me()
+      if (!me || !person(me)?.active) throw new Error('Sign in to send us a request')
+      const d = cleanDraft(draft)
+      const problem = messageProblem(d.message)
+      if (problem) throw new Error(problem)
+      const check = newTicketCheck(tickets.filter(t => t.user_id === me), d.message)
+      if (check.duplicate !== null) return { id: check.duplicate, duplicate: true }
+      if (check.full) throw new Error('You’ve sent us 5 requests today, the most there can be in a day. Send more tomorrow, or write to us by email.')
+      const t = ticket({ ...d, id: nextTicket++, business_id: 1, business_name: w.business.name, user_id: me, created_at: new Date().toISOString(),
+        alert_due: d.kind === 'not_working' })
+      tickets.push(t)
+      if (t.alert_due) alertHq()
+      return { id: t.id, duplicate: false }
+    },
+    async mySupportTickets() {
+      const me = w.me()
+      return tickets.filter(t => t.user_id === me).sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id - a.id).map(mine)
+    },
+    async hqSupportTickets() {
+      if (!w.hqAdmin()) return []
+      return hqOrder(tickets).map(({ alert_due: _due, alerted_at: _alerted, ...t }) => {
+        const p = person(t.user_id)
+        return { ...t, person: p?.full_name ?? t.person, email: p?.email ?? t.email }
+      })
+    },
+    // As public.hq_answer_support_ticket(): the person hears about a new reply, or their ticket closing.
+    async hqAnswerSupportTicket(id, status, reply) {
+      needHq()
+      const t = tickets.find(x => x.id === id)
+      if (!t) throw new Error('No such request')
+      const text = reply?.trim() || null
+      if (text && text.length > SUPPORT.REPLY_MAX) throw new Error('Keep the reply to 4,000 characters')
+      if (status === 'answered' && !(text ?? t.reply)) throw new Error('Write a reply before marking it answered')
+      const newReply = !!text && text !== t.reply
+      const closing = status === 'closed' && t.status !== 'closed'
+      const at = new Date().toISOString()
+      Object.assign(t, { status, reply: text ?? t.reply, updated_at: at },
+        newReply ? { replied_at: at, replied_by_name: person(w.me())?.full_name ?? null } : {})
+      if ((newReply || closing) && t.user_id && person(t.user_id)) {
+        const { title, body } = answerText(newReply ? text : null, t.message)
+        w.notify(t.user_id, title, body, MY_REQUESTS_LINK)
+      }
+    },
     async hqBusinesses() { return w.hqAdmin() ? list.map(b => ({ ...b })) : [] },
     async hqClosures() { return w.hqAdmin() ? closures.map(c => ({ ...c })) : [] },
     async hqErrors() { return w.hqAdmin() ? errors.map(e => ({ ...e, last_detail: { ...e.last_detail } })) : [] },

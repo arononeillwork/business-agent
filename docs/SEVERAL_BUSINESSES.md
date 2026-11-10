@@ -50,6 +50,8 @@ names Easy Beans with the header, as the Worker does.
 - Links and webhooks find their business first: a screen's token, a calendar feed's owner, a Stripe
   customer, a Square merchant, an AI image, a referral code, whoever started a connection.
 - The minute and nightly jobs run for each business (`forEach` in `worker/index.ts`).
+- Each business's turn in the jobs, and each AI tool's run, is in its own time zone (`worker/zone.ts`), and a
+  route that works out a day or a range for one business reads its zone (`zoneOf`): Dublin's days in Ireland.
 - `serviceClient(env)`, over every business, is only for finding which business something is and for
   accounts; `scripts/ci/business-scope.test.ts` lists where, so a new use is a choice.
 - Business Agent's own accounts in the Worker's secrets, the WhatsApp number and Google place
@@ -82,6 +84,15 @@ in its own rows; what crosses businesses is done by functions that stay with pos
 a payment or a refund writing HQ's ledger (`record_rep_commission`, `reverse_rep_commission`). The
 `hq_reps` migration makes HQ on a database people already use; a brand-new one runs
 `select public.start_hq();` when it wants one (the database tests do, last).
+
+Two tables are Business Agent's own rather than any one business's, so they have no `business_scope` (the test lists
+them): the error log, `app_errors`, and the support tickets people send from Help, `support_tickets` (the
+support_tickets migration). Each ticket keeps the `business_id` of whoever sent it and goes with that business, but it's
+read only by that person and by HQ's active admins, never by the business's own admins, and stays out of an owner's
+export. People write it only through `create_support_ticket()` and HQ through `hq_answer_support_ticket()` (both
+`app_definer`); the latter writes the person's notification in their business by naming it in `app.business_id` for that
+one insert. HQ's list with each business's name and the person's (`hq_support_tickets()`) stays with postgres, like
+`hq_closures()`.
 
 ## A new business signs up
 
@@ -156,6 +167,10 @@ nothing more is charged and nothing is refunded. HQ's admins get a notification 
 support@ an email when Cloudflare Email Sending is on, and the Businesses page shows when each closes. On
 the same card the owner downloads everything as CSV files in a zip (`export_tables()`, `export_part()`:
 the business's own rows only, without stored tokens, key and PIN hashes or the app's plumbing).
+
+How long the law asks for the working-hours record depends on the business's country: Spain's for four years
+(registro de jornada), Ireland's for three (working time records, Organisation of Working Time Act 1997, s.25).
+The steps below keep every business's for four; an Irish one's going after three is the owner's decision.
 
 Deleting the data once it has closed is HQ's, by hand, for now. The working-hours record (registro de
 jornada) must be kept for four years, and it hangs together with other rows: `time_entries` with their

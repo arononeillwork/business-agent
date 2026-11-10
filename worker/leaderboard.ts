@@ -20,6 +20,7 @@ import { takingsMinutes } from '../shared/refresh'
 import { minutesFor } from './refresh'
 import { addDays, zonedIso } from '../shared/time'
 import { signInCheck, signedInUser } from './signedIn'
+import { zoneOf } from './zone'
 
 type Vars = { admin: boolean; pay: boolean; userId: string }
 type Ctx = Context<{ Bindings: Env; Variables: Vars }>
@@ -80,7 +81,9 @@ leaderboard.get('/api/leaderboard/till', async c => {
   if (await connectedOf(db, ['square'] as const) !== 'square') return c.json(emptyTill('not_connected'))
   const linked = await links(db)
   if (!linked.length) return c.json(emptyTill('no_links'))
-  const fromIso = zonedIso(from, '00:00'), toIso = zonedIso(addDays(to, 1), '00:00')
+  // The business's days: from its midnight (Dublin's for a business in Ireland) to the one after `to`.
+  const tz = await zoneOf(db)
+  const fromIso = zonedIso(from, '00:00', tz), toIso = zonedIso(addDays(to, 1), '00:00', tz)
   try {
     // Under sales:square:, so it's forgotten with the rest of Square's figures when Square is connected again.
     const { data, fetched_at } = await cached(db, `sales:square:team:${fromIso}:${toIso}`, minutesFor(db, 'takings').then(m => takingsMinutes(toIso, Date.now(), m)), async () => {

@@ -147,6 +147,13 @@ export const formatNumber = (n: number) => decimal.format(n)
 /** The decimal mark on screen now (setNumberFormat). */
 export const currentNumberFormat = () => current
 /**
+ * The Business Agent's own prices (its plans, AI music), always in euros whatever the business sells in, with
+ * the reader's decimal mark: "0.99" or "0,99", "1,088.28" or "1.088,28"; `whole` leaves the cents off a whole
+ * amount ("79"). formatEuros puts the euro in front, as the screens do: "€0.99", "€0,99".
+ */
+export const formatEuroAmount = (n: number, { whole = false } = {}) => formatNumberAs(n, current, whole && Number.isInteger(n) ? 0 : 2)
+export const formatEuros = (n: number, options: { whole?: boolean } = {}) => `€${formatEuroAmount(n, options)}`
+/**
  * The decimal mark someone reads: the one they chose (My account → Appearance), else their business's
  * country's. For what's written for someone away from the screen (the Worker's notifications, emails and
  * assistant), which writes for every business at once and so never calls setNumberFormat.

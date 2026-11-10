@@ -6,7 +6,7 @@
 //     Copy number gets one card's whole number, read from Square then and never kept
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { integrations } from './integrations'
-import { loyaltyRoutes, RECONNECT } from './loyalty'
+import { loyaltyRoutes, range, RECONNECT } from './loyalty'
 import type { Env } from './supabase'
 import { FakeSupabase } from './test/fakeSupabase'
 import { FakeProviders } from './test/fakeProviders'
@@ -44,6 +44,20 @@ async function connectSquare() {
   const res = await integrations.request(`${APP}/api/integrations/square/callback?code=c&state=${encodeURIComponent(state)}`, {}, env, ctx())
   expect(new URL(res.headers.get('location')!).searchParams.get('connected')).toBe('square')
 }
+
+describe('Loyalty’s days', () => {
+  afterEach(() => vi.useRealTimers())
+  it('are the business’s own: the last 60 days to today where it is, from its midnight to the one after', () => {
+    vi.useFakeTimers({ now: Date.parse('2026-11-10T23:30:00Z'), toFake: ['Date'] }) // 23:30 in Dublin, 00:30 on the 11th in Madrid
+    const none = () => undefined
+    // Dublin: 12 Sept to 10 Nov (summer time in September); Madrid: 13 Sept to 11 Nov.
+    expect(range(none, 'Europe/Dublin')).toEqual({ fromIso: '2026-09-11T23:00:00.000Z', toIso: '2026-11-11T00:00:00.000Z' })
+    expect(range(none, 'Europe/Madrid')).toEqual({ fromIso: '2026-09-12T22:00:00.000Z', toIso: '2026-11-11T23:00:00.000Z' })
+    const day = (k: string) => (k === 'from' || k === 'to' ? '2026-11-10' : undefined)
+    expect(range(day, 'Europe/Dublin')).toEqual({ fromIso: '2026-11-10T00:00:00.000Z', toIso: '2026-11-11T00:00:00.000Z' })
+    expect(range(day, 'Europe/Madrid')).toEqual({ fromIso: '2026-11-09T23:00:00.000Z', toIso: '2026-11-10T23:00:00.000Z' })
+  })
+})
 
 describe('Loyalty and gift cards, from Square', () => {
   it('admins only, and only while Square is connected', async () => {

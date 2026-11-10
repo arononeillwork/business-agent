@@ -202,11 +202,16 @@ export async function requestDb(c: Parameters<typeof businessOfRequest>[0]) {
   return businessDb(c.env, id)
 }
 
-/** Every business, for the jobs that run for each in turn. */
+/** Every business, for the jobs that run for each in turn (scripts/ops/sports-sync.ts). */
 export async function businessIds(env: Env): Promise<number[]> {
-  const { data, error } = await serviceClient(env).from('business').select('id').order('id')
+  return (await businessZones(env)).map(b => b.id)
+}
+
+/** Every business with its time zone, for the jobs that run for each in turn, each in its own time (worker/zone.ts). */
+export async function businessZones(env: Env): Promise<{ id: number; timezone: string | null }[]> {
+  const { data, error } = await serviceClient(env).from('business').select('id, timezone').order('id')
   if (error) throw new Error(error.message)
-  return (data ?? []).map(b => b.id as number)
+  return (data ?? []).map(b => ({ id: b.id as number, timezone: (b.timezone as string | null) ?? null }))
 }
 
 /** The business someone is in (null: in none yet). */

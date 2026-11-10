@@ -156,6 +156,8 @@ begin
   insert into public.recipe_variants (recipe_id, name, price_change) values (v_id, 'Oat milk', 0.4);
   update public.integrations set status = 'connected' where business_id = p_business and provider = 'google_business';
   insert into public.post_ideas (title, wants, created_by) values ('Latte art close-up', 'video', v_admin);
+  -- A support ticket to The Business Agent (the support_tickets migration): it goes with the business.
+  insert into public.support_tickets (business_id, user_id, kind, message) values (p_business, v_admin, 'question', 'How do I add a second café?');
   -- The working-hours record: a shift worked, its timecard with a break, a change made to it and a
   -- correction asked for.
   insert into public.shifts (profile_id, position_id, starts_at, ends_at)
@@ -181,7 +183,7 @@ begin
   perform pg_temp.expect_error(format('delete from public.menu_designs where business_id = %s', p_business), 'TV menu is on the screen “Counter TV”. Take it off that screen first.');
   perform pg_temp.expect_error(format('delete from public.food_safety_points where business_id = %s', p_business), 'It has checks recorded, which are kept: switch it off instead');
   perform pg_temp.expect_error(format('delete from public.kitty_entries where business_id = %s', p_business),
-    case when p_who = 'worker' then 'permission denied for function kitty_balance' else 'That money has been spent: the kitty has €20.00' end);
+    case when p_who = 'worker' then 'permission denied for function kitty_balance' else 'That money has been spent: the kitty has €20,00' end);
   if p_who = 'app' then
     perform pg_temp.expect_error(format('delete from public.cameras where business_id = %s', p_business), 'permission denied for table cameras');
     perform pg_temp.expect_error(format('update public.social_posts set caption = ''edited'' where business_id = %s', p_business), 'This post has already gone out. Make a new post instead.');

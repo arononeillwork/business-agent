@@ -13,6 +13,7 @@ import { LoadError, StartError } from '../pages/StatusPages'
 import { reloadOnSignInChange, SHARED_KEY } from './signInWatch'
 import { refreshAll } from './query'
 import { sendErrorReportsWith } from './errorReports'
+import { sendSupportWith } from './supportReports'
 
 export interface AppData {
   api: Api
@@ -93,6 +94,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [])
   // Errors the app runs into go to The Business Agent through this connection, with the sign-in (none from the demo).
   useEffect(() => { if (api) sendErrorReportsWith(report => api.reportError(report)) }, [api])
+  // The error screen sends "Tell us what you were doing" through it too, wherever it shows (supportReports.ts).
+  useEffect(() => { if (api) sendSupportWith(draft => api.reportProblem(draft)) }, [api])
 
   // Who is signed in plus the team's reference data, cached and refreshed with everything else.
   const shared = useQuery({

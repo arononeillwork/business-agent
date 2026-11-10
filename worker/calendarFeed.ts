@@ -8,7 +8,7 @@ import { seal, unseal } from './crypto'
 import { calendarFetched } from './connections'
 import { calendarAppFromAgent } from '../shared/connections'
 import { buildIcs, type IcsEvent } from '../shared/ics'
-import { addDays, today } from '../shared/time'
+import { addDays, isTimeZone, today } from '../shared/time'
 import { businessConfig } from '../shared/business.config'
 import { signInCheck, signedInUser } from './signedIn'
 
@@ -42,14 +42,15 @@ export async function ensureFeed(env: Env, db: SupabaseClient, profileId: string
   return makeFeed(env, db, profileId, scope, origin)
 }
 
-/** The events for one feed (past 2 weeks to 10 weeks ahead). */
+/** The events for one feed (past 2 weeks to 10 weeks ahead, from today where the business is: Dublin's day in Ireland). */
 export async function feedEvents(db: SupabaseClient, scope: FeedScope, profileId: string): Promise<IcsEvent[]> {
-  const from = addDays(today(), -14), to = addDays(today(), 70)
   const [{ data: biz }, { data: positions }, { data: people }] = await Promise.all([
-    db.from('business').select('name, address').maybeSingle(),
+    db.from('business').select('name, address, timezone').maybeSingle(),
     db.from('positions').select('id, name'),
     db.from('profiles').select('id, full_name'),
   ])
+  const day = today(isTimeZone(biz?.timezone) ? biz.timezone : undefined)
+  const from = addDays(day, -14), to = addDays(day, 70)
   const businessName = (biz?.name as string | undefined) ?? businessConfig.name
   const host = businessName.toLowerCase().replace(/[^a-z0-9]+/g, '')
   const posName = new Map((positions ?? []).map(p => [p.id as number, p.name as string]))
@@ -65,7 +66,7 @@ export async function feedEvents(db: SupabaseClient, scope: FeedScope, profileId
     .gte('starts_on', from).lte('starts_on', to)
   const sports = scope === 'business'
     ? db.from('sports_events').select('id, title, starts_at, time_tbc, venue, sports_competitions!inner(name, followed)')
-      .eq('big', true).eq('sports_competitions.followed', true).gte('starts_at', `${today()}T00:00:00Z`).lt('starts_at', `${to}T00:00:00Z`)
+      .eq('big', true).eq('sports_competitions.followed', true).gte('starts_at', `${day}T00:00:00Z`).lt('starts_at', `${to}T00:00:00Z`)
     : null
   const [s, o, c, sp] = await Promise.all([shifts, off, calendar, sports ?? Promise.resolve({ data: [] })])
 
@@ -170,10 +171,11 @@ calendarFeeds.get('/cal/:file', async c => {
       .eq('profile_id', feed.profile_id).eq('scope', feed.scope)
     if (app) await calendarFetched(db, app)
   })().catch(e => console.error('calendar feed bookkeeping failed', e)))
-  const { data: biz } = await db.from('business').select('name').maybeSingle()
+  const { data: biz } = await db.from('business').select('name, timezone').maybeSingle()
   const businessName = (biz?.name as string | undefined) ?? businessConfig.name
   const name = feed.scope === 'me' ? `${businessName} · my shifts` : `${businessName} · team calendar`
-  return new Response(buildIcs(name, events), {
+  // The calendar's own time zone is the business's: an app that shows the feed on its own uses it.
+  return new Response(buildIcs(name, events, undefined, isTimeZone(biz?.timezone) ? biz.timezone : undefined), {
     headers: { 'content-type': 'text/calendar; charset=utf-8', 'cache-control': 'private, max-age=900',
       'content-disposition': `inline; filename="${feed.scope === 'me' ? 'my-shifts' : 'team'}.ics"` },
   })

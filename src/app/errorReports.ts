@@ -52,7 +52,7 @@ export function makeReporter(where: Where, max = MAX_REPORTS_PER_PAGE) {
 }
 
 /** The app's main code file's name (index-<hash>), which says which build is running; none in development. */
-function buildId(): string | null {
+export function buildId(): string | null {
   const src = document.querySelector<HTMLScriptElement>('script[type="module"][src*="/assets/"]')?.src
   return src?.match(/\/assets\/([\w.-]+?)\.js/)?.[1] ?? null
 }

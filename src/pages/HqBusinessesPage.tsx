@@ -4,6 +4,7 @@
 // give a free trial longer (the Worker, through Stripe), and which ones asked to close.
 // Under the totals, the funnel and cancellations by month (HqFunnel.tsx, the hq_funnel migration).
 // Under the list, the errors the app, the Worker and the scheduled jobs ran into (HqErrors.tsx, the app_errors migration).
+// Above them, the support tickets people sent from Help, to answer (HqSupport.tsx, the support_tickets migration).
 import { Alert, Box, Chip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from '@mui/material'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
@@ -14,6 +15,7 @@ import { t, tn } from '../i18n'
 import { HqBusinessActions, closingLabel } from './HqBusinessActions'
 import { HqFunnel } from '../components/HqFunnel'
 import { HqErrors } from '../components/HqErrors'
+import { HqSupport } from '../components/HqSupport'
 
 const PAYING = new Set(['active', 'past_due'])
 const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—')
@@ -107,6 +109,7 @@ export function HqBusinessesPage() {
           </Table>
         </TableContainer>
       )}
+      {business?.is_hq && <HqSupport />}
       {business?.is_hq && <HqErrors businesses={new Map(list.map(b => [b.id, b.name]))} />}
     </>
   )

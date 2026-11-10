@@ -96,7 +96,7 @@ begin
 
   -- The amount on its own, by the business named, whoever asks; round to the cent.
   assert public.offer_amount(3.2, v_ie) = '€3.20' and public.offer_amount(3.2, v_es) = '€3,20', 'by the business named';
-  assert public.offer_amount(1234.567, v_ie) = '€1234.57' and public.offer_amount(0.5, v_es) = '€0,50', 'two decimals';
+  assert public.offer_amount(1234.567, v_ie) = '€1,234.57' and public.offer_amount(0.5, v_es) = '€0,50', 'two decimals';
 end $$;
 
 -- A change to a batch's discount writes its price again, still the business's own way.

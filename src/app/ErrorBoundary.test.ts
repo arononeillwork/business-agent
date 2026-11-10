@@ -5,6 +5,7 @@ import { createElement, type ReactElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import { AppErrorBoundary, ErrorScreen } from './ErrorBoundary'
+import { sendSupportWith } from './supportReports'
 
 describe('the error screen', () => {
   it('says something went wrong, with Reload and how to reach The Business Agent', () => {
@@ -40,5 +41,17 @@ describe('the error screen', () => {
     expect(setState).not.toHaveBeenCalled()
     boundary.componentDidUpdate({ children: null, resetKey: '/timecards' })
     expect(setState).toHaveBeenCalledWith({ failed: false })
+  })
+
+  it('offers “Tell us what you were doing” once the app can send a support ticket, keeping what broke for it', () => {
+    expect(renderToStaticMarkup(createElement(ErrorScreen))).not.toContain('Tell us what you were doing')
+    sendSupportWith(vi.fn())
+    try {
+      expect(renderToStaticMarkup(createElement(ErrorScreen))).toMatch(/<button[^>]*>Tell us what you were doing<\/button>/)
+      const boom = new TypeError('Cannot read properties of undefined (reading \'starts_at\')')
+      expect(AppErrorBoundary.getDerivedStateFromError(boom)).toEqual({ failed: true, error: boom })
+    } finally {
+      sendSupportWith(null)
+    }
   })
 })

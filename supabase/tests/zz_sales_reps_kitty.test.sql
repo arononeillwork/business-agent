@@ -118,7 +118,7 @@ do $$ begin
   assert (select kind = 'redeem' and amount = -1.5 and label = 'Used at the till' from public.rep_rewards
            where rep_id = pg_temp.rep('Lucía García') and kind <> 'earn'), 'spent at the till';
 end $$;
-select pg_temp.expect_error($q$select public.settle_reward(pg_temp.rep('Lucía García'), 2)$q$, 'Lucía García has €1.50 of credit');
+select pg_temp.expect_error($q$select public.settle_reward(pg_temp.rep('Lucía García'), 2)$q$, 'Lucía García has €1,50 of credit');
 select pg_temp.expect_error($q$select public.settle_reward(pg_temp.rep('Marco Bellini'), 1)$q$, 'Only an admin can pay commission');
 select pg_temp.expect_error($q$select public.decide_reward((select id from public.rep_rewards where status = 'pending' limit 1), true)$q$, 'Only an admin');
 select pg_temp.expect_error($q$insert into public.rep_rewards (rep_id, label, amount) select pg_temp.rep('Tom'), 'Free money', 50$q$, 'row-level security');
@@ -132,7 +132,7 @@ do $$ declare v uuid; begin
   assert public.settle_reward(pg_temp.rep('Julio'), 25, 'Bank transfer') = 0, 'Julio is paid what was approved';
   assert (select count(*) from public.rep_rewards where rep_id = pg_temp.rep('Julio') and kind = 'payout' and label = 'Commission paid') = 1, 'as commission';
 end $$;
-select pg_temp.expect_error($q$select public.settle_reward(pg_temp.rep('Marco Bellini'), 40.01)$q$, 'Marco Bellini has €40.00 owed');
+select pg_temp.expect_error($q$select public.settle_reward(pg_temp.rep('Marco Bellini'), 40.01)$q$, 'Marco Bellini has €40,00 owed');
 select pg_temp.expect_error($q$select public.decide_reward((select id from public.rep_rewards where rep_id = pg_temp.rep('Julio') and status = 'rejected'), true)$q$, 'no longer waiting');
 
 -- Commission is the admins' and the rep's own; customers' credit is for the whole team to see.
@@ -196,11 +196,11 @@ select pg_temp.expect_error($q$insert into public.kitty_entries (kind, month, pe
 select pg_temp.expect_error($q$insert into public.kitty_entries (kind, month, percent, amount) values ('profit', date_trunc('month', current_date)::date, 5, 10)$q$, 'once the month is over');
 select pg_temp.expect_error($q$insert into public.kitty_entries (kind, month, percent, amount) values ('profit', '2026-06-15', 5, 10)$q$, 'check constraint');
 select pg_temp.expect_error($q$insert into public.kitty_entries (kind, amount) values ('top_up', -5)$q$, 'kitty_entries_top_up');
-select pg_temp.expect_error($q$update public.kitty_goals set spent = 400, bought_on = current_date where name = 'Christmas party'$q$, 'The kitty has €340.00: put more in first');
+select pg_temp.expect_error($q$update public.kitty_goals set spent = 400, bought_on = current_date where name = 'Christmas party'$q$, 'The kitty has €340,00: put more in first');
 update public.kitty_goals set spent = 300, bought_on = current_date where name = 'Christmas party';
 update public.kitty_goals set spent = 310 where name = 'Christmas party'; -- its own spend counts back
 select pg_temp.expect_error($q$update public.kitty_goals set spent = 10 where name = 'Ray-Ban sunglasses for the café'$q$, 'kitty_goals_bought');
-select pg_temp.expect_error($q$insert into public.kitty_entries (kind, amount) values ('adjust', -50)$q$, 'The kitty has €30.00');
+select pg_temp.expect_error($q$insert into public.kitty_entries (kind, amount) values ('adjust', -50)$q$, 'The kitty has €30,00');
 select pg_temp.expect_error($q$delete from public.kitty_entries where kind = 'profit'$q$, 'That money has been spent');
 insert into public.kitty_entries (kind, amount, note) values ('adjust', -5, 'Counted wrong');
 insert into public.kitty_goals (name, icon, target, sort) values ('Latte art course', 'equipment', 240, 3);

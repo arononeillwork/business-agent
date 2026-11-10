@@ -102,4 +102,16 @@ describe('push notifications in each person’s language', () => {
       .toBe('Ha vuelto un error: Cannot read properties of undefined (reading \'x\')')
     expect(pushText({ title: 'New error: Square stopped working', body, kind: null }, 'en')).toEqual({ title: 'New error: Square stopped working', body })
   })
+
+  it('says support tickets’ notifications (the support_tickets migration) in Spanish, what people wrote as they wrote it', () => {
+    const es = (title: string, body: string | null = null) => pushText({ title, body, kind: null }, 'es')
+    expect(es('1 new problem report', 'Latest: “The rota went blank.”. On Businesses, under Support.'))
+      .toEqual({ title: '1 aviso nuevo de un problema', body: 'El último: “The rota went blank.”. En Negocios, en Soporte.' })
+    expect(es('3 new problem reports').title).toBe('3 avisos nuevos de problemas')
+    expect(es('The Business Agent answered your request', 'Fixed now: reload the app.'))
+      .toEqual({ title: 'The Business Agent ha respondido a tu solicitud', body: 'Fixed now: reload the app.' })
+    expect(es('Your request is closed', 'You wrote: “¿Cómo añado otro café?”'))
+      .toEqual({ title: 'Tu solicitud está cerrada', body: 'Escribiste: “¿Cómo añado otro café?”' })
+    expect(pushText({ title: '3 new problem reports', body: null, kind: null }, 'en').title).toBe('3 new problem reports')
+  })
 })
