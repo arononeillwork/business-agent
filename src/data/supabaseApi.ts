@@ -1896,6 +1896,7 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
     async checkMentions() { return (await worker<{ added: number }>('/api/integrations/instagram/mentions/check', { method: 'POST' })).added },
     addPostByLink: input => worker('/api/integrations/instagram/mentions', { method: 'POST', body: JSON.stringify(input) }),
     async removePostByLink(id) { await worker(`/api/integrations/instagram/mentions/${encodeURIComponent(id)}`, { method: 'DELETE' }) },
+    postersBoard: () => worker('/api/analytics/instagram/posters'),
     async markNotificationsRead() {
       check(await sb.from('notifications').update({ read_at: new Date().toISOString() }).is('read_at', null))
     },

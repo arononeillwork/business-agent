@@ -5,7 +5,7 @@
 // `access: 'needs_scope'` instead of an error, and is never marked broken for it: posting still works.
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { bearer, requestDb, type Env } from './supabase'
+import { bearer, businessIdOf, requestDb, type Env } from './supabase'
 import {
   asksForStats, explain, facebookSession, instagramOAuth, instagramSession, lasting, linkedinOAuth, linkedinSession, markBroken, tiktokSession, type LinkedInExternal,
 } from './connections'
@@ -19,6 +19,8 @@ import {
   statsRefused, tiktokReport, unixDay, type SocialAccess, type SocialDay, type SocialReport, type SocialSource,
 } from '../shared/socialAnalytics'
 import { BASELINE_DAYS, IMPACT_DAYS, followerDays, ownPost, postAbout, postImpacts, type PostImpact } from '../shared/postImpact'
+import { creatorBoard, type Creator } from '../shared/creators'
+import { reportError } from './errors'
 import type { Mention } from '../shared/mentions'
 import { minutesFor } from './refresh'
 import { addDays, today } from '../shared/time'
@@ -166,6 +168,37 @@ export async function postImpact(db: SupabaseClient, report: SocialReport): Prom
   const own = (report.all_posts ?? report.posts).map(ownPost)
   return postImpacts([...own, ...((about ?? []) as (Mention & { added_by: string | null })[]).map(postAbout)], days)
 }
+
+/**
+ * Everyone who posted about the café on Instagram, best first, with their posts (Sales reps & rewards →
+ * Posts about us): the posts as kept (collabs, tags, story mentions, ones added by their link), each with
+ * the followers of its days, kept up to date once a day first.
+ */
+export async function postersBoard(env: Env, db: SupabaseClient): Promise<Creator[]> {
+  const { data: row } = await db.from('integrations').select('status, external').eq('provider', 'instagram').maybeSingle()
+  const ext = (row?.external ?? {}) as { can_see_insights?: boolean }
+  if (row?.status === 'connected' && ext.can_see_insights !== false && instagramOAuth(env, '')) {
+    await instagramSession(env, db).then(cfg => refreshFollowerDays(db, cfg))
+      .catch(e => reportError(env, 'instagram: keeping new followers', e, { business: businessIdOf(db) }))
+  }
+  const { data: about, error } = await db.from('instagram_mentions').select(MENTION_FIELDS).not('username', 'is', null)
+    .order('mentioned_at', { ascending: false }).limit(500)
+  if (error) throw new Error(error.message)
+  if (!about?.length) return []
+  const first = String(about[about.length - 1].mentioned_at).slice(0, 10)
+  const { data: kept, error: e2 } = await db.from('social_follower_days').select('day, gained').eq('source', 'instagram').gte('day', addDays(first, -BASELINE_DAYS))
+  if (e2) throw new Error(e2.message)
+  const days = followerDays((kept ?? []).map(d => ({ date: String(d.day), value: Number(d.gained) })), null)
+  return creatorBoard(postImpacts((about as (Mention & { added_by: string | null })[]).map(postAbout), days))
+}
+
+socialAnalytics.get('/api/analytics/instagram/posters', async c => {
+  try {
+    return c.json(await postersBoard(c.env, await requestDb(c)))
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : String(e) }, 400)
+  }
+})
 
 // ---- The route ----------------------------------------------------------------------------------
 
