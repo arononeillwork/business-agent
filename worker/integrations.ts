@@ -1318,14 +1318,16 @@ integrations.post('/api/integrations/instagram/mentions', async c => {
   if (!code) return c.json({ error: 'Paste the link to the post or reel on Instagram (it has /p/ or /reel/ in it)' }, 400)
   const username = cleanInstagram(typeof body.username === 'string' ? body.username : '')
   if (!username) return c.json({ error: 'Add the @ of whoever posted it' }, 400)
-  const on = typeof body.on === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.on) && body.on <= today() ? body.on : today()
-  const video = /\/(reels?|tv)\//i.test(link)
   const db = businessDb(c.env, c.get('businessId'))
+  // The day it went out, where the business is (today there when not said, or said as a day still to come).
+  const tz = await zoneOf(db)
+  const on = typeof body.on === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.on) && body.on <= today(tz) ? body.on : today(tz)
+  const video = /\/(reels?|tv)\//i.test(link)
   const id = collabId(code)
   const { data: had } = await db.from('instagram_mentions').select('id').eq('id', id).maybeSingle()
   if (had) return c.json({ error: 'That post is in already' }, 400)
   const { error } = await db.from('instagram_mentions').insert({
-    id, kind: 'collab', username, permalink: `https://www.instagram.com/${video ? 'reel' : 'p'}/${code}/`, mentioned_at: zonedIso(on, '12:00'),
+    id, kind: 'collab', username, permalink: `https://www.instagram.com/${video ? 'reel' : 'p'}/${code}/`, mentioned_at: zonedIso(on, '12:00', tz),
     video, added_by: c.get('userId'),
   })
   if (error) return c.json({ error: error.message }, 400)

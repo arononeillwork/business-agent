@@ -159,7 +159,7 @@ export async function postImpact(db: SupabaseClient, report: SocialReport): Prom
     db.from('social_follower_days').select('day, gained').eq('source', 'instagram')
       .gte('day', addDays(report.from, -BASELINE_DAYS)).lte('day', addDays(report.to, IMPACT_DAYS)),
     db.from('instagram_mentions').select(MENTION_FIELDS)
-      .gte('mentioned_at', `${report.from}T00:00:00Z`).lt('mentioned_at', `${aboutUntil(report.to)}T00:00:00Z`)
+      .gte('mentioned_at', `${report.from}T00:00:00Z`).lt('mentioned_at', `${aboutUntil(report.to, today(await zoneOf(db)))}T00:00:00Z`)
       .order('mentioned_at', { ascending: false }).limit(100),
   ])
   if (e1 || e2) throw new Error((e1 ?? e2)!.message)
