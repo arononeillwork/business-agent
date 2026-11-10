@@ -94,7 +94,7 @@ async function syncRep(db: SupabaseClient, s: Session, rep: Rep, locationId: str
     customerId = await square.createCustomer(s.sandbox, s.token, {
       key: `rep-customer:${rep.id}`, reference_id: `rep:${rep.id}`,
       given_name: rep.name.replace(/^@+/, '').trim() || rep.name, nickname: rep.instagram ? `@${rep.instagram}` : null,
-      note: rep.instagram ? `Posts about the café on Instagram (@${rep.instagram}): their credit is on the gift card on file.` : 'Their credit is on the gift card on file.',
+      note: rep.instagram ? `Posts about the café on Instagram (@${rep.instagram}). Their credit: pay with "Gift card on file".` : 'Their credit: pay with "Gift card on file".',
     })
   }
   if (customerId !== rep.square_customer_id) {

@@ -514,7 +514,7 @@ function PersonCard({ rep: r, reps, ledger, seesBalance, isAdmin, mine, crewShow
       </Stack>
       {/* Their credit is on their gift card on Square too: the team finds them on the till. */}
       {credit && r.square_gift_card_id && !r.square_error && (
-        <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t('On Square too: their gift card on file, found under their name on the till.')}</Typography>
+        <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t('Credit on their Square profile: at the till, select them and pay with “Gift card on file”.')}</Typography>
       )}
       {credit && isAdmin && r.square_error && <Typography variant="caption" sx={{ color: 'error.main' }}>{t('Not on Square: {why}', { why: r.square_error })}</Typography>}
       <Stack direction="row" spacing={0.5} useFlexGap sx={{ flexWrap: 'wrap', mx: -0.75, mb: -0.5 }}>

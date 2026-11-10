@@ -368,6 +368,6 @@ export default {
   'Who came in, so nobody counts twice': 'Quién vino, para no contar a nadie dos veces',
   'Brought a friend with their card': 'Trajo a un amigo con su tarjeta',
   'A friend they sent shows their card at the till': 'Un amigo que han enviado enseña su tarjeta en caja',
-  'On Square too: their gift card on file, found under their name on the till.': 'También en Square: su tarjeta regalo guardada, bajo su nombre en la caja.',
+  'Credit on their Square profile: at the till, select them and pay with “Gift card on file”.': 'Crédito en su perfil de Square: en la caja, selecciónalo y paga con «Tarjeta regalo guardada».',
   'Not on Square: {why}': 'No está en Square: {why}',
 }
