@@ -19,7 +19,7 @@ export interface GrantProps {
 export type OAuthEnv = Env & { OAUTH_PROVIDER: OAuthHelpers; OAUTH_KV: KVNamespace }
 
 const INSTRUCTIONS = `The Business Agent: the team app of a business in Spain or Ireland: rota, clock-ins (the working-hours record), calendar and business details.
-Call whoami first: it says the business's country and time zone. Dates are YYYY-MM-DD and times 24-hour in the business's time zone.
+Call whoami first: it says the business's country and time zone, and how to write amounts for this person (Ireland's €15.00, Spain's €15,00). Dates are YYYY-MM-DD and times 24-hour in the business's time zone.
 Before deleting anything or changing many shifts, summarise and ask the user to confirm.
 Timecard edits need a reason. Everything you change is logged as made "via AI" on behalf of the user.
 Every page in the app is here: use a specific tool when there is one; otherwise list_pages, then read_page (coffees, brand, social planner, menu, content, stock and any page added later). get_page_file hands over a page's photos and files. save_page_record and delete_page_record change a page: summarise and get a yes first.`

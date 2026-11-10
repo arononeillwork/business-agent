@@ -1,7 +1,9 @@
 // What a notification says, in its person's language. The database and the Worker write notifications
 // in English; this says them in the language the person chose, for their phone (worker/push.ts) and in
 // the app (the bell and the Notifications page), with the Notifications page's Spanish.
+// Amounts and readings in them follow the person's number format (Ireland's "€15.00", Spain's "15,00 €"), not the language.
 import { LANGUAGES, msg, type Language } from './i18n'
+import { defaultNumberFormat, formatNumberAs, moneyText, type NumberFormat } from './time'
 import type { AppNotification, Preferences } from './types'
 import spanish from '../src/i18n/es/notifications'
 import regions from '../src/i18n/es/regions'
@@ -27,8 +29,8 @@ const KIND_LABEL: Record<string, string> = {
 
 type Note = Pick<AppNotification, 'title' | 'body' | 'kind' | 'data'>
 
-/** The title and text of a notification, in this language. */
-export function pushText(n: Note, lang: Language): { title: string; body: string | null } {
+/** The title and text of a notification, in this language, its numbers with this decimal mark (shared/time.ts numberFormatOf). */
+export function pushText(n: Note, lang: Language, numbers: NumberFormat = defaultNumberFormat()): { title: string; body: string | null } {
   const d = n.data ?? {}
   if (n.kind === 'bank_holiday' && d.name && typeof d.days === 'number' && d.date) {
     const name = d.name
@@ -51,16 +53,22 @@ export function pushText(n: Note, lang: Language): { title: string; body: string
   }
   // The rest are written in English by the database and the Worker: each kind's wording is matched
   // and said again in this language; anything else (a caption, a name) stays as it was written.
-  return { title: phrase(lang, n.title, TITLES), body: n.body ? phrase(lang, n.body, BODIES) : null }
+  return { title: phrase(lang, numbers, n.title, TITLES), body: n.body ? phrase(lang, numbers, n.body, BODIES) : null }
 }
 
 const WHAT: Record<string, string> = { post: msg('post'), carousel: msg('carousel'), reel: msg('reel'), story: msg('story') }
 const DAY: Record<string, string> = { Mon: 'lun', Tue: 'mar', Wed: 'mié', Thu: 'jue', Fri: 'vie', Sat: 'sáb', Sun: 'dom' }
 const MONTH: Record<string, string> = { Jan: 'ene', Feb: 'feb', Mar: 'mar', Apr: 'abr', May: 'may', Jun: 'jun', Jul: 'jul', Aug: 'ago', Sep: 'sept', Oct: 'oct', Nov: 'nov', Dec: 'dic' }
-const amount = (lang: Language, n: string) => (lang === 'es' ? n.replace('.', ',') : n)
+/** A number as written ("12.50", "8.4", "1.5"), with the person's decimal mark and as many decimals. */
+const decimals = (f: NumberFormat, n: string) => formatNumberAs(Number(n), f, n.split('.')[1]?.length ?? 0)
+/** An amount as written ("12.50"), as money in a sentence in the person's number format: "€12.50" or "12,50 €". */
+const euros = (f: NumberFormat, n: string) => moneyText(Number(n), f)
 
-/** A wording, the template it's said with, and what goes in it (lang: the language to say it in). */
-type Phrase = [RegExp, string, (m: RegExpExecArray, lang: Language) => Record<string, string>]
+/**
+ * A wording, the template it's said with, and what goes in it (lang: the language to say it in; f: the
+ * decimal mark). 'numbers': it has amounts or readings, so it's said again in English too, with the person's decimal mark.
+ */
+type Phrase = [RegExp, string, (m: RegExpExecArray, lang: Language, f: NumberFormat) => Record<string, string>, 'numbers'?]
 
 // Kept in step with what writes them: the social, enquiry, expense, campaign, food safety, licence,
 // sales rep and event alert migrations, and worker/{reviews,competitors,connections,integrations}.ts.
@@ -78,12 +86,12 @@ const TITLES: Phrase[] = [
     where: m[2] === 'social media' ? say(l, msg('social media')) : m[2].split(' and ').join(say(l, msg(' and '))),
   })],
   [/^Follow up: (.+)$/, msg('Follow up: {name}'), m => ({ name: m[1] })],
-  [/^Expense to approve: (.+), (\d+\.\d\d) €$/, msg('Expense to approve: {who}, {amount} €'), (m, l) => ({ who: m[1], amount: amount(l, m[2]) })],
+  [/^Expense to approve: (.+), (\d+\.\d\d) €$/, msg('Expense to approve: {who}, {amount}'), (m, _l, f) => ({ who: m[1], amount: euros(f, m[2]) }), 'numbers'],
   [/^Expense approved: (.+)$/, msg('Expense approved: {what}'), m => ({ what: m[1] })],
   [/^Expense paid back: (.+)$/, msg('Expense paid back: {what}'), m => ({ what: m[1] })],
   [/^Expense turned down: (.+)$/, msg('Expense turned down: {what}'), m => ({ what: m[1] })],
   [/^Time to send: (.+)$/, msg('Time to send: {name}'), m => ({ name: m[1] })],
-  [/^Out of range: (.+) (-?\d+\.\d) °C$/, msg('Out of range: {point} {reading} °C'), (m, l) => ({ point: m[1], reading: amount(l, m[2]) })],
+  [/^Out of range: (.+) (-?\d+\.\d) °C$/, msg('Out of range: {point} {reading} °C'), (m, _l, f) => ({ point: m[1], reading: decimals(f, m[2]) }), 'numbers'],
   [/^(.+) runs out on (\d\d\/\d\d\/\d{4})$/, msg('{name} runs out on {date}'), m => ({ name: m[1], date: m[2] })],
   [/^(.+) ran out on (\d\d\/\d\d\/\d{4})$/, msg('{name} ran out on {date}'), m => ({ name: m[1], date: m[2] })],
   [/^New (\d)★ review from (.+): worth a reply$/, msg('New {stars}★ review from {who}: worth a reply'), (m, l) => ({ stars: m[1], who: m[2] === 'someone' ? say(l, msg('someone')) : m[2] })],
@@ -92,7 +100,7 @@ const TITLES: Phrase[] = [
   [/^(.+) is closed for now, says Google$/, msg('{name} is closed for now, says Google'), m => ({ name: m[1] })],
   [/^New on Google nearby: (.+)$/, msg('New on Google nearby: {name}'), m => ({ name: m[1] })],
   [/^(\d+) new places on Google nearby$/, msg('{n} new places on Google nearby'), m => ({ n: m[1] })],
-  [/^(.+) for (.+): €(\d+\.\d\d) to approve$/, msg('{rule} for {rep}: €{amount} to approve'), (m, l) => ({ rule: m[1], rep: m[2], amount: amount(l, m[3]) })],
+  [/^(.+) for (.+): €(\d+\.\d\d) to approve$/, msg('{rule} for {rep}: {amount} to approve'), (m, _l, f) => ({ rule: m[1], rep: m[2], amount: euros(f, m[3]) }), 'numbers'],
   [/^(.+) stopped working$/, msg('{name} stopped working'), m => ({ name: m[1] })],
   [/^LinkedIn needs connecting again soon$/, msg('LinkedIn needs connecting again soon'), () => ({})],
   [/^Meta Ads needs connecting again soon$/, msg('Meta Ads needs connecting again soon'), () => ({})],
@@ -100,6 +108,8 @@ const TITLES: Phrase[] = [
   [/^On offer till closing: (.+)$/, msg('On offer till closing: {name}'), m => ({ name: m[1] })],
 ]
 const BODIES: Phrase[] = [
+  // An expense decided without a note says its amount (the expense claims migration).
+  [/^(\d+\.\d\d) €$/, '{amount}', (m, _l, f) => ({ amount: euros(f, m[1]) }), 'numbers'],
   [/^In (.+)\. The details are on Businesses, under Errors\.$/s, msg('In {where}. The details are on Businesses, under Errors.'), m => ({ where: m[1] })],
   [/^Latest: “(.+)”\. On Businesses, under Support\.$/s, msg('Latest: “{message}”. On Businesses, under Support.'), m => ({ message: m[1] })],
   [/^You wrote: “(.+)”$/s, msg('You wrote: “{message}”'), m => ({ message: m[1] })],
@@ -114,14 +124,13 @@ const BODIES: Phrase[] = [
   [/^The app now uses the hours from your Google listing\.$/, msg('The app now uses the hours from your Google listing.'), () => ({})],
   [/^(\d+(?:\.\d+)?) left on their last day, (.+) until (\d\d:\d\d)\. Square isn’t changed: take the offer price at the till\.$/,
     msg('{n} left on their last day, {price} until {time}. Square isn’t changed: take the offer price at the till.'),
-    (m, l) => ({ n: amount(l, m[1]), price: m[2], time: m[3] })],
+    (m, _l, f) => ({ n: decimals(f, m[1]), price: m[2], time: m[3] }), 'numbers'],
 ]
 
-function phrase(lang: Language, text: string, phrases: Phrase[]) {
-  if (lang === 'en') return text
-  for (const [re, template, vars] of phrases) {
+function phrase(lang: Language, f: NumberFormat, text: string, phrases: Phrase[]) {
+  for (const [re, template, vars, numbers] of phrases) {
     const m = re.exec(text)
-    if (m) return say(lang, template, vars(m, lang))
+    if (m) return lang === 'en' && !numbers ? text : say(lang, template, vars(m, lang, f))
   }
-  return say(lang, text)
+  return lang === 'en' ? text : say(lang, text)
 }

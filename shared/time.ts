@@ -133,3 +133,26 @@ export const formatMoney = (n: number) => eur.format(n)
 export const formatMoneyAs = (n: number, f: NumberFormat) => money(f).format(n)
 /** A plain number with up to two decimals and thousands grouping, in the person's chosen style. */
 export const formatNumber = (n: number) => decimal.format(n)
+
+/** The decimal mark on screen now (setNumberFormat). */
+export const currentNumberFormat = () => current
+/**
+ * The decimal mark someone reads: the one they chose (My account → Appearance), else their business's
+ * country's. For what's written for someone away from the screen (the Worker's notifications, emails and
+ * assistant), which writes for every business at once and so never calls setNumberFormat.
+ */
+export const numberFormatOf = (chosen?: NumberFormat | null, country?: string | null): NumberFormat => chosen ?? defaultNumberFormat(country)
+/** A plain number in a given decimal style, whatever the screen's: "8,4" or "8.4". Up to two decimals, or exactly `decimals` ("12,50"). */
+export const formatNumberAs = (n: number, f: NumberFormat, decimals?: number) =>
+  new Intl.NumberFormat(LOCALES[f], { minimumFractionDigits: decimals ?? 0, maximumFractionDigits: decimals ?? 2, useGrouping: 'always' }).format(n)
+/**
+ * Money in a sentence, in a given decimal style, the way each country writes it: Ireland's "€15.00", Spain's
+ * "15,00 €" (on screen the sign goes first either way: formatMoneyAs). `whole` leaves the cents off a whole
+ * amount ("€25", "45 €"). For the Worker's messages, a supplier's order and a menu image's prices.
+ */
+export function moneyText(n: number, f: NumberFormat, { whole = false } = {}): string {
+  const amount = formatNumberAs(Math.abs(n), f, whole && Number.isInteger(n) ? 0 : 2)
+  const symbol = currencySymbol()
+  const sign = n < 0 ? '-' : ''
+  return f === 'point' ? `${sign}${symbol}${/\p{L}$/u.test(symbol) ? '\u00a0' : ''}${amount}` : `${sign}${amount} ${symbol}`
+}

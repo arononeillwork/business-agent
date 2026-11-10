@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
-import { formatLocal } from '../../shared/time'
+import { currentNumberFormat, formatLocal } from '../../shared/time'
 import type { AppNotification } from '../../shared/types'
 import { tokens } from '../theme'
 import { currentLanguage, t } from '../i18n'
@@ -15,11 +15,12 @@ import { MentionActions, useMentions } from './Mentions'
 import { pushText } from '../../shared/pushText'
 
 /**
- * A notification's title and text in the language shown. The database and the Worker write them in
- * English; shared/pushText.ts says each kind again in the person's language (as their phone gets it).
+ * A notification's title and text in the language shown, its amounts with the decimal mark on screen. The
+ * database and the Worker write them in English; shared/pushText.ts says each kind again in the person's
+ * language (as their phone gets it).
  */
-export const notificationTitle = (n: AppNotification) => pushText(n, currentLanguage()).title
-export const notificationBody = (n: AppNotification) => pushText(n, currentLanguage()).body
+export const notificationTitle = (n: AppNotification) => pushText(n, currentLanguage(), currentNumberFormat()).title
+export const notificationBody = (n: AppNotification) => pushText(n, currentLanguage(), currentNumberFormat()).body
 
 
 /** The bell: reminders for events you asked to be alerted about, and other news for you. */

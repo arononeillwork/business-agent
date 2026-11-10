@@ -3,7 +3,8 @@
 // (shared/reportSections.ts), from what the person who last changed the schedule can see, in its
 // language, and emailed from the business's connected Gmail or Outlook, one email to each person. Each
 // time is claimed before it's sent, so two runs in the same minute send it once; what went wrong is
-// kept on the schedule for the page to show.
+// kept on the schedule for the page to show. Amounts have each person's decimal mark: their own choice,
+// else the business's country's (Ireland's "€15.00", Spain's "€15,00"), as the page shows them.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { es as spanishDates } from 'date-fns/locale/es'
 import type { Env } from './supabase'
@@ -15,19 +16,19 @@ import { REPORT_PERIODS, dueNow, reportInfo, reportRange, type ReportKind, type 
 import { datesText, reportMail, reportSections, type Formats, type Say } from '../shared/reportSections'
 import { unitLabel, type StockItem, type StockMovement } from '../shared/stock'
 import type { FreshBatch } from '../shared/freshBatches'
-import type { Expense, PayRate, Profile, Shift, TimeEntry, Todo } from '../shared/types'
-import { TZ, addDays, formatLocal, formatMoney, formatNumber, localDate, setDateLocale, zonedIso } from '../shared/time'
+import type { Expense, PayRate, Preferences, Profile, Shift, TimeEntry, Todo } from '../shared/types'
+import { TZ, addDays, defaultNumberFormat, formatLocal, formatMoneyAs, formatNumberAs, localDate, numberFormatOf, setDateLocale, zonedIso, type NumberFormat } from '../shared/time'
 import spanish from '../src/i18n/es/reports'
 
 const es = spanish as Record<string, string>
 const fill = (text: string, vars: Record<string, string | number> = {}) => text.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m))
 
-/** Saying things in the schedule's language (the reports' Spanish, src/i18n/es/reports.ts). */
-export function sayIn(language: 'en' | 'es'): Say {
+/** Saying things in the schedule's language (the reports' Spanish, src/i18n/es/reports.ts), numbers with this decimal mark. */
+export function sayIn(language: 'en' | 'es', numbers: NumberFormat = defaultNumberFormat()): Say {
   const word = (text: string) => (language === 'es' && es[text]) || text
   return {
     t: (text, vars) => fill(word(text), vars),
-    tn: (n, one, many, vars) => fill(word(n === 1 ? one : many), { n: formatNumber(n), ...vars }),
+    tn: (n, one, many, vars) => fill(word(n === 1 ? one : many), { n: formatNumberAs(n, numbers), ...vars }),
   }
 }
 
@@ -39,7 +40,7 @@ export async function sendDueReports(env: Env, businessId: number, now = Date.no
   const { data: rows, error } = await db.from('report_schedules').select('*').eq('active', true)
   if (error) throw new Error(error.message)
   if (!rows?.length) return 0
-  const { data: biz } = await db.from('business').select('name, timezone, opening_hours').single()
+  const { data: biz } = await db.from('business').select('name, timezone, opening_hours, country').single()
   const tz = (biz?.timezone as string | null) ?? TZ
   let sent = 0
   for (const row of rows as ReportSchedule[]) {
@@ -51,7 +52,7 @@ export async function sendDueReports(env: Env, businessId: number, now = Date.no
     const { data: claimed } = await (row.last_sent_at === null ? claim.is('last_sent_at', null) : claim.eq('last_sent_at', row.last_sent_at)).select('id')
     if (!claimed?.length) continue
     try {
-      const failed = await sendSchedule(env, db, businessId, s, { name: biz?.name ?? 'The Business Agent', tz, openingHours: biz?.opening_hours ?? null }, now)
+      const failed = await sendSchedule(env, db, businessId, s, { name: biz?.name ?? 'The Business Agent', tz, openingHours: biz?.opening_hours ?? null, country: biz?.country ?? null }, now)
       await db.from('report_schedules').update({ last_error: failed }).eq('id', s.id)
       sent++
     } catch (e) {
@@ -61,9 +62,9 @@ export async function sendDueReports(env: Env, businessId: number, now = Date.no
   return sent
 }
 
-/** Write one schedule's report and email it to each person; what didn't go (null: everyone got it). */
+/** Write one schedule's report and email it to each person, with their decimal mark; what didn't go (null: everyone got it). */
 export async function sendSchedule(env: Env, db: SupabaseClient, businessId: number, s: ReportSchedule,
-  biz: { name: string; tz: string; openingHours: Record<string, unknown> | null }, now = Date.now()): Promise<string | null> {
+  biz: { name: string; tz: string; openingHours: Record<string, unknown> | null; country?: string | null }, now = Date.now()): Promise<string | null> {
   // Its figures are what whoever last changed it can see.
   const { data: sender } = await db.from('profiles').select('id, full_name, role, can_see_pay, active').eq('id', s.updated_by ?? '').maybeSingle()
   if (!sender || !sender.active || sender.role !== 'admin') throw new Error('Whoever last changed this schedule is no longer an admin. Save it again to send it as you.')
@@ -73,8 +74,8 @@ export async function sendSchedule(env: Env, db: SupabaseClient, businessId: num
   if (!kinds.length) throw new Error('None of its reports can be sent by whoever last changed it.')
 
   // Who gets it: the team's and the contacts' addresses as they are now (contacts only for owners), and the others.
-  const { data: people } = await db.from('profiles').select('id, full_name, email, role, active, can_see_pay')
-  const team = (people ?? []) as Pick<Profile, 'id' | 'full_name' | 'email' | 'role' | 'active' | 'can_see_pay'>[]
+  const { data: people } = await db.from('profiles').select('id, full_name, email, role, active, can_see_pay, preferences')
+  const team = (people ?? []) as (Pick<Profile, 'id' | 'full_name' | 'email' | 'role' | 'active' | 'can_see_pay'> & { preferences?: Preferences | null })[]
   const { data: contacts } = pay && s.contacts.length ? await db.from('business_contacts').select('id, email').in('id', s.contacts) : { data: [] }
   const to = [...new Set([
     ...team.filter(p => s.team.includes(p.id) && p.active && p.email).map(p => p.email!.toLowerCase()),
@@ -82,6 +83,9 @@ export async function sendSchedule(env: Env, db: SupabaseClient, businessId: num
     ...s.emails,
   ])]
   if (!to.length) throw new Error('Nobody it goes to has an email address now.')
+  // Each one's decimal mark: a team member's own choice, else (contacts, other addresses too) the business's country's.
+  const chosen = new Map(team.filter(p => p.email && p.preferences?.numberFormat).map(p => [p.email!.toLowerCase(), p.preferences!.numberFormat]))
+  const numbersOf = (address: string) => numberFormatOf(chosen.get(address), biz.country)
 
   const day = localDate(new Date(now), biz.tz)
   const range = reportRange(s.period, day)
@@ -116,14 +120,13 @@ export async function sendSchedule(env: Env, db: SupabaseClient, businessId: num
     ? dailyCosts(range.from, until, { expenses: expenses.map(e => ({ ...e, amount: Number(e.amount) })), shifts, rates, multiplier, openingHours: biz.openingHours as never })
     : null
 
-  const say = sayIn(s.language)
-  const f: Formats = {
-    money: formatMoney, number: formatNumber, when: iso => formatLocal(iso, 'EEE d MMM HH:mm', biz.tz), unit: u => say.t(unitLabel(u)), date: iso => localDate(iso, biz.tz),
-  }
-  // Dates in the schedule's language while it's written (put back straight after; nothing waits in between).
-  setDateLocale(s.language === 'es' ? spanishDates : undefined)
-  let mail: { subject: string; text: string }
-  try {
+  // Written once for each decimal mark it goes out with.
+  const write = (numbers: NumberFormat) => {
+    const say = sayIn(s.language, numbers)
+    const f: Formats = {
+      money: n => formatMoneyAs(n, numbers), number: n => formatNumberAs(n, numbers), when: iso => formatLocal(iso, 'EEE d MMM HH:mm', biz.tz),
+      unit: u => say.t(unitLabel(u)), date: iso => localDate(iso, biz.tz),
+    }
     const sections = reportSections(kinds, {
       range, until, sales, costs, items, entries,
       rates: pay ? payrollRates(rates, team, settings?.owner_pay !== false) : null,
@@ -133,8 +136,14 @@ export async function sendSchedule(env: Env, db: SupabaseClient, businessId: num
       fresh: fresh?.map(b => ({ ...b, quantity: num(b.quantity) })) ?? null, todos,
       name: id => team.find(p => p.id === id)?.full_name ?? '—', canSeeFinances: pay,
     }, say, f)
-    mail = reportMail({ business: biz.name, period: say.t(REPORT_PERIODS.find(p => p.id === s.period)!.label), dates: datesText(range, (i, p) => formatLocal(i, p, biz.tz)),
+    return reportMail({ business: biz.name, period: say.t(REPORT_PERIODS.find(p => p.id === s.period)!.label), dates: datesText(range, (i, p) => formatLocal(i, p, biz.tz)),
       sender: sender.full_name, sections, schedule: s.name }, say)
+  }
+  // Dates in the schedule's language while it's written (put back straight after; nothing waits in between).
+  setDateLocale(s.language === 'es' ? spanishDates : undefined)
+  const mails = new Map<NumberFormat, { subject: string; text: string }>()
+  try {
+    for (const numbers of new Set(to.map(numbersOf))) mails.set(numbers, write(numbers))
   } finally {
     setDateLocale(undefined)
   }
@@ -142,6 +151,7 @@ export async function sendSchedule(env: Env, db: SupabaseClient, businessId: num
   const failed: string[] = []
   for (const address of to) {
     try {
+      const mail = mails.get(numbersOf(address))!
       await sendEmail(env, db, { to: address, subject: mail.subject, text: mail.text })
     } catch (e) {
       const why = e instanceof Error ? e.message : String(e)

@@ -3,7 +3,7 @@
 // (migration 52: suppliers, stock_items, stock_movements).
 import { msg } from './i18n'
 import { DAY_KEYS, type DayKey } from './types'
-import { addDays, dayKey, localDate, localTime } from './time'
+import { addDays, dayKey, defaultNumberFormat, formatNumberAs, localDate, localTime, type NumberFormat } from './time'
 import { cleanPhone, decodeCsv, parseCsv } from './customers'
 import type { WasteReason } from './recipes'
 import type { Allergen, Diet } from './allergens'
@@ -280,7 +280,6 @@ export function nextOrderDay(s: Pick<Supplier, 'order_days' | 'cutoff' | 'lead_d
   return null
 }
 
-const qtyText = (n: number) => (Number.isInteger(n) ? String(n) : String(n).replace('.', ','))
 const UNIT_ES: Record<StockUnit, [string, string]> = {
   unit: ['unidad', 'unidades'], kg: ['kg', 'kg'], g: ['g', 'g'], l: ['l', 'l'], ml: ['ml', 'ml'], pack: ['paquete', 'paquetes'],
   box: ['caja', 'cajas'], case: ['caja', 'cajas'], bag: ['bolsa', 'bolsas'], bottle: ['botella', 'botellas'], carton: ['brik', 'briks'],
@@ -293,15 +292,17 @@ const UNIT_EN: Record<StockUnit, [string, string]> = {
 
 /**
  * The order as a message to send the supplier (WhatsApp or email). Spanish unless asked otherwise:
- * the suppliers are local. Each line: how many, the item, its pack and the supplier's reference.
+ * the suppliers are local. Each line: how many, the item, its pack and the supplier's reference. Amounts
+ * have the business's country's decimal mark (numbers: Spain's comma unless asked otherwise, "1,5 kg").
  */
-export function orderMessage(order: SupplierOrder, business: string, lang: 'es' | 'en' = 'es', deliver?: string | null): string {
+export function orderMessage(order: SupplierOrder, business: string, lang: 'es' | 'en' = 'es', deliver?: string | null,
+  numbers: NumberFormat = defaultNumberFormat()): string {
   const s = order.supplier
   const units = lang === 'es' ? UNIT_ES : UNIT_EN
   const lines = order.lines.map(l => {
     const u = units[l.item.unit][l.qty === 1 ? 0 : 1]
     const extra = [l.item.pack_size, l.item.supplier_sku ? (lang === 'es' ? `ref. ${l.item.supplier_sku}` : `ref ${l.item.supplier_sku}`) : null].filter(Boolean)
-    return `- ${qtyText(l.qty)} ${u} · ${l.item.name}${extra.length ? ` (${extra.join(', ')})` : ''}`
+    return `- ${formatNumberAs(l.qty, numbers)} ${u} · ${l.item.name}${extra.length ? ` (${extra.join(', ')})` : ''}`
   })
   const account = s?.account_number ? (lang === 'es' ? ` (cliente ${s.account_number})` : ` (account ${s.account_number})`) : ''
   const day = deliver ? new Date(`${deliver}T12:00:00Z`) : null

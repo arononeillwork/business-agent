@@ -162,6 +162,9 @@ export default {
     'Seguimiento: {name}',
   'Expense to approve: {who}, {amount} €':
     'Gasto por aprobar: {who}, {amount} €',
+  // The amount with its € as the person's number format writes it ("12,50 €", "€12.50"): shared/pushText.ts.
+  'Expense to approve: {who}, {amount}':
+    'Gasto por aprobar: {who}, {amount}',
   'Expense approved: {what}':
     'Gasto aprobado: {what}',
   'Expense paid back: {what}':
@@ -190,6 +193,8 @@ export default {
     '{n} sitios nuevos en Google cerca',
   '{rule} for {rep}: €{amount} to approve':
     '{rule} para {rep}: {amount} € por aprobar',
+  '{rule} for {rep}: {amount} to approve':
+    '{rule} para {rep}: {amount} por aprobar',
   '{name} stopped working':
     '{name} ha dejado de funcionar',
   'LinkedIn needs connecting again soon':
