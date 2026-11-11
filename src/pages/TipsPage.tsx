@@ -1,22 +1,27 @@
 import {
   Alert, Box, Button, Card, CardContent, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, MenuItem, Stack,
-  Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
+  Table, TableBody, TableCell, TableHead, TableRow, TextField, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/EditOutlined'
 import { useMemo, useState } from 'react'
+import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { usePlan } from '../app/plan'
-import { Empty, ErrorBox, PageHeader, SectionTitle, StatGrid, StatTile, Tag } from '../components/common'
+import { Empty, ErrorBox, Loading, PageHeader, SectionTitle, StatGrid, StatTile, Tag } from '../components/common'
 import { ExportButton } from '../components/tables'
+import { Freshness } from '../components/Freshness'
+import { SquareLoginsDialog } from '../components/SquareLogins'
 import type { ExportTable } from '../lib/export'
 import { addDays, formatDuration, formatLocal, formatMoney, today, weekStart, zonedIso } from '../../shared/time'
 import {
   POOL_STATUSES, TIP_SPLITS, minutesWorked, myTips, poolStatusLabel, splitLabel, splitTips,
   type PoolStatus, type TipPool, type TipPoolInput, type TipSplit,
 } from '../../shared/tips'
+import { LEADER_PERIODS, periodRange, type LeaderPeriod } from '../../shared/leaderboard'
+import { RECONNECT_TEAM } from '../../shared/squareTeam'
 import { tokens } from '../theme'
 import { t, tn } from '../i18n'
 import { countryProfile } from '../../shared/country'
@@ -32,6 +37,7 @@ const round2 = (n: number) => Math.round(n * 100) / 100
  * Tips (Team): what customers left over a period (cash in the jar, card tips from the till) shared
  * out by the hours each person worked (Timecards) or equally. Everyone sees their own share once
  * it's shared out; admins with pay access share them out and mark them paid; a payroll gestoría reads.
+ * With Square connected, the tips left at the till come in too, by who took each payment.
  */
 export function TipsPage() {
   const { api, me, profiles, canSeePay, isPartner } = useApp()
@@ -73,6 +79,8 @@ export function TipsPage() {
           <StatTile label={t('Still to be paid')} value={formatMoney(mine.unpaid)} />
         </StatGrid>
       )}
+
+      {!isPartner && <TillTipsCard />}
 
       <Card component="section" aria-label={seesAll ? t('Tips shared out') : t('Your tips')} sx={{ mb: 3 }}>
         <CardContent>
@@ -132,6 +140,129 @@ export function TipsPage() {
     </>
   )
 }
+
+const num = { fontVariantNumeric: 'tabular-nums' } as const
+
+/**
+ * Tips on Square: what customers left on payments at the till over a period, by who took each payment
+ * (each person's own Square login, linked on the Team page or the Leaderboard). Owners see everyone's,
+ * what nobody linked took, and one person's day by day; anyone else on the team sees their own, day by day.
+ */
+function TillTipsCard() {
+  const { api, profiles, canSeePay, isAdmin } = useApp()
+  const { allows } = usePlan()
+  const on = allows('takings')
+  const [period, setPeriod] = useState<LeaderPeriod>('month')
+  const [person, setPerson] = useState('')
+  const [logins, setLogins] = useState(false)
+  const { from, to } = periodRange(period, today())
+  const tips = useAsync('till-tips', () => (on ? api.tillTips(from, to) : Promise.resolve(null)), [on, from, to])
+  const d = tips.data
+  // Nothing to say without takings on the plan; Square to connect (again) is for an admin to see to.
+  if (!on || d?.status === 'plan' || (!isAdmin && (d?.status === 'not_connected' || d?.status === 'reconnect'))) return null
+  const nameOf = (id: string) => profiles.find(p => p.id === id)?.full_name ?? ''
+  // Owners: everyone, or the one picked; anyone else: themselves.
+  const one = canSeePay ? d?.people.find(p => p.profile_id === person) : d?.people[0]
+  const connections = <Button component={RouterLink} to="/connections" color="inherit" size="small">{t('Connections')}</Button>
+  const squareLogins = isAdmin && <Button color="inherit" size="small" onClick={() => setLogins(true)}>{t('Square logins')}</Button>
+  const totalCell = { ...num, fontWeight: 600 }
+
+  return (
+    <Card component="section" aria-label={t('Tips on Square')} sx={{ mb: 3 }}>
+      <CardContent>
+        <SectionTitle action={d?.status === 'ok' && (
+          <ToggleButtonGroup exclusive size="small" value={period} aria-label={t('Period')} onChange={(_, v: LeaderPeriod | null) => v && setPeriod(v)}
+            sx={{ flexWrap: 'wrap' }}>
+            {LEADER_PERIODS.map(p => <ToggleButton key={p.id} value={p.id}>{t(p.label)}</ToggleButton>)}
+          </ToggleButtonGroup>
+        )}>{t('Tips on Square')}</SectionTitle>
+        <ErrorBox error={tips.error} />
+        {!d ? (!tips.error && <Loading />)
+          : d.status === 'not_connected' ? <Alert severity="info" action={connections}>{t('Connect Square on Connections to bring in the tips left at the till, by who took each payment.')}</Alert>
+          : d.status === 'reconnect' ? <Alert severity="info" action={connections}>{t(RECONNECT_TEAM)}</Alert>
+          : d.status === 'not_linked' ? (
+            <Alert severity="info" action={squareLogins}>
+              {isAdmin ? t('Link yourself to your own Square login to see the tips on the payments you take.')
+                : t('Your Square login isn’t linked yet. Once an owner links it on the Team page, the tips on the payments you take show here.')}
+            </Alert>
+          ) : <>
+            {canSeePay && (
+              <TextField select fullWidth={false} size="small" label={t('Person')} value={one ? person : ''} onChange={e => setPerson(e.target.value)} sx={{ minWidth: 220, mb: 2 }}
+                slotProps={{ select: { displayEmpty: true }, inputLabel: { shrink: true } }}>
+                <MenuItem value="">{t('Everyone')}</MenuItem>
+                {d.people.map(p => <MenuItem key={p.profile_id} value={p.profile_id}>{nameOf(p.profile_id)}</MenuItem>)}
+              </TextField>
+            )}
+            {one ? (
+              one.days.length === 0 ? <Empty>{t('No tips on Square for {name} in this period.', { name: nameOf(one.profile_id) })}</Empty> : (
+                <Box sx={{ overflowX: 'auto' }}>
+                  <Table size="small" aria-label={t('Tips on Square for {name}', { name: nameOf(one.profile_id) })}>
+                    <TableHead><TableRow>
+                      <TableCell>{t('Day')}</TableCell><TableCell align="right">{t('Payments with a tip')}</TableCell><TableCell align="right">{t('Tips')}</TableCell>
+                    </TableRow></TableHead>
+                    <TableBody>
+                      {one.days.map(x => (
+                        <TableRow key={x.date} hover>
+                          <TableCell sx={{ whiteSpace: 'nowrap', textTransform: 'capitalize' }}>{formatLocal(`${x.date}T12:00:00Z`, 'EEE d MMM')}</TableCell>
+                          <TableCell align="right" sx={num}>{x.tipped}</TableCell>
+                          <TableCell align="right" sx={num}>{formatMoney(x.tips)}</TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600 }}>{t('Total')}</TableCell>
+                        <TableCell align="right" sx={totalCell}>{one.tipped}</TableCell>
+                        <TableCell align="right" sx={totalCell}>{formatMoney(one.tips)}</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </Box>
+              )
+            ) : (
+              <>
+                {!d.people.length && (
+                  <Alert severity="info" action={squareLogins} sx={{ mb: 2 }}>{t('Link each person to their own Square login to see whose tips are whose.')}</Alert>
+                )}
+                <Box sx={{ overflowX: 'auto' }}>
+                  <Table size="small" aria-label={t('Tips on Square by person')}>
+                    <TableHead><TableRow>
+                      <TableCell>{t('Person')}</TableCell><TableCell align="right">{t('Payments with a tip')}</TableCell><TableCell align="right">{t('Tips')}</TableCell>
+                    </TableRow></TableHead>
+                    <TableBody>
+                      {d.people.map(p => (
+                        <TableRow key={p.profile_id} hover>
+                          <TableCell>{nameOf(p.profile_id)}</TableCell>
+                          <TableCell align="right" sx={num}>{p.tipped}</TableCell>
+                          <TableCell align="right" sx={num}>{formatMoney(p.tips)}</TableCell>
+                        </TableRow>
+                      ))}
+                      {!!d.unlinked?.tipped && (
+                        <TableRow>
+                          <TableCell sx={{ color: 'text.secondary' }}>{t('Someone not linked to anyone here')}</TableCell>
+                          <TableCell align="right" sx={{ ...num, color: 'text.secondary' }}>{d.unlinked.tipped}</TableCell>
+                          <TableCell align="right" sx={{ ...num, color: 'text.secondary' }}>{formatMoney(d.unlinked.tips)}</TableCell>
+                        </TableRow>
+                      )}
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600 }}>{t('Total')}</TableCell>
+                        <TableCell align="right" sx={totalCell}>{d.people.reduce((n, p) => n + p.tipped, d.unlinked?.tipped ?? 0)}</TableCell>
+                        <TableCell align="right" sx={totalCell}>{formatMoney(round2(d.people.reduce((n, p) => n + p.tips, d.unlinked?.tips ?? 0)))}</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </Box>
+              </>
+            )}
+            <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap', mt: 1.5 }}>
+              <Freshness id="takings" at={d.fetched_at} />
+              {canSeePay && !!d.unlinked?.tipped && squareLogins}
+            </Stack>
+          </>}
+      </CardContent>
+      {logins && <SquareLoginsDialog onClose={() => { setLogins(false); void tips.reload() }} />}
+    </Card>
+  )
+}
+
 
 function PaidButton({ pool }: { pool: TipPool }) {
   const { api } = useApp()

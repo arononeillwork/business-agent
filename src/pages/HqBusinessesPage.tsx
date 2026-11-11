@@ -75,7 +75,7 @@ export function HqBusinessesPage() {
                 <TableCell>{t('Set up')}</TableCell>
                 <TableCell>{t('Last sign-in')}</TableCell>
                 <TableCell>{t('Joined')}</TableCell>
-                <TableCell align="right"><Box component="span" sx={visuallyHidden}>{t('Actions')}</Box></TableCell>
+                <TableCell align="right" sx={{ position: 'relative' }}><Box component="span" sx={visuallyHidden}>{t('Actions')}</Box></TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -115,4 +115,4 @@ export function HqBusinessesPage() {
   )
 }
 
-const visuallyHidden = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' } as const
+const visuallyHidden = { position: 'absolute', width: '1px', height: '1px', p: 0, m: '-1px', overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0 } as const

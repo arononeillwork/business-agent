@@ -546,6 +546,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
 - Tips (Team section): cash and card tips for a period (the till's card tips offered when one is
   connected) shared out by the hours on the timecards or equally, to the cent; everyone sees their own
   share once it's shared out and hears in the bell; a payroll gestoría reads.
+- Tips on Square (Tips page): with Square connected, the tips left on payments at the till for this or
+  last week or month, by who took each payment through their own Square login (the Leaderboard's links).
+  Everyone sees their own, day by day; owners see everyone's, pick one person, and see what was taken by
+  nobody linked (`GET /api/tips/till`, `shared/tips.ts`).
 - Food safety (Stock section): the APPCC's records. The fridges, freezer and jobs to check today, each
   recorded by whoever does it at the server's time; a reading out of range needs what was done and
   tells the admins in the bell. Records are never changed or deleted. **Allergens**: the EU's 14 on

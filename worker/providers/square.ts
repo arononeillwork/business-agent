@@ -11,6 +11,7 @@
 // library too (only the prices of the items' variations; nothing is added or deleted there).
 import type { SquareObject, SquareVariation } from '../../shared/menuSquare'
 import type { PayMethod, SalesDay, SalesItem } from '../../shared/types'
+import type { MemberTips } from '../../shared/tips'
 import { hmacBase64, safeEqual } from '../crypto'
 
 export const SQUARE_SCOPES = ['MERCHANT_PROFILE_READ', 'PAYMENTS_READ', 'ORDERS_READ', 'CUSTOMERS_READ', 'CUSTOMERS_WRITE',
@@ -334,4 +335,48 @@ export async function salesByTeamMember(sandbox: boolean, accessToken: string, l
     }
   }
   return { currency: currency ?? 'EUR', byMember: Object.fromEntries([...by].map(([k, v]) => [k, { sales: v.sales, gross: round(v.gross) }])) }
+}
+
+/**
+ * Tips left on completed payments between two instants (the Tips page), by the team member who took each
+ * payment ('' for nobody signed in), in all and per local day. `amount_money` is before the tip, so a
+ * refund bigger than it gave some of the tip back, and only what's left counts. Main units (euros).
+ */
+export async function tipsByTeamMember(sandbox: boolean, accessToken: string, locationIds: string[], fromIso: string, toIso: string, timeZone = 'Europe/Madrid') {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' })
+  const dayOf = (iso: string) => {
+    const p = Object.fromEntries(parts.formatToParts(new Date(iso)).map(x => [x.type, x.value]))
+    return `${p.year}-${p.month}-${p.day}`
+  }
+  // In cents while adding up.
+  const by: Record<string, MemberTips> = {}
+  let currency: string | undefined
+  for (const location of locationIds) {
+    let cursor: string | undefined
+    for (let page = 0; page < 100; page++) {
+      const q = new URLSearchParams({ begin_time: fromIso, end_time: toIso, location_id: location, limit: '100', ...(cursor ? { cursor } : {}) })
+      const r = await api<{ payments?: { created_at: string; status: string; team_member_id?: string; employee_id?: string; amount_money?: { amount: number; currency: string }; tip_money?: { amount: number }; refunded_money?: { amount: number } }[]; cursor?: string }>(
+        sandbox, accessToken, `/v2/payments?${q}`)
+      for (const p of r.payments ?? []) {
+        if (p.status !== 'COMPLETED') continue
+        currency ??= p.amount_money?.currency
+        const tip = p.tip_money?.amount ?? 0
+        const kept = tip - Math.min(tip, Math.max(0, (p.refunded_money?.amount ?? 0) - (p.amount_money?.amount ?? 0)))
+        if (kept <= 0) continue
+        const member = by[p.team_member_id ?? p.employee_id ?? ''] ??= { tips: 0, tipped: 0, days: {} }
+        const day = member.days[dayOf(p.created_at)] ??= { tips: 0, tipped: 0 }
+        member.tips += kept
+        member.tipped += 1
+        day.tips += kept
+        day.tipped += 1
+      }
+      cursor = r.cursor
+      if (!cursor) break
+    }
+  }
+  const euros = (cents: number) => Math.round(cents) / 100
+  const byMember = Object.fromEntries(Object.entries(by).map(([k, m]) => [k, {
+    tips: euros(m.tips), tipped: m.tipped, days: Object.fromEntries(Object.entries(m.days).map(([d, v]) => [d, { tips: euros(v.tips), tipped: v.tipped }])),
+  }]))
+  return { currency: currency ?? 'EUR', byMember }
 }

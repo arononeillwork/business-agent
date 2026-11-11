@@ -20,7 +20,7 @@ import { CATEGORY_META, type CalendarEvent, type EventCategory } from '../../sha
 import { msg, t } from '../i18n'
 import { Tab, Tabs } from '@mui/material'
 import { useSearchParams } from 'react-router-dom'
-import { ThemesTab, TodayTheme } from '../components/ThemeDays'
+import { ThemesTab } from '../components/ThemeDays'
 import { CalendarMoreChip, DayRoutine, DayTheme, ExtrasDialogs, RoutineTab, useCalendarExtras } from '../components/Routine'
 
 const monthStart = (d: string) => `${d.slice(0, 7)}-01`
@@ -158,9 +158,6 @@ export function CalendarPage() {
         </>} />
       <ErrorBox error={data.error} />
       {tabs}
-      {extras.staff && extras.show.themes !== false && (
-        <TodayTheme days={extras.days} coffees={extras.coffees} closures={extras.closures} withWeek onSetUp={() => showTab('themes')} />
-      )}
 
       {/* One toolbar: where you are on the left, how you look at it on the right. */}
       <Stack direction="row" role="toolbar" aria-label={t('Calendar')} spacing={1}

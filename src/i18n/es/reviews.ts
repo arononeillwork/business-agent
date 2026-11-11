@@ -47,6 +47,11 @@ export default {
   'Post reply': 'Publicar respuesta',
   '1 to 3 stars': 'De 1 a 3 estrellas',
   '4 and 5 stars': '4 y 5 estrellas',
+  'Sort by': 'Ordenar por',
+  'Most recent': 'Más recientes',
+  'Oldest first': 'Más antiguas primero',
+  'Best first': 'Mejores primero',
+  'Worst first': 'Peores primero',
   'Connect Google Maps on the Connections page to read and reply to your Google reviews.':
     'Conecta Google Maps en la página Conexiones para leer y responder tus reseñas de Google.',
 

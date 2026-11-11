@@ -57,13 +57,9 @@ export default {
   'No coffee picked for this theme yet.': 'Este tema aún no tiene café.',
   'Playlist': 'Lista',
   'Play {name} on the café speaker': 'Poner {name} en el altavoz del café',
-  'Give each day a theme: a coffee to serve and a playlist to go with it, like a Colombian day.':
-    'Dale un tema a cada día: un café que servir y una lista de música a juego, como un día colombiano.',
-  'Set up theme days': 'Preparar los días temáticos',
   'Today’s theme': 'El tema de hoy',
   'Closed today: no theme': 'Hoy está cerrado: sin tema',
   'No theme today': 'Hoy no hay tema',
-  'The next few days': 'Los próximos días',
   'No theme': 'Sin tema',
   'Today’s theme playlist': 'La lista del tema de hoy',
   '{date} follows the weekly rotation again': 'El {date} vuelve a seguir la rotación semanal',

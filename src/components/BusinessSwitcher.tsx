@@ -87,9 +87,12 @@ export function Opening({ account }: { account: DeviceAccount | null }) {
 
 const otherLine = (a: DeviceAccount) => (a.signedOut ? t('Signed out: sign in again') : a.email ?? a.name)
 
-/** The businesses as menu items: the one open now, the others to switch to, and adding another. */
-export function businessMenuItems(b: ReturnType<typeof useBusinesses>, close: () => void, withCurrent = true): ReactNode[] {
-  // With nothing to list (the account menu, one business), just adding another.
+/**
+ * The businesses as menu items: the one open now, the others to switch to, and adding another. The account
+ * menu has only the others (none: nothing at all); a business is added from the top left or My account.
+ */
+export function businessMenuItems(b: ReturnType<typeof useBusinesses>, close: () => void, withCurrent = true, withAdd = true): ReactNode[] {
+  // With nothing to list (one business), just adding another.
   const listed = (withCurrent && b.current ? 1 : 0) + b.others.length > 0
   return [
     listed && <ListSubheader key="title" sx={{ lineHeight: '32px', fontSize: '0.72rem', letterSpacing: '0.1em', textTransform: 'uppercase', bgcolor: 'transparent' }}>{t('Your businesses')}</ListSubheader>,
@@ -107,11 +110,13 @@ export function businessMenuItems(b: ReturnType<typeof useBusinesses>, close: ()
           slotProps={{ primary: { noWrap: true }, secondary: { noWrap: true } }} sx={{ minWidth: 0, maxWidth: 260 }} />
       </MenuItem>
     )),
-    listed && <Divider key="divider" />,
-    <MenuItem key="add" onClick={() => { close(); void b.add() }}>
-      <ListItemIcon><AddIcon fontSize="small" /></ListItemIcon>
-      <ListItemText primary={t('Add another business')} />
-    </MenuItem>,
+    withAdd && listed && <Divider key="divider" />,
+    withAdd && (
+      <MenuItem key="add" onClick={() => { close(); void b.add() }}>
+        <ListItemIcon><AddIcon fontSize="small" /></ListItemIcon>
+        <ListItemText primary={t('Add another business')} />
+      </MenuItem>
+    ),
   ].filter(Boolean)
 }
 

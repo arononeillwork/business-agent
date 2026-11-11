@@ -69,3 +69,47 @@ export function myTips(pools: TipPool[], profileId: string) {
   const round2 = (n: number) => Math.round(n * 100) / 100
   return { list: mine, total: round2(mine.reduce((s, x) => s + x.share.amount, 0)), unpaid: round2(mine.filter(x => x.pool.status === 'shared').reduce((s, x) => s + x.share.amount, 0)) }
 }
+
+// ---------------------------------------------------------------------------------------------
+// Tips on Square: what customers left on payments at the till, by who took them. Each Square payment
+// says which team member took it, and each person is linked to their own Square login (shared/squareTeam.ts),
+// so everyone sees their own tips; owners (admins with pay access) see everyone's.
+// ---------------------------------------------------------------------------------------------
+
+/** One Square team member's tips: in all, and day by day (the business's days, YYYY-MM-DD). `tipped`: payments with a tip. */
+export interface MemberTips { tips: number; tipped: number; days: Record<string, { tips: number; tipped: number }> }
+
+export type TillTipsStatus = 'ok' | 'plan' | 'not_connected' | 'reconnect' | 'not_linked'
+export interface TillTipsDay { date: string; tips: number; tipped: number }
+export interface PersonTillTips { profile_id: string; tips: number; tipped: number; days: TillTipsDay[] }
+/** Tips left on Square over a period; a status other than ok says why there's nothing to show. */
+export interface TillTips {
+  status: TillTipsStatus
+  /** Each person linked to their Square login, most tips first: everyone for owners, only themselves for anyone else. */
+  people: PersonTillTips[]
+  /** Owners only (null for anyone else): tips on payments taken by someone in Square not linked to anyone here, or by nobody signed in. */
+  unlinked: { tips: number; tipped: number } | null
+  currency: string
+  fetched_at: string | null
+}
+export const emptyTillTips = (status: TillTipsStatus): TillTips => ({ status, people: [], unlinked: null, currency: 'EUR', fetched_at: null })
+
+/**
+ * Square's tips by team member, as people: owners (`everyone`) get every person linked to a Square login
+ * and the tips nobody here took; anyone else only their own, or not_linked without a Square login linked.
+ */
+export function tipsByPerson(byMember: Record<string, MemberTips>, links: { profile_id: string; team_member_id: string }[],
+  who: { me: string; everyone: boolean }): Pick<TillTips, 'status' | 'people' | 'unlinked'> {
+  const round2 = (n: number) => Math.round(n * 100) / 100
+  const shown = links.filter(l => who.everyone || l.profile_id === who.me)
+  if (!who.everyone && !shown.length) return { status: 'not_linked', people: [], unlinked: null }
+  const people = shown.map(l => {
+    const m = byMember[l.team_member_id]
+    const days = Object.entries(m?.days ?? {}).map(([date, d]) => ({ date, tips: d.tips, tipped: d.tipped })).sort((a, b) => a.date.localeCompare(b.date))
+    return { profile_id: l.profile_id, tips: m?.tips ?? 0, tipped: m?.tipped ?? 0, days }
+  }).sort((a, b) => b.tips - a.tips)
+  if (!who.everyone) return { status: 'ok', people, unlinked: null }
+  const linked = new Set(links.map(l => l.team_member_id))
+  const others = Object.entries(byMember).filter(([member]) => !linked.has(member)).map(([, m]) => m)
+  return { status: 'ok', people, unlinked: { tips: round2(others.reduce((s, m) => s + m.tips, 0)), tipped: others.reduce((s, m) => s + m.tipped, 0) } }
+}

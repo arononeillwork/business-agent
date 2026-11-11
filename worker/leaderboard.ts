@@ -4,6 +4,9 @@
 //   sees how many sales each person rang up; only owners (admins with pay access) see the amounts, as
 //   with takings. Kept like takings (15 minutes, a day once the period is over); a plan without takings,
 //   no Square, a connection made before team members were asked for, or nobody linked, each says so.
+// - GET /api/tips/till?from&to: the Tips page's tips from Square, by who took each payment, in all and day
+//   by day. Everyone on the team sees their own (through their own Square login); owners (admins with pay
+//   access) see everyone's and the tips taken by nobody linked. Kept like the sales above.
 // - /api/square-team…: admins. The Square team members and who's linked to whom; link someone (or
 //   unlink), link everyone the app can match by email then name, or add someone to Square. Square
 //   doesn't let apps set a passcode: the owner sets it in the Square Dashboard (shared/squareTeam.ts).
@@ -15,6 +18,7 @@ import { cached, forget } from './cache'
 import { planFeatures } from './billing'
 import * as square from './providers/square'
 import { emptyTill, type TillBoard } from '../shared/leaderboard'
+import { emptyTillTips, tipsByPerson, type TillTips } from '../shared/tips'
 import { RECONNECT_TEAM, addProblem, splitName, squarePhone, suggestLinks, type SquareLink, type SquareMember, type SquareTeam } from '../shared/squareTeam'
 import { takingsMinutes } from '../shared/refresh'
 import { minutesFor } from './refresh'
@@ -45,6 +49,7 @@ async function signedIn(c: Ctx, admins: boolean) {
   return null
 }
 leaderboard.use('/api/leaderboard/*', async (c, next) => (await signedIn(c, false)) ?? next())
+leaderboard.use('/api/tips/*', async (c, next) => (await signedIn(c, false)) ?? next())
 leaderboard.use('/api/square-team', async (c, next) => (await signedIn(c, true)) ?? next())
 leaderboard.use('/api/square-team/*', async (c, next) => (await signedIn(c, true)) ?? next())
 
@@ -56,6 +61,10 @@ async function failure(db: SupabaseClient, e: unknown) {
   if (lasting('square', e)) await markBroken(db, 'square', why)
   return why
 }
+
+/** Up to three months, from and to as YYYY-MM-DD. */
+const isPeriod = (from: string, to: string) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to) && from <= to && to <= addDays(from, 92)
 
 const memberOf = (m: square.SquareTeamMember): SquareMember => ({
   id: m.id, name: [m.given_name, m.family_name].filter(Boolean).join(' ').trim() || m.email_address || m.id,
@@ -73,9 +82,7 @@ async function links(db: SupabaseClient): Promise<SquareLink[]> {
 // ---------------------------------------------------------------------------------------------
 leaderboard.get('/api/leaderboard/till', async c => {
   const from = c.req.query('from') ?? '', to = c.req.query('to') ?? ''
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to || to > addDays(from, 92)) {
-    return c.json({ error: 'Give a period of up to three months (from and to, YYYY-MM-DD)' }, 400)
-  }
+  if (!isPeriod(from, to)) return c.json({ error: 'Give a period of up to three months (from and to, YYYY-MM-DD)' }, 400)
   const db = await requestDb(c)
   if (!(await planFeatures(c.env, db.businessId)).has('takings')) return c.json(emptyTill('plan'))
   if (await connectedOf(db, ['square'] as const) !== 'square') return c.json(emptyTill('not_connected'))
@@ -105,6 +112,36 @@ leaderboard.get('/api/leaderboard/till', async c => {
     return c.json(board)
   } catch (e) {
     if (missingScope(e)) return c.json(emptyTill('reconnect'))
+    return c.json({ error: await failure(db, e) }, 400)
+  }
+})
+
+// ---------------------------------------------------------------------------------------------
+// Tips on Square (the Tips page)
+// ---------------------------------------------------------------------------------------------
+leaderboard.get('/api/tips/till', async c => {
+  const from = c.req.query('from') ?? '', to = c.req.query('to') ?? ''
+  if (!isPeriod(from, to)) return c.json({ error: 'Give a period of up to three months (from and to, YYYY-MM-DD)' }, 400)
+  const db = await requestDb(c)
+  if (!(await planFeatures(c.env, db.businessId)).has('takings')) return c.json(emptyTillTips('plan'))
+  if (await connectedOf(db, ['square'] as const) !== 'square') return c.json(emptyTillTips('not_connected'))
+  const me = c.get('userId'), everyone = c.get('pay')
+  const linked = await links(db)
+  // Someone without a Square login of their own has no tips to pick out: Square isn't asked.
+  if (!everyone && !linked.some(l => l.profile_id === me)) return c.json(emptyTillTips('not_linked'))
+  const tz = await zoneOf(db)
+  const fromIso = zonedIso(from, '00:00', tz), toIso = zonedIso(addDays(to, 1), '00:00', tz)
+  try {
+    // By team member, under sales:square: like the sales; who's who is worked out after, so a new link shows straight away.
+    const { data, fetched_at } = await cached(db, `sales:square:tips:${fromIso}:${toIso}`, minutesFor(db, 'takings').then(m => takingsMinutes(toIso, Date.now(), m)), async () => {
+      const s = await squareSession(c.env, db)
+      await square.teamMembers(s.sandbox, s.token)
+      return square.tipsByTeamMember(s.sandbox, s.token, s.locationIds, fromIso, toIso, tz)
+    })
+    const tips: TillTips = { ...emptyTillTips('ok'), ...tipsByPerson(data.byMember, linked, { me, everyone }), currency: data.currency, fetched_at }
+    return c.json(tips)
+  } catch (e) {
+    if (missingScope(e)) return c.json(emptyTillTips('reconnect'))
     return c.json({ error: await failure(db, e) }, 400)
   }
 })

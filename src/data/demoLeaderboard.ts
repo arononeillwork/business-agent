@@ -4,10 +4,12 @@
 // Saturdays; Sofía, in Square but not here, on Sundays). In Square: Aron, Julio and Maria are linked
 // already, Mark is there with his email (Match finds him), Sofía is nobody here, the cleaner isn't in Square.
 // Mirrors the Worker: amounts for owners only, the team sees the board, admins link Square logins.
+// The Tips page's tips on Square come from the same till: each day's tips split the same way.
 import type { Api } from './api'
 import type { Profile, SalesDay, Shift, TimeEntry } from '../../shared/types'
 import type { ChecklistTick } from '../../shared/checklists'
 import { clockStats, emptyTill, type TillBoard } from '../../shared/leaderboard'
+import { emptyTillTips, tipsByPerson, type MemberTips } from '../../shared/tips'
 import { addProblem, suggestLinks, type SquareLink, type SquareMember } from '../../shared/squareTeam'
 import { addDays, dayKey } from '../../shared/time'
 
@@ -25,9 +27,11 @@ interface Who {
   sales: (from: string, to: string) => SalesDay[]
   today: () => string
   nowIso: () => string
+  /** Who's signed in. */
+  me: () => string | null
 }
 
-type LeaderboardApi = Pick<Api, 'leaderboard' | 'leaderboardTill' | 'squareTeam' | 'linkSquareMember' | 'matchSquareMembers' | 'addToSquare'>
+type LeaderboardApi = Pick<Api, 'leaderboard' | 'leaderboardTill' | 'squareTeam' | 'linkSquareMember' | 'matchSquareMembers' | 'addToSquare' | 'tillTips'>
 
 const round2 = (n: number) => Math.round(n * 100) / 100
 
@@ -97,6 +101,27 @@ export function demoLeaderboardApi(w: Who, P: { aron: string; mark: string; juli
         }
       }
       return board
+    },
+    async tillTips(from, to) {
+      staff()
+      if (!w.takingsOnPlan()) return emptyTillTips('plan')
+      if (!w.squareOn()) return emptyTillTips('not_connected')
+      const me = w.me() ?? '', everyone = w.canSeePay()
+      if (!everyone && !links.some(l => l.profile_id === me)) return emptyTillTips('not_linked')
+      const byMember: Record<string, MemberTips> = {}
+      for (const d of w.sales(from, to)) {
+        for (const [member, share] of TILL[dayKey(d.date)]) {
+          const tips = round2(d.tips * share)
+          if (tips <= 0) continue
+          // About one payment in six leaves a tip.
+          const tipped = Math.max(1, Math.round((d.payments * share) / 6))
+          const m = byMember[member] ??= { tips: 0, tipped: 0, days: {} }
+          m.days[d.date] = { tips, tipped }
+          m.tips = round2(m.tips + tips)
+          m.tipped += tipped
+        }
+      }
+      return { ...emptyTillTips('ok'), ...tipsByPerson(byMember, links, { me, everyone }), fetched_at: w.nowIso() }
     },
     async squareTeam() {
       admin()

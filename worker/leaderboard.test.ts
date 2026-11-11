@@ -16,6 +16,7 @@ import { serviceClient } from './supabase'
 import type { Profile } from '../shared/types'
 import { RECONNECT_TEAM, type SquareTeam } from '../shared/squareTeam'
 import type { TillBoard } from '../shared/leaderboard'
+import type { TillTips } from '../shared/tips'
 
 const APP = 'https://app.test'
 const env = {
@@ -107,6 +108,48 @@ describe('who sold most, from Square', () => {
     Object.assign(db.table('business')[0], { country: 'IE', timezone: 'Europe/Dublin' })
     expect((await day()).unlinked).toEqual({ sales: 1, gross: 9 })
     expect((await day()).people).toEqual([{ profile_id: 'staff-1', sales: 2, gross: 15.5 }])
+  })
+})
+
+describe('tips on Square, for the Tips page', () => {
+  const tips = async (token = 'admin-token') => (await (await get('/api/tips/till?from=2026-09-28&to=2026-09-29', token)).json()) as TillTips
+
+  it('the team only, a period that is one, and says why there is nothing', async () => {
+    expect((await leaderboard.request(`${APP}/api/tips/till?from=2026-09-28&to=2026-09-29`, {}, env, ctx())).status).toBe(401)
+    expect((await get('/api/tips/till?from=2026-09-29&to=2026-09-28')).status).toBe(400)
+    db.plan.features = db.plan.features.filter(f => f !== 'takings')
+    expect((await tips()).status).toBe('plan')
+    db.plan.features.push('takings')
+    expect((await tips()).status).toBe('not_connected')
+    await connectSquare()
+    // Julio has no Square login linked yet, so none of the tips are his to see.
+    expect((await tips('staff-token')).status).toBe('not_linked')
+    db.table('square_team_links').push({ profile_id: 'staff-1', team_member_id: 'TM_julio', created_in_square: false })
+    apis.square.teamScope = false
+    expect((await tips()).status).toBe('reconnect')
+  })
+
+  it('each tip counts for whoever took the payment, day by day; owners see everyone and what nobody here took, anyone else their own', async () => {
+    // Aron's €9.00 at 00:30 on the 29th in Madrid left €1.00; Julio refunded a €4.00 payment in full with its €0.80 tip, so that tip is gone.
+    Object.assign(apis.square.payments[2], { tip_money: { amount: 100 } })
+    apis.square.payments.push({ created_at: '2026-09-28T12:00:00Z', status: 'COMPLETED', source_type: 'CARD', team_member_id: 'TM_julio',
+      amount_money: { amount: 400, currency: 'EUR' }, tip_money: { amount: 80 }, refunded_money: { amount: 480 } } as (typeof apis.square.payments)[number])
+    await connectSquare()
+    db.table('square_team_links').push({ profile_id: 'staff-1', team_member_id: 'TM_julio', created_in_square: false })
+    const owner = await tips()
+    expect(owner.status).toBe('ok')
+    // Julio: the €0.50 on his €3.50 at 10:15 on the 28th.
+    expect(owner.people).toEqual([{ profile_id: 'staff-1', tips: 0.5, tipped: 1, days: [{ date: '2026-09-28', tips: 0.5, tipped: 1 }] }])
+    expect(owner.unlinked).toEqual({ tips: 1, tipped: 1 })
+    expect(owner.fetched_at).toBeTruthy()
+    const julio = await tips('staff-token')
+    expect(julio.people).toEqual(owner.people)
+    expect(julio.unlinked).toBeNull()
+    // A shop manager (an admin without pay access) sees only their own, and has no Square login linked.
+    expect((await tips('manager-token')).status).toBe('not_linked')
+    // Linking Aron shows his straight away.
+    db.table('square_team_links').push({ profile_id: 'admin-1', team_member_id: 'TM_aron', created_in_square: false })
+    expect((await tips()).people.map(p => [p.profile_id, p.tips])).toEqual([['admin-1', 1], ['staff-1', 0.5]])
   })
 })
 

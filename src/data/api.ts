@@ -69,7 +69,7 @@ import type { ApplicantCv, PoolInput } from '../../shared/hiring'
 import type { CheckInput, PointInput, SafetyCheck, SafetyPoint } from '../../shared/foodSafety'
 import type { Allergen, Diet, MenuAllergens } from '../../shared/allergens'
 import type { BrandDocument } from '../../shared/brandDocs'
-import type { TipPool, TipPoolInput, TipShare } from '../../shared/tips'
+import type { TillTips, TipPool, TipPoolInput, TipShare } from '../../shared/tips'
 import type { CompetitorData, CompetitorInput, CompetitorNoteInput, CompetitorPrice, CompetitorSettings, NearbyPlace, PriceItem } from '../../shared/localCompetitors'
 import type { SocialReport, SocialSource } from '../../shared/socialAnalytics'
 import type { Creator } from '../../shared/creators'
@@ -815,6 +815,8 @@ export interface Api {
   /** Save a pool (no id: a new one) with its shares, which replace the ones it had; returns its id. */
   saveTipPool(pool: TipPoolInput, shares: TipShare[]): Promise<string>
   deleteTipPool(id: string): Promise<void>
+  /** Tips left on Square over a period (up to three months), by who took each payment (their own Square login): everyone's for owners, your own for anyone else on the team. */
+  tillTips(from: string, to: string): Promise<TillTips>
 
   // Menu (everyone on the team reads; admins change): what customers read about each item. The same
   // items as Menu costing, without their costs.

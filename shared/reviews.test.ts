@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { filterReviews, guessLanguage, isLow, starsOf, suggestedReply, summarise, type Review } from './reviews'
+import { filterReviews, guessLanguage, isLow, sortReviews, starsOf, suggestedReply, summarise, type Review } from './reviews'
 
 const review = (p: Partial<Review>): Review => ({ id: p.id ?? 'r', source: 'google', rating: 5, text: null, reviewer: 'Lucía Pérez',
   created_at: '2026-09-10T10:00:00Z', reply: null, replied_at: null, language: 'es', url: null, ...p })
@@ -45,6 +45,19 @@ describe('reviews', () => {
     expect(filterReviews(list, 'all')).toHaveLength(3)
     expect(isLow({ rating: 3 })).toBe(true)
     expect(isLow({ rating: 4 })).toBe(false)
+  })
+
+  it('sorts: most recent, oldest, best or worst first (newest first among the same stars), leaving the list as it was', () => {
+    const list = [
+      review({ id: 'a', rating: 4, created_at: '2026-09-01T10:00:00Z' }), review({ id: 'b', rating: 1, created_at: '2026-09-20T10:00:00Z' }),
+      review({ id: 'c', rating: 5, created_at: '2026-08-15T10:00:00Z' }), review({ id: 'd', rating: 4, created_at: '2026-09-10T10:00:00Z' }),
+    ]
+    const ids = (s: Parameters<typeof sortReviews>[1]) => sortReviews(list, s).map(r => r.id)
+    expect(ids('newest')).toEqual(['b', 'd', 'a', 'c'])
+    expect(ids('oldest')).toEqual(['c', 'a', 'd', 'b'])
+    expect(ids('best')).toEqual(['c', 'd', 'a', 'b'])
+    expect(ids('worst')).toEqual(['b', 'd', 'a', 'c'])
+    expect(list.map(r => r.id)).toEqual(['a', 'b', 'c', 'd'])
   })
 
   it('suggests a reply in the review’s language: thanks for good ones, an apology and a way to talk for poor ones', () => {
