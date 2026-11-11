@@ -1099,7 +1099,11 @@ export class FakeProviders {
           return json({ gift_card: card })
         }
         if (url.pathname === '/v2/gift-cards/activities' && method === 'GET') {
-          const from = url.searchParams.get('begin_time')!, to = url.searchParams.get('end_time') ?? '9999'
+          // As on Square: a range with a start but no end isn't one.
+          if (url.searchParams.has('begin_time') !== url.searchParams.has('end_time')) {
+            return json({ errors: [{ category: 'INVALID_REQUEST_ERROR', code: 'BAD_REQUEST', detail: 'Time range provided is not valid.' }] }, 400)
+          }
+          const from = url.searchParams.get('begin_time') ?? '', to = url.searchParams.get('end_time') ?? '9999'
           const card = url.searchParams.get('gift_card_id'), type = url.searchParams.get('type')
           return json({ gift_card_activities: sq.giftActivities.filter(a => a.created_at >= from && a.created_at < to
             && (!card || a.gift_card_id === card) && (!type || a.type === type)) })

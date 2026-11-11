@@ -69,7 +69,7 @@ async function syncRep(db: SupabaseClient, s: Session, rep: Rep, locationId: str
   // 1. Spent at the till since the last look: credit used (each once, by Square's id for it).
   if (rep.square_gift_card_id) {
     const since = new Date(Date.parse(rep.square_synced_at ?? now.toISOString()) - LOOK_BACK_MS).toISOString()
-    const found = (await squareLoyalty.cardRedemptions(s.sandbox, s.token, rep.square_gift_card_id, since)).filter(a => a.amount > 0)
+    const found = (await squareLoyalty.cardRedemptions(s.sandbox, s.token, rep.square_gift_card_id, since, now.toISOString())).filter(a => a.amount > 0)
     const { data: had } = found.length
       ? await db.from('rep_rewards').select('square_activity_id').in('square_activity_id', found.map(a => a.id))
       : { data: [] }
