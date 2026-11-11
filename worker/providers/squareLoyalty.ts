@@ -244,9 +244,12 @@ export async function creditGiftCard(sandbox: boolean, token: string,
   return r.gift_card_activity.id
 }
 
-/** What was spent with a card at the till since an instant (its REDEEM activities), oldest first. */
-export async function cardRedemptions(sandbox: boolean, token: string, cardId: string, sinceIso: string) {
-  const q = new URLSearchParams({ gift_card_id: cardId, type: 'REDEEM', begin_time: sinceIso, limit: '100', sort_order: 'ASC' })
+/**
+ * What was spent with a card at the till between two instants (its REDEEM activities), oldest first.
+ * Square wants both ends of the range: a start alone is "Time range provided is not valid".
+ */
+export async function cardRedemptions(sandbox: boolean, token: string, cardId: string, sinceIso: string, untilIso = new Date().toISOString()) {
+  const q = new URLSearchParams({ gift_card_id: cardId, type: 'REDEEM', begin_time: sinceIso, end_time: untilIso, limit: '100', sort_order: 'ASC' })
   const r = await squareApi<{ gift_card_activities?: SquareActivity[] }>(sandbox, token, `/v2/gift-cards/activities?${q}`)
   return (r.gift_card_activities ?? []).filter(a => a.type === 'REDEEM')
     .map(a => ({ id: a.id, amount: euros(a.redeem_activity_details?.amount_money), at: a.created_at }))
