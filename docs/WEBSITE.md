@@ -132,6 +132,78 @@ link can send unsubscribes (a change in the website's own repository). A list fr
 on Website & SEO from a CSV (another newsletter service's export, or the website's own: only people
 still subscribed).
 
+## The business's details and opening hours
+
+```
+GET https://businesssagent.com/api/site/<business>/details
+```
+
+Where the business is, how to reach it, its social accounts and when it's open, with the days it's
+closed on its Calendar: what the Business and Opening hours pages say. Change them there and the website
+shows it within a few minutes, the same as Google Maps, which is sent the same hours and closures. As the
+menu: no sign-in, any site may read it (CORS is open), kept a minute (`Cache-Control: public, max-age=60`),
+`404` until an admin turns on **Share your details with the website** on Website & SEO
+(`settings.website_details`) and for a number that's no business, `503` when it can't be read just then
+(keep showing the last you had).
+
+What comes back (`SiteDetailsFeed` in `shared/websiteDetails.ts`):
+
+```jsonc
+{
+  "version": 1,
+  "business": { "id": 1, "name": "Easy Beans Coffee" },
+  "address": "C. Pizarro 8, 29670 San Pedro de Alcántara, Málaga",
+  "address_lines": ["C. Pizarro 8", "29670 San Pedro de Alcántara", "Málaga"],   // as typed, between commas
+  "maps_url": "https://www.google.com/maps/search/?api=1&query=…",
+  "phone": "+34 952 000 000",
+  "whatsapp": "+34 695 415 335", "whatsapp_url": "https://wa.me/34695415335",
+  "email": "easybeanscafe@gmail.com",
+  "website": "https://www.easybeanscoffee.com",
+  "social": {
+    "instagram": { "handle": "easy.beans.coffee", "url": "https://www.instagram.com/easy.beans.coffee" },
+    "tiktok": { "handle": "easybeanscoffee", "url": "https://www.tiktok.com/@easybeanscoffee" }
+  },
+  "timezone": "Europe/Madrid",                     // the hours and dates are the business's
+  "hours": {                                       // the usual week, Monday first; null: closed that day
+    "mon": { "open": "08:00", "close": "15:00" }, "tue": { … }, "wed": { … }, "thu": { … }, "fri": { … },
+    "sat": { "open": "09:00", "close": "15:00" }, "sun": null
+  },
+  "closures": [                                    // from today, up to 120 days ahead
+    { "from": "2026-12-24", "to": "2026-12-25", "reason": "Closed for Christmas" }
+  ],
+  "days": [                                        // the next 14 days, closures applied: for "open now" and ordering
+    { "date": "2026-12-24", "day": "thu", "open": null, "close": null, "closed_reason": "Closed for Christmas" }
+  ],
+  "generated_at": "2026-12-21T09:00:00Z"
+}
+```
+
+- A field the business hasn't filled in is `null` (or `[]`): the website leaves that line out.
+- `closures` are the Calendar's business events that close it ("Closed…", "Cerrado…"), and public holidays when
+  the Opening hours page says it closes on them: what Google Maps gets (`shared/closures.ts`).
+- WhatsApp and TikTok are on the Business page (Contact), next to the phone and Instagram.
+- Easy Beans' details were filled in from what its website showed before, where the app had none.
+
+## A new business's website
+
+Everything here is per business: its number is in each address (`/api/site/<business>/…`), and each
+business turns on what its website uses, with its own website key. A new business needs nothing from
+Business Agent itself, only its owner or a shop manager on **Website & SEO**:
+
+1. **The menu:** turn on **Share the menu with the website**.
+2. **Its details and opening hours:** fill in the Business page's Contact (address, phone, WhatsApp, email,
+   Instagram, TikTok) and the Opening hours page, then turn on **Share your details with the website**.
+   Closures go on the Calendar ("Closed for…"), and Google Maps gets the same if it's connected; its
+   listing's own Maps link is the one the website gets.
+3. **Newsletter sign-ups:** turn them on and set the topics; **Make a website key** for its website's
+   server.
+4. **Accounts & rewards:** turn on **Website accounts** (it uses the same website key).
+
+Its website then reads `GET /api/site/<business>/menu` and `/details` (from its pages or its server), and
+its server sends sign-ups and accounts with the key. Each address on Website & SEO already has the
+business's number in it. Easy Beans' website (its own repository) reads its number from one setting,
+`BUSINESS_AGENT_BUSINESS`, so a site built from it for another business changes only that.
+
 ## Next
 
 The same way, as they're needed: opening hours, the business's details, today's offers (Last day

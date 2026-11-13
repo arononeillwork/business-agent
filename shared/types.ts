@@ -29,6 +29,9 @@ export interface Business {
   instagram: string | null
   /** The business's website (https://…), when it has one. Search Console is matched to it. */
   website?: string | null
+  /** The number people message on WhatsApp ("+34 600 000 000"), and its TikTok without the @: on its website (the website_details migration). */
+  whatsapp?: string | null
+  tiktok?: string | null
   timezone: string
   /** Where it is: Spain or Ireland (the country migration). Its rules, labels and holidays follow it. */
   country?: 'ES' | 'IE'
@@ -120,6 +123,8 @@ export interface Settings {
   routine_on_calendar?: boolean
   /** The business's own website reads the menu from the app (/api/site/<business>/menu; off unless an admin turns it on on Website & SEO). */
   website_menu?: boolean
+  /** The business's own website reads its address, contacts and opening hours from the app (/api/site/<business>/details; off unless an admin turns it on on Website & SEO). */
+  website_details?: boolean
   /** How often each outside service is read, in minutes, as an admin chose on Connections (shared/refresh.ts); kept to what the plan allows. */
   refresh_minutes?: import('./refresh').RefreshChoices
 }

@@ -27,6 +27,7 @@ import { DAY_KEYS, type DayKey } from '../../shared/types'
 import { tokens } from '../theme'
 import { msg, t, tc } from '../i18n'
 import { NewsletterCard } from './NewsletterCard'
+import { DetailsOnWebsite } from './DetailsOnWebsite'
 
 const LEVEL: Record<CheckLevel, { icon: ReactNode; fg: string; bg: string; label: string }> = {
   pass: { icon: <PassIcon fontSize="small" />, fg: tokens.goodFg, bg: tokens.goodBg, label: msg('Fine') },
@@ -99,6 +100,8 @@ export function WebsitePage() {
       {w?.website && <SitePreview url={w.website} />}
 
       <MenuOnWebsite />
+
+      <DetailsOnWebsite />
 
       <NewsletterCard />
 
