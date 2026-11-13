@@ -4,6 +4,7 @@
 //   npm run render:day && npm run web:day    a day in life   out/day-master.mp4     → public/video/day-in-the-life.*
 //   npm run render:owner && npm run web:owner  one place     out/owner-master.mp4   → public/video/run-your-cafe.*
 //   npm run render:say && npm run web:say      just say it   out/say-master.mp4     → public/video/just-say-it.*
+//   npm run render:waste && npm run web:waste  food waste    out/waste-master.mp4   → public/video/food-waste.*
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -14,6 +15,7 @@ const VIDEOS = {
   day: { master: 'day-master.mp4', name: 'day-in-the-life', poster: 103.5 },           // the two days side by side
   owner: { master: 'owner-master.mp4', name: 'run-your-cafe', poster: 9.0 },             // Today and the advisor in the middle, everything round them
   say: { master: 'say-master.mp4', name: 'just-say-it', poster: 25.0 },                   // the typed request, Business Agent called, the answer
+  waste: { master: 'waste-master.mp4', name: 'food-waste', poster: 59.0 },                // the banana bread's offer on the café TV
 }
 const which = VIDEOS[process.argv[2] ?? 'landing']
 if (!which) throw new Error(`Which video? ${Object.keys(VIDEOS).join(', ')}`)

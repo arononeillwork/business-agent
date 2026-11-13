@@ -90,6 +90,36 @@ npm run music:say
 npm run render:say && npm run web:say
 ```
 
+## Don't bin it. Sell it.
+
+The fifth video (`public/video/food-waste.mp4`, 90 seconds, `WasteVideo` in `src/waste/`), played on the Sales
+page's food waste card (`/sell/cafes`, its `film` in `src/pages/marketing/salesPlaybook.ts`): food waste, and how
+the app turns it into sales. Easy Beans in demo mode, with its sample data.
+
+| Time | Scene | What it shows |
+|---|---|---|
+| 0:00 | The title | "Don't bin it. Sell it." |
+| 0:04 | Closing time | 18:00, what's left on the counter (banana bread, pain au chocolat, croissants) goes in the bin: €33,40 tonight |
+| 0:18 | 1 Log it once | Stock → Freshly made → Record a batch: banana bread × 12, keeps 3 days, 50% off from a day before the end, on the screens. Recorded, with its offer |
+| 0:38 | Two days later | The calendar turns to Friday; nobody touches a thing; on its last day it's on offer by itself |
+| 0:44 | 2 On offer by itself | Its card says "On offer now: 50% off", and Offers & specials has it live, €2,00 instead of €4,00, on the counter TV |
+| 0:56 | 3 On the café TV | The TV's own recording: the banana bread's offer in its slideshow |
+| 1:08 | Sold, not binned | The same tray without the app (7 sold, 5 in the bin, €28,00) and with it (the 5 sold at half price, €38,00): +€10,00 from one tray |
+| 1:22 | The close | The brand |
+
+The app's scenes are recorded by `capture/waste.mjs`: off camera, banana bread goes on the menu at €4,00 (so its
+offer has a price to cross out) and the demo's sample batches are sold out (so the counter has only the new one);
+then the batch is logged on camera, and the page's clock is moved on two days (Playwright's clock), nothing else.
+The TV is the window slideshow's own screen link, recorded full screen after the same steps. Closing time, the
+calendar and the two trays are drawn, with the demo's prices. Its music, a clock under closing time and the days
+going by, is `music/waste.py`.
+
+```bash
+npm run capture:waste                # the app's scenes for it (the dev server running)
+npm run music:waste
+npm run render:waste && npm run web:waste
+```
+
 Everything is made here from scratch, so it can be made again whenever the app changes, and in Spanish.
 
 ## How it's made

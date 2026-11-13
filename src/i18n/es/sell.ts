@@ -24,6 +24,7 @@ export default {
   'Each problem has a short film. Then offer the free trial: the Free plan, or {n} months of Business on us.':
     'Cada problema tiene un vídeo corto. Después ofrece la prueba gratuita: el plan Free, o {n} meses de Business por nuestra cuenta.',
   'Film coming soon': 'Vídeo próximamente',
+  '{title}, video': '{title}, vídeo',
   'The owner says': 'El dueño dice',
   'What The Business Agent does': 'Qué hace The Business Agent',
   'What they get': 'Qué consiguen',

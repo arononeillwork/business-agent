@@ -2455,7 +2455,14 @@ test('sales page: pick a business type, then its pain points with what the app d
   await expect(food).toContainText('50% off')
   await expect(food).toContainText('Make money')
   await expect(food).toContainText('Freshly made')
-  await expect(food.getByText('Film coming soon')).toBeVisible()
+  // Its film plays on its card (made in video/, src/waste); the others wait for theirs.
+  for (const file of ['public/video/food-waste.mp4', 'public/video/food-waste.jpg']) expect(readFileSync(file).length).toBeGreaterThan(10_000)
+  const film = food.getByLabel('Food waste: from shelf life to 50% off on the screen, video')
+  await expect(film).toHaveAttribute('src', '/video/food-waste.mp4')
+  await expect(film).toHaveAttribute('poster', '/video/food-waste.jpg')
+  expect((await page.request.get('/video/food-waste.mp4')).ok()).toBe(true)
+  await expect(food.getByText('Film coming soon')).toHaveCount(0)
+  await expect(page.getByRole('article', { name: 'Customers who never come back' }).getByText('Film coming soon')).toBeVisible()
   await expect(page.getByRole('article', { name: 'The working-hours record' })).toContainText('Stay legal')
   // The cheat sheet at the top lists each problem under what it's mainly about, and links to its card.
   const glance = page.getByRole('region', { name: 'Selling points at a glance' })

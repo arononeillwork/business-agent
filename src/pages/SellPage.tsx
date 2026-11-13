@@ -50,8 +50,17 @@ function WinTag({ win }: { win: Win }) {
   )
 }
 
-/** A place for the film that shows a problem solved, until it's made. */
-function FilmPlaceholder({ title }: { title: string }) {
+/** The film that shows a problem solved (it loads only when played), or a place for it until it's made. */
+function FilmPlaceholder({ title, film }: { title: string; film?: PainPoint['film'] }) {
+  if (film) {
+    return (
+      <Box component="figure" sx={{ m: 0, display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <Box component="video" src={film.src} poster={film.poster} controls playsInline preload="none" aria-label={t('{title}, video', { title: t(title) })}
+          sx={{ display: 'block', width: '100%', aspectRatio: '16 / 9', borderRadius: '16px', bgcolor: BA.tint, objectFit: 'cover' }} />
+        <Typography component="figcaption" sx={{ color: BA.soft, fontSize: '0.92rem', mt: 1, lineHeight: 1.45 }}>{t(title)}</Typography>
+      </Box>
+    )
+  }
   return (
     <Box component="figure" sx={{ m: 0, display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Box sx={{ position: 'relative', aspectRatio: '16 / 9', borderRadius: '16px', bgcolor: BA.tint, border: `1.5px dashed ${BA.limewash}`, display: 'grid', placeItems: 'center' }}>
@@ -95,7 +104,7 @@ function PainCard({ point, n }: { point: PainPoint; n: number }) {
           ))}
         </Stack>
       </Stack>
-      <FilmPlaceholder title={point.video} />
+      <FilmPlaceholder title={point.video} film={point.film} />
     </Box>
   )
 }
