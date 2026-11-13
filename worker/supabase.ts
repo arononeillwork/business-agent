@@ -78,7 +78,8 @@ export interface Env {
   CAMERA_FTP_HOST?: string            // the address cameras send to (its own name when not set)
 }
 
-export type Via = 'app' | 'api' | 'ai'
+/** Who a change was made through, for the audit log: the app, the REST API, the AI connector, or the business's website (its accounts). */
+export type Via = 'app' | 'api' | 'ai' | 'website'
 
 /**
  * A Supabase client that acts as the signed-in person (their JWT), so row-level security and
@@ -134,12 +135,13 @@ const SHARED_TABLES = new Set(['plan_limits', 'pay_per_use'])
  * header (current_business_id() in the database). `where id = 1` on a settings table still means
  * this business's row.
  */
-export function businessDb(env: Env, businessId: number): BusinessDb {
+export function businessDb(env: Env, businessId: number, via?: Via): BusinessDb {
   if (!env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set')
   if (!Number.isInteger(businessId) || businessId <= 0) throw new Error('No business to act for')
   const db = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { 'x-business-id': String(businessId) } },
+    // via: what the audit log says it was done through (request_via() in the database); the app's when not said.
+    global: { headers: { 'x-business-id': String(businessId), ...(via ? { 'x-app-via': via } : {}) } },
   })
   const from = db.from.bind(db)
   db.from = ((table: string) => {

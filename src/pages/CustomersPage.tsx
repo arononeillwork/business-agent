@@ -148,7 +148,7 @@ export function CustomersPage() {
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(c) } }}
                     sx={{ cursor: 'pointer', '&:last-child td': { borderBottom: 0 }, '&:focus-visible': { outline: `2px solid ${tokens.roseDeep}`, outlineOffset: -2 } }}>
                     <TableCell sx={{ ...cell, maxWidth: { xs: 190, sm: 220 } }}>
-                      <Typography sx={{ fontWeight: 500 }} noWrap>{c.first_name || (c.last_name ? '' : c.company) || '—'}</Typography>
+                      <Typography sx={{ fontWeight: 500, ...(c.erased_at ? { color: 'text.secondary' } : {}) }} noWrap>{c.first_name || (c.last_name ? '' : c.company) || (c.erased_at ? t('Erased') : '—')}</Typography>
                       {/* What the hidden columns would show comes under it: the surname on a phone, the company, and on a phone the email or phone. */}
                       {c.last_name && <Typography noWrap sx={{ fontWeight: 500, display: { xs: 'block', sm: 'none' } }}>{c.last_name}</Typography>}
                       {c.company && c.company !== c.first_name && (
