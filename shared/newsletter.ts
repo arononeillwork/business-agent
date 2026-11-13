@@ -141,11 +141,7 @@ export function readSignup(body: Record<string, unknown>, interests: NewsletterI
   if (rawPhone && !phone) return { problem: 'invalidPhone' }
   let first = text(body.first_name, 100), last = text(body.last_name, 100)
   const name = text(body.name, 200)
-  if (name && !first && !last) {
-    const parts = name.split(/\s+/)
-    first = parts[0].slice(0, 100)
-    last = parts.slice(1).join(' ').slice(0, 100) || null
-  }
+  if (name && !first && !last) ({ first, last } = splitName(name))
   const lang = typeof body.lang === 'string' ? body.lang.trim().toLowerCase().slice(0, 2) : ''
   const picked = matchInterests(body.interests, interests)
   return {
@@ -156,6 +152,12 @@ export function readSignup(body: Record<string, unknown>, interests: NewsletterI
       at: trusted ? signedUpAt(body.signed_up_at) : null,
     },
   }
+}
+
+/** A whole name in two: the first word, and the rest ("Lucía García López" → Lucía, García López). */
+export function splitName(name: string): { first: string | null; last: string | null } {
+  const parts = name.trim().split(/\s+/)
+  return { first: parts[0]?.slice(0, 100) || null, last: parts.slice(1).join(' ').slice(0, 100) || null }
 }
 
 /** A date or a time someone signed up ("2026-10-17", "2026-10-17T09:30:00Z", "17/10/2026"); null when it isn't one or is still to come. */

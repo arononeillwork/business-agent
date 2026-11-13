@@ -123,6 +123,8 @@ export interface Settings {
   routine_on_calendar?: boolean
   /** The business's own website reads the menu from the app (/api/site/<business>/menu; off unless an admin turns it on on Website & SEO). */
   website_menu?: boolean
+  /** People signed in on the business's website read their points, credit and rewards from the app (/api/site/<business>/account/*; off unless an admin turns it on on Website & SEO). */
+  website_accounts?: boolean
   /** The business's own website reads its address, contacts and opening hours from the app (/api/site/<business>/details; off unless an admin turns it on on Website & SEO). */
   website_details?: boolean
   /** How often each outside service is read, in minutes, as an admin chose on Connections (shared/refresh.ts); kept to what the plan allows. */
@@ -166,9 +168,15 @@ export interface Customer {
   last_contacted_at: string | null
   created_at: string
   updated_at: string
+  /** The language they use the business's website in ("es"), as the website says (website accounts). */
+  lang?: string | null
+  /** The rep whose code they signed up with on the website. */
+  introduced_by?: string | null
+  /** Erased at their request from the website (GDPR): their details are gone, the row stays for the reps ledger. */
+  erased_at?: string | null
 }
 /** What the app writes: everything but what the database keeps itself. */
-export type CustomerInput = Partial<Omit<Customer, 'consent_at' | 'created_at' | 'updated_at'>>
+export type CustomerInput = Partial<Omit<Customer, 'consent_at' | 'created_at' | 'updated_at' | 'erased_at' | 'introduced_by'>>
 
 /** A message or update the app has sent (or is sending) to an outside service. */
 export interface OutboxItem {

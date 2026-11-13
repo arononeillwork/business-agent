@@ -81,6 +81,8 @@ const MENU_IMAGE_COLUMNS = 'id, design_id, item_id, url, source, model, prompt, 
 const TRACK_COLUMNS = 'id, source, title, artist, url, duration_s, bpm, energy, moods, genre, vocals, highlight_s, waveform, licence, saved, hidden, created_at'
 
 const CUSTOMER_COLUMNS = 'id, kind, first_name, last_name, email, phone, company, source, instagram, birthday, tags, notes, marketing_consent, consent_at, last_contacted_at, created_at, updated_at'
+/** What a website account adds to a customer (the site_accounts migration). */
+const CUSTOMER_SITE_COLUMNS = 'lang, introduced_by, erased_at'
 const REP_COLUMNS = 'id, name, kind, profile_id, customer_id, code, instagram, phone, email, notes, active, created_at, created_by, categories'
 const REP_REACH_COLUMNS = 'tiktok, youtube, facebook, instagram_followers, tiktok_followers, youtube_followers, facebook_followers, community, reach, picture_url, followers_checked_at, leader_id, approved'
 const REWARD_COLUMNS = 'id, rep_id, kind, rule_id, label, sale_amount, amount, status, proof_url, mention_id, note, occurred_on, logged_by, created_at, bonus_for, multiplier, introduction_id, source, months, counts_from, reverses'
@@ -1259,7 +1261,7 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
     async deleteClip(id) { await worker(`/api/cameras/clips/${encodeURIComponent(id)}`, { method: 'DELETE' }) },
 
     async customers() {
-      return check(await sb.from('customers').select(CUSTOMER_COLUMNS).order('created_at', { ascending: false })) as Customer[]
+      return check(await sb.from('customers').select(`${CUSTOMER_COLUMNS}, ${CUSTOMER_SITE_COLUMNS}`).order('created_at', { ascending: false })) as Customer[]
     },
     async saveCustomer({ id, ...patch }) {
       if (id) check(await sb.from('customers').update(patch).eq('id', id))

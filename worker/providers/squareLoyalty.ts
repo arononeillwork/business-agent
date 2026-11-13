@@ -56,6 +56,13 @@ export async function accounts(sandbox: boolean, token: string): Promise<SquareL
   return out
 }
 
+/** One customer's account in the programme (Square has one per customer at most), or null when they aren't in it. */
+export async function accountOf(sandbox: boolean, token: string, customerId: string): Promise<SquareLoyaltyAccount | null> {
+  const r = await squareApi<{ loyalty_accounts?: SquareLoyaltyAccount[] }>(sandbox, token, '/v2/loyalty/accounts/search',
+    { query: { customer_ids: [customerId] }, limit: 1 })
+  return r.loyalty_accounts?.find(a => a.customer_id === customerId) ?? r.loyalty_accounts?.[0] ?? null
+}
+
 interface SquareLoyaltyEvent {
   id: string; type: string; created_at: string; loyalty_account_id: string
   accumulate_points?: { points?: number }; adjust_points?: { points?: number; reason?: string }

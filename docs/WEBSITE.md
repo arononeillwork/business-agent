@@ -132,6 +132,121 @@ link can send unsubscribes (a change in the website's own repository). A list fr
 on Website & SEO from a CSV (another newsletter service's export, or the website's own: only people
 still subscribed).
 
+## Accounts & rewards
+
+Someone who signs in on the business's website is a customer here, and the website's account page reads
+what they have from the app rather than from Square or its own copy: their **points** (Square Loyalty, read
+by the app), their **credit** (the reps ledger, the same balance their rep page shows), how a post about the
+café **earns cashback**, and their **code** if they're a rep. Deleting their account on the website
+**erases** them here. Each business turns it on on Website & SEO → **Accounts & rewards on your website**
+(`settings.website_accounts`, off until then). `shared/siteAccount.ts` has the types; `worker/siteAccount.ts`
+the routes; the `site_accounts` migration the work.
+
+```
+POST https://businesssagent.com/api/site/<business>/account/sync
+POST https://businesssagent.com/api/site/<business>/account/summary
+POST https://businesssagent.com/api/site/<business>/account/erase
+Authorization: Bearer nl_…            // the website key, as for the newsletter
+Content-Type: application/json
+```
+
+For every one of them:
+
+- **Only the website's server.** The website key is required: no key, or a wrong one (another business's
+  included), is `401`; there's no keyless way in. No CORS headers on any answer, and `OPTIONS` (or anything
+  but `POST`) is `405`: a browser must never call these. Nothing is kept by a cache (`no-store`).
+- **The email is only in the body**, trimmed and lowercased, at most 254 characters; never in the address.
+  The app logs what happened, never who: no address in its logs or in the errors kept for HQ.
+- **`"email_verified": true`** says the website checked the address itself (its own sign-in). Missing or
+  false is `403`.
+- Off, or a number that's no business, is `404` (the same answer either way, as for the menu).
+- Amounts are plain numbers in the business's currency; dates are `YYYY-MM-DD`.
+- 120 calls a minute per business (counted with its key), then `429` with `Retry-After: 60`.
+- Only the named person's rows: never other customers, never their crew members' names.
+
+| Status | When |
+| ------ | ---- |
+| 400 | a body that isn't one (`{ "error", "fields": [...] }`) |
+| 401 | no website key, or the wrong one |
+| 403 | `email_verified` isn't `true` |
+| 404 | the business doesn't share accounts with a website (off, or no such business) |
+| 429 | over the limit |
+| 503 | the database or Square couldn't be read just then |
+
+### Sync: on first sign-in and each profile edit
+
+```jsonc
+{ "email": "ana@example.com", "email_verified": true,
+  "name": "Ana García",                 // or "first_name" and "last_name"
+  "phone": "+34 600 000 000",           // without a country code, the business's country's
+  "square_customer_id": "CBASEN…",      // their Square customer, when the website knows it
+  "lang": "es",
+  "rep_code": "NATASH15" }              // the rep's code they signed up with, if any
+```
+
+`200 { "customer_id": "…", "created": true, "is_rep": false, "ignored": [] }`
+
+- Found as Square's own customers are (`worker/squareCustomers.ts`): by Square id, then email, then phone,
+  never a customer with another email. Someone new is a customer **from the website**. What's typed in the
+  app wins: only empty fields are filled (the Square id too, when it's free). Saying the same again changes
+  nothing (`created: false`).
+- **Marketing consent is never touched**: signing in isn't a yes. The newsletter is still `/signup`.
+- `rep_code`: someone new who signed up with an active rep's code is noted as introduced by that rep, and
+  the business's admins are told, to log the rep's reward once they've come in (nothing is credited by
+  itself). An unknown code is ignored without saying so.
+- `ignored` lists what was sent but not kept: `"phone"` (not a phone number), `"square_customer_id"` (on
+  someone else already, or they're linked to another).
+
+### Summary: the account page
+
+`{ "email": "…", "email_verified": true }` →
+
+```jsonc
+{
+  "customer": { "id": "…", "first_name": "Ana" },
+  "points": {                                  // null: Square isn't the till, no programme, or not a member
+    "program": { "one": "Bean", "other": "Beans", "tiers": [{ "id": "…", "name": "Free coffee", "points": 10 }] },
+    "balance": 7, "lifetime": 23
+  },
+  "credit": {                                  // null: not a rep (no ledger)
+    "balance": 1.25,                           // what's approved: the same as their rep page
+    "pending": 0.4,                            // waiting for an admin
+    "gift_card_linked": true,                  // spent at the till with the gift card on file
+    "lines": [{ "date": "2026-07-11", "label": "Cashback for a post", "amount": 0.47, "status": "approved",
+                "note": "863 views · 20 likes" }]   // the last 20, newest first; spent and paid out as negatives
+  },
+  "cashback": { "on": true, "per_1000_views": 0.5, "per_100_likes": 0.2, "per_follower": 0.1, "max": 15 },  // null: off
+  "rep": {                                     // null unless an active rep with the business's OK
+    "code": "NATASH15", "kind": "customer", "earns": "credit",
+    "reach": 0, "reach_step": "Local voice", "reach_step_id": "local", "multiplier": 1,
+    "crew": { "leads": false, "members": 0 }, "this_month": 0.47
+  }
+}
+```
+
+- `{ "customer": null }` alone: the email isn't on Customers (call sync).
+- Points are read from Square for that one customer and kept 15 minutes (the programme 30); goodwill points
+  given on the Loyalty page show straight away. Square failing is `503`, so the website hides the card
+  rather than show no points. Joining the programme stays at the till.
+- A line's `note` is only the app's own (a post's views and likes, a spend at the till), never the team's;
+  a crew bonus says "Crew bonus" without the crew member's name. Never their rep page's link.
+
+### Erase: deleting the account on the website
+
+`{ "email": "…", "email_verified": true }` → `200 { "erased": true, "kept": "ledger" | null, "found": true }`
+
+- No ledger lines: they're deleted (with their newsletter record, and a customer rep row with nothing on it).
+  `kept: null`.
+- Ledger lines (accounting): the row stays, blanked: name, email, phone, birthday, notes, Instagram, company,
+  tags and Square id gone, no yes to marketing (unsubscribed), their newsletter record gone; their customer
+  rep row switched off and blanked the same way, its link gone. Ids, ledger lines and amounts stay.
+  `kept: "ledger"`. Customers shows the row as *Erased*. Someone on the team or an ambassador linked to them
+  is only unlinked.
+- Their details are taken out of the audit log's copies too, and the erasing is logged there as done via the
+  website, without them. Their kept points go.
+- `found: false`: nobody with that email (it's still `200`: they aren't here).
+- Square's own customer directory isn't changed: the till's record is the business's to delete there.
+
 ## The business's details and opening hours
 
 ```
@@ -208,3 +323,9 @@ business's number in it. Easy Beans' website (its own repository) reads its numb
 
 The same way, as they're needed: opening hours, the business's details, today's offers (Last day
 offers) and the menu's allergens in full.
+
+Easy Beans' website still reads these from elsewhere, to move here one at a time, each a feed of its own like
+the menu: the café's details and opening hours (Google Places and its own text today), its offers (its own
+text), reviews and rating (Google Places), the Instagram feed (Instagram directly) and the menu's prices and
+what's sold out (Square's catalog; the menu feed has the prices already). Checkout and payment stay with
+Square.
