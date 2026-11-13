@@ -78,14 +78,14 @@ export default {
   'What does a flat white really cost?': '¿Cuánto cuesta de verdad un flat white?',
 
   // Cafés: reviews
-  'Reviews and the Google listing': 'Reseñas y la ficha de Google',
+  'Google reviews & opening hours': 'Reseñas de Google y horario',
   '“Reviews pile up and I never answer them. Google still has the wrong opening hours.”':
     '«Las reseñas se acumulan y nunca las contesto. Google sigue con el horario equivocado.»',
   'Every review in one place, with a suggested reply written for the owner, and the Google listing kept right by itself: opening hours, holidays and closures update it as they change.':
     'Todas las reseñas en un solo sitio, con una respuesta sugerida para el dueño, y la ficha de Google siempre al día sola: el horario, los festivos y los cierres la actualizan cuando cambian.',
   'People choosing where to go on their phone find a café that looks open, looked after and well reviewed.':
     'Quien elige dónde ir desde el móvil encuentra una cafetería que se ve abierta, cuidada y bien valorada.',
-  'Every review answered in a minute': 'Cada reseña contestada en un minuto',
+  'Right on Google: opening hours and reviews': 'Al día en Google: horario y reseñas',
 
   // Cafés: social media
   'Instagram and TikTok never get posted': 'Instagram y TikTok nunca se publican',

@@ -81,11 +81,12 @@ const CAFES: PainPoint[] = [
   },
   {
     id: 'reviews', wins: ['money'], pages: [msg('Reviews'), msg('Opening hours'), msg('Website & SEO')],
-    title: msg('Reviews and the Google listing'),
+    title: msg('Google reviews & opening hours'),
     says: msg('“Reviews pile up and I never answer them. Google still has the wrong opening hours.”'),
     fix: msg('Every review in one place, with a suggested reply written for the owner, and the Google listing kept right by itself: opening hours, holidays and closures update it as they change.'),
     result: msg('People choosing where to go on their phone find a café that looks open, looked after and well reviewed.'),
-    video: msg('Every review answered in a minute'),
+    video: msg('Right on Google: opening hours and reviews'),
+    film: { src: '/video/google-listing.mp4', poster: '/video/google-listing.jpg' },
   },
   {
     id: 'social', wins: ['money', 'time'], pages: [msg('Social planner'), msg('Content')],

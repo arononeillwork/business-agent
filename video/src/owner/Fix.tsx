@@ -16,8 +16,9 @@ import { InstagramIcon, MapsHours, MapsIcon, MapsMenu, MapsReview, PrintedMenu, 
 
 const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const
 
-interface ChapterProps {
-  n: number; label: string; len: number; src: string; meta: ClipMeta; segs: Segment[]; keys: CamKey[]; url: (frame: number) => string
+export interface ChapterProps {
+  /** The step, "n of `of`" (4 here; another video's chapters can count their own). */
+  n: number; of?: number; label: string; len: number; src: string; meta: ClipMeta; segs: Segment[]; keys: CamKey[]; url: (frame: number) => string
   /** The headline over the window, from frame `from` on. */
   captions: { from: number; title: ReactNode }[]
   everywhere: ReactNode; change: { title: string; value: string }; places: Place[]
@@ -25,7 +26,7 @@ interface ChapterProps {
   height?: number
 }
 
-function Chapter({ n, label, len, src, meta, segs, keys, url, captions, everywhere, change, places, height }: ChapterProps) {
+export function Chapter({ n, of = 4, label, len, src, meta, segs, keys, url, captions, everywhere, change, places, height }: ChapterProps) {
   const frame = useCurrentFrame()
   const W = lengthOf(segs)
   const win = useEnter(2, 200)
@@ -55,7 +56,7 @@ function Chapter({ n, label, len, src, meta, segs, keys, url, captions, everywhe
           {places.map((_, i) => <Sfx key={i} name="pop" at={20 + i * 10} volume={0.28} />)}
           {places.map((_, i) => <Sfx key={`p${i}`} name="ping" at={30 + i * 10} volume={0.12} />)}
         </Sequence>
-        <Step n={n} label={label} at={0} />
+        <Step n={n} of={of} label={label} at={0} />
       </AbsoluteFill>
       {clicksOf(meta, segs).map((f, i) => <Sfx key={i} name="click" at={f} volume={0.28} />)}
       <Sfx name="whoosh" at={W - 10} volume={0.22} />

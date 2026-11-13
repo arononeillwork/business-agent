@@ -120,6 +120,31 @@ npm run music:waste
 npm run render:waste && npm run web:waste
 ```
 
+## Right on Google.
+
+The sixth video (`public/video/google-listing.mp4`, 72 seconds, `ListingVideo` in `src/listing/`), played on the
+Sales page's Google reviews & opening hours card: the café's opening hours and its reviews, each changed once in
+the app, and Google Maps and the website following. Its two chapters are made as the owner video's are (its
+`Chapter`, `MapsHours`, `WebsiteHours` and `MapsReview`), from recordings of their own.
+
+| Time | Scene | What it shows |
+|---|---|---|
+| 0:00 | The title | "Right on Google. Every time." |
+| 0:04 | Sunday, 15:30 | Google Maps on a phone says open until four, as the hours were; the door says closed; Tom's two-star review has no reply |
+| 0:16 | 1 Opening hours | Sunday closes at 15:00, saved once, Google Maps kept in step → Google Maps and the website, "Updated" |
+| 0:34 | 2 Reviews | Tom's review, the reply drafted in his language, posted → Google Maps, "Response from the owner" |
+| 0:52 | The listing, right | The same phone: closed when it says, the review answered |
+| 1:04 | The close | The brand |
+
+The app's scenes are recorded by `capture/listing.mjs` (Square and Google Drive connected off camera, as for the
+owner video). The phone's Google Maps listing and the door are drawn. Its music is `music/listing.py`.
+
+```bash
+npm run capture:listing              # the app's scenes for it (the dev server running)
+npm run music:listing
+npm run render:listing && npm run web:listing
+```
+
 Everything is made here from scratch, so it can be made again whenever the app changes, and in Spanish.
 
 ## How it's made
