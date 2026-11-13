@@ -285,9 +285,10 @@ export function ComparePage() {
               <Table size="small" sx={{ minWidth: 720, '& td, & th': { color: BA.ink, py: 1.25 } }} aria-label={t('Feature comparison')}>
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ borderColor: BA.line, width: '31%' }} />
+                    {/* Own backgrounds: the app theme gives header cells a dark one in dark mode, under this page's dark text. */}
+                    <TableCell sx={{ borderColor: BA.line, width: '31%', bgcolor: '#fff' }} />
                     {PRODUCTS.map(p => (
-                      <TableCell key={p.id} align="center" sx={{ borderColor: BA.line, width: '23%', bgcolor: p.id === OURS ? 'rgba(247,155,164,0.07)' : undefined }}>
+                      <TableCell key={p.id} align="center" sx={{ borderColor: BA.line, width: '23%', bgcolor: p.id === OURS ? 'rgba(247,155,164,0.07)' : '#fff' }}>
                         <Typography sx={{ fontWeight: 600, fontSize: '1.02rem' }}>{p.name}</Typography>
                         <Typography variant="body2" sx={{ color: BA.soft }}>{t('{amount} a month', { amount: money(cost(p.id)) })}</Typography>
                       </TableCell>
