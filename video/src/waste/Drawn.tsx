@@ -151,11 +151,11 @@ const DAYS = [
 ]
 const TURN = [0, 40, 84]
 
-/** A page of a desk calendar, turning over to the next day. */
-function CalendarPage({ at, children, last }: { at: number; children: ReactNode; last: boolean }) {
+/** A page of a desk calendar, turning over at `flipAt` (never, for the last) to show the day under it. */
+function CalendarPage({ flipAt, children }: { flipAt: number | null; children: ReactNode }) {
   const frame = useCurrentFrame()
-  const flip = last ? 0 : interpolate(frame, [at + 30, at + 44], [0, 1], { ...clamp, easing: ease })
-  if (frame < at) return null
+  const flip = flipAt === null ? 0 : interpolate(frame, [flipAt, flipAt + 14], [0, 1], { ...clamp, easing: ease })
+  if (flip >= 1) return null
   return (
     <div style={{ position: 'absolute', inset: 0, transformOrigin: '50% 0%', transform: `perspective(1400px) rotateX(${flip * 100}deg)`, opacity: 1 - flip * 0.6,
       backfaceVisibility: 'hidden' }}>{children}</div>
@@ -180,7 +180,7 @@ export function Wait({ len }: { len: number }) {
         <div style={{ position: 'absolute', left: 305, top: 330, width: 460, height: 500, opacity: inn, translate: `0 ${interpolate(inn, [0, 1], [50, 0])}px` }}>
           <div style={{ position: 'absolute', inset: 0, borderRadius: 30, background: '#fff', boxShadow: '0 30px 70px rgba(60,40,30,0.16), 0 0 0 1px rgba(43,37,34,0.06)' }} />
           {DAYS.map((x, n) => (
-            <CalendarPage key={x.day} at={TURN[n] - (n ? 30 : 0)} last={n === DAYS.length - 1}>
+            <CalendarPage key={x.day} flipAt={TURN[n + 1] ?? null}>
               <div style={{ position: 'absolute', inset: 0, borderRadius: 30, overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 10 - n }}>
                 <div style={{ width: '100%', height: 110, background: BA.roseDeep, color: '#fff', display: 'grid', placeItems: 'center', fontFamily: text, fontWeight: 600, fontSize: 38, letterSpacing: '0.06em' }}>December</div>
                 <div style={{ fontFamily: display, fontWeight: 500, fontSize: 210, lineHeight: 1, color: BA.ink, marginTop: 28 }}>{x.date}</div>
@@ -210,7 +210,7 @@ export function Wait({ len }: { len: number }) {
           </div>
         </Card>
       </AbsoluteFill>
-      {TURN.slice(1).map(t => <Sfx key={t} name="whoosh" at={t + 30} volume={0.16} />)}
+      {TURN.slice(1).map(t => <Sfx key={t} name="whoosh" at={t} volume={0.16} />)}
       <Sfx name="ping" at={TURN[2] + 40} volume={0.24} />
       <Sfx name="pop" at={TURN[2] + 40} volume={0.2} />
       <Sfx name="whoosh" at={len - 10} volume={0.2} />

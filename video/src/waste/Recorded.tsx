@@ -70,13 +70,13 @@ export function Log({ len }: { len: number }) {
   const keys: CamKey[] = [
     centre(0),
     camOn(m, 'record', LOG, 1.35, 10, { x: -160, y: 70 }),
-    centre(e('name') - 12, 1.3, 720, 300),
-    centre(e('shelf') - 8, 1.3, 720, 420),
-    centre(e('offer-on') - 8, 1.38, 720, 470),
-    centre(e('percent') - 8, 1.42, 720, 520),
-    centre(e('summary') - 6, 1.42, 720, 615),
-    centre(e('save') - 8, 1.22, 720, 640),
-    camOn(m, 'card', LOG, 1.45, 12),
+    centre(e('name') - 12, 1.6, 720, 300),
+    centre(e('shelf') - 8, 1.62, 720, 400),
+    centre(e('offer-on') - 8, 1.66, 720, 470),
+    centre(e('percent') - 8, 1.7, 720, 520),
+    centre(e('summary') - 6, 1.7, 720, 610),
+    centre(e('save') - 8, 1.45, 720, 660),
+    camOn(m, 'card', LOG, 1.75, 12),
   ]
   return (
     <Recorded n={1} label="Log it once" len={len} segs={LOG} keys={keys} url={() => 'businesssagent.com/stock?tab=fresh'}
@@ -98,11 +98,11 @@ export function Offer({ len }: { len: number }) {
   const m = BATCH
   const page = eventAt(m, 'offers-page', OFFER)
   const keys: CamKey[] = [
-    centre(0, 1.5, 561, 800),
-    camOn(m, 'offer-link', OFFER, 1.7, 10, { x: 120, y: -40 }),
+    centre(0, 1.9, 561, 800),
+    camOn(m, 'offer-link', OFFER, 2.1, 10, { x: 120, y: -40 }),
     centre(page + 4),
-    camOn(m, 'offer', OFFER, 1.4, 10, { x: 140, y: -20 }),
-    camOn(m, 'tv', OFFER, 1.55, 10, { x: 80, y: 20 }),
+    camOn(m, 'offer', OFFER, 1.75, 10, { x: 120, y: -20 }),
+    camOn(m, 'tv', OFFER, 1.95, 10, { x: 60, y: 10 }),
   ]
   return (
     <Recorded n={2} label="On offer by itself" len={len} segs={OFFER} keys={keys}
@@ -134,7 +134,7 @@ export function Screen({ len }: { len: number }) {
   return (
     <Cream>
       <AbsoluteFill style={{ opacity: out }}>
-        <Caption title={<>On the café TV. <Em>Nobody has to remember.</Em></>} at={0} width={1300} size={64} />
+        <Caption title={<>On the café TV, <Em>by itself.</Em></>} at={0} width={960} size={64} />
         <ChangePill at={2} title="Banana bread" value={`${euro(2)} until tomorrow`} />
         <Everywhere at={4} height={560} places={[
           { name: 'Counter TV', icon: null, width: 980, bare: true, body: a => <TvClip width={980} at={a} /> },
