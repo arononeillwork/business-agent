@@ -43,6 +43,8 @@ describe('the business’s details for its website', () => {
     })
     expect(d.maps_url).toBe('https://www.google.com/maps/search/?api=1&query=Easy%20Beans%20Coffee%20C.%20Pizarro%208%2C%2029670%20San%20Pedro%20de%20Alc%C3%A1ntara%2C%20M%C3%A1laga')
     expect(siteDetails(input({ placeId: 'ChIJ123' })).maps_url).toMatch(/&query_place_id=ChIJ123$/)
+    // Its own listing on Google Maps (Connections), as Google gives it.
+    expect(siteDetails(input({ mapsUrl: 'https://maps.google.com/?cid=42', placeId: 'ChIJ123' })).maps_url).toBe('https://maps.google.com/?cid=42')
   })
 
   it('leaves out what the business hasn’t filled in', () => {

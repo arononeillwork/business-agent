@@ -184,6 +184,26 @@ What comes back (`SiteDetailsFeed` in `shared/websiteDetails.ts`):
 - WhatsApp and TikTok are on the Business page (Contact), next to the phone and Instagram.
 - Easy Beans' details were filled in from what its website showed before, where the app had none.
 
+## A new business's website
+
+Everything here is per business: its number is in each address (`/api/site/<business>/…`), and each
+business turns on what its website uses, with its own website key. A new business needs nothing from
+Business Agent itself, only its owner or a shop manager on **Website & SEO**:
+
+1. **The menu:** turn on **Share the menu with the website**.
+2. **Its details and opening hours:** fill in the Business page's Contact (address, phone, WhatsApp, email,
+   Instagram, TikTok) and the Opening hours page, then turn on **Share your details with the website**.
+   Closures go on the Calendar ("Closed for…"), and Google Maps gets the same if it's connected; its
+   listing's own Maps link is the one the website gets.
+3. **Newsletter sign-ups:** turn them on and set the topics; **Make a website key** for its website's
+   server.
+4. **Accounts & rewards:** turn on **Website accounts** (it uses the same website key).
+
+Its website then reads `GET /api/site/<business>/menu` and `/details` (from its pages or its server), and
+its server sends sign-ups and accounts with the key. Each address on Website & SEO already has the
+business's number in it. Easy Beans' website (its own repository) reads its number from one setting,
+`BUSINESS_AGENT_BUSINESS`, so a site built from it for another business changes only that.
+
 ## Next
 
 The same way, as they're needed: opening hours, the business's details, today's offers (Last day

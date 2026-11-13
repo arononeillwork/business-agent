@@ -13,7 +13,7 @@ import type { MenuAllergens } from '../shared/allergens'
 import type { MenuItem } from '../shared/menu'
 import { CLOSURES_AHEAD, siteDetails, type DetailsInput } from '../shared/websiteDetails'
 import { addDays, isTimeZone, today } from '../shared/time'
-import type { CalendarEvent } from '../shared/types'
+import type { CalendarEvent, Integration } from '../shared/types'
 
 export const site = new Hono<{ Bindings: Env }>()
 
@@ -79,11 +79,15 @@ site.get('/api/site/:business/details', async c => {
     db.from('integrations').select('external').eq('provider', 'google_business').maybeSingle(),
   ])
   if (events.error) return c.json(DETAILS_UNAVAILABLE, 503, { ...CORS, 'cache-control': 'no-store' })
+  // Each business's own Google listing (Connections → Google Maps), when it has chosen one.
+  const ext = (google.data?.external ?? {}) as Pick<Integration['external'], 'locations' | 'location' | 'closed_on_holidays'>
+  const listing = ext.locations?.find(l => l.name === ext.location)
   const feed = siteDetails({
     business: { ...b, id },
     events: (events.data ?? []) as CalendarEvent[],
-    closedOnHolidays: !!(google.data?.external as { closed_on_holidays?: boolean } | null)?.closed_on_holidays,
-    placeId: secretPlaceId(c.env, db) ?? null,
+    closedOnHolidays: !!ext.closed_on_holidays,
+    mapsUrl: listing?.maps_url ?? null,
+    placeId: listing?.place_id ?? secretPlaceId(c.env, db) ?? null,
     today: day,
   })
   return c.json(feed, 200, { ...CORS, 'cache-control': FRESH })

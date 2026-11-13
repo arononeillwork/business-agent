@@ -225,4 +225,14 @@ describe('the business’s details on the website', () => {
     expect(d).toMatchObject({ business: { id: 2, name: 'Bar Dos' }, timezone: 'Europe/Dublin', whatsapp: null, social: { instagram: null, tiktok: null } })
     expect(d.closures).toEqual([{ from: '2026-12-22', to: '2026-12-22', reason: 'Closed for a funeral' }])
   })
+
+  it('links each business to its own Google listing when it has connected one', async () => {
+    details(2)
+    db.integration('google_business').external = {}
+    db.table('integrations').push({ business_id: 2, provider: 'google_business', status: 'connected', external: {
+      location: 'locations/2', locations: [{ name: 'locations/1', title: 'Other' }, { name: 'locations/2', title: 'Bar Dos', maps_url: 'https://maps.google.com/?cid=2', place_id: 'ChIJbar2' }],
+    } })
+    const d = await (await get('/api/site/2/details')).json() as SiteDetailsFeed
+    expect(d.maps_url).toBe('https://maps.google.com/?cid=2')
+  })
 })

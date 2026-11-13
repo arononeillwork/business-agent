@@ -18,7 +18,7 @@ export interface SiteDetailsFeed {
   /** The address as typed on the Business page, and its parts between commas ("C. Pizarro 8", "29670 San Pedro de Alcántara", "Málaga"). */
   address: string | null
   address_lines: string[]
-  /** Google Maps for the business: its own listing when the app knows it, else a search for its name and address. */
+  /** Google Maps for the business: its own listing when it's connected (or the app knows its place), else a search for its name and address. */
   maps_url: string | null
   phone: string | null
   /** The number people message on WhatsApp, and its wa.me link. */
@@ -74,6 +74,8 @@ export interface DetailsInput {
   closedOnHolidays: boolean
   /** Its Google Maps place, when known. */
   placeId?: string | null
+  /** Its own page on Google Maps (the listing chosen on Connections), when known: used as it is. */
+  mapsUrl?: string | null
   /** Today where the business is (YYYY-MM-DD). */
   today: string
   now?: Date
@@ -111,7 +113,8 @@ export function siteDetails(input: DetailsInput): SiteDetailsFeed {
   const digits = (b.whatsapp ?? '').replace(/\D/g, '')
   const ig = handle(b.instagram), tt = handle(b.tiktok)
   const query = [b.name, address].filter(Boolean).join(' ')
-  const maps = input.placeId
+  const maps = input.mapsUrl && /^https:\/\//.test(input.mapsUrl) ? input.mapsUrl
+    : input.placeId
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query || b.name)}&query_place_id=${encodeURIComponent(input.placeId)}`
     : address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}` : null
 
