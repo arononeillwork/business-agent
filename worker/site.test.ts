@@ -12,6 +12,7 @@ import { site } from './site'
 import type { Env } from './supabase'
 import { FakeSupabase, type Row } from './test/fakeSupabase'
 import type { SiteMenuFeed } from '../shared/websiteFeed'
+import type { SiteDetailsFeed } from '../shared/websiteDetails'
 
 const APP = 'https://app.test'
 const env = {
@@ -150,5 +151,78 @@ describe('the menu on the website', () => {
     const res = await get('/api/site/1/menu', { method: 'OPTIONS' })
     expect(res.status).toBe(204)
     expect(res.headers.get('access-control-allow-methods')).toContain('GET')
+  })
+})
+
+// The business's details (GET /api/site/<business>/details, shared/websiteDetails.ts). What must never break:
+//   - nothing is shared until the business turns it on; off, or a number that's no business, is the same 404
+//   - what the Business and Opening hours pages say, with the Calendar's closures, from the business's own today
+//   - one business's details are its own; any website may read them (CORS) and keep them a minute
+describe('the business’s details on the website', () => {
+  const details = (business: number, on = true) => { db.table('settings').find(s => s.business_id === business)!.website_details = on }
+  beforeEach(() => {
+    vi.useFakeTimers({ now: Date.parse('2026-12-21T09:00:00Z'), toFake: ['Date'] })
+    db.tables.business = [
+      { id: 1, name: 'Easy Beans Coffee', currency: 'EUR', timezone: 'Europe/Madrid', address: 'C. Pizarro 8, 29670 San Pedro de Alcántara, Málaga',
+        phone: '+34 952 000 000', email: 'hola@easybeans.example', instagram: '@easy.beans.coffee', website: null, whatsapp: '+34 695 415 335', tiktok: 'easybeanscoffee',
+        opening_hours: { mon: { open: '08:00', close: '15:00' }, tue: { open: '08:00', close: '15:00' }, wed: { open: '08:00', close: '15:00' },
+          thu: { open: '08:00', close: '15:00' }, fri: { open: '08:00', close: '15:00' }, sat: { open: '09:00', close: '15:00' }, sun: null } },
+      { id: 2, name: 'Bar Dos', currency: 'EUR', timezone: 'Europe/Dublin', address: 'Main St, Dingle', phone: null, email: null, instagram: null,
+        website: null, whatsapp: null, tiktok: null, opening_hours: { mon: { open: '12:00', close: '23:00' } } },
+    ]
+    db.tables.calendar_events = [
+      { id: 'e1', business_id: 1, starts_on: '2026-12-24', ends_on: '2026-12-25', starts_at: null, title: 'Closed for Christmas', category: 'business',
+        town: null, competition: null, source: 'manual', confirmed: true, visibility: 'all' },
+      { id: 'e2', business_id: 1, starts_on: '2027-01-06', ends_on: null, starts_at: null, title: 'Epifanía del Señor', category: 'national',
+        town: null, competition: null, source: 'import', confirmed: true, visibility: 'all' },
+      { id: 'e3', business_id: 2, starts_on: '2026-12-22', ends_on: null, starts_at: null, title: 'Closed for a funeral', category: 'business',
+        town: null, competition: null, source: 'manual', confirmed: true, visibility: 'all' },
+    ]
+  })
+  afterEach(() => vi.useRealTimers())
+
+  it('is not shared until the business turns it on; off, or no such business, is the same 404', async () => {
+    for (const path of ['/api/site/1/details', '/api/site/7/details', '/api/site/abc/details']) {
+      const res = await get(path)
+      expect(res.status, path).toBe(404)
+      expect(await res.json()).toEqual({ error: 'This business doesn’t share its details with a website.' })
+    }
+  })
+
+  it('gives what the Business and Opening hours pages say, with the Calendar’s closures, for any website', async () => {
+    details(1)
+    const res = await get('/api/site/1/details')
+    expect(res.status).toBe(200)
+    expect(res.headers.get('access-control-allow-origin')).toBe('*')
+    expect(res.headers.get('cache-control')).toContain('max-age=60')
+    const d = await res.json() as SiteDetailsFeed
+    expect(d).toMatchObject({
+      version: 1, business: { id: 1, name: 'Easy Beans Coffee' }, address_lines: ['C. Pizarro 8', '29670 San Pedro de Alcántara', 'Málaga'],
+      whatsapp_url: 'https://wa.me/34695415335', email: 'hola@easybeans.example',
+      social: { instagram: { handle: 'easy.beans.coffee' }, tiktok: { handle: 'easybeanscoffee' } }, timezone: 'Europe/Madrid',
+      hours: { mon: { open: '08:00', close: '15:00' }, sun: null },
+      // Not closed on public holidays unless the Opening hours page says so.
+      closures: [{ from: '2026-12-24', to: '2026-12-25', reason: 'Closed for Christmas' }],
+    })
+    expect(d.days.slice(2, 5).map(x => [x.date, x.open, x.closed_reason])).toEqual([
+      ['2026-12-23', '08:00', null], ['2026-12-24', null, 'Closed for Christmas'], ['2026-12-25', null, 'Closed for Christmas'],
+    ])
+    // Business 2's closure isn't Easy Beans'.
+    expect(JSON.stringify(d)).not.toContain('funeral')
+  })
+
+  it('closed on public holidays when the Opening hours page says so', async () => {
+    details(1)
+    db.integration('google_business').external = { closed_on_holidays: true }
+    const d = await (await get('/api/site/1/details')).json() as SiteDetailsFeed
+    expect(d.closures.map(c => c.reason)).toEqual(['Closed for Christmas', 'Epifanía del Señor'])
+  })
+
+  it('keeps each business’s switch and details its own, each in its own time zone', async () => {
+    details(2)
+    expect((await get('/api/site/1/details')).status).toBe(404)
+    const d = await (await get('/api/site/2/details')).json() as SiteDetailsFeed
+    expect(d).toMatchObject({ business: { id: 2, name: 'Bar Dos' }, timezone: 'Europe/Dublin', whatsapp: null, social: { instagram: null, tiktok: null } })
+    expect(d.closures).toEqual([{ from: '2026-12-22', to: '2026-12-22', reason: 'Closed for a funeral' }])
   })
 })

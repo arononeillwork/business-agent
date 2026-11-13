@@ -5,6 +5,9 @@ import PhoneIcon from '@mui/icons-material/PhoneOutlined'
 import MailIcon from '@mui/icons-material/MailOutlined'
 import WebIcon from '@mui/icons-material/LanguageOutlined'
 import InstagramIcon from '@mui/icons-material/Instagram'
+import WhatsAppIcon from '@mui/icons-material/WhatsApp'
+import { siTiktok } from 'simple-icons'
+import { Brand } from '../components/Connectors'
 import ChatIcon from '@mui/icons-material/ChatBubbleOutlineOutlined'
 import StoreIcon from '@mui/icons-material/StorefrontOutlined'
 import NameIcon from '@mui/icons-material/BadgeOutlined'
@@ -173,6 +176,12 @@ export function BusinessPage() {
               {handleOf(b) ? <Link href={`https://instagram.com/${handleOf(b)}`} target="_blank" rel="noreferrer" underline="hover" color="inherit">@{handleOf(b)}</Link> : '—'}
               {connectedHandle && connectedHandle.toLowerCase() === handleOf(b).toLowerCase() && <Aside>{t('connected')}</Aside>}
             </InfoRow>
+            <InfoRow icon={<WhatsAppIcon fontSize="small" />} label={'WhatsApp'}>
+              {b.whatsapp ? <Link href={`https://wa.me/${b.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" underline="hover" color="inherit">{b.whatsapp}</Link> : '—'}
+            </InfoRow>
+            <InfoRow icon={<Box sx={{ '& svg': { width: 20, height: 20 } }}><Brand icon={siTiktok} /></Box>} label={'TikTok'}>
+              {b.tiktok ? <Link href={`https://www.tiktok.com/@${b.tiktok}`} target="_blank" rel="noreferrer" underline="hover" color="inherit">@{b.tiktok}</Link> : '—'}
+            </InfoRow>
             {isAdmin && !mailRow && integ.data && (
               <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1.5 }}>
                 {t('Connect Gmail or Outlook and its address fills in here by itself.')}{' '}
@@ -201,8 +210,13 @@ export function BusinessPage() {
               helperText={connectedHandle ? t('Filled in from your connected Instagram (@{handle}). You can change it.', { handle: connectedHandle }) : t('Your Instagram username')}
               slotProps={{ input: { startAdornment: <InputAdornment position="start">@</InputAdornment> }, htmlInput: { autoCapitalize: 'none', spellCheck: false } }}
               onChange={e => set({ instagram: cleanHandle(e.target.value) || null })} />
+            <PhoneField label={'WhatsApp'} codeLabel={t('WhatsApp dialling code')} value={d.whatsapp ?? ''} onChange={whatsapp => set({ whatsapp })}
+              helperText={t('The number people message you on. Your website links to it.')} />
+            <TextField label={'TikTok'} value={d.tiktok ?? ''} placeholder={t('yourbusiness')} helperText={t('Your TikTok username')}
+              slotProps={{ htmlInput: { autoCapitalize: 'none', spellCheck: false } }}
+              onChange={e => set({ tiktok: cleanHandle(e.target.value).toLowerCase() || null })} />
           </>}
-          onSave={save(['address', 'phone', 'email', 'website', 'instagram'], p => {
+          onSave={save(['address', 'phone', 'email', 'website', 'instagram', 'whatsapp', 'tiktok'], p => {
             p.address = p.address?.trim() || null
             // Left empty while a mailbox is connected: the mailbox's address.
             p.email = p.email?.trim() || mailbox || null
@@ -212,6 +226,9 @@ export function BusinessPage() {
             if (p.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email)) throw new Error(t('Enter a full email address'))
             if (p.website && !/^https?:\/\/[^\s/]+\.[^\s/]{2,}/i.test(p.website)) throw new Error(t('Enter the website’s full address, like www.yourbusiness.com'))
             p.instagram = p.instagram ? `@${cleanHandle(p.instagram)}` : null
+            p.whatsapp = p.whatsapp?.trim() || null
+            if (p.whatsapp && p.whatsapp.replace(/\D/g, '').length < 6) throw new Error(t('Enter the full WhatsApp number'))
+            p.tiktok = p.tiktok ? cleanHandle(p.tiktok).toLowerCase() || null : null
           })} />
 
         {/* Left out for someone whose roles hide the Company details (Roles & responsibilities). */}

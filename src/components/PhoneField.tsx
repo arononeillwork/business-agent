@@ -21,8 +21,10 @@ function useCountries(): Country[] {
  * A phone number as two parts: the country code, picked from a list you can search (by country,
  * or by typing 44 or +44), and the number itself. Saves as "+34 600 000 000".
  */
-export function PhoneField({ label, value, onChange, helperText, error }: {
+export function PhoneField({ label, value, onChange, helperText, error, codeLabel }: {
   label: string; value: string; onChange: (value: string) => void; helperText?: string; error?: boolean
+  /** The country code's own label, when a form has two phones ("WhatsApp country code"). */
+  codeLabel?: string
 }) {
   const countries = useCountries()
   const [country, setCountry] = useState(() => splitPhone(value, currentCountry()).country)
@@ -53,7 +55,7 @@ export function PhoneField({ label, value, onChange, helperText, error }: {
         noOptionsText={t('No country found')}
         sx={{ width: 140, flexShrink: 0 }}
         slotProps={{ popper: { sx: { minWidth: 300 } } }}
-        renderInput={params => <TextField {...params} label={t('Country code')} />}
+        renderInput={params => <TextField {...params} label={codeLabel ?? t('Country code')} />}
       />
       <TextField label={label} type="tel" value={number} error={error} helperText={helperText} sx={{ flex: 1 }}
         placeholder={callingCode(country) === '34' ? '600 000 000' : ''}

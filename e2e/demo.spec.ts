@@ -11796,3 +11796,28 @@ test('support tickets: a page that breaks offers “Tell us what you were doing�
   // The demo tells nobody about its errors, so this one isn't under Errors.
   await expect(tickets.first()).toContainText('From the error screen')
 })
+
+test.describe('details on the website', () => {
+  test('the business’s WhatsApp and TikTok on the Business page', async ({ page }) => {
+    await open(page, '/business')
+    const contact = page.getByRole('region', { name: 'Contact' })
+    await contact.getByRole('button', { name: 'Edit' }).click()
+    await contact.getByRole('textbox', { name: 'WhatsApp' }).fill('600 111 222')
+    await contact.getByRole('textbox', { name: 'TikTok' }).fill('@EasyBeansCoffee')
+    await expect(contact.getByRole('textbox', { name: 'TikTok' })).toHaveValue('easybeanscoffee')
+    await contact.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+    await expect(contact.getByRole('link', { name: '+34 600 111 222' })).toHaveAttribute('href', 'https://wa.me/34600111222')
+    await expect(contact.getByRole('link', { name: '@easybeanscoffee' })).toHaveAttribute('href', 'https://www.tiktok.com/@easybeanscoffee')
+  })
+
+  test('its details shared with its website from Website & SEO', async ({ page }) => {
+    await open(page, '/website')
+    const card = page.getByRole('region', { name: 'Your details on your website' })
+    const on = card.getByRole('switch', { name: 'Share your details with the website' })
+    await expect(on).not.toBeChecked()
+    await on.click()
+    await toast(page, 'The website can read your details')
+    await expect(card.getByLabel('Details address for the website')).toContainText(/\/api\/site\/1\/details$/)
+  })
+})

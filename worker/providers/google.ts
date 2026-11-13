@@ -3,6 +3,7 @@
 import { APP_FOLDER, OLD_APP_FOLDER } from '../../shared/appFolder'
 import type { CalendarEvent, OpeningHours } from '../../shared/types'
 import { DAY_KEYS } from '../../shared/types'
+import { closingEvents } from '../../shared/closures'
 
 export const GOOGLE_SCOPES = ['https://www.googleapis.com/auth/business.manage', 'openid', 'email']
 
@@ -55,9 +56,7 @@ export function sameHours(a: OpeningHours, b: OpeningHours) {
  * closures. Future dates only. Holidays count as closed only when `closedOnHolidays` is true.
  */
 export function toSpecialHours(events: CalendarEvent[], fromDate: string, closedOnHolidays: boolean): { specialHourPeriods: GSpecialPeriod[] } {
-  const closing = events.filter(e => e.confirmed && (e.ends_on ?? e.starts_on) >= fromDate &&
-    (e.category === 'business' ? /closed|cerrad|closure/i.test(e.title)
-      : closedOnHolidays && ['national', 'regional', 'local'].includes(e.category)))
+  const closing = closingEvents(events, fromDate, closedOnHolidays)
   return {
     specialHourPeriods: closing.map(e => ({
       startDate: toDate(e.starts_on),

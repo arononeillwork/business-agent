@@ -132,6 +132,58 @@ link can send unsubscribes (a change in the website's own repository). A list fr
 on Website & SEO from a CSV (another newsletter service's export, or the website's own: only people
 still subscribed).
 
+## The business's details and opening hours
+
+```
+GET https://businesssagent.com/api/site/<business>/details
+```
+
+Where the business is, how to reach it, its social accounts and when it's open, with the days it's
+closed on its Calendar: what the Business and Opening hours pages say. Change them there and the website
+shows it within a few minutes, the same as Google Maps, which is sent the same hours and closures. As the
+menu: no sign-in, any site may read it (CORS is open), kept a minute (`Cache-Control: public, max-age=60`),
+`404` until an admin turns on **Share your details with the website** on Website & SEO
+(`settings.website_details`) and for a number that's no business, `503` when it can't be read just then
+(keep showing the last you had).
+
+What comes back (`SiteDetailsFeed` in `shared/websiteDetails.ts`):
+
+```jsonc
+{
+  "version": 1,
+  "business": { "id": 1, "name": "Easy Beans Coffee" },
+  "address": "C. Pizarro 8, 29670 San Pedro de Alcántara, Málaga",
+  "address_lines": ["C. Pizarro 8", "29670 San Pedro de Alcántara", "Málaga"],   // as typed, between commas
+  "maps_url": "https://www.google.com/maps/search/?api=1&query=…",
+  "phone": "+34 952 000 000",
+  "whatsapp": "+34 695 415 335", "whatsapp_url": "https://wa.me/34695415335",
+  "email": "easybeanscafe@gmail.com",
+  "website": "https://www.easybeanscoffee.com",
+  "social": {
+    "instagram": { "handle": "easy.beans.coffee", "url": "https://www.instagram.com/easy.beans.coffee" },
+    "tiktok": { "handle": "easybeanscoffee", "url": "https://www.tiktok.com/@easybeanscoffee" }
+  },
+  "timezone": "Europe/Madrid",                     // the hours and dates are the business's
+  "hours": {                                       // the usual week, Monday first; null: closed that day
+    "mon": { "open": "08:00", "close": "15:00" }, "tue": { … }, "wed": { … }, "thu": { … }, "fri": { … },
+    "sat": { "open": "09:00", "close": "15:00" }, "sun": null
+  },
+  "closures": [                                    // from today, up to 120 days ahead
+    { "from": "2026-12-24", "to": "2026-12-25", "reason": "Closed for Christmas" }
+  ],
+  "days": [                                        // the next 14 days, closures applied: for "open now" and ordering
+    { "date": "2026-12-24", "day": "thu", "open": null, "close": null, "closed_reason": "Closed for Christmas" }
+  ],
+  "generated_at": "2026-12-21T09:00:00Z"
+}
+```
+
+- A field the business hasn't filled in is `null` (or `[]`): the website leaves that line out.
+- `closures` are the Calendar's business events that close it ("Closed…", "Cerrado…"), and public holidays when
+  the Opening hours page says it closes on them: what Google Maps gets (`shared/closures.ts`).
+- WhatsApp and TikTok are on the Business page (Contact), next to the phone and Instagram.
+- Easy Beans' details were filled in from what its website showed before, where the app had none.
+
 ## Next
 
 The same way, as they're needed: opening hours, the business's details, today's offers (Last day
