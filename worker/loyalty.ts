@@ -108,6 +108,8 @@ loyaltyRoutes.post('/api/loyalty/adjust', async c => {
     const s = await squareSession(c.env, db)
     await loyalty.adjust(s.sandbox, s.token, b.account_id, points, reason, `adjust:${b.key}`)
     await forget(db, 'loyalty:')
+    // The member's points on the business's website too (worker/siteAccount.ts).
+    await forget(db, 'site-points:')
     return c.json({ ok: true })
   } catch (e) {
     return c.json({ error: await failure(db, e) }, 400)

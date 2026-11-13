@@ -16,6 +16,7 @@
 //   POST /api/newsletter/import             people from a list brought in (up to 100 at a time)
 import { Hono, type Context } from 'hono'
 import { bearer, businessDb, requestDb, type Env } from './supabase'
+import { businessIn, sha256, websiteKey } from './websiteKey'
 import { FORM_TEXT, formLanguage, readSignup, type ListRow, type NewsletterInterest, type NewsletterSettings, type Signup, type SignupProblem } from '../shared/newsletter'
 import { formPage, offPage } from '../shared/newsletterForm'
 import { signInCheck } from './signedIn'
@@ -36,11 +37,6 @@ export const LIMIT_PER_HOUR = 5
 export const IMPORT_BATCH = 100
 
 type Config = Pick<NewsletterSettings, 'enabled' | 'interests' | 'ask_name' | 'ask_phone' | 'heading' | 'intro'> & { key_hash: string | null }
-
-const businessIn = (raw: string) => (/^[1-9]\d{0,8}$/.test(raw) ? Number(raw) : null)
-
-const sha256 = async (s: string) =>
-  [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map(b => b.toString(16).padStart(2, '0')).join('')
 
 /** Who sent a sign-up, without keeping who: an HMAC of the address with the Worker's own key. */
 async function addressHash(env: Env, business: number, ip: string) {
@@ -66,11 +62,7 @@ async function config(env: Env, business: number): Promise<{ on: Config | null; 
 }
 
 /** Whether the request carries the website key: true, false (none), or 'wrong'. */
-async function keyed(c: Context, cfg: Config): Promise<boolean | 'wrong'> {
-  const token = bearer(c.req.header('authorization'))
-  if (!token) return false
-  return cfg.key_hash && (await sha256(token)) === cfg.key_hash ? true : 'wrong'
-}
+const keyed = (c: Context, cfg: Config) => websiteKey(c, cfg.key_hash)
 
 /** The body as JSON or as a plain form post (the form page without JavaScript). */
 async function bodyOf(c: Context): Promise<{ body: Record<string, unknown>; html: boolean }> {

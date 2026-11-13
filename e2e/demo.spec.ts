@@ -11853,6 +11853,23 @@ test('support tickets: a page that breaks offers “Tell us what you were doing�
   await expect(tickets.first()).toContainText('From the error screen')
 })
 
+test.describe('website accounts', () => {
+  test('accounts on the website: off until an admin turns them on, then the addresses for its server and its key', async ({ page }) => {
+    await open(page, '/website')
+    const card = page.getByRole('region', { name: 'Accounts & rewards on your website' })
+    const on = card.getByRole('switch', { name: 'Website accounts' })
+    await expect(on).not.toBeChecked()
+    await expect(card.getByLabel('Addresses for website accounts')).toHaveCount(0)
+    await on.click()
+    await toast(page, 'Your website’s accounts read from here')
+    await expect(on).toBeChecked()
+    await expect(card.getByLabel('Addresses for website accounts')).toContainText(/POST .*\/api\/site\/1\/account\/sync/)
+    await expect(card.getByLabel('Addresses for website accounts')).toContainText('/account/erase')
+    await card.getByRole('button', { name: 'Make a website key' }).click()
+    await expect(card.getByLabel('The new website key')).toHaveText(/^nl_\w{40}$/)
+  })
+})
+
 test.describe('details on the website', () => {
   test('the business’s WhatsApp and TikTok on the Business page', async ({ page }) => {
     await open(page, '/business')

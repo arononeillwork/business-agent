@@ -46,6 +46,7 @@ import { dueJobs, everyFor } from './schedule'
 import { screens } from './screens'
 import { site } from './site'
 import { newsletter } from './newsletter'
+import { siteAccount } from './siteAccount'
 import { cameras, purgeCameraClips } from './cameras'
 import { competitors, watchCompetitors } from './competitors'
 import { push, pushNotifications } from './push'
@@ -332,6 +333,9 @@ app.route('/', content)
 // Post ideas (Social planner): the team's photos and videos for an idea, kept in the café's storage.
 app.route('/', postIdeas)
 
+// Accounts & rewards on the business's own website, for its server only (worker/siteAccount.ts). Before the
+// newsletter's and the menu's routes, so their open CORS answer never reaches these.
+app.route('/', siteAccount)
 // Newsletter sign-ups from the business's own website, into Customers (worker/newsletter.ts). Before the menu's
 // routes, so a sign-up's CORS check is answered here.
 app.route('/', newsletter)

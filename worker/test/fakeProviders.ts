@@ -277,6 +277,8 @@ export class FakeProviders {
     teamCreated: new Map<string, { id: string; [k: string]: unknown }>(),
     /** Loyalty and gift cards. `loyaltyScope: false` is a connection made before LOYALTY_READ and GIFTCARDS_READ were asked for. */
     loyaltyScope: true,
+    /** Loyalty account searches made (the website's points are kept a while, not asked each time). */
+    accountSearches: 0,
     /** The loyalty programme (null: none set up): a stamp card, a stamp a visit, the 10th coffee free. */
     program: { status: 'ACTIVE', terminology: { one: 'Stamp', other: 'Stamps' }, reward_tiers: [{ id: 'T1', name: 'Free coffee', points: 9 }],
       accrual_rules: [{ accrual_type: 'VISIT', points: 1, visit_data: { minimum_amount_money: { amount: 250, currency: 'EUR' } } }] } as Record<string, unknown> | null,
@@ -1070,7 +1072,12 @@ export class FakeProviders {
         if (url.pathname === '/v2/loyalty/programs/main') {
           return sq.program ? json({ program: sq.program }) : json({ errors: [{ category: 'INVALID_REQUEST_ERROR', code: 'NOT_FOUND', detail: 'Merchant does not have a loyalty program' }] }, 404)
         }
-        if (url.pathname === '/v2/loyalty/accounts/search') return json({ loyalty_accounts: sq.loyaltyAccounts })
+        if (url.pathname === '/v2/loyalty/accounts/search') {
+          // One customer's account (the website's points: worker/siteAccount.ts), or every member.
+          sq.accountSearches++
+          const ids = (body() as { query?: { customer_ids?: string[] } } | null)?.query?.customer_ids
+          return json({ loyalty_accounts: ids ? sq.loyaltyAccounts.filter(a => a.customer_id && ids.includes(a.customer_id)) : sq.loyaltyAccounts })
+        }
         if (url.pathname === '/v2/loyalty/events/search') {
           const range = (body() as { query: { filter: { date_time_filter: { created_at: { start_at: string; end_at: string } } } } }).query.filter.date_time_filter.created_at
           return json({ events: sq.loyaltyEvents.filter(e => e.created_at >= range.start_at && e.created_at < range.end_at) })
