@@ -5,7 +5,7 @@
 //   - the next 14 days with those applied, for "open now" and online ordering
 //   - its contacts and accounts as links a website can use as they are
 import { describe, expect, it } from 'vitest'
-import { siteDetails, DAYS_AHEAD, type DetailsInput } from './websiteDetails'
+import { addressLines, siteDetails, DAYS_AHEAD, type DetailsInput } from './websiteDetails'
 import type { CalendarEvent } from './types'
 
 const event = (starts_on: string, title: string, category: CalendarEvent['category'], more: Partial<CalendarEvent> = {}): CalendarEvent => ({
@@ -45,6 +45,16 @@ describe('the business’s details for its website', () => {
     expect(siteDetails(input({ placeId: 'ChIJ123' })).maps_url).toMatch(/&query_place_id=ChIJ123$/)
     // Its own listing on Google Maps (Connections), as Google gives it.
     expect(siteDetails(input({ mapsUrl: 'https://maps.google.com/?cid=42', placeId: 'ChIJ123' })).maps_url).toBe('https://maps.google.com/?cid=42')
+  })
+
+  it('keeps a house number with its street, as Spanish addresses write it', () => {
+    expect(addressLines('C. Pizarro, 8, 29670 San Pedro de Alcántara, Málaga')).toEqual(['C. Pizarro, 8', '29670 San Pedro de Alcántara', 'Málaga'])
+    expect(addressLines('Calle Mayor, 12B, Bajo, 28013 Madrid')).toEqual(['Calle Mayor, 12B, Bajo', '28013 Madrid'])
+    expect(addressLines('Avda. del Mar, s/n, Marbella')).toEqual(['Avda. del Mar, s/n', 'Marbella'])
+    expect(addressLines('Plaza Nueva, nº 3, Sevilla')).toEqual(['Plaza Nueva, nº 3', 'Sevilla'])
+    expect(addressLines('Main Street, Dingle, Co. Kerry, V92 X2Y4')).toEqual(['Main Street', 'Dingle', 'Co. Kerry', 'V92 X2Y4'])
+    expect(addressLines('8, Main Street')).toEqual(['8', 'Main Street'])
+    expect(addressLines(null)).toEqual([])
   })
 
   it('leaves out what the business hasn’t filled in', () => {

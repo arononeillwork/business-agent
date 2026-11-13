@@ -15,7 +15,7 @@ export interface SiteHours { open: string; close: string }
 export interface SiteDetailsFeed {
   version: 1
   business: { id: number; name: string }
-  /** The address as typed on the Business page, and its parts between commas ("C. Pizarro 8", "29670 San Pedro de Alcántara", "Málaga"). */
+  /** The address as typed on the Business page, and its lines between commas, the house number with its street ("C. Pizarro, 8", "29670 San Pedro de Alcántara", "Málaga"). */
   address: string | null
   address_lines: string[]
   /** Google Maps for the business: its own listing when it's connected (or the app knows its place), else a search for its name and address. */
@@ -63,6 +63,23 @@ const hhmm = (v: string | undefined) => {
   return m ? `${m[1].padStart(2, '0')}:${m[2]}` : null
 }
 const handle = (v: string | null | undefined) => (v ?? '').trim().replace(/^@+/, '') || null
+
+/** A part of an address that's only the house number ("8", "12B", "s/n", "nº 3", "Bajo"): it belongs with the street before it. */
+const HOUSE_NUMBER = /^(n[º°o.]?\s*)?\d+[a-z]?(\s*[-–]\s*\d+[a-z]?)?$|^s\/n$|^(bajo|local|portal)\b/i
+
+/**
+ * An address in its lines, split at its commas, the house number kept with its street: Spanish addresses
+ * often have one between them ("C. Pizarro, 8, 29670 San Pedro de Alcántara" → "C. Pizarro, 8",
+ * "29670 San Pedro de Alcántara").
+ */
+export function addressLines(address: string | null): string[] {
+  const lines: string[] = []
+  for (const part of (address ?? '').split(',').map(s => s.trim()).filter(Boolean)) {
+    if (lines.length && HOUSE_NUMBER.test(part)) lines[lines.length - 1] += `, ${part}`
+    else lines.push(part)
+  }
+  return lines
+}
 
 export interface DetailsInput {
   business: Pick<Business, 'name' | 'address' | 'phone' | 'email' | 'instagram' | 'website' | 'timezone' | 'opening_hours'> & {
@@ -122,7 +139,7 @@ export function siteDetails(input: DetailsInput): SiteDetailsFeed {
     version: 1,
     business: { id: b.id, name: b.name },
     address,
-    address_lines: address ? address.split(',').map(s => s.trim()).filter(Boolean) : [],
+    address_lines: addressLines(address),
     maps_url: maps,
     phone: b.phone?.trim() || null,
     whatsapp: digits ? b.whatsapp!.trim() : null,
