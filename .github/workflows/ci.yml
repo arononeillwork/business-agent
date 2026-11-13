@@ -84,7 +84,9 @@ jobs:
   browser:
     needs: plan
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # A branch's first push runs every browser test (nothing to compare it with); a third of them
+    # takes 14 to 15 minutes on a slower runner, so 15 cut runs off after every test had passed.
+    timeout-minutes: 20
     # Keep the version the same as @playwright/test in package-lock.json (the install step below
     # downloads the right browser if they ever differ, it's just slower).
     container: mcr.microsoft.com/playwright:v1.63.0-noble
