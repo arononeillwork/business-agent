@@ -267,8 +267,8 @@ What comes back (`SiteDetailsFeed` in `shared/websiteDetails.ts`):
 {
   "version": 1,
   "business": { "id": 1, "name": "Easy Beans Coffee" },
-  "address": "C. Pizarro 8, 29670 San Pedro de Alcántara, Málaga",
-  "address_lines": ["C. Pizarro 8", "29670 San Pedro de Alcántara", "Málaga"],   // as typed, between commas
+  "address": "C. Pizarro, 8, 29670 San Pedro de Alcántara, Málaga",
+  "address_lines": ["C. Pizarro, 8", "29670 San Pedro de Alcántara", "Málaga"],  // between commas, the house number with its street
   "maps_url": "https://www.google.com/maps/search/?api=1&query=…",
   "phone": "+34 952 000 000",
   "whatsapp": "+34 695 415 335", "whatsapp_url": "https://wa.me/34695415335",
