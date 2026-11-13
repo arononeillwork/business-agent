@@ -2464,6 +2464,10 @@ test('sales page: pick a business type, then its pain points with what the app d
   await expect(food.getByText('Film coming soon')).toHaveCount(0)
   await expect(page.getByRole('article', { name: 'Customers who never come back' }).getByText('Film coming soon')).toBeVisible()
   await expect(page.getByRole('article', { name: 'The working-hours record' })).toContainText('Stay legal')
+  // Google reviews & opening hours has its film too.
+  for (const file of ['public/video/google-listing.mp4', 'public/video/google-listing.jpg']) expect(readFileSync(file).length).toBeGreaterThan(10_000)
+  await expect(page.getByRole('article', { name: 'Google reviews & opening hours' }).getByLabel('Right on Google: opening hours and reviews, video'))
+    .toHaveAttribute('src', '/video/google-listing.mp4')
   // The cheat sheet at the top lists each problem under what it's mainly about, and links to its card.
   const glance = page.getByRole('region', { name: 'Selling points at a glance' })
   for (const win of ['Make money', 'Save time', 'Cut costs', 'Stay legal']) await expect(glance.getByRole('heading', { name: win })).toBeVisible()
