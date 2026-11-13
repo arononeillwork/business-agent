@@ -36,8 +36,10 @@ export interface PainPoint {
   wins: Win[]
   /** The pages of the app that do it, as they're called in the menu. */
   pages: string[]
-  /** The title of the film that will show it (not made yet). */
+  /** The title of the film that shows it. */
   video: string
+  /** The film itself, once it's made (video/, `npm run render:waste` and the rest): played on its card. */
+  film?: { src: string; poster: string }
 }
 
 export interface BusinessType {
@@ -59,6 +61,7 @@ const CAFES: PainPoint[] = [
     fix: msg('Log each batch with how long it keeps, in days or hours. As it nears the end, the system puts it on offer by itself, say 50% off, and shows it on the café’s screens and menu. Once it sells out, the offer stops.'),
     result: msg('Food that would have been binned sells at a discount instead: less waste, more takings, and nobody has to remember.'),
     video: msg('Food waste: from shelf life to 50% off on the screen'),
+    film: { src: '/video/food-waste.mp4', poster: '/video/food-waste.jpg' },
   },
   {
     id: 'regulars', wins: ['money'], pages: [msg('Customers'), msg('Loyalty & gift cards'), msg('Campaigns'), msg('Messages')],
