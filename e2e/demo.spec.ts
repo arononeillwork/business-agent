@@ -2430,6 +2430,62 @@ test('compare on a phone: nothing wider than the screen @phone', async ({ page }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
+test('sales page: pick a business type, then its pain points with what the app does about each and a place for the film', async ({ page }) => {
+  await page.goto('/?demo')
+  // Sales is in the site menu and in the footer (the menu is hidden on a phone).
+  await page.getByRole('navigation', { name: 'Site' }).getByRole('link', { name: 'Sales', exact: true }).click()
+  await expect(page).toHaveURL(/\/sell$/)
+  await expect(page).toHaveTitle('Sales · The Business Agent')
+  await expect(page.getByRole('heading', { name: 'Know what really hurts them.', level: 1 })).toBeVisible()
+  await expect(page.getByRole('contentinfo').getByRole('link', { name: 'Sales', exact: true })).toBeVisible()
+  // Cafés are ready; restaurants and barbers say they're coming and don't open anything.
+  const types = page.getByRole('list', { name: 'Business type' })
+  await expect(types.getByRole('listitem')).toHaveCount(3)
+  await expect(types.getByRole('link')).toHaveCount(1)
+  await expect(types.getByRole('listitem').filter({ hasText: 'Restaurants' })).toContainText('Coming soon')
+  await expect(types.getByRole('listitem').filter({ hasText: 'Barbers' })).toContainText('Coming soon')
+  await expect(page.getByRole('article')).toHaveCount(0)
+  await types.getByRole('link', { name: /Cafés/ }).click()
+  await expect(page).toHaveURL(/\/sell\/cafes$/)
+  // Every problem has its own card: what the owner says, what the app does, what they get, the film to come.
+  const cards = page.getByRole('article')
+  await expect(cards).toHaveCount(14)
+  const food = page.getByRole('article', { name: 'Food waste' })
+  await expect(food).toContainText('goes in the bin')
+  await expect(food).toContainText('50% off')
+  await expect(food).toContainText('Make money')
+  await expect(food).toContainText('Freshly made')
+  await expect(food.getByText('Film coming soon')).toBeVisible()
+  await expect(page.getByRole('article', { name: 'The working-hours record' })).toContainText('Stay legal')
+  // The cheat sheet at the top lists each problem under what it's mainly about, and links to its card.
+  const glance = page.getByRole('region', { name: 'Selling points at a glance' })
+  for (const win of ['Make money', 'Save time', 'Cut costs', 'Stay legal']) await expect(glance.getByRole('heading', { name: win })).toBeVisible()
+  await glance.getByRole('link', { name: 'Food waste' }).click()
+  await expect(page).toHaveURL(/\/sell\/cafes#food-waste$/)
+  await expect(food).toBeInViewport()
+  // A kind that isn't written yet, or doesn't exist, goes back to the choice.
+  await page.goto('/sell/barbers?demo')
+  await expect(page).toHaveURL(/\/sell$/)
+  await page.goto('/sell/nonsense?demo')
+  await expect(page).toHaveURL(/\/sell$/)
+})
+
+test('sales page in Spanish: the heading, the types and the cards', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('eb-language', 'es'))
+  await page.goto('/sell/cafes?demo')
+  await expect(page).toHaveTitle('Ventas · The Business Agent')
+  await expect(page.getByRole('heading', { name: 'Sabe lo que de verdad les duele.', level: 1 })).toBeVisible()
+  await expect(page.getByRole('article', { name: 'Desperdicio de comida' })).toContainText('50 %')
+})
+
+test('sales page on a phone: nothing wider than the screen @phone', async ({ page }) => {
+  await page.goto('/sell/cafes?demo')
+  await expect(page.getByRole('article', { name: 'Food waste' })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  // The menu is hidden on a phone: the footer reaches it.
+  await expect(page.getByRole('contentinfo').getByRole('link', { name: 'Sales', exact: true })).toBeAttached()
+})
+
 test.describe('team export', () => {
   test('team: admins export the list, sorted and filtered as shown', async ({ page }) => {
     await open(page, '/team')
@@ -9145,7 +9201,7 @@ test.describe('UI round: dashboards, the business advisor and the landing pages'
     await expect(page.getByText('Easy Beans')).toHaveCount(0)
     // The site menu has Compare (not Everything); "One app instead of ten" links to it too.
     await expect(page.getByRole('navigation', { name: 'Site' }).getByRole('link'))
-      .toHaveText([...FEATURES.demoVideo || FEATURES.dayVideo || FEATURES.ownerVideo || FEATURES.sayVideo ? ['Demos'] : [], 'Features', 'Pricing', 'Compare', 'Enterprise', 'FAQ'])
+      .toHaveText([...FEATURES.demoVideo || FEATURES.dayVideo || FEATURES.ownerVideo || FEATURES.sayVideo ? ['Demos'] : [], 'Features', 'Pricing', 'Sales', 'Compare', 'Enterprise', 'FAQ'])
     await page.locator('#everything').getByRole('link', { name: 'Compare it with GoHighLevel and Square →' }).click()
     await expect(page).toHaveURL(/\/compare$/)
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('One app for the café. Not three bills.')

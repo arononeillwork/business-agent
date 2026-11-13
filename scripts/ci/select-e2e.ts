@@ -100,6 +100,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'closing the account', files: [/AccountDataCard/, /app\/ClosingBanner/, /i18n\/es\/closeAccount/, /shared\/(accountClosing|dataExport)/],
     tests: String.raw`closes the account|billing` },
   { name: 'compare', files: [/ComparePage/, /marketing\/compareCharts/, /shared\/compare/, /i18n\/es\/compare/], tests: String.raw`compare|landing` },
+  { name: 'sales playbook', files: [/SellPage/, /marketing\/salesPlaybook/, /i18n\/es\/sell/], tests: String.raw`sales page|landing` },
   { name: 'leads', files: [/LeadsPage/, /shared\/leads/], tests: String.raw`leads and enquiries|enquir` },
   { name: 'expenses', files: [/ExpensesPage/, /shared\/claims/], tests: String.raw`expenses and mileage|trip` },
   { name: 'campaigns', files: [/CampaignsPage/, /shared\/campaigns/], tests: String.raw`campaigns|marketing` },
