@@ -754,6 +754,15 @@ Agent from the owner's own AI: added once as a custom connector, then typed to a
 the phone, each change landing in the app and everywhere it shows at once, ending on "How much is your time
 worth?" (`video/README.md`).
 
+The **Sales page** (`/sell`, **Sales** in the site menu and the footer, `src/pages/SellPage.tsx`) is for the
+people who sell Business Agent. It's `/sell` and not `/sales`, which is the signed-in takings page. A business
+type is picked first (cafés now; restaurants and barbers show as coming soon); `/sell/cafes` then lists that
+type's owners' pain points, each with what the owner says, what the app does about it, what they get (more
+money, time back, lower costs, or the legal records kept) and a placeholder for the film that will show it. The
+words are in `src/pages/marketing/salesPlaybook.ts`, with the Spanish in `src/i18n/es/sell.ts`: to add a type,
+fill in its `points` and set `live: true`. The café content is a first draft written from what the app does
+today, to be checked against the business plan.
+
 The **Compare page** (`/compare`, `src/pages/ComparePage.tsx`) sets Business Agent next to GoHighLevel and
 Square for a café in Spain, for the team size the visitor picks: what each route costs a month and over three
 years (each company's own products at list price, VAT and card fees left out), a learning-curve chart (our

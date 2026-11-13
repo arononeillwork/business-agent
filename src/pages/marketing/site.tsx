@@ -121,6 +121,8 @@ function SiteHeader() {
           )}
           <Link component={RouterLink} to="/#features" sx={navLink}>{t('Features')}</Link>
           <Link component={RouterLink} to="/pricing" sx={navLink}>{t('Pricing')}</Link>
+          {/* For the people who sell it: the kinds of business and what hurts each. */}
+          <Link component={RouterLink} to="/sell" sx={navLink}>{t('Sales')}</Link>
           {/* Only where there's room beside the buttons; the footer, the landing page and Pricing link to it too. */}
           <Link component={RouterLink} to="/compare" sx={{ ...navLink, display: { md: 'none', lg: 'inline' } }}>{t('Compare')}</Link>
           <Link component={RouterLink} to="/pricing#enterprise" sx={navLink}>{ENTERPRISE.name}</Link>
@@ -160,7 +162,7 @@ function SiteFooter() {
           </Typography>
           <Box><LanguageToggle always /></Box>
         </Stack>
-        {col(t('Product'), [[t('Demos'), '/demos'], [t('Features'), '/#features'], [t('Pricing'), '/pricing'], [t('Compare'), '/compare'], [ENTERPRISE.name, '/pricing#enterprise']])}
+        {col(t('Product'), [[t('Demos'), '/demos'], [t('Features'), '/#features'], [t('Pricing'), '/pricing'], [t('Sales'), '/sell'], [t('Compare'), '/compare'], [ENTERPRISE.name, '/pricing#enterprise']])}
         {col(t('Account'), [[t('Log in'), '/#account'], [t('Start free trial'), '/#start']])}
         {col(t('Contact'), [[CONTACT.email, `mailto:${CONTACT.email}`]])}
         {col(t('Legal'), [[t('Privacy policy'), '/privacy'], [t('Terms of service'), '/terms'], [t('Legal notice'), '/legal-notice'], [t('Data processing agreement'), '/dpa']])}
