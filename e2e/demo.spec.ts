@@ -12124,6 +12124,25 @@ test.describe('Ideas from the Instagram Ideas chat', () => {
     await expect(page.getByText(/sends to itself on Instagram, in its chat with itself/)).toBeVisible()
   })
 
+  test('the Ideas chat’s posts filtered by type and by the words in their notes, on the page itself', async ({ page }) => {
+    await open(page, '/ideas')
+    const types = page.getByRole('group', { name: 'Filter by type' })
+    const cards = page.getByRole('img', { name: /from @easy\.beans\.coffee$/ })
+    await expect(cards).toHaveCount(6)
+    // Only the kinds there are: the demo has reels, posts and a photo, no videos.
+    await expect(types.getByRole('button', { name: /^Videos/ })).toHaveCount(0)
+    await types.getByRole('button', { name: /^Reels/ }).click()
+    await expect(cards).toHaveCount(2)
+    await expect(page.getByText('Slow-motion pour for our next reel', { exact: false })).toBeVisible()
+    await types.getByRole('button', { name: /^Reels/ }).click() // pressed again: all of them
+    await expect(cards).toHaveCount(6)
+    await page.getByRole('searchbox', { name: 'Search the notes' }).fill('MATCHA')
+    await expect(cards).toHaveCount(1)
+    await expect(page.getByText('Iced matcha with cold foam: one for the summer menu')).toBeVisible()
+    await page.getByRole('searchbox', { name: 'Search the notes' }).fill('toastie')
+    await expect(page.getByText('No ideas match. Try another type, or other words.')).toBeVisible()
+  })
+
   test('the team sees the Ideas chat’s posts, but can’t change the chat or take ideas off', async ({ page }) => {
     // Its old address, under the To Do List, still opens it.
     await open(page, '/todo/ideas', 'julio@example.com')

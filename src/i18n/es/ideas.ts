@@ -43,4 +43,6 @@ export default {
     'Instagram no compartió el contenido de {n} mensaje del chat de Ideas, así que no aparece aquí.',
   'Instagram didn’t share what was in {n} messages of the Ideas chat, so they aren’t here.':
     'Instagram no compartió el contenido de {n} mensajes del chat de Ideas, así que no aparecen aquí.',
+  'Search the notes': 'Buscar en las notas',
+  'No ideas match. Try another type, or other words.': 'Ninguna idea coincide. Prueba otro tipo u otras palabras.',
 }

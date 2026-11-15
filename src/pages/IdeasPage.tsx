@@ -1,20 +1,40 @@
-import { Alert, Box, Button, Card, CardContent, IconButton, Link as MuiLink, Stack, TextField, Tooltip, Typography } from '@mui/material'
+import { Alert, Box, Button, Card, CardContent, Chip, IconButton, InputAdornment, Link as MuiLink, Stack, TextField, Tooltip, Typography } from '@mui/material'
 import RefreshIcon from '@mui/icons-material/RefreshRounded'
 import OpenIcon from '@mui/icons-material/OpenInNewRounded'
 import HideIcon from '@mui/icons-material/VisibilityOffOutlined'
 import BrokenIcon from '@mui/icons-material/HideImageOutlined'
 import PlayIcon from '@mui/icons-material/PlayCircleOutlined'
+import SearchIcon from '@mui/icons-material/SearchRounded'
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader, Tag } from '../components/common'
-import { EMBED_HEADER_PX, IDEA_KINDS, embedOf, type IdeasCheck, type InstagramIdea } from '../../shared/instagramIdeas'
+import { EMBED_HEADER_PX, IDEA_KINDS, IDEA_KIND_FILTERS, embedOf, filterIdeas, ideaCounts, type IdeaFilter, type IdeasCheck, type InstagramIdea } from '../../shared/instagramIdeas'
 import { cleanInstagram } from '../../shared/reps'
 import { formatLocal } from '../../shared/time'
 import { tokens } from '../theme'
 import { t, tn, tr } from '../i18n'
+
+/** The kind chosen last on this device (the words searched for aren't kept). */
+const FILTER_KEY = 'ideas-filter'
+function readFilter(): IdeaFilter {
+  try {
+    const kind = (JSON.parse(localStorage.getItem(FILTER_KEY) ?? '{}') as { kind?: string }).kind
+    return { kind: IDEA_KIND_FILTERS.some(k => k.kind === kind) ? kind as IdeaFilter['kind'] : null, words: '' }
+  } catch { return { kind: null, words: '' } }
+}
+
+/** A filter: its name and how many ideas it has; the chosen one filled in. */
+function FilterChip({ label, count, selected, onClick }: { label: string; count: number; selected: boolean; onClick: () => void }) {
+  return (
+    <Chip clickable onClick={onClick} aria-pressed={selected}
+      label={<>{label}<Box component="span" sx={{ opacity: 0.7, ml: 0.75 }}>{count}</Box></>}
+      sx={{ fontWeight: 500, bgcolor: selected ? tokens.ink : 'transparent', color: selected ? tokens.surface : 'text.primary',
+        border: 1, borderColor: selected ? 'transparent' : 'divider', '&:hover': { bgcolor: selected ? tokens.ink : tokens.hover } }} />
+  )
+}
 
 /** What Check now found, in words. */
 function checked(r: IdeasCheck) {
@@ -46,6 +66,15 @@ export function IdeasPage() {
   const [editing, setEditing] = useState(false)
   const [checking, setChecking] = useState(false)
   const ideas = list.data ?? []
+  // Filters: by kind and by words in a note (remembered on this device), all on the page itself.
+  const [filter, setFilter] = useState<IdeaFilter>(readFilter)
+  const choose = (f: Partial<IdeaFilter>) => {
+    const next = { ...filter, ...f }
+    setFilter(next)
+    try { localStorage.setItem(FILTER_KEY, JSON.stringify({ kind: next.kind })) } catch { /* storage unavailable */ }
+  }
+  const counts = ideaCounts(ideas)
+  const shown = filterIdeas(ideas, filter)
   const notKept = ideas.some(i => !i.media_kept)
 
   const check = async () => {
@@ -104,11 +133,29 @@ export function IdeasPage() {
             : tr('Nothing in the Ideas chat yet. On Instagram, as {business}, tap the paper plane under a post or reel and send it to yourself.', { business })}
         </Empty>
       ) : (
-        <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(3, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' } }}>
-          {ideas.map(i => (
-            <IdeaCard key={i.id} idea={i} onHide={isAdmin ? () => run(async () => { await api.hideInstagramIdea(i.id); await list.reload() }, t('Taken off the Ideas page')) : undefined} />
-          ))}
-        </Box>
+        <>
+          <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ gap: 1.5, mb: 2, alignItems: { sm: 'center' }, justifyContent: 'space-between' }}>
+            <Stack direction="row" useFlexGap role="group" aria-label={t('Filter by type')} sx={{ flexWrap: 'wrap', gap: 0.75 }}>
+              <FilterChip label={t('All')} count={ideas.length} selected={!filter.kind} onClick={() => choose({ kind: null })} />
+              {IDEA_KIND_FILTERS.filter(k => counts[k.kind] || filter.kind === k.kind).map(k => (
+                <FilterChip key={k.kind} label={t(k.label)} count={counts[k.kind] ?? 0} selected={filter.kind === k.kind}
+                  onClick={() => choose({ kind: filter.kind === k.kind ? null : k.kind })} />
+              ))}
+            </Stack>
+            <TextField size="small" type="search" value={filter.words} onChange={e => choose({ words: e.target.value })}
+              placeholder={t('Search the notes')} sx={{ width: { xs: '100%', sm: 260 } }}
+              slotProps={{ htmlInput: { 'aria-label': t('Search the notes') }, input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> } }} />
+          </Stack>
+          {shown.length === 0 ? (
+            <Empty>{t('No ideas match. Try another type, or other words.')}</Empty>
+          ) : (
+            <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(3, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' } }}>
+              {shown.map(i => (
+                <IdeaCard key={i.id} idea={i} onHide={isAdmin ? () => run(async () => { await api.hideInstagramIdea(i.id); await list.reload() }, t('Taken off the Ideas page')) : undefined} />
+              ))}
+            </Box>
+          )}
+        </>
       )}
     </Box>
   )
