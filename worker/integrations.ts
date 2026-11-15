@@ -32,6 +32,7 @@ import { minutesFor } from './refresh'
 import { finishMusicConnect, type MusicState } from './music'
 import { ensureFeed } from './calendarFeed'
 import { checkMentions, decide, putForward, repostMention } from './mentions'
+import { ideaChatIn } from '../shared/instagramIdeas'
 import { collabId, shortcodeOf } from '../shared/mentions'
 import { cleanInstagram } from '../shared/reps'
 import { keepPostPhoto, latestPosts } from './offerPosts'
@@ -1301,9 +1302,12 @@ const HUMAN_AGENT_REFUSED = 'Instagram didn’t accept a reply after 24 hours. A
 
 integrations.get('/api/integrations/instagram/inbox', async c => {
   try {
-    const { cfg, me } = await instagramInbox(c)
-    const [chats, tags] = await Promise.all([instagram.conversations(cfg, me), instagram.tagged(cfg).then(t => ({ t }), (e: unknown) => ({ e }))])
-    return c.json({ conversations: chats, tagged: 't' in tags ? tags.t : null,
+    const { db, cfg, me } = await instagramInbox(c)
+    const [chats, tags, { data: set }] = await Promise.all([instagram.conversations(cfg, me), instagram.tagged(cfg).then(t => ({ t }), (e: unknown) => ({ e })),
+      db.from('settings').select('idea_chat').eq('id', 1).maybeSingle()])
+    // The Ideas chat (To Do List → Ideas) is the team's own, not a customer's: it isn't on the Messages page.
+    const ideaChat = ideaChatIn(chats, set?.idea_chat as string | null | undefined)
+    return c.json({ conversations: chats.filter(x => x !== ideaChat), tagged: 't' in tags ? tags.t : null,
       ...('e' in tags ? { taggedNote: 'Instagram didn’t share the posts you’re tagged in. Connect Instagram again and leave “Manage comments” ticked.' } : {}) })
   } catch (e) {
     return c.json({ error: inboxError(e) }, 400)

@@ -8,6 +8,7 @@ import type { HqSupportTicket, SupportTicket } from '../../shared/supportTickets
 import type { HqFunnelRow } from '../../shared/hqFunnel'
 import type { AiMusicQuote, MusicGeneration, MusicTrack } from '../../shared/types'
 import type { InstagramMention } from '../../shared/mentions'
+import type { IdeasCheck, InstagramIdea } from '../../shared/instagramIdeas'
 import type { FilingRecord, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { Invoice } from '../../shared/invoices'
 import type { Licence } from '../../shared/licences'
@@ -1517,6 +1518,11 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
       check(res)
     },
     async deleteTodoCategory(id) { check(await sb.from('todo_categories').delete().eq('id', id)) },
+    async instagramIdeas() {
+      return check(await sb.from('instagram_ideas').select('*').eq('hidden', false).order('shared_at', { ascending: false }).limit(200)) as InstagramIdea[]
+    },
+    async hideInstagramIdea(id) { check(await sb.from('instagram_ideas').update({ hidden: true }).eq('id', id)) },
+    checkIdeasChat: () => worker<IdeasCheck>('/api/ideas/instagram/check', { method: 'POST' }),
     async sentAlerts(limit = 50) {
       return check(await sb.from('outbox').select('*').order('created_at', { ascending: false }).limit(limit)) as OutboxItem[]
     },

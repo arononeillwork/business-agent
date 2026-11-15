@@ -1,0 +1,142 @@
+// Ideas (To Do List → Ideas): reading the Ideas chat, the business's Instagram chat with the one account the
+// admins name (shared/instagramIdeas.ts says what counts as an idea and its note). Every 15 minutes, in a
+// minute of its own (worker/schedule.ts), and when someone presses Check now on the page:
+//   1. the business's latest chats (one request; nobody looked up), to find the Ideas chat and its 5
+//      latest messages. Not among the latest 25: nothing new in it.
+//   2. Only when all 5 are new (there may be more): the chat itself, its 20 latest (all Instagram shares).
+//   3. Each post, reel, photo or video in it kept once.
+//   4. Pictures copied into the business's own storage, a couple a run (a scheduled run may make only 50
+//      outside requests, the database's included): Instagram's links to a chat's pictures stop working
+//      a few days after they're sent, so those not copied by then, or that failed 3 times, keep Instagram's link.
+//   POST /api/ideas/instagram/check   the team: read the Ideas chat now; { added, chat }
+import { Hono } from 'hono'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { bearer, businessDb, type Env } from './supabase'
+import { signInCheck, signedInUser } from './signedIn'
+import * as instagram from './providers/instagram'
+import { instagramSession } from './connections'
+import { INSTAGRAM_IDEAS_FOLDER, MediaError, mediaStorage, storeMedia } from './media'
+import { ideaChatIn, ideasIn, type FoundIdea, type IdeasCheck } from '../shared/instagramIdeas'
+import type { InboxMessage } from '../shared/messages'
+
+/** Pictures copied a run: a scheduled run's, and the page's Check now. */
+export const COPIES_A_RUN = 2
+export const COPIES_ON_CHECK = 4
+/** How long Instagram's links to a chat's pictures are tried, and how many times. */
+export const COPY_FOR_MS = 3 * 86_400_000
+export const COPY_TRIES = 3
+/** The most copied at once: the file is held in memory (a Worker has 128 MB). Bigger videos keep Instagram's link. */
+export const COPY_MAX_BYTES = 30 * 1024 * 1024
+
+
+/** Read the Ideas chat and keep what's new in it. `force`: read its 20 latest messages whatever the 5 latest say. */
+export async function readIdeasChat(env: Env, db: SupabaseClient, origin: string, force = false): Promise<IdeasCheck> {
+  const { data: set } = await db.from('settings').select('idea_chat').eq('id', 1).maybeSingle()
+  const username = (set?.idea_chat as string | null | undefined) ?? null
+  if (!username) return { chat: 'none', added: 0, copied: 0 }
+  const { data: row } = await db.from('integrations').select('status, external').eq('provider', 'instagram').maybeSingle()
+  if (row?.status !== 'connected') return { chat: 'not_connected', added: 0, copied: 0 }
+  const ext = (row.external ?? {}) as { user_id?: string; username?: string }
+  const cfg = await instagramSession(env, db)
+  const me: instagram.Me = { id: ext.user_id ?? '', username: ext.username }
+  const chat = ideaChatIn(await instagram.conversations(cfg, me, () => false), username)
+  let added = 0
+  if (chat) {
+    const kept = await keptOf(db, chat.recent.map(m => m.id))
+    const messages = force || maybeMore(chat.recent, kept) ? await instagram.chatMessages(cfg, me, chat.id) : chat.recent
+    added = await keepIdeas(db, ideasIn(chat, messages, ext.username ?? null), kept)
+  }
+  const copied = await copyPictures(env, db, origin, force ? COPIES_ON_CHECK : COPIES_A_RUN)
+  return { chat: chat ? 'read' : 'missing', added, copied }
+}
+
+/** Which of these messages are kept as ideas already. */
+async function keptOf(db: SupabaseClient, ids: string[]): Promise<Set<string>> {
+  if (!ids.length) return new Set()
+  const { data, error } = await db.from('instagram_ideas').select('message_id').in('message_id', ids)
+  if (error) throw new Error(error.message)
+  return new Set((data ?? []).map(r => String(r.message_id)))
+}
+
+/**
+ * Whether the chat may have more new messages than the 5 the chats list gives: all 5 of them are new
+ * (none is an idea kept already), and they're from the last day (an old chat isn't read again and again).
+ */
+export function maybeMore(recent: InboxMessage[], kept: Set<string>, now = Date.now()) {
+  if (recent.length < 5 || recent.some(m => kept.has(m.id))) return false
+  const oldest = recent.reduce((a, m) => (m.at < a ? m.at : a), recent[0].at)
+  return now - new Date(oldest).getTime() < 86_400_000
+}
+
+/** Keep the ideas not kept yet; returns how many. A read at the same moment can't keep one twice. */
+export async function keepIdeas(db: SupabaseClient, found: FoundIdea[], kept?: Set<string>): Promise<number> {
+  const had = kept ?? new Set()
+  const unseen = found.filter(f => !had.has(f.message_id))
+  // The 20 latest messages may hold ideas kept on an earlier read that the 5 latest didn't show.
+  const already = await keptOf(db, unseen.filter(f => !kept || !kept.has(f.message_id)).map(f => f.message_id))
+  const fresh = unseen.filter(f => !already.has(f.message_id))
+  if (!fresh.length) return 0
+  const { error } = await db.from('instagram_ideas')
+    .upsert(fresh.map(f => ({ ...f, media_type: guessType(f.media_url), media_kept: false, media_tries: 0, hidden: false })),
+      { onConflict: 'business_id,message_id', ignoreDuplicates: true })
+  if (error) throw new Error(error.message)
+  return fresh.length
+}
+
+/** A video by its address (.mp4, .mov), else a picture; copying it says for sure. */
+const guessType = (url: string | null) => (!url ? null : /\.(mp4|mov)(\?|$)/i.test(url) ? 'video' : 'image')
+
+/** Copy a few ideas' pictures (or videos) from Instagram into the business's storage. Returns how many. */
+export async function copyPictures(env: Env, db: SupabaseClient, origin: string, max: number): Promise<number> {
+  const since = new Date(Date.now() - COPY_FOR_MS).toISOString()
+  const { data } = await db.from('instagram_ideas').select('id, media_url, media_tries')
+    .eq('media_kept', false).eq('hidden', false).lt('media_tries', COPY_TRIES).gte('shared_at', since).not('media_url', 'is', null)
+    .order('shared_at', { ascending: false }).limit(max)
+  // No storage connected: Instagram's links are kept as they are (the page says to connect Drive or OneDrive).
+  if (!data?.length || !(await mediaStorage(env, db))) return 0
+  let copied = 0
+  for (const idea of data) {
+    try {
+      const { url, type } = await copyOne(env, db, origin, String(idea.media_url))
+      await db.from('instagram_ideas').update({ media_url: url, media_type: type, media_kept: true }).eq('id', idea.id)
+      copied++
+    } catch (e) {
+      // A file storage won't take (too big, a kind it doesn't keep) isn't tried again; anything else is, a few times.
+      const tries = e instanceof MediaError ? COPY_TRIES : Number(idea.media_tries ?? 0) + 1
+      await db.from('instagram_ideas').update({ media_tries: tries }).eq('id', idea.id)
+    }
+  }
+  return copied
+}
+
+async function copyOne(env: Env, db: SupabaseClient, origin: string, from: string) {
+  const res = await fetch(from)
+  if (!res.ok) throw new Error(`Instagram’s picture couldn’t be read (${res.status})`)
+  const type = (res.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase()
+  const size = Number(res.headers.get('content-length') ?? '') || null
+  // A video of unknown size, or anything too big, isn't read into memory to copy it.
+  if ((size ?? (type.startsWith('video/') ? Infinity : 0)) > COPY_MAX_BYTES) {
+    await res.body?.cancel()
+    throw new MediaError('Too big to copy')
+  }
+  const bytes = await res.arrayBuffer()
+  if (bytes.byteLength > COPY_MAX_BYTES) throw new MediaError('Too big to copy')
+  const stored = await storeMedia(env, db, origin, { type, size: bytes.byteLength, body: bytes, folder: INSTAGRAM_IDEAS_FOLDER })
+  return { url: stored.url, type: stored.type === 'video' ? 'video' as const : 'image' as const }
+}
+
+// ---- Check now (the Ideas page) ------------------------------------------------------------------
+
+export const ideas = new Hono<{ Bindings: Env }>()
+
+ideas.post('/api/ideas/instagram/check', async c => {
+  const token = bearer(c.req.header('authorization'))
+  if (!token) return c.json({ error: 'Not signed in' }, 401)
+  const [{ data: user }, { data: staff }, { data: businessId }] = await Promise.all([signedInUser(c.env, token), signInCheck(c.env, token, 'is_staff'), signInCheck(c.env, token, 'current_business_id')])
+  if (!user.user || !staff || !businessId) return c.json({ error: 'Only the team checks the Ideas chat' }, 403)
+  try {
+    return c.json(await readIdeasChat(c.env, businessDb(c.env, businessId as number), new URL(c.req.url).origin, true))
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : String(e) }, 502)
+  }
+})

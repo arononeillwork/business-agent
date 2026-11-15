@@ -1,0 +1,198 @@
+import { Alert, Box, Button, Card, CardContent, IconButton, Link as MuiLink, Stack, TextField, Tooltip, Typography } from '@mui/material'
+import RefreshIcon from '@mui/icons-material/RefreshRounded'
+import OpenIcon from '@mui/icons-material/OpenInNewRounded'
+import HideIcon from '@mui/icons-material/VisibilityOffOutlined'
+import BrokenIcon from '@mui/icons-material/HideImageOutlined'
+import PlayIcon from '@mui/icons-material/PlayCircleOutlined'
+import { useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
+import { useApp } from '../app/AppContext'
+import { useAsync } from '../app/hooks'
+import { useAction, useNotify } from '../app/Notify'
+import { Empty, ErrorBox, PageHeader, Tag } from '../components/common'
+import { IDEA_KINDS, type IdeasCheck, type InstagramIdea } from '../../shared/instagramIdeas'
+import { cleanInstagram } from '../../shared/reps'
+import { formatLocal } from '../../shared/time'
+import { tokens } from '../theme'
+import { t, tn, tr } from '../i18n'
+
+/** What Check now found, in words. */
+function checked(r: IdeasCheck) {
+  if (r.chat === 'none') return t('Choose who the Ideas chat is with first')
+  if (r.chat === 'not_connected') return t('Instagram isn’t connected')
+  if (r.chat === 'missing') return t('The Ideas chat isn’t among the business’s latest chats. Send a message in it, then check again.')
+  return r.added ? tn(r.added, '{n} new idea', '{n} new ideas') : t('Nothing new in the Ideas chat')
+}
+
+/**
+ * To Do List → Ideas: posts and reels the team wants to remember, sent to the Instagram Ideas chat (the
+ * business's chat with one account an admin names). Instagram doesn't let apps read saved posts or group
+ * chats; this chat is how a post is kept here. The Worker reads it every 15 minutes (worker/instagramIdeas.ts).
+ */
+export function IdeasPage() {
+  const { api, isAdmin, settings, refresh } = useApp()
+  const notify = useNotify()
+  const run = useAction()
+  const list = useAsync('instagram-ideas', () => api.instagramIdeas(), [])
+  // Admins: whether Instagram is connected (and as whom), and where pictures are kept.
+  const integ = useAsync('integrations', () => (isAdmin ? api.integrations() : Promise.resolve(null)), [isAdmin])
+  const instagram = integ.data?.integrations.find(i => i.provider === 'instagram')
+  const connected = instagram?.status === 'connected'
+  const business = instagram?.account_label ?? t('the business’s Instagram')
+  const chat = settings?.idea_chat ?? null
+  const [editing, setEditing] = useState(false)
+  const [checking, setChecking] = useState(false)
+  const ideas = list.data ?? []
+  const notKept = ideas.some(i => !i.media_kept)
+
+  const check = async () => {
+    setChecking(true)
+    try {
+      const r = await api.checkIdeasChat()
+      notify(checked(r), r.chat === 'read' ? 'success' : 'info')
+      await list.reload()
+    } catch (e) {
+      notify(e instanceof Error ? e.message : String(e), 'error')
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  return (
+    <Box>
+      <PageHeader eyebrow={t('To Do List')} title={t('Ideas')} actions={chat && (
+        <Button variant="outlined" startIcon={<RefreshIcon />} onClick={check} disabled={checking}>{checking ? t('Checking…') : t('Check now')}</Button>
+      )} />
+      <Typography sx={{ color: 'text.secondary', mb: 2.5, maxWidth: 720 }}>
+        {chat
+          ? tr('Posts and reels sent to the Ideas chat on Instagram: {business}’s chat with {who}. New ones show here within 15 minutes.', { business: <b>{business}</b>, who: <b>@{chat}</b> })
+          : t('Posts and reels sent to one Instagram chat, the Ideas chat, show here: share a post into it and it’s kept as an idea.')}
+        {isAdmin && chat && !editing && <> <MuiLink component="button" onClick={() => setEditing(true)} sx={{ verticalAlign: 'baseline' }}>{t('Change')}</MuiLink></>}
+      </Typography>
+      <ErrorBox error={list.error} />
+
+      {isAdmin && integ.data && !connected && (
+        <Alert severity="info" sx={{ mb: 2 }} action={<Button component={Link} to="/connections" color="inherit" size="small">{t('Connections')}</Button>}>
+          {t('Connect Instagram, with messages allowed, so the Ideas chat can be read.')}
+        </Alert>
+      )}
+      {isAdmin && (!chat || editing) && (
+        <SetUp business={business} chat={chat} onCancel={chat ? () => setEditing(false) : undefined}
+          onSave={async username => {
+            await run(async () => { await api.updateSettings({ idea_chat: username }); await refresh() }, t('Saved'))
+            setEditing(false)
+          }} />
+      )}
+      {isAdmin && connected && notKept && integ.data?.media_storage === null && (
+        <Alert severity="warning" sx={{ mb: 2 }} action={<Button component={Link} to="/connections" color="inherit" size="small">{t('Connections')}</Button>}>
+          {t('Connect Google Drive or OneDrive so the pictures are kept: Instagram’s links to them stop working after a few days.')}
+        </Alert>
+      )}
+
+      {!list.data ? null : ideas.length === 0 ? (
+        <Empty>
+          {chat
+            ? t('Nothing in the Ideas chat yet. On Instagram, tap the paper plane under a post or reel and send it to the Ideas chat.')
+            : isAdmin ? t('Set up the Ideas chat above, then share posts into it.') : t('An admin sets up the Ideas chat on Instagram. Posts shared into it show here.')}
+        </Empty>
+      ) : (
+        <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(3, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' } }}>
+          {ideas.map(i => (
+            <IdeaCard key={i.id} idea={i} onHide={isAdmin ? () => run(async () => { await api.hideInstagramIdea(i.id); await list.reload() }, t('Taken off the Ideas page')) : undefined} />
+          ))}
+        </Box>
+      )}
+    </Box>
+  )
+}
+
+/** Admins: how to make the Ideas chat on Instagram, and who it's with. */
+function SetUp({ business, chat, onSave, onCancel }: { business: string; chat: string | null; onSave: (username: string) => Promise<void>; onCancel?: () => void }) {
+  const [value, setValue] = useState(chat ?? '')
+  const [problem, setProblem] = useState<string | null>(null)
+  const submit = async (e: FormEvent) => {
+    e.preventDefault()
+    const username = cleanInstagram(value)
+    if (!username) { setProblem(t('Type an Instagram username, like @maria.ideas')); return }
+    setProblem(null)
+    await onSave(username)
+  }
+  const step = { pl: 0.5, mb: 1, lineHeight: 1.6 }
+  return (
+    <Card variant="outlined" sx={{ mb: 3, maxWidth: 760 }}>
+      <CardContent>
+        <Typography variant="h6" component="h2" sx={{ mb: 1 }}>{t('Set up the Ideas chat')}</Typography>
+        <Typography sx={{ color: 'text.secondary', mb: 2 }}>
+          {t('Instagram doesn’t let apps read saved posts or group chats, so ideas come from one chat: the business’s chat with an account of your own. It isn’t shown on the Messages page.')}
+        </Typography>
+        <Box component="ol" sx={{ m: 0, mb: 2, pl: 2.5 }}>
+          <Box component="li" sx={step}>{tr('From your own Instagram account, send {business} a message, like “Ideas”. That makes the chat.', { business: <b>{business}</b> })}</Box>
+          <Box component="li" sx={step}>{tr('On {business}, press and hold the chat and tap Pin, so it stays at the top. In the chat’s settings you can give it the nickname “Ideas”.', { business: <b>{business}</b> })}</Box>
+          <Box component="li" sx={step}>{t('Type that account’s username here.')}</Box>
+          <Box component="li" sx={step}>{t('Share posts and reels into the chat with the paper plane, from either account. Anything you write with one is kept as its note.')}</Box>
+        </Box>
+        <Stack component="form" onSubmit={submit} direction={{ xs: 'column', sm: 'row' }} sx={{ gap: 1.5, alignItems: { sm: 'flex-start' } }}>
+          <TextField size="small" label={t('Their Instagram username')} placeholder={'@maria.ideas'} value={value} onChange={e => setValue(e.target.value)}
+            error={!!problem} helperText={problem ?? ' '} sx={{ minWidth: 260 }} slotProps={{ htmlInput: { autoCapitalize: 'none', autoCorrect: 'off', spellCheck: false } }} />
+          <Stack direction="row" sx={{ gap: 1 }}>
+            <Button type="submit" variant="contained">{t('Save')}</Button>
+            {onCancel && <Button onClick={onCancel}>{t('Cancel')}</Button>}
+          </Stack>
+        </Stack>
+      </CardContent>
+    </Card>
+  )
+}
+
+/** One idea: its picture (or video), what kind, who sent it and when, its note, and where to open it. */
+function IdeaCard({ idea: i, onHide }: { idea: InstagramIdea; onHide?: () => void }) {
+  const [broken, setBroken] = useState(false)
+  const who = `@${i.username}`
+  return (
+    <Card variant="outlined" sx={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+      <Box sx={{ position: 'relative', aspectRatio: '4 / 5', bgcolor: tokens.surfaceAlt, borderBottom: `1px solid ${tokens.line}` }}>
+        {i.media_url && !broken && (i.media_type === 'video'
+          ? <Box component="video" src={i.media_url} controls muted playsInline preload="metadata" aria-label={t('{kind} from {who}', { kind: t(IDEA_KINDS[i.kind]), who })}
+              onError={() => setBroken(true)} sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          : <Box component="img" src={i.media_url} alt={t('{kind} from {who}', { kind: t(IDEA_KINDS[i.kind]), who })} loading="lazy"
+              onError={() => setBroken(true)} sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />)}
+        {(!i.media_url || broken) && (
+          <Stack sx={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', gap: 1, p: 2, color: 'text.secondary', textAlign: 'center' }}>
+            <BrokenIcon />
+            <Typography variant="caption">{t('The picture is no longer on Instagram')}</Typography>
+          </Stack>
+        )}
+        {i.kind === 'reel' && i.media_type !== 'video' && !broken && i.media_url && (
+          <PlayIcon sx={{ position: 'absolute', top: 8, right: 8, color: '#fff', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.5))' }} />
+        )}
+      </Box>
+      <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 }, display: 'flex', flexDirection: 'column', gap: 0.75, flex: 1 }}>
+        <Stack direction="row" sx={{ alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+          <Tag>{t(IDEA_KINDS[i.kind])}</Tag>
+          <Typography variant="caption" sx={{ color: 'text.secondary', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {who} · {formatLocal(i.shared_at, 'd MMM')}
+          </Typography>
+        </Stack>
+        {i.note && (
+          <Typography variant="body2" sx={{ whiteSpace: 'pre-line', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>
+            {i.note}
+          </Typography>
+        )}
+        <Stack direction="row" sx={{ mt: 'auto', pt: 0.5, alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+          {i.permalink
+            ? <Button size="small" href={i.permalink} target="_blank" rel="noreferrer" endIcon={<OpenIcon fontSize="small" />} sx={{ ml: -0.75 }}>{t('Open on Instagram')}</Button>
+            : <span />}
+          {onHide && (
+            <Tooltip title={t('Take off the Ideas page')}>
+              <IconButton size="small" onClick={onHide} aria-label={t('Take {who}’s {kind} off the Ideas page', { who, kind: t(IDEA_KINDS[i.kind]).toLowerCase() })}>
+                <HideIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+        </Stack>
+      </CardContent>
+    </Card>
+  )
+}
+
+export default IdeasPage
