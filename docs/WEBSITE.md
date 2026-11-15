@@ -72,8 +72,8 @@ Square is read within seconds (Square's catalog webhook; at the business's refre
 missed, and straight away with **Read from Square now** on the Menu page), and a price changed in the
 app is changed in Square within a minute. With the menu kept in the app (custom), the app doesn't change
 Square's prices, so the till and an online order would charge Square's. A website should show the price
-it will actually charge: Easy Beans' shows Square's when the two differ (for the moment until they're
-the same again) and notes the difference in its logs.
+it will actually charge. Easy Beans' menu is read from Square, so the two are the same: its website shows the
+app's price, and notes in its logs any moment the two differ (Square still charges its own).
 
 ## Newsletter sign-ups
 
@@ -299,6 +299,80 @@ What comes back (`SiteDetailsFeed` in `shared/websiteDetails.ts`):
 - WhatsApp and TikTok are on the Business page (Contact), next to the phone and Instagram.
 - Easy Beans' details were filled in from what its website showed before, where the app had none.
 
+## The Google rating and reviews
+
+```
+GET https://businesssagent.com/api/site/<business>/reviews
+```
+
+The business's Google rating and its reviews, as the Reviews page keeps them: the app reads Google (the
+business's own profile on Connections → Google Maps every hour, or the public listing every 3 hours), and the
+website reads what's kept here, so it needs no Google key of its own and asking often costs no look-up at
+Google. As the menu: no sign-in, CORS open, kept a minute, `404` until an admin turns on **Share your reviews
+with the website** on Website & SEO (`settings.website_reviews`) and for a number that's no business, `503`
+when it can't be read just then.
+
+What comes back (`SiteReviewsFeed` in `shared/websiteReviews.ts`):
+
+```jsonc
+{
+  "version": 1,
+  "business": { "id": 1, "name": "Easy Beans Coffee" },
+  "source": "business_profile",          // "places" (the public listing: its 5 newest), or null: neither yet
+  "rating": 4.7, "count": 27,            // Google's average, one decimal, and how many reviews; null: none yet
+  "maps_url": "https://maps.google.com/maps?cid=…",
+  "write_review_url": "https://search.google.com/local/writereview?placeid=…",
+  "reviews": [                           // with words, from someone named, newest first, at most 50
+    { "id": "accounts/…/reviews/…", "rating": 5, "text": "Best flat white in San Pedro", "reviewer": "Ana",
+      "created_at": "2026-11-10T10:00:00Z", "language": "en",
+      "reply": "Thank you Ana!",         // the business's public reply on Google, or null
+      "url": null,                       // Google Maps' page for it (Places only)
+      "photos": [{ "url": "https://lh3.googleusercontent.com/…", "thumb": "https://…" }] }
+  ],
+  "checked_at": "2026-11-15T09:00:00Z",   // when Google was last read
+  "generated_at": "2026-11-15T09:05:00Z"
+}
+```
+
+- From the business's own profile, which gives every review, the rating is worked out from them all (star-only
+  ones included, as Google does); from the public listing it's Google's own.
+- Every rating is there, low ones too, as on Google: the website picks which to show (Easy Beans' shows the
+  newest of the best).
+- A new review is here within the hour (the hourly job), the same as the notification admins get.
+
+## The latest posts
+
+```
+GET https://businesssagent.com/api/site/<business>/posts
+```
+
+The business's latest posts from the Instagram connected on Connections (or its Facebook Page while Instagram
+isn't), so the website needs no Instagram token of its own: a business that reconnects Instagram does it once,
+here. The app asks Instagram at most every 15 minutes for each business, however often websites ask; while
+Instagram can't be read, the posts last read (up to two days). As the menu: no sign-in, CORS open, kept a
+minute, `404` until an admin turns on **Share your posts with the website** on Website & SEO
+(`settings.website_posts`), `503` when nothing can be read just then.
+
+What comes back (`SitePostsFeed` in `shared/websitePosts.ts`):
+
+```jsonc
+{
+  "version": 1,
+  "business": { "id": 1, "name": "Easy Beans Coffee" },
+  "source": "instagram",                 // "facebook", or null: neither connected (posts is [])
+  "account": { "handle": "easy.beans.coffee", "url": "https://www.instagram.com/easy.beans.coffee" },
+  "posts": [                             // newest first, at most 12, only those with a picture and a link
+    { "id": "1802", "permalink": "https://www.instagram.com/reel/…/", "image_url": "https://…cdninstagram.com/…",
+      "caption": "Ube latte", "posted_at": "2026-11-15T08:00:00.000Z", "video": true }   // a video's picture is its cover
+  ],
+  "fetched_at": "2026-11-15T10:00:00.000Z",  // when Instagram was last asked
+  "generated_at": "2026-11-15T10:01:00.000Z"
+}
+```
+
+- `image_url` is Instagram's own address for the picture, which runs out after a few days: show it from the
+  feed rather than keep it (or copy the picture).
+
 ## A new business's website
 
 Everything here is per business: its number is in each address (`/api/site/<business>/…`), and each
@@ -313,19 +387,19 @@ Business Agent itself, only its owner or a shop manager on **Website & SEO**:
 3. **Newsletter sign-ups:** turn them on and set the topics; **Make a website key** for its website's
    server.
 4. **Accounts & rewards:** turn on **Website accounts** (it uses the same website key).
+5. **Google rating and reviews:** connect Google Maps on Connections (its own profile), then turn on **Share
+   your reviews with the website**.
+6. **Instagram posts:** connect Instagram (or the Facebook Page) on Connections, then turn on **Share your posts
+   with the website**.
 
-Its website then reads `GET /api/site/<business>/menu` and `/details` (from its pages or its server), and
+Its website then reads `GET /api/site/<business>/menu`, `/details`, `/reviews` and `/posts` (from its pages or its server), and
 its server sends sign-ups and accounts with the key. Each address on Website & SEO already has the
 business's number in it. Easy Beans' website (its own repository) reads its number from one setting,
 `BUSINESS_AGENT_BUSINESS`, so a site built from it for another business changes only that.
 
 ## Next
 
-The same way, as they're needed: opening hours, the business's details, today's offers (Last day
-offers) and the menu's allergens in full.
+The same way, as they're needed: today's offers (Offers & specials) and the menu's allergens in full.
 
-Easy Beans' website still reads these from elsewhere, to move here one at a time, each a feed of its own like
-the menu: the café's details and opening hours (Google Places and its own text today), its offers (its own
-text), reviews and rating (Google Places), the Instagram feed (Instagram directly) and the menu's prices and
-what's sold out (Square's catalog; the menu feed has the prices already). Checkout and payment stay with
-Square.
+Easy Beans' website reads its menu and prices, details and opening hours, Google rating and reviews, and
+Instagram posts from here. Only what's sold out (Square's catalog) and checkout and payment stay with Square.

@@ -129,6 +129,10 @@ export interface Settings {
   website_accounts?: boolean
   /** The business's own website reads its address, contacts and opening hours from the app (/api/site/<business>/details; off unless an admin turns it on on Website & SEO). */
   website_details?: boolean
+  /** The business's own website reads its Google rating and reviews from the app (/api/site/<business>/reviews; off unless an admin turns it on on Website & SEO). */
+  website_reviews?: boolean
+  /** The business's own website reads its latest Instagram posts from the app (/api/site/<business>/posts; off unless an admin turns it on on Website & SEO). */
+  website_posts?: boolean
   /** How often each outside service is read, in minutes, as an admin chose on Connections (shared/refresh.ts); kept to what the plan allows. */
   refresh_minutes?: import('./refresh').RefreshChoices
 }

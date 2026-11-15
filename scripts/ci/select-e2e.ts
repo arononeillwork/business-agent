@@ -82,6 +82,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'newsletter', files: [/NewsletterCard/, /demoNewsletter/, /i18n\/es\/newsletter/, /shared\/newsletter/], tests: String.raw`newsletter` },
   { name: 'website accounts', files: [/WebsiteAccountsCard/, /i18n\/es\/websiteAccounts/, /shared\/siteAccount/], tests: String.raw`website accounts` },
   { name: 'details on the website', files: [/DetailsOnWebsite/, /i18n\/es\/websiteDetails/, /shared\/(websiteDetails|closures)/], tests: String.raw`details on the website|business details` },
+  { name: 'reviews and posts on the website', files: [/ReviewsAndPostsOnWebsite/, /i18n\/es\/websiteReviewsPosts/, /shared\/website(Reviews|Posts)/], tests: String.raw`reviews and posts on the website` },
   { name: 'competitors', files: [/CompetitorsPage/, /competitorDialogs/, /shared\/localCompetitors/, /components\/charts/], tests: String.raw`competitors` },
   { name: 'set-up', files: [/Setup(Page|Prompt)/, /setupPresets/], tests: String.raw`set-up|wizard` },
   { name: 'sign-up', files: [/NewBusinessPage/, /app\/referral/], tests: String.raw`self-serve|signs up|referral|set-up` },
