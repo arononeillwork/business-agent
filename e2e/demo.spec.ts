@@ -6769,6 +6769,33 @@ test.describe('reviews and website', () => {
     await expect(reviews.first()).toHaveAccessibleName('Lucía Pérez, 5 stars')
   })
 
+  test('reviews: the photos people added show with their review, open large, and have a filter of their own', async ({ page }) => {
+    await open(page, '/reviews')
+    const list = page.getByRole('region', { name: 'Google reviews' })
+    const reviews = list.getByRole('article')
+    await expect(reviews).toHaveCount(12)
+    await list.getByRole('button', { name: 'With photos' }).click()
+    await expect(reviews).toHaveCount(2)
+    await expect(reviews.nth(0)).toHaveAccessibleName('Lucía Pérez, 5 stars')
+    await expect(reviews.nth(1)).toHaveAccessibleName('Ana García, 5 stars')
+
+    // Words and photos together; photos alone aren't "stars only".
+    const lucia = reviews.nth(0)
+    await expect(lucia).toContainText('El mejor café de San Pedro')
+    await expect(lucia.getByRole('list', { name: 'Photos' }).getByRole('listitem')).toHaveCount(2)
+    await expect(reviews.nth(1)).not.toContainText('Stars only, no words')
+    await expect(reviews.nth(1).getByRole('list', { name: 'Photos' }).getByRole('listitem')).toHaveCount(1)
+
+    // One opens large, the next a step away.
+    await lucia.getByRole('button', { name: 'Photo 1 of 2' }).click()
+    const viewer = page.getByRole('dialog', { name: 'Photo from Lucía Pérez' })
+    await expect(viewer.getByRole('img', { name: 'Photo 1 of 2' })).toBeVisible()
+    await viewer.getByRole('button', { name: 'Next photo' }).click()
+    await expect(viewer.getByRole('img', { name: 'Photo 2 of 2' })).toBeVisible()
+    await viewer.getByRole('button', { name: 'Close' }).click()
+    await expect(viewer).toHaveCount(0)
+  })
+
   test('website: the SEO check lists what to fix with how, and whether the details match everywhere', async ({ page }) => {
     await open(page, '/website')
     await expect(page.getByRole('heading', { name: 'Website & SEO' })).toBeVisible()

@@ -63,6 +63,9 @@ export class FakeProviders {
     /** Reviews on the listing (v4 My Business API), newest first; replies the app sent, by review name. */
     reviews: [] as Json[],
     replies: new Map<string, string>(),
+    /** Photos customers added to the listing (v4 media/customers), reviews' photos among them; `mediaRefused`: Google refuses just those. */
+    customerMedia: [] as Json[],
+    mediaRefused: false,
     /** The listing's phone, as Google Maps shows it. */
     phone: '+34 695 415 335',
     /** Food menus (v4): whether Google allows a menu on the listing, the menus it shows, and each update the app sent (with its updateMask). */
@@ -636,6 +639,10 @@ export class FakeProviders {
         return json(b)
       }
       return json(this.google.foodMenus)
+    }
+    if (url.host === 'mybusiness.googleapis.com' && /^\/v4\/accounts\/[^/]+\/locations\/[^/]+\/media\/customers$/.test(url.pathname) && method === 'GET') {
+      if (this.google.mediaRefused) return googleError(403, 'The caller does not have permission', 'PERMISSION_DENIED')
+      return json({ mediaItems: this.google.customerMedia, totalMediaItemCount: this.google.customerMedia.length })
     }
     if (url.host === 'mybusiness.googleapis.com' && /\/reviews$/.test(url.pathname) && method === 'GET') {
       return json({ reviews: this.google.reviews.map(r => ({ ...r, ...(this.google.replies.has(String(r.name)) ? { reviewReply: { comment: this.google.replies.get(String(r.name)), updateTime: '2026-10-20T10:00:00Z' } } : {}) })) })

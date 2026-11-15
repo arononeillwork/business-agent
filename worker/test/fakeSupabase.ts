@@ -28,6 +28,7 @@ const KEYS: Record<string, string[]> = {
   square_pins: ['profile_id'],
   newsletter: ['business_id'],
   instagram_mentions: ['id'], social_follower_days: ['source', 'day'],
+  reviews: ['id'],
 }
 /** Keyed tables that still get a numeric id of their own (an identity column beside the unique key). */
 const AUTO_ID = new Set(['whatsapp_messages'])

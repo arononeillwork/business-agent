@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { filterReviews, guessLanguage, isLow, sortReviews, starsOf, suggestedReply, summarise, type Review } from './reviews'
+import { filterReviews, guessLanguage, isLow, originalWords, sortReviews, starsOf, suggestedReply, summarise, type Review } from './reviews'
 
 const review = (p: Partial<Review>): Review => ({ id: p.id ?? 'r', source: 'google', rating: 5, text: null, reviewer: 'Lucía Pérez',
-  created_at: '2026-09-10T10:00:00Z', reply: null, replied_at: null, language: 'es', url: null, ...p })
+  created_at: '2026-09-10T10:00:00Z', reply: null, replied_at: null, language: 'es', url: null, photos: [], ...p })
 
 describe('reviews', () => {
   it('reads Google’s stars, as words or numbers', () => {
@@ -11,6 +11,20 @@ describe('reviews', () => {
     expect(starsOf(4)).toBe(4)
     expect(starsOf('STAR_RATING_UNSPECIFIED')).toBeNull()
     expect(starsOf(6)).toBeNull()
+  })
+
+  it('keeps the reviewer’s own words, without Google’s translation, whichever way round Google sends them', () => {
+    // The review first, then Google's translation.
+    expect(originalWords('Lovely coffee\n\n(Translated by Google)\nCafé precioso')).toBe('Lovely coffee')
+    // Google's translation first, then the review: the way Spanish reviews come to an English profile.
+    expect(originalWords('(Translated by Google) The best coffee in San Pedro\n\n(Original)\nEl mejor café de San Pedro')).toBe('El mejor café de San Pedro')
+    expect(originalWords('(Traducido por Google) El mejor café\n\n(Original)\nThe best coffee')).toBe('The best coffee')
+    // Only a translation: better than nothing.
+    expect(originalWords('(Translated by Google) Great coffee')).toBe('Great coffee')
+    expect(originalWords('  Riquísimo  ')).toBe('Riquísimo')
+    expect(originalWords('')).toBeNull()
+    expect(originalWords(undefined)).toBeNull()
+    expect(originalWords('(Translated by Google)\n\n(Original)\n')).toBeNull()
   })
 
   it('guesses Spanish or English from the words, accents included', () => {
@@ -37,9 +51,11 @@ describe('reviews', () => {
     expect(summarise([])).toMatchObject({ count: 0, average: null, reply_rate: null, reply_hours: null })
   })
 
-  it('filters: no reply yet, 1 to 3 stars, 4 and 5 stars', () => {
-    const list = [review({ id: 'a', rating: 5, reply: 'x' }), review({ id: 'b', rating: 3 }), review({ id: 'c', rating: 1, reply: 'y' })]
+  it('filters: no reply yet, 1 to 3 stars, 4 and 5 stars, with photos', () => {
+    const list = [review({ id: 'a', rating: 5, reply: 'x' }), review({ id: 'b', rating: 3, photos: [{ url: 'https://lh3.googleusercontent.com/p/1', thumb: null }] }),
+      review({ id: 'c', rating: 1, reply: 'y' })]
     expect(filterReviews(list, 'unanswered').map(r => r.id)).toEqual(['b'])
+    expect(filterReviews(list, 'photos').map(r => r.id)).toEqual(['b'])
     expect(filterReviews(list, 'low').map(r => r.id)).toEqual(['b', 'c'])
     expect(filterReviews(list, 'high').map(r => r.id)).toEqual(['a'])
     expect(filterReviews(list, 'all')).toHaveLength(3)
