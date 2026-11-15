@@ -392,7 +392,7 @@ test('@phone layout: bottom navigation and a full-width clock-in button', async 
   await page.getByRole('button', { name: 'More' }).click()
   const sheet = page.getByRole('list', { name: 'More pages' })
   for (const name of ['Opening hours', 'Brand', 'Finances', 'Sports', 'Team', 'Notifications', 'Connections', 'Analytics']) {
-    await expect(sheet.getByRole('link', { name })).toBeVisible()
+    await expect(sheet.getByRole('link', { name, exact: true })).toBeVisible()
   }
   await sheet.getByRole('link', { name: 'Finances' }).click()
   await expect(page.getByRole('heading', { name: 'Finances' })).toBeVisible()
