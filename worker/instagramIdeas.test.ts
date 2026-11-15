@@ -1,6 +1,7 @@
 // The Instagram Ideas chat (To Do List → Ideas), end to end through the Worker against stand-ins for
 // Supabase, Instagram and the business's storage. What must never break:
-//   - with no Ideas chat chosen, nothing is asked of Instagram
+//   - the Ideas chat is the business's chat with itself, unless an admin chose another account
+//   - without messages allowed, nothing is asked of Instagram
 //   - the posts in the Ideas chat are kept as ideas once, with their notes; other chats' aren't
 //   - pictures are copied into the business's own storage, a couple a run; a failing one is tried a few times, then left
 //   - the Ideas chat isn't on the Messages page
@@ -69,15 +70,39 @@ const shared = (asset: string) => ({ shares: { data: [{ link: `https://lookaside
 function ideasChat(messages: Row[]) {
   return { id: 'conv-ideas', updated_time: messages[0].created_time, participants: { data: [ME, ARON] }, messages: { data: messages } }
 }
+/** The café's chat with itself: the account as the business, and as an Instagram user (its Instagram-scoped id). */
+function selfChat(messages: Row[]) {
+  return { id: 'conv-self', updated_time: messages[0].created_time, participants: { data: [ME, { id: 'igsid-easy-beans', username: ME.username }] },
+    messages: { data: messages } }
+}
 const kept = () => (db.tables.instagram_ideas ?? []).sort((a, b) => String(a.shared_at).localeCompare(String(b.shared_at)))
 const read = (force = false) => readIdeasChat(env, businessDb(env, 1), APP, force)
 const chooseChat = (username: string | null) => { db.tables.settings[0].idea_chat = username }
 
 describe('the Instagram Ideas chat', () => {
-  it('asks nothing of Instagram until an Ideas chat is chosen', async () => {
+  it('is the café’s chat with itself, unless an admin chose another account', async () => {
     await connectInstagram()
+    cdn = { 'https://lookaside.fbsbx.test/cups.jpg': { type: 'image/jpeg' } }
+    apis.instagram.chats = [
+      selfChat([msg('s2', 6, ME, { message: 'for the window' }), msg('s1', 5, ME, shared('cups.jpg'))]),
+      ideasChat([msg('m1', 4, ARON, shared('latte.jpg'))]),
+    ]
+    expect(await read()).toEqual({ chat: 'read', added: 1, copied: 1 })
+    expect(kept().map(i => [i.message_id, i.username, i.note])).toEqual([['s1', 'easy.beans.coffee', 'for the window']])
+
+    // An admin chose Aron's chat instead: that one's read.
+    chooseChat('aron.oneill')
+    expect((await read()).added).toBe(1)
+    expect(kept().map(i => i.message_id)).toEqual(['m1', 's1'])
+  })
+
+  it('asks nothing of Instagram when it’s connected without messages allowed', async () => {
+    apis.instagram.permissions = 'instagram_business_basic,instagram_business_content_publish'
+    const start = await integrations.request(`${APP}/api/integrations/instagram/start`, { method: 'POST', headers: as('admin'), body: '{}' }, env, ctx())
+    const state = new URL((await start.json() as { url: string }).url).searchParams.get('state')!
+    await integrations.request(`${APP}/api/integrations/instagram/callback?code=c&state=${encodeURIComponent(state)}`, {}, env, ctx())
     asked.length = 0
-    expect(await read()).toEqual({ chat: 'none', added: 0, copied: 0 })
+    expect(await read()).toEqual({ chat: 'not_connected', added: 0, copied: 0 })
     expect(asked.some(u => u.includes('instagram.com'))).toBe(false)
   })
 
@@ -168,11 +193,12 @@ describe('the Instagram Ideas chat', () => {
 
   it('isn’t on the Messages page', async () => {
     await connectInstagram()
-    apis.instagram.chats = [ideasChat([msg('m1', 5, ARON, shared('cups.jpg'))]), ...apis.instagram.chats]
+    apis.instagram.chats = [selfChat([msg('s1', 6, ME, shared('cups.jpg'))]), ideasChat([msg('m1', 5, ARON, shared('cups.jpg'))]), ...apis.instagram.chats]
     const inbox = async () => (await (await integrations.request(`${APP}/api/integrations/instagram/inbox`, { headers: as('admin') }, env, ctx()))
       .json() as { conversations: { id: string }[] }).conversations.map(c => c.id)
+    // The café's chat with itself is the Ideas chat: not on the Messages page.
     expect(await inbox()).toEqual(['conv-ideas', 'conv-1'])
     chooseChat('aron.oneill')
-    expect(await inbox()).toEqual(['conv-1'])
+    expect(await inbox()).toEqual(['conv-self', 'conv-1'])
   })
 })

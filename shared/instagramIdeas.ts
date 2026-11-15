@@ -1,9 +1,10 @@
 // Ideas (To Do List → Ideas): posts and reels the team wants to remember, from one Instagram chat, the
 // Ideas chat. Instagram doesn't let apps read an account's saved posts, nor group chats, so the Ideas chat
-// is the business's chat with one other account the admins name (settings.idea_chat): the owner's own,
-// say. Sharing a post into it (the paper plane, from either side) keeps it as an idea. What's written in
-// the chat just before or after it, by the same side, is its note. The `instagram_ideas` migration keeps
-// them; worker/instagramIdeas.ts reads the chat every 15 minutes, with the mentions.
+// is the business's chat with itself (Instagram's "message yourself", which Meta shares with apps as self
+// messaging), pinned at the top of its messages; or, if the admins name one (settings.idea_chat), its chat
+// with another account, the owner's own say. Sharing a post into it (the paper plane, from either side)
+// keeps it as an idea. What's written in the chat just before or after it, by the same side, is its note.
+// The `instagram_ideas` migration keeps them; worker/instagramIdeas.ts reads the chat every 15 minutes.
 import type { InboxConversation, InboxMessage } from './messages'
 import { msg } from './i18n'
 
@@ -28,11 +29,11 @@ export interface InstagramIdea {
 }
 
 /**
- * What reading the Ideas chat found (Check now, and the Worker every 15 minutes). `none`: no Ideas chat chosen;
- * `not_connected`: Instagram isn't; `missing`: not among the business's latest chats (nothing new in it, or the
- * account hasn't written in it yet); `read`: read, `added` ideas new, `copied` pictures copied into storage.
+ * What reading the Ideas chat found (Check now, and the Worker every 15 minutes). `not_connected`: Instagram
+ * isn't, or not with messages allowed; `missing`: not among the business's latest chats (nothing new in it, or
+ * nothing sent in it yet); `read`: read, `added` ideas new, `copied` pictures copied into storage.
  */
-export interface IdeasCheck { chat: 'none' | 'not_connected' | 'missing' | 'read'; added: number; copied: number }
+export interface IdeasCheck { chat: 'not_connected' | 'missing' | 'read'; added: number; copied: number }
 
 /** An idea as found in the chat, before it's kept. */
 export type FoundIdea = Pick<InstagramIdea, 'message_id' | 'kind' | 'username' | 'media_url' | 'permalink' | 'note' | 'shared_at'>
@@ -92,6 +93,15 @@ export function ideasIn(chat: Pick<InboxConversation, 'with'>, messages: InboxMe
   return ideas.map(({ notes, ...i }) => ({ ...i, note: notes.length ? notes.join('\n').slice(0, MAX_NOTE) : null }))
 }
 
-/** The Ideas chat among the business's chats: the one with that account (none when it isn't there). */
-export const ideaChatIn = <C extends Pick<InboxConversation, 'with'>>(chats: C[], username: string | null | undefined): C | undefined =>
-  username ? chats.find(c => c.with.username.toLowerCase() === username.toLowerCase()) : undefined
+/** The business's own Instagram account, as its chats know it. */
+export interface IdeasSelf { id?: string; username?: string | null }
+
+/**
+ * The Ideas chat among the business's chats (none when it isn't there): the one with the account an admin
+ * chose (`chosen`), else the business's chat with itself: the one whose other side is the business's own account.
+ */
+export function ideaChatIn<C extends Pick<InboxConversation, 'with'>>(chats: C[], chosen: string | null | undefined, self: IdeasSelf): C | undefined {
+  const same = (a: string | null | undefined, b: string | null | undefined) => !!a && !!b && a.toLowerCase() === b.toLowerCase()
+  if (chosen) return chats.find(c => same(c.with.username, chosen))
+  return chats.find(c => (!!self.id && c.with.id === self.id) || same(c.with.username, self.username))
+}

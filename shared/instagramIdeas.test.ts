@@ -2,7 +2,7 @@
 //   - every post, reel, photo or video in the chat is an idea, from either side, under who sent it
 //   - a reel is told from a post by its address; a shared post whose link is only its picture keeps the picture
 //   - what's written just after a post (or just before, with no post before it) is its note; the other side's words aren't
-//   - the Ideas chat is found by the other account's username, whatever its case
+//   - the Ideas chat is the business's chat with itself, or the one with the account an admin chose, whatever its case
 import { describe, expect, it } from 'vitest'
 import { ideaChatIn, ideasIn, permalinkOf } from './instagramIdeas'
 import type { InboxMessage } from './messages'
@@ -54,10 +54,13 @@ describe('ideas in the Ideas chat', () => {
     expect(permalinkOf(undefined)).toBeNull()
   })
 
-  it('the Ideas chat is the one with that account', () => {
-    const chats = [{ with: { id: '1', username: 'lucia.marbella' } }, { with: { id: '2', username: 'Aron.ONeill' } }]
-    expect(ideaChatIn(chats, 'aron.oneill')?.with.id).toBe('2')
-    expect(ideaChatIn(chats, null)).toBeUndefined()
-    expect(ideaChatIn(chats, 'someone.else')).toBeUndefined()
+  it('the Ideas chat is the business’s chat with itself, or the one with the account an admin chose', () => {
+    const self = { id: '1784', username: 'easy.beans.coffee' }
+    const chats = [{ with: { id: '1', username: 'lucia.marbella' } }, { with: { id: '2', username: 'Aron.ONeill' } }, { with: { id: 'igsid-9', username: 'Easy.Beans.Coffee' } }]
+    expect(ideaChatIn(chats, null, self)?.with.id).toBe('igsid-9')
+    expect(ideaChatIn([{ with: { id: '1784', username: 'instagram user' } }], null, self)?.with.id).toBe('1784')
+    expect(ideaChatIn(chats, 'aron.oneill', self)?.with.id).toBe('2')
+    expect(ideaChatIn(chats, 'someone.else', self)).toBeUndefined()
+    expect(ideaChatIn(chats.slice(0, 2), null, self)).toBeUndefined()
   })
 })

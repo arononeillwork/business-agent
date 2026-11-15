@@ -1,6 +1,6 @@
-// Ideas (To Do List → Ideas): reading the Ideas chat, the business's Instagram chat with the one account the
-// admins name (shared/instagramIdeas.ts says what counts as an idea and its note). Every 15 minutes, in a
-// minute of its own (worker/schedule.ts), and when someone presses Check now on the page:
+// Ideas (To Do List → Ideas): reading the Ideas chat, the business's Instagram chat with itself, or with the
+// one account the admins name (shared/instagramIdeas.ts says which, what counts as an idea and its note).
+// Every 15 minutes, in a minute of its own (worker/schedule.ts), and when someone presses Check now on the page:
 //   1. the business's latest chats (one request; nobody looked up), to find the Ideas chat and its 5
 //      latest messages. Not among the latest 25: nothing new in it.
 //   2. Only when all 5 are new (there may be more): the chat itself, its 20 latest (all Instagram shares).
@@ -31,15 +31,14 @@ export const COPY_MAX_BYTES = 30 * 1024 * 1024
 
 /** Read the Ideas chat and keep what's new in it. `force`: read its 20 latest messages whatever the 5 latest say. */
 export async function readIdeasChat(env: Env, db: SupabaseClient, origin: string, force = false): Promise<IdeasCheck> {
-  const { data: set } = await db.from('settings').select('idea_chat').eq('id', 1).maybeSingle()
-  const username = (set?.idea_chat as string | null | undefined) ?? null
-  if (!username) return { chat: 'none', added: 0, copied: 0 }
   const { data: row } = await db.from('integrations').select('status, external').eq('provider', 'instagram').maybeSingle()
-  if (row?.status !== 'connected') return { chat: 'not_connected', added: 0, copied: 0 }
-  const ext = (row.external ?? {}) as { user_id?: string; username?: string }
+  const ext = (row?.external ?? {}) as { user_id?: string; username?: string; can_message?: boolean }
+  // Not connected, or connected without messages allowed: nothing to read (and nothing asked of Instagram).
+  if (row?.status !== 'connected' || ext.can_message === false) return { chat: 'not_connected', added: 0, copied: 0 }
+  const { data: set } = await db.from('settings').select('idea_chat').eq('id', 1).maybeSingle()
   const cfg = await instagramSession(env, db)
   const me: instagram.Me = { id: ext.user_id ?? '', username: ext.username }
-  const chat = ideaChatIn(await instagram.conversations(cfg, me, () => false), username)
+  const chat = ideaChatIn(await instagram.conversations(cfg, me, () => false), set?.idea_chat as string | null | undefined, me)
   let added = 0
   if (chat) {
     const kept = await keptOf(db, chat.recent.map(m => m.id))

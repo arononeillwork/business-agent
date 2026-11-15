@@ -204,11 +204,11 @@ Not possible through Meta's API: editing the Instagram bio. Keep the bio link po
 that shows current hours (Google Maps listing), which the app keeps up to date.
 
 **The Ideas chat (To Do List → Ideas)** needs messages allowed, like the Messages page. Meta's API doesn't
-share an account's saved posts or group chats, and can't make, name or pin a chat, so the Ideas chat is an
-ordinary chat the owner starts in the Instagram app: from their own account they message the business,
-then pin the chat on the business account. An admin types that account's username on the Ideas page
-(`settings.idea_chat`). Posts, reels, photos and videos shared into it from either side become ideas;
-the chat is left off the Messages page. Instagram gives a chat's 20 latest messages, and a shared post's
+share an account's saved posts or group chats, and can't make, name or pin a chat, so the Ideas chat is one
+the owner starts in the Instagram app: the business account's chat with itself (search for the account in
+Messages, send it a post, then pin the chat; Meta calls this self messaging), or, if an admin types another
+account's username on the Ideas page (`settings.idea_chat`), the business's chat with that account. Posts,
+reels, photos and videos shared into it from either side become ideas; the chat is left off the Messages page. Instagram gives a chat's 20 latest messages, and a shared post's
 picture by a link that stops working after a few days, so the Worker reads the chat every 15 minutes and
 copies the pictures into the connected Drive or OneDrive (or R2) as it goes; with neither, Instagram's
 link is kept and the page says to connect one.

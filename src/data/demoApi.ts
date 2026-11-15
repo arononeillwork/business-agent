@@ -23,7 +23,7 @@ import { creatorBoard } from '../../shared/creators'
 import { CASHBACK_DEFAULTS, CASHBACK_MIN, cashbackDue, cashbackFor, cashbackRates, followersIn } from '../../shared/cashback'
 import { demoSports } from './demoSports'
 import { demoInbox, demoMessenger, demoWhatsApp } from './demoMessages'
-import { DEMO_IDEA_CHAT, demoIdeas } from './demoIdeas'
+import { demoIdeas } from './demoIdeas'
 import { demoUsage } from './demoUsage'
 import { NO_USAGE, deviceOf, usageReportOf } from '../../shared/usage'
 import { demoEmailPage, demoEmails } from './demoEmail'
@@ -1351,7 +1351,7 @@ export function createDemoApi(): Api {
     alert_shift_reminders: true, alert_missed_clock_in: true, alert_rota: true, alert_time_off: true,
     holiday_reminders: true, holiday_reminder_days: 7, holiday_reminder_day_before: true, holiday_reminder_kinds: ['national', 'regional', 'local'],
     whatsapp_retention_days: DEFAULT_WHATSAPP_RETENTION, hidden_pages: [], mileage_rate: DEFAULT_MILEAGE_RATE,
-    idea_chat: DEMO_IDEA_CHAT,
+    idea_chat: null,
     // The menu is kept here (Custom), its sections not arranged yet. "Add what's on your printed menus"
     // (Menu page) adds the café's printed menus beside the costed recipes, in their order of sections.
     menu_source: 'custom', menu_sections: [], menu_synced_at: null, menu_sync_error: null,
@@ -4699,7 +4699,7 @@ export function createDemoApi(): Api {
       if (idea) idea.hidden = true
     },
     async checkIdeasChat() {
-      return { chat: settings.idea_chat ? 'read' : 'none', added: 0, copied: 0 }
+      return { chat: 'read', added: 0, copied: 0 }
     },
     async sentAlerts() {
       requireAdmin()

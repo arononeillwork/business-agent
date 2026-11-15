@@ -347,9 +347,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
   from where it lands (to the quarter hour), is dragged to move it and its bottom edge pulled (or arrowed)
   to change when it ends; dragged back to the list, it's off the calendar. A click on any job sets its day
   and times by hand (`shared/todo.ts`, the `todo_calendar` migration).
-- To Do List → Ideas: posts and reels sent to the Instagram Ideas chat, the business's chat with one account an
-  admin names (the owner's own, say), as cards with what was written with them. Instagram doesn't let apps read
-  saved posts or group chats, so sharing a post into this chat is how it's kept. Read every 15 minutes in a minute
+- To Do List → Ideas: posts and reels sent to the Instagram Ideas chat, as cards with what was written with them:
+  the business's chat with itself (sharing a post to itself, pinned at the top of its messages), or its chat with
+  another account an admin names. Instagram doesn't let apps read saved posts or group chats, so sharing a post
+  into this chat is how it's kept. Read every 15 minutes in a minute
   of its own, or on Check now; pictures are copied into the business's Drive or OneDrive (Instagram's links run
   out after a few days). The chat isn't on the Messages page (`shared/instagramIdeas.ts`, `worker/instagramIdeas.ts`,
   the `instagram_ideas` migration).
