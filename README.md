@@ -421,6 +421,13 @@ built-in **AI connector** so owners can run it by talking to Claude.
   Everything the screen has shown stays under **Shown before**, newest first, each with its switch: switched
   on, it's back on the screen and the one that was on goes off. Those save straight away; the screen's own
   settings wait for Save (`shared/singleDisplay.ts`).
+- A screen's own address (Screens, admins): **Use your own website's address** keeps a page on the café's own
+  website as the screen's address (Easy Beans' TV opens `easybeanscoffee.com/display-menu`), and gives the
+  one line of code for that page: it shows the screen's link filling the page, so what's picked on the
+  Screens page reaches it within a minute. A portrait screen opened on a TV that shows landscape (hung on
+  its side) is turned upright, as the café's website did; a tap, or OK or an arrow on the remote, turns it
+  the other way and that TV keeps it (`shared/screens.ts`, `src/pages/DisplayPage.tsx`, the
+  `screen_own_address` migration).
 - Offers & specials (Marketing section, admins): a special or an offer for a set time (an hour, until
   the end of the day, 24 hours like a story, a week, or until a time picked), with its price, what it
   usually costs crossed out, details and a photo. It shows on the screens picked from the minute it

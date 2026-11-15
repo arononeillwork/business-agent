@@ -8,6 +8,10 @@ import { isShortLink, playAs, type DisplayFeed } from '../../shared/screens'
 import { t } from '../i18n'
 
 const CACHE = (token: string) => `eb-display-${token}`
+/** This TV turns a portrait screen the other way (its own choice, kept on it). */
+const TURN = 'eb-display-turn'
+const TURN_KEYS = ['Enter', ' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']
+const landscape = () => typeof matchMedia === 'function' && matchMedia('(orientation: landscape)').matches
 /** The slides last loaded on this screen, so it starts playing even before the network is back. */
 function cached(token: string): DisplayFeed | null {
   try { return JSON.parse(localStorage.getItem(CACHE(token)) ?? 'null') as DisplayFeed | null } catch { return null }
@@ -66,11 +70,41 @@ export function DisplayPage() {
     return () => { clearTimeout(id); window.removeEventListener('pointermove', moved) }
   }, [])
 
+  // A portrait screen on a TV that shows landscape (a TV hung on its side whose browser doesn't turn
+  // with it): the slides are turned a quarter to fill it upright. A tap, or OK or an arrow on the
+  // remote, turns them the other way, and this TV keeps that.
+  const [wide, setWide] = useState(landscape)
+  const [other, setOther] = useState(() => {
+    try { const kept = localStorage.getItem(TURN); if (kept !== null) return kept === '1' } catch { /* storage off */ }
+    // A page that shows this one inside it (the café's own website) can say which way its TV turns: ?turn=left.
+    return new URLSearchParams(location.search).get('turn') === 'left'
+  })
+  useEffect(() => {
+    if (typeof matchMedia !== 'function') return
+    const m = matchMedia('(orientation: landscape)')
+    const changed = () => setWide(m.matches)
+    m.addEventListener('change', changed)
+    return () => m.removeEventListener('change', changed)
+  }, [])
+  const turned = feed?.screen.orientation === 'portrait' && wide
+  const turnAround = () => setOther(o => { try { localStorage.setItem(TURN, o ? '0' : '1') } catch { /* storage off: this time only */ } return !o })
+  useEffect(() => {
+    if (!turned) return
+    const key = (e: KeyboardEvent) => { if (TURN_KEYS.includes(e.key)) turnAround() }
+    window.addEventListener('keydown', key)
+    return () => window.removeEventListener('keydown', key)
+  }, [turned])
+
   // A tap goes full screen (and lets the music start: browsers only allow sound after one).
   const fullScreen = () => { void document.documentElement.requestFullscreen?.().catch(() => {}) }
+  const tap = () => { fullScreen(); if (turned) turnAround() }
+  const player = feed && <ScreenPlayer feed={feed} onBlocked={setBlocked} />
   return (
-    <Box onClick={fullScreen} sx={{ position: 'fixed', inset: 0, bgcolor: '#000', color: '#fff', cursor: idle ? 'none' : 'default' }}>
-      {feed ? <ScreenPlayer feed={feed} onBlocked={setBlocked} />
+    <Box onClick={tap} sx={{ position: 'fixed', inset: 0, bgcolor: '#000', color: '#fff', cursor: idle ? 'none' : 'default', overflow: 'hidden' }}>
+      {feed ? (turned ? (
+        <Box data-turned={other ? 'left' : 'right'} sx={{ position: 'absolute', top: '50%', left: '50%', width: '100vh', height: '100vw',
+          transform: `translate(-50%, -50%) rotate(${other ? -90 : 90}deg)` }}>{player}</Box>
+      ) : player)
         : error ? (
           <Box sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', p: 4, textAlign: 'center' }}>
             <Typography sx={{ maxWidth: 560, fontSize: '1.3rem' }}>{error}</Typography>

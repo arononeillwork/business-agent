@@ -39,7 +39,7 @@ import { ago } from '../components/Freshness'
 import { readyPhoto } from '../lib/media'
 import { imageOf, type MenuDesign, type MenuItem as Item } from '../../shared/menu'
 import {
-  LINK_NAME, LINK_PREFIX, SECONDS_CHOICES, TRANSITIONS, cleanUrl, hasVersion, isOnline, kindLabel, kindOf, linkName, loopSeconds, newScreen, offersSlide,
+  LINK_NAME, LINK_PREFIX, OWN_URL, SECONDS_CHOICES, TRANSITIONS, cleanUrl, embedCode, hasVersion, isOnline, kindLabel, kindOf, linkName, loopSeconds, newScreen, offersSlide,
   screenProblem, shortLinkPath, versionOn, type DisplayFeed, type OfferPicture, type Screen, type ScreenInput, type ScreenKind, type Slide, type SlideKind,
 } from '../../shared/screens'
 import type { MenuAllergens } from '../../shared/allergens'
@@ -54,7 +54,7 @@ import type { SourcePost } from '../../shared/offerFromPost'
 import { formatLocal } from '../../shared/time'
 import { msg, t, tc, tn } from '../i18n'
 
-const inputOf = ({ id, token: _token, last_seen_at: _seen, updated_at: _updated, ...s }: Screen): ScreenInput => ({ ...s, id })
+const inputOf = ({ id, token: _token, last_seen_at: _seen, updated_at: _updated, ...s }: Screen): ScreenInput => ({ ...s, own_url: s.own_url ?? null, id })
 const ICON: Record<SlideKind, ReactNode> = {
   image: <ImageIcon />, video: <VideoIcon />, youtube: <YouTubeIcon />, vimeo: <VideoIcon />, instagram: <InstagramIcon />, web: <WebIcon />, menu: <MenuIcon />,
   offers: <OfferIcon />,
@@ -369,7 +369,7 @@ function ScreenEditor({ screen, main, designs, items, allergens, brand, offers, 
             {slideshow ? t('Open the slideshow') : t('Open the screen')}
           </Button>
         </Stack>
-        <LinkPanel screen={screen} main={main} slug={s.slug} onSlug={slug => set({ slug })}
+        <LinkPanel screen={screen} main={main} slug={s.slug} onSlug={slug => set({ slug })} own={s.own_url ?? null} onOwn={own_url => set({ own_url })}
           preview={<Preview s={s} feed={feed} note={t('A silent preview of the changes below, as the screen will play them.')} />} />
       </Card>
 
@@ -692,7 +692,7 @@ function SingleDisplayEditor({ screen, main, designs, items, allergens, brand, o
           </Box>
           <Button variant="outlined" startIcon={<OpenIcon />} component="a" href={shortLink(screen, business?.id, main)} target="_blank" rel="noopener">{t('Open the screen')}</Button>
         </Stack>
-        <LinkPanel screen={screen} main={main} slug={draft.slug} onSlug={slug => set({ slug })}
+        <LinkPanel screen={screen} main={main} slug={draft.slug} onSlug={slug => set({ slug })} own={draft.own_url ?? null} onOwn={own_url => set({ own_url })}
           preview={<Preview s={s} feed={feed} note={t('A silent preview of what the screen shows.')} />} />
       </Card>
 
@@ -858,7 +858,12 @@ function HistoryRow({ slide: sl, name, designs, alone, onToggle, onOnly, onRemov
  * The screen's short link (with its QR code, to open it on a tablet) and its link name; under it, how
  * to open it on the screen beside the preview, and the private link.
  */
-function LinkPanel({ screen, main, slug, onSlug, preview }: { screen: Screen; main: boolean; slug: string; onSlug: (slug: string) => void; preview: ReactNode }) {
+function LinkPanel({ screen, main, slug, onSlug, own, onOwn, preview }: {
+  screen: Screen; main: boolean; slug: string; onSlug: (slug: string) => void
+  /** Its own address on the business's website, and when it's changed (saved straight away). */
+  own: string | null; onOwn: (url: string | null) => void
+  preview: ReactNode
+}) {
   const { api, business } = useApp()
   const run = useAction()
   const notify = useNotify()
@@ -888,6 +893,7 @@ function LinkPanel({ screen, main, slug, onSlug, preview }: { screen: Screen; ma
               {t('Your first screen opens at the short address. It also opens at {link}.', { link: named.replace(/^https?:\/\//, '') })}
             </Typography>
           )}
+          <OwnAddress screen={screen} link={link} own={own} onSaved={onOwn} />
         </Box>
         {qr && <Box component="img" src={qr} alt={t('QR code for the screen’s link')} sx={{ width: 88, height: 88, flexShrink: 0, borderRadius: 2, border: `1px solid ${tokens.line}`, bgcolor: '#fff', p: 0.5, display: { xs: 'none', sm: 'block' } }} />}
       </Stack>
@@ -932,6 +938,77 @@ function LinkPanel({ screen, main, slug, onSlug, preview }: { screen: Screen; ma
         </Dialog>
       )}
     </>
+  )
+}
+
+/**
+ * The screen's own address: a page on the business's own website for the TV (Easy Beans' TV opens
+ * easybeanscoffee.com/display-menu). With the code from its dialog on it, the page shows the screen,
+ * so what's picked here reaches it within a minute.
+ */
+function OwnAddress({ screen, link, own, onSaved }: { screen: Screen; link: string; own: string | null; onSaved: (url: string | null) => void }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      {own ? (
+        <Stack direction="row" sx={{ alignItems: 'center', gap: 0.75, mt: 1, flexWrap: 'wrap' }}>
+          <WebIcon fontSize="small" sx={{ color: tokens.inkSoft }} />
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('Your own address:')}</Typography>
+          <Typography component="a" href={own} target="_blank" rel="noopener" variant="body2"
+            sx={{ fontFamily: 'monospace', color: tokens.roseDeep, overflowWrap: 'anywhere' }}>{own.replace(/^https:\/\//, '')}</Typography>
+          <Button size="small" onClick={() => setOpen(true)}>{t('Change your own address')}</Button>
+        </Stack>
+      ) : (
+        <Button size="small" startIcon={<WebIcon />} onClick={() => setOpen(true)} sx={{ mt: 0.75, ml: -1 }}>{t('Use your own website’s address')}</Button>
+      )}
+      {open && <OwnAddressDialog screen={screen} link={link} own={own} onClose={() => setOpen(false)} onSaved={x => { onSaved(x); setOpen(false) }} />}
+    </>
+  )
+}
+
+/** Its own address, saved straight away, and the code that makes that page show the screen. */
+function OwnAddressDialog({ screen, link, own, onClose, onSaved }: { screen: Screen; link: string; own: string | null; onClose: () => void; onSaved: (url: string | null) => void }) {
+  const { api } = useApp()
+  const run = useAction()
+  const notify = useNotify()
+  const [typed, setTyped] = useState(own ?? '')
+  const url = cleanUrl(typed)
+  const ok = !!url && OWN_URL.test(url)
+  const code = embedCode(link)
+  const copy = () => navigator.clipboard.writeText(code).then(() => notify(t('Code copied'), 'success'), () => notify(code, 'info'))
+  const save = async (value: string | null) => {
+    const done = await run(() => api.saveScreen({ ...inputOf(screen), own_url: value }),
+      value ? t('Saved. Your page shows the screen once the code is on it.') : t('Your own address is off this screen'))
+    if (done) onSaved(value)
+  }
+  return (
+    <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>{t('Your own website’s address')}</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ pt: 1 }}>
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+            {t('A page on your own website for the TV, such as yoursite.com/display-menu. With the code below on it, that page shows this screen, and what you change here reaches it within a minute.')}
+          </Typography>
+          <TextField autoFocus label={t('Your page’s address')} placeholder={'https://www.yoursite.com/display-menu'} value={typed} onChange={e => setTyped(e.target.value)}
+            error={!!typed.trim() && !ok} onKeyDown={e => { if (e.key === 'Enter' && ok && url !== own) void save(url) }}
+            helperText={typed.trim() && !ok ? t('Your own address should start with https://') : ' '} />
+          <Box>
+            <Typography variant="subtitle2" component="h3" sx={{ mb: 0.75 }}>{t('Put this on that page')}</Typography>
+            <Box component="pre" aria-label={t('The code for your page')} sx={{ m: 0, p: 1.5, borderRadius: 2, bgcolor: tokens.surfaceAlt, fontFamily: 'monospace',
+              fontSize: '0.78rem', lineHeight: 1.5, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{code}</Box>
+            <Button size="small" startIcon={<CopyIcon />} onClick={() => void copy()} sx={{ mt: 0.75, ml: -0.5 }}>{t('Copy the code')}</Button>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
+              {t('Whoever looks after your website can add it; the page needs nothing else. The screen fills it, and stands upright on a TV hung on its side.')}
+            </Typography>
+          </Box>
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        {own && <Button color="error" onClick={() => void save(null)} sx={{ mr: 'auto' }}>{t('Take it off')}</Button>}
+        <Button onClick={onClose}>{t('Cancel')}</Button>
+        <Button variant="contained" disabled={!ok || url === own} onClick={() => void save(url)}>{t('Save')}</Button>
+      </DialogActions>
+    </Dialog>
   )
 }
 
