@@ -18,27 +18,30 @@ import { t, tn, tr } from '../i18n'
 
 /** What Check now found, in words. */
 function checked(r: IdeasCheck) {
-  if (r.chat === 'none') return t('Choose who the Ideas chat is with first')
   if (r.chat === 'not_connected') return t('Instagram isn’t connected')
   if (r.chat === 'missing') return t('The Ideas chat isn’t among the business’s latest chats. Send a message in it, then check again.')
   return r.added ? tn(r.added, '{n} new idea', '{n} new ideas') : t('Nothing new in the Ideas chat')
 }
 
 /**
- * To Do List → Ideas: posts and reels the team wants to remember, sent to the Instagram Ideas chat (the
- * business's chat with one account an admin names). Instagram doesn't let apps read saved posts or group
- * chats; this chat is how a post is kept here. The Worker reads it every 15 minutes (worker/instagramIdeas.ts).
+ * To Do List → Ideas: posts and reels the team wants to remember, sent to the Instagram Ideas chat: the
+ * business's chat with itself, or with another account an admin chose. Instagram doesn't let apps read saved
+ * posts or group chats; this chat is how a post is kept here. The Worker reads it every 15 minutes (worker/instagramIdeas.ts).
  */
 export function IdeasPage() {
   const { api, isAdmin, settings, refresh } = useApp()
   const notify = useNotify()
   const run = useAction()
   const list = useAsync('instagram-ideas', () => api.instagramIdeas(), [])
+  // Admins: messages in the Ideas chat that Instagram left empty, so they aren't here.
+  const status = useAsync('instagram-ideas-status', () => (isAdmin ? api.ideasChatStatus() : Promise.resolve(null)), [isAdmin])
+  const unread = status.data?.unread?.length ?? 0
   // Admins: whether Instagram is connected (and as whom), and where pictures are kept.
   const integ = useAsync('integrations', () => (isAdmin ? api.integrations() : Promise.resolve(null)), [isAdmin])
   const instagram = integ.data?.integrations.find(i => i.provider === 'instagram')
   const connected = instagram?.status === 'connected'
   const business = instagram?.account_label ?? t('the business’s Instagram')
+  // The account an admin chose for the Ideas chat; none: the business's chat with itself.
   const chat = settings?.idea_chat ?? null
   const [editing, setEditing] = useState(false)
   const [checking, setChecking] = useState(false)
@@ -50,7 +53,7 @@ export function IdeasPage() {
     try {
       const r = await api.checkIdeasChat()
       notify(checked(r), r.chat === 'read' ? 'success' : 'info')
-      await list.reload()
+      await Promise.all([list.reload(), status.reload()])
     } catch (e) {
       notify(e instanceof Error ? e.message : String(e), 'error')
     } finally {
@@ -60,14 +63,14 @@ export function IdeasPage() {
 
   return (
     <Box>
-      <PageHeader eyebrow={t('To Do List')} title={t('Ideas')} actions={chat && (
+      <PageHeader eyebrow={t('To Do List')} title={t('Ideas')} actions={
         <Button variant="outlined" startIcon={<RefreshIcon />} onClick={check} disabled={checking}>{checking ? t('Checking…') : t('Check now')}</Button>
-      )} />
+      } />
       <Typography sx={{ color: 'text.secondary', mb: 2.5, maxWidth: 720 }}>
         {chat
           ? tr('Posts and reels sent to the Ideas chat on Instagram: {business}’s chat with {who}. New ones show here within 15 minutes.', { business: <b>{business}</b>, who: <b>@{chat}</b> })
-          : t('Posts and reels sent to one Instagram chat, the Ideas chat, show here: share a post into it and it’s kept as an idea.')}
-        {isAdmin && chat && !editing && <> <MuiLink component="button" onClick={() => setEditing(true)} sx={{ verticalAlign: 'baseline' }}>{t('Change')}</MuiLink></>}
+          : tr('Posts and reels {business} sends to itself on Instagram, in its chat with itself. New ones show here within 15 minutes.', { business: <b>{business}</b> })}
+        {isAdmin && !editing && <> <MuiLink component="button" onClick={() => setEditing(true)} sx={{ verticalAlign: 'baseline' }}>{t('Change')}</MuiLink></>}
       </Typography>
       <ErrorBox error={list.error} />
 
@@ -76,12 +79,17 @@ export function IdeasPage() {
           {t('Connect Instagram, with messages allowed, so the Ideas chat can be read.')}
         </Alert>
       )}
-      {isAdmin && (!chat || editing) && (
-        <SetUp business={business} chat={chat} onCancel={chat ? () => setEditing(false) : undefined}
+      {isAdmin && editing && (
+        <SetUp business={business} chat={chat} onCancel={() => setEditing(false)}
           onSave={async username => {
             await run(async () => { await api.updateSettings({ idea_chat: username }); await refresh() }, t('Saved'))
             setEditing(false)
           }} />
+      )}
+      {isAdmin && unread > 0 && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          {tn(unread, 'Instagram didn’t share what was in {n} message of the Ideas chat, so it isn’t here.', 'Instagram didn’t share what was in {n} messages of the Ideas chat, so they aren’t here.')}
+        </Alert>
       )}
       {isAdmin && connected && notKept && integ.data?.media_storage === null && (
         <Alert severity="warning" sx={{ mb: 2 }} action={<Button component={Link} to="/connections" color="inherit" size="small">{t('Connections')}</Button>}>
@@ -93,7 +101,7 @@ export function IdeasPage() {
         <Empty>
           {chat
             ? t('Nothing in the Ideas chat yet. On Instagram, tap the paper plane under a post or reel and send it to the Ideas chat.')
-            : isAdmin ? t('Set up the Ideas chat above, then share posts into it.') : t('An admin sets up the Ideas chat on Instagram. Posts shared into it show here.')}
+            : tr('Nothing in the Ideas chat yet. On Instagram, as {business}, tap the paper plane under a post or reel and send it to yourself.', { business })}
         </Empty>
       ) : (
         <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(3, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' } }}>
@@ -106,8 +114,11 @@ export function IdeasPage() {
   )
 }
 
-/** Admins: how to make the Ideas chat on Instagram, and who it's with. */
-function SetUp({ business, chat, onSave, onCancel }: { business: string; chat: string | null; onSave: (username: string) => Promise<void>; onCancel?: () => void }) {
+/**
+ * Admins: which chat is the Ideas chat. The business's chat with itself (no username: settings.idea_chat
+ * empty), how to pin it on Instagram, or a chat with another account of theirs.
+ */
+function SetUp({ business, chat, onSave, onCancel }: { business: string; chat: string | null; onSave: (username: string | null) => Promise<void>; onCancel: () => void }) {
   const [value, setValue] = useState(chat ?? '')
   const [problem, setProblem] = useState<string | null>(null)
   const submit = async (e: FormEvent) => {
@@ -121,22 +132,29 @@ function SetUp({ business, chat, onSave, onCancel }: { business: string; chat: s
   return (
     <Card variant="outlined" sx={{ mb: 3, maxWidth: 760 }}>
       <CardContent>
-        <Typography variant="h6" component="h2" sx={{ mb: 1 }}>{t('Set up the Ideas chat')}</Typography>
+        <Typography variant="h6" component="h2" sx={{ mb: 1 }}>{t('The Ideas chat')}</Typography>
         <Typography sx={{ color: 'text.secondary', mb: 2 }}>
-          {t('Instagram doesn’t let apps read saved posts or group chats, so ideas come from one chat: the business’s chat with an account of your own. It isn’t shown on the Messages page.')}
+          {t('Instagram doesn’t let apps read saved posts or group chats, so ideas come from one chat. It isn’t shown on the Messages page.')}
         </Typography>
-        <Box component="ol" sx={{ m: 0, mb: 2, pl: 2.5 }}>
-          <Box component="li" sx={step}>{tr('From your own Instagram account, send {business} a message, like “Ideas”. That makes the chat.', { business: <b>{business}</b> })}</Box>
-          <Box component="li" sx={step}>{tr('On {business}, press and hold the chat and tap Pin, so it stays at the top. In the chat’s settings you can give it the nickname “Ideas”.', { business: <b>{business}</b> })}</Box>
-          <Box component="li" sx={step}>{t('Type that account’s username here.')}</Box>
-          <Box component="li" sx={step}>{t('Share posts and reels into the chat with the paper plane, from either account. Anything you write with one is kept as its note.')}</Box>
+        <Typography sx={{ fontWeight: 600, mb: 0.75 }}>{tr('{business}’s chat with itself', { business })}</Typography>
+        <Box component="ol" sx={{ m: 0, mb: 1.5, pl: 2.5 }}>
+          <Box component="li" sx={step}>{tr('On Instagram, as {business}, open Messages, search for {business} and send yourself a post or reel.', { business: <b>{business}</b> })}</Box>
+          <Box component="li" sx={step}>{t('Press and hold the chat and tap Pin, so it stays at the top.')}</Box>
+          <Box component="li" sx={step}>{t('From then on, share posts and reels to yourself with the paper plane. Anything you write with one is kept as its note.')}</Box>
         </Box>
+        {chat
+          ? <Button variant="contained" onClick={() => onSave(null)} sx={{ mb: 2.5 }}>{t('Use this chat')}</Button>
+          : <Box sx={{ mb: 2.5 }}><Tag>{t('In use')}</Tag></Box>}
+        <Typography sx={{ fontWeight: 600, mb: 0.75 }}>{t('Or a chat with another account of yours')}</Typography>
+        <Typography sx={{ color: 'text.secondary', mb: 1.5 }}>
+          {tr('From that account, send {business} a message, then type its username here.', { business: <b>{business}</b> })}
+        </Typography>
         <Stack component="form" onSubmit={submit} direction={{ xs: 'column', sm: 'row' }} sx={{ gap: 1.5, alignItems: { sm: 'flex-start' } }}>
           <TextField size="small" label={t('Their Instagram username')} placeholder={'@maria.ideas'} value={value} onChange={e => setValue(e.target.value)}
             error={!!problem} helperText={problem ?? ' '} sx={{ minWidth: 260 }} slotProps={{ htmlInput: { autoCapitalize: 'none', autoCorrect: 'off', spellCheck: false } }} />
           <Stack direction="row" sx={{ gap: 1 }}>
-            <Button type="submit" variant="contained">{t('Save')}</Button>
-            {onCancel && <Button onClick={onCancel}>{t('Cancel')}</Button>}
+            <Button type="submit" variant={chat ? 'contained' : 'outlined'}>{t('Save')}</Button>
+            <Button onClick={onCancel}>{t('Cancel')}</Button>
           </Stack>
         </Stack>
       </CardContent>

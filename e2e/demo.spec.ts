@@ -12088,32 +12088,40 @@ test.describe('details on the website', () => {
 })
 
 test.describe('Ideas from the Instagram Ideas chat', () => {
-  test('under the To Do List: what was sent to the Ideas chat, with notes; admins change the chat and take ideas off', async ({ page }) => {
+  test('under the To Do List: what the café sent itself on Instagram, with notes; admins change the chat and take ideas off', async ({ page }) => {
     await open(page, '/todo')
     // A sub-page of the To Do List in the menu.
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Ideas' }).click()
     await expect(page).toHaveURL(/\/todo\/ideas/)
     await expect(page.getByRole('heading', { name: 'Ideas', level: 1 })).toBeVisible()
-    await expect(page.getByText(/chat with @maria\.ideas/)).toBeVisible()
+    // With nothing chosen, the Ideas chat is the café's chat with itself: no setting up.
+    await expect(page.getByText(/sends to itself on Instagram, in its chat with itself/)).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'The Ideas chat' })).toHaveCount(0)
     await expect(page.getByText('Iced matcha with cold foam: one for the summer menu')).toBeVisible()
-    await expect(page.getByRole('img', { name: 'Reel from @maria.ideas' }).first()).toBeVisible()
+    await expect(page.getByRole('img', { name: 'Reel from @easy.beans.coffee' }).first()).toBeVisible()
     await expect(page.getByRole('link', { name: 'Open on Instagram' }).first()).toHaveAttribute('href', 'https://www.instagram.com/reel/DemoIdea01/')
 
     // Take one off the page.
-    await page.getByRole('button', { name: 'Take @maria.ideas’s post off the Ideas page' }).first().click()
+    await page.getByRole('button', { name: 'Take @easy.beans.coffee’s post off the Ideas page' }).first().click()
     await expect(page.getByText('Iced matcha with cold foam: one for the summer menu')).toHaveCount(0)
 
-    // Change who the Ideas chat is with: the steps to make it on Instagram, then the username.
+    // Change the chat: the chat with itself (how to pin it), or another account's.
     await page.getByRole('button', { name: 'Change' }).click()
-    await expect(page.getByRole('heading', { name: 'Set up the Ideas chat' })).toBeVisible()
-    await expect(page.getByText(/press and hold the chat and tap Pin/)).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'The Ideas chat' })).toBeVisible()
+    await expect(page.getByText('Press and hold the chat and tap Pin, so it stays at the top.')).toBeVisible()
+    await expect(page.getByText('In use')).toBeVisible()
     await page.getByLabel('Their Instagram username').fill('not a username!')
     await page.getByRole('button', { name: 'Save' }).click()
     await expect(page.getByText('Type an Instagram username, like @maria.ideas')).toBeVisible()
     await page.getByLabel('Their Instagram username').fill('@Aron.Ideas')
     await page.getByRole('button', { name: 'Save' }).click()
     await expect(page.getByText(/chat with @aron\.ideas/)).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Set up the Ideas chat' })).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'The Ideas chat' })).toHaveCount(0)
+
+    // And back to the chat with itself.
+    await page.getByRole('button', { name: 'Change' }).click()
+    await page.getByRole('button', { name: 'Use this chat' }).click()
+    await expect(page.getByText(/sends to itself on Instagram, in its chat with itself/)).toBeVisible()
   })
 
   test('the team sees the Ideas chat’s posts, but can’t change the chat or take ideas off', async ({ page }) => {
