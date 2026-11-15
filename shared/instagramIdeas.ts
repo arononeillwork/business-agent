@@ -170,3 +170,28 @@ export interface IdeasStatus {
   /** Messages read on their own and still empty: when they were sent, and what Instagram gave (its shape). */
   unread?: { id: string; at: string; shape: string[] }[]
 }
+
+// ---- Filters (the Ideas page) ---------------------------------------------------------------------
+// By kind (reels, posts, photos, videos) and by words in an idea's note or who sent it. All on the page
+// itself: nothing is sent anywhere to sort ideas.
+
+/** The kinds to filter by, in the order the page shows them. */
+export const IDEA_KIND_FILTERS: { kind: IdeaKind; label: string }[] = [
+  { kind: 'reel', label: msg('Reels') }, { kind: 'post', label: msg('Posts') }, { kind: 'photo', label: msg('Photos') }, { kind: 'video', label: msg('Videos') },
+]
+
+export interface IdeaFilter { kind: IdeaKind | null; words: string }
+
+/** Lower case, without accents ("Café" finds "cafe"). */
+const plain = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+
+/** The ideas of that kind whose note or sender has every word searched for (in any order). */
+export function filterIdeas<I extends Pick<InstagramIdea, 'kind' | 'note' | 'username'>>(ideas: I[], f: IdeaFilter): I[] {
+  const words = plain(f.words).split(/\s+/).filter(Boolean)
+  return ideas.filter(i => (!f.kind || i.kind === f.kind)
+    && words.every(w => plain(`${i.note ?? ''} ${i.username}`).includes(w)))
+}
+
+/** How many ideas there are of each kind. */
+export const ideaCounts = (ideas: Pick<InstagramIdea, 'kind'>[]) =>
+  ideas.reduce((n, i) => ({ ...n, [i.kind]: (n[i.kind] ?? 0) + 1 }), {} as Partial<Record<IdeaKind, number>>)

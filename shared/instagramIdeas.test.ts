@@ -4,7 +4,7 @@
 //   - what's written just after a post (or just before, with no post before it) is its note; the other side's words aren't
 //   - the Ideas chat is the business's chat with itself, or the one with the account an admin chose, whatever its case
 import { describe, expect, it } from 'vitest'
-import { embedOf, ideaChatIn, ideasIn, isEmptyMessage, mediaOf, permalinkOf, shapeOf } from './instagramIdeas'
+import { embedOf, filterIdeas, ideaChatIn, ideaCounts, ideasIn, isEmptyMessage, mediaOf, permalinkOf, shapeOf } from './instagramIdeas'
 import type { InboxMessage } from './messages'
 
 const chat = { with: { id: 'igsid-aron', username: 'aron.oneill' } }
@@ -96,5 +96,21 @@ describe('ideas in the Ideas chat', () => {
     expect(embedOf('https://instagram.com/someone/p/DfPost01/')).toBe('https://www.instagram.com/p/DfPost01/embed/')
     expect(embedOf('https://www.instagram.com/aron.oneill/')).toBeNull()
     expect(embedOf(null)).toBeNull()
+  })
+
+  it('filters by kind and by the words in a note, on the page itself', () => {
+    const ideas = [
+      { kind: 'reel' as const, note: 'Toastie for the lunch menu', username: 'easy.beans.coffee' },
+      { kind: 'reel' as const, note: null, username: 'easy.beans.coffee' },
+      { kind: 'post' as const, note: 'Iced matcha, café style', username: 'aron.ideas' },
+      { kind: 'photo' as const, note: 'cans in the fridge', username: 'easy.beans.coffee' },
+    ]
+    expect(filterIdeas(ideas, { kind: 'reel', words: '' })).toHaveLength(2)
+    expect(filterIdeas(ideas, { kind: null, words: 'toastie' }).map(i => i.note)).toEqual(['Toastie for the lunch menu'])
+    // Every word, in any order, with or without accents.
+    expect(filterIdeas(ideas, { kind: null, words: 'cafe  MATCHA' })).toHaveLength(1)
+    expect(filterIdeas(ideas, { kind: 'reel', words: 'matcha' })).toHaveLength(0)
+    expect(filterIdeas(ideas, { kind: null, words: 'aron' })).toHaveLength(1)
+    expect(ideaCounts(ideas)).toEqual({ reel: 2, post: 1, photo: 1 })
   })
 })
