@@ -253,7 +253,9 @@ function Routed() {
         <Route path="food-safety" element={<FoodSafetyPage />} />
         <Route path="waste" element={<WastePage />} />
         <Route path="todo" element={<TodoPage />} />
-        <Route path="todo/ideas" element={<IdeasPage />} />
+        <Route path="ideas" element={<IdeasPage />} />
+        {/* Ideas was a sub-page of the To Do List at first. */}
+        <Route path="todo/ideas" element={<Navigate to="/ideas" replace />} />
         <Route path="opening-hours" element={<OpeningHoursPage />} />
         <Route path="brand" element={<BrandPage />} />
         <Route path="qr-codes" element={<QrCodesPage />} />

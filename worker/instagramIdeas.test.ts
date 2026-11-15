@@ -1,4 +1,4 @@
-// The Instagram Ideas chat (To Do List → Ideas), end to end through the Worker against stand-ins for
+// The Instagram Ideas chat (the Ideas page), end to end through the Worker against stand-ins for
 // Supabase, Instagram and the business's storage. What must never break:
 //   - the Ideas chat is the business's chat with itself, unless an admin chose another account
 //   - without messages allowed, nothing is asked of Instagram

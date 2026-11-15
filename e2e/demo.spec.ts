@@ -12088,11 +12088,11 @@ test.describe('details on the website', () => {
 })
 
 test.describe('Ideas from the Instagram Ideas chat', () => {
-  test('under the To Do List: what the café sent itself on Instagram, with notes; admins change the chat and take ideas off', async ({ page }) => {
+  test('a page of its own in the menu: what the café sent itself on Instagram, with notes; admins change the chat and take ideas off', async ({ page }) => {
     await open(page, '/todo')
-    // A sub-page of the To Do List in the menu.
-    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Ideas' }).click()
-    await expect(page).toHaveURL(/\/todo\/ideas/)
+    // Its own page in the menu, next to the To Do List (not under it).
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Ideas', exact: true }).click()
+    await expect(page).toHaveURL(/\/ideas(\?|$)/)
     await expect(page.getByRole('heading', { name: 'Ideas', level: 1 })).toBeVisible()
     // With nothing chosen, the Ideas chat is the café's chat with itself: no setting up.
     await expect(page.getByText(/sends to itself on Instagram, in its chat with itself/)).toBeVisible()
@@ -12125,7 +12125,9 @@ test.describe('Ideas from the Instagram Ideas chat', () => {
   })
 
   test('the team sees the Ideas chat’s posts, but can’t change the chat or take ideas off', async ({ page }) => {
+    // Its old address, under the To Do List, still opens it.
     await open(page, '/todo/ideas', 'julio@example.com')
+    await expect(page).toHaveURL(/\/ideas(\?|$)/)
     await expect(page.getByRole('heading', { name: 'Ideas', level: 1 })).toBeVisible()
     await expect(page.getByText('Slow-motion pour for our next reel', { exact: false })).toBeVisible()
     await expect(page.getByRole('button', { name: /off the Ideas page/ })).toHaveCount(0)

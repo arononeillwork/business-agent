@@ -1305,7 +1305,7 @@ integrations.get('/api/integrations/instagram/inbox', async c => {
     const { db, cfg, me } = await instagramInbox(c)
     const [chats, tags, { data: set }] = await Promise.all([instagram.conversations(cfg, me), instagram.tagged(cfg).then(t => ({ t }), (e: unknown) => ({ e })),
       db.from('settings').select('idea_chat').eq('id', 1).maybeSingle()])
-    // The Ideas chat (To Do List → Ideas: the business's chat with itself, or the one an admin chose) is the
+    // The Ideas chat (Ideas page: the business's chat with itself, or the one an admin chose) is the
     // team's own, not a customer's: it isn't on the Messages page.
     const ideaChat = ideaChatIn(chats, set?.idea_chat as string | null | undefined, me)
     return c.json({ conversations: chats.filter(x => x !== ideaChat), tagged: 't' in tags ? tags.t : null,

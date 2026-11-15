@@ -98,7 +98,7 @@ export interface Settings {
   alert_time_off: boolean
   /** Admins are told when someone tags the business on Instagram or mentions it in their story. */
   alert_instagram_mentions?: boolean
-  /** To Do List → Ideas: who the Instagram Ideas chat is with (their username, no @); none: no Ideas chat yet. */
+  /** the Ideas page: who the Instagram Ideas chat is with (their username, no @); none: no Ideas chat yet. */
   idea_chat?: string | null
   /** Admins are reminded before each public holiday (on unless turned off), this many days ahead, for these kinds. */
   holiday_reminders?: boolean

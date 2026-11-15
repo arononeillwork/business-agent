@@ -920,7 +920,7 @@ export interface Api {
   deleteTodo(id: string): Promise<void>
   saveTodoCategory(category: Partial<TodoCategory> & { name: string }): Promise<void>
   deleteTodoCategory(id: string): Promise<void>
-  /** To Do List → Ideas: what's been sent to the Instagram Ideas chat (the team), newest first. */
+  /** the Ideas page: what's been sent to the Instagram Ideas chat (the team), newest first. */
   instagramIdeas(): Promise<InstagramIdea[]>
   /** Take an idea off the page (admins); the next read of the chat doesn't bring it back. */
   hideInstagramIdea(id: string): Promise<void>

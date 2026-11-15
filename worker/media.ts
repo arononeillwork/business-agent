@@ -20,7 +20,7 @@ export type MediaStorage = 'google_drive' | 'onedrive' | 'r2'
 /** Music: the business's tracks for stories and reels (docs/SOCIAL_MUSIC_PLAN.md); only audio goes there. Menu: the menu's pictures. */
 /** Ideas: the photos and videos the team makes for a post idea (Social planner → Ideas), before an admin posts them. */
 export const FOLDERS = ['Posts', 'Carousels', 'Reels', 'Stories', 'Menu', 'Music', 'Content', 'Ideas'] as const
-/** Ideas from Instagram (To Do List → Ideas): copies of the posts sent to the Ideas chat, as Instagram has them (JPEG, PNG or WebP, MP4 or MOV). */
+/** Ideas from Instagram (the Ideas page): copies of the posts sent to the Ideas chat, as Instagram has them (JPEG, PNG or WebP, MP4 or MOV). */
 export const INSTAGRAM_IDEAS_FOLDER = 'Instagram ideas'
 
 const TYPES: Record<string, { ext: string; type: 'image' | 'video' | 'audio'; max: number }> = {

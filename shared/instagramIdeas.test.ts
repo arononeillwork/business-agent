@@ -4,7 +4,7 @@
 //   - what's written just after a post (or just before, with no post before it) is its note; the other side's words aren't
 //   - the Ideas chat is the business's chat with itself, or the one with the account an admin chose, whatever its case
 import { describe, expect, it } from 'vitest'
-import { ideaChatIn, ideasIn, isEmptyMessage, mediaOf, permalinkOf, shapeOf } from './instagramIdeas'
+import { embedOf, ideaChatIn, ideasIn, isEmptyMessage, mediaOf, permalinkOf, shapeOf } from './instagramIdeas'
 import type { InboxMessage } from './messages'
 
 const chat = { with: { id: 'igsid-aron', username: 'aron.oneill' } }
@@ -88,5 +88,13 @@ describe('ideas in the Ideas chat', () => {
     expect(isEmptyMessage({ ...base, kind: 'text', text: 'hi' })).toBe(false)
     expect(isEmptyMessage({ ...base, kind: 'share', link: 'https://www.instagram.com/p/x/' })).toBe(false)
     expect(isEmptyMessage({ ...base, kind: 'story_reply' })).toBe(false)
+  })
+
+  it('shows a post Instagram gave no picture for by Instagram’s own embed of it', () => {
+    expect(embedOf('https://www.instagram.com/reel/DfC5aPlIipl/')).toBe('https://www.instagram.com/reel/DfC5aPlIipl/embed/')
+    expect(embedOf('https://www.instagram.com/reels/DfC5aPlIipl/?igsh=x')).toBe('https://www.instagram.com/reel/DfC5aPlIipl/embed/')
+    expect(embedOf('https://instagram.com/someone/p/DfPost01/')).toBe('https://www.instagram.com/p/DfPost01/embed/')
+    expect(embedOf('https://www.instagram.com/aron.oneill/')).toBeNull()
+    expect(embedOf(null)).toBeNull()
   })
 })

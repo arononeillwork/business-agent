@@ -1,4 +1,4 @@
-// Sample ideas for the demo café (To Do List → Ideas): posts and reels the café sent to itself on Instagram
+// Sample ideas for the demo café (the Ideas page): posts and reels the café sent to itself on Instagram
 // (its Ideas chat), with what was written with them. The pictures are drawn here, standing in for the copies the Worker keeps.
 import type { InstagramIdea } from '../../shared/instagramIdeas'
 

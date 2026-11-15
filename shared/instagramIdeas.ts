@@ -1,4 +1,4 @@
-// Ideas (To Do List → Ideas): posts and reels the team wants to remember, from one Instagram chat, the
+// The Ideas page: posts and reels the team wants to remember, from one Instagram chat, the
 // Ideas chat. Instagram doesn't let apps read an account's saved posts, nor group chats, so the Ideas chat
 // is the business's chat with itself (Instagram's "message yourself", which Meta shares with apps as self
 // messaging), pinned at the top of its messages; or, if the admins name one (settings.idea_chat), its chat
@@ -51,6 +51,19 @@ export function permalinkOf(link: string | undefined): string | null {
   const m = link ? PERMALINK.exec(link) : null
   return m ? m[0] + '/' : null
 }
+
+/**
+ * Instagram's own embed of a post or reel (its address with /embed/), for an idea Instagram gave no
+ * picture for: a shared reel comes with its address only. Its post shows 4:5 under a 54px header.
+ */
+export function embedOf(permalink: string | null | undefined): string | null {
+  const m = permalink ? /instagram\.com\/(?:[\w.]+\/)?(p|reels?|tv)\/([\w-]+)/i.exec(permalink) : null
+  if (!m) return null
+  const kind = m[1].toLowerCase() === 'p' ? 'p' : m[1].toLowerCase() === 'tv' ? 'tv' : 'reel'
+  return `https://www.instagram.com/${kind}/${m[2]}/embed/`
+}
+/** The height of the header above the post in Instagram's embed (who posted it), cut off on the card. */
+export const EMBED_HEADER_PX = 54
 
 const isIdea = (m: InboxMessage) =>
   (m.kind === 'share' || m.kind === 'image' || m.kind === 'video') && !!(m.mediaUrl || m.link)

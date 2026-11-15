@@ -203,7 +203,7 @@ shared. Reply to those in the Instagram app until then.
 Not possible through Meta's API: editing the Instagram bio. Keep the bio link pointing at a page
 that shows current hours (Google Maps listing), which the app keeps up to date.
 
-**The Ideas chat (To Do List → Ideas)** needs messages allowed, like the Messages page. Meta's API doesn't
+**The Ideas chat (the Ideas page)** needs messages allowed, like the Messages page. Meta's API doesn't
 share an account's saved posts or group chats, and can't make, name or pin a chat, so the Ideas chat is one
 the owner starts in the Instagram app: the business account's chat with itself (search for the account in
 Messages, send it a post, then pin the chat; Meta calls this self messaging), or, if an admin types another
