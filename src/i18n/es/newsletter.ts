@@ -53,8 +53,8 @@ export default {
   'Code to paste into your website': 'Código para pegar en tu web',
   'Copy the code': 'Copiar el código',
   'Your website’s own form': 'El formulario propio de tu web',
-  'A website with a form of its own sends each sign-up here: the email, the topics ticked (each topic’s key, or its words), and a phone, name and language when it has them. From its server, with the website key, it can also send people who signed up before and tell us when someone unsubscribes, so they get no more marketing.':
-    'Una web con formulario propio envía aquí cada suscripción: el email, los temas marcados (la clave de cada tema, o sus palabras) y un teléfono, nombre e idioma si los tiene. Desde su servidor, con la clave de la web, también puede enviar a quien se suscribió antes y avisar cuando alguien se da de baja, para que no reciba más marketing.',
+  'A website with a form of its own sends each sign-up here: the email, the topics ticked (each topic’s key, or its words), and a phone, name and language when it has them. It also tells us when someone unsubscribes, so they get no more marketing, and needs no set-up for that: the business’s number in the address is enough. A website key is optional: with it, its server can also send people who signed up before, with their dates, and isn’t held to the limit on sign-ups from one place.':
+    'Una web con formulario propio envía aquí cada suscripción: el email, los temas marcados (la clave de cada tema, o sus palabras) y un teléfono, nombre e idioma si los tiene. También avisa cuando alguien se da de baja, para que no reciba más marketing, y no necesita configuración para eso: basta el número del negocio en la dirección. La clave de la web es opcional: con ella, su servidor también puede enviar a quien se suscribió antes, con sus fechas, y no está sujeto al límite de suscripciones desde un mismo lugar.',
   'Address for sign-ups': 'Dirección para las suscripciones',
   'Website key ending {hint}, made {when}': 'Clave de la web terminada en {hint}, creada el {when}',
   'Replace the key': 'Cambiar la clave',

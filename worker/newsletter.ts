@@ -7,9 +7,13 @@
 //   GET  /api/site/<business>/newsletter    the form, as a page: a link to share, or shown inside any website
 //   POST /api/site/<business>/signup        a sign-up, from that form, a website's own form (CORS is open) or its server
 //   POST /api/site/<business>/unsubscribe   someone unsubscribed on the website (its server, with the key)
-// A website's server sends its key (Authorization: Bearer …, made on Website & SEO): its sign-ups skip
-// the limit on sign-ups from one place (they all come from the server's address), and may say when
-// someone signed up (an older list). Off, or a number that's no business, is the same "not found".
+// A website's server needs no set-up to send sign-ups and unsubscribes: the business's number in the
+// address is enough. It says which visitor each came from (X-Visitor-IP), which the limit on sign-ups
+// from one place then counts, and a business has a cap an hour on top, for a server that lies about it.
+// Optionally it sends its key (Authorization: Bearer …, made on Website & SEO): then it has no limit
+// (they all come from the server's address), may say when someone signed up (an older list), and is
+// told whether an unsubscribed address was on the list. Off, or a number that's no business, is the
+// same "not found".
 //
 // Admins (signed in):
 //   POST/DELETE /api/newsletter/key         make (or replace) the website key, shown once; or remove it
@@ -33,6 +37,8 @@ const UNAVAILABLE = { error: 'Sign-ups couldn’t be saved just now. Try again i
 const BAD_KEY = { error: 'That key isn’t this business’s website key.' }
 /** Sign-ups from one address (without the website key) in an hour: enough for a family on one Wi-Fi, not for a script. */
 export const LIMIT_PER_HOUR = 5
+/** Without the website key, all of a business's sign-ups, and all its unsubscribes, in an hour: a backstop that holds even when the visitor's address was made up. */
+export const LIMIT_KEYLESS_PER_HOUR = 200
 /** A list brought in, at a time. */
 export const IMPORT_BATCH = 100
 
@@ -44,6 +50,21 @@ async function addressHash(env: Env, business: number, ip: string) {
     { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
   const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${business}:${ip}`))
   return [...new Uint8Array(mac)].map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+/** Who the visitor is: the address a website's server says it's forwarding (a browser can't add that header across sites), else whoever sent it. */
+function visitorIp(c: Context): string | undefined {
+  const said = c.req.header('x-visitor-ip')?.trim()
+  return said && /^[0-9a-fA-F:.]{3,45}$/.test(said) ? said : c.req.header('cf-connecting-ip')
+}
+
+/** Whether this many (or more) events of a kind came in the last hour; a count that can't be read doesn't stop anyone. */
+async function overHour(env: Env, business: number, max: number, where: { ip_hash?: string; action?: 'signup' | 'unsubscribe' }) {
+  let q = businessDb(env, business).from('newsletter_events').select('id', { count: 'exact', head: true }).gte('created_at', new Date(Date.now() - 3600_000).toISOString())
+  if (where.ip_hash) q = q.eq('ip_hash', where.ip_hash)
+  if (where.action) q = q.eq('action', where.action)
+  const { count, error } = await q
+  return !error && (count ?? 0) >= max
 }
 
 /** Where the business is: a phone typed without its country code is that country's, and the form is in its language when the browser has neither. */
@@ -130,14 +151,12 @@ newsletter.post('/api/site/:business/signup', async c => {
   if ('problem' in read) return answer(400, { error: FORM_TEXT.en[read.problem] }, read.problem)
   let ipHash: string | null = null
   if (!trusted) {
-    const ip = c.req.header('cf-connecting-ip')
+    const ip = visitorIp(c)
     if (ip) {
       ipHash = await addressHash(c.env, business, ip)
-      const { count, error } = await businessDb(c.env, business).from('newsletter_events').select('id', { count: 'exact', head: true })
-        .eq('ip_hash', ipHash).gte('created_at', new Date(Date.now() - 3600_000).toISOString())
-      // A count that can't be read doesn't stop a real sign-up.
-      if (!error && (count ?? 0) >= LIMIT_PER_HOUR) return answer(429, { error: FORM_TEXT.en.tooMany }, 'tooMany')
+      if (await overHour(c.env, business, LIMIT_PER_HOUR, { ip_hash: ipHash })) return answer(429, { error: FORM_TEXT.en.tooMany }, 'tooMany')
     }
+    if (await overHour(c.env, business, LIMIT_KEYLESS_PER_HOUR, { action: 'signup' })) return answer(429, { error: FORM_TEXT.en.tooMany }, 'tooMany')
   }
   const self = new URL(c.req.url).origin
   const via = trusted ? (read.signup.at ? 'import' : 'website') : c.req.header('origin') === self ? 'form' : 'website'
@@ -158,13 +177,15 @@ newsletter.post('/api/site/:business/unsubscribe', async c => {
   if (failed) return c.json(UNAVAILABLE, 503, CORS)
   if (!on) return c.json(NOT_ON, 404, CORS)
   const trusted = await keyed(c, on)
-  if (trusted !== true) return c.json(trusted === 'wrong' ? BAD_KEY : { error: 'Unsubscribing needs the website key.' }, 401, CORS)
+  if (trusted === 'wrong') return c.json(BAD_KEY, 401, CORS)
   const { body } = await bodyOf(c)
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
   if (!email) return c.json({ error: FORM_TEXT.en.invalidEmail, problem: 'invalidEmail' }, 400, CORS)
+  // Without the key anyone can ask, so there's a cap an hour, and the answer never says whether the address was on the list.
+  if (!trusted && await overHour(c.env, business, LIMIT_KEYLESS_PER_HOUR, { action: 'unsubscribe' })) return c.json({ error: FORM_TEXT.en.tooMany, problem: 'tooMany' }, 429, CORS)
   const { data, error } = await businessDb(c.env, business).rpc('newsletter_unsubscribe', { p_email: email, p_via: 'website' })
   if (error) return c.json(UNAVAILABLE, 503, CORS)
-  return c.json({ ok: true, found: data === true }, 200, CORS)
+  return c.json(trusted ? { ok: true, found: data === true } : { ok: true }, 200, CORS)
 })
 
 // ---------------------------------------------------------------------------------------------

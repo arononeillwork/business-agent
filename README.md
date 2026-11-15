@@ -410,8 +410,8 @@ built-in **AI connector** so owners can run it by talking to Claude.
   ("Learning English"), so Campaigns can send to just them. Each business sets its own topics (worded in
   Spanish and English) and whether the form asks for a name or a phone, and puts the form on its website
   as a link, as a snippet any website builder takes (it fits itself to the page and speaks the visitor's
-  language), or from its own form (`POST /api/site/<business>/signup`; its server, with a website key made
-  on the page, also sends earlier sign-ups and unsubscribes). A list from before (another newsletter
+  language), or from its own form (`POST /api/site/<business>/signup`; its server needs no key, and one made
+  on the page also lets it send earlier sign-ups and skip the limits). A list from before (another newsletter
   service's export, or the website's) comes in from a CSV with only those still subscribed. Every
   sign-up and unsubscribe is kept as the record of each yes ([docs/WEBSITE.md](docs/WEBSITE.md), `worker/newsletter.ts`).
 - Screens (Menu section, admins): the café's TVs and tablets as slideshows. Each has a secret link

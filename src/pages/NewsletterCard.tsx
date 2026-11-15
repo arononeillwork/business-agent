@@ -240,7 +240,7 @@ function OnYourWebsite({ settings }: { settings: NewsletterSettings }) {
 
       <Typography variant="body2" sx={{ fontWeight: 600 }}>{t('Your website’s own form')}</Typography>
       <Typography variant="body2" sx={{ color: 'text.secondary', mb: 0.75 }}>
-        {t('A website with a form of its own sends each sign-up here: the email, the topics ticked (each topic’s key, or its words), and a phone, name and language when it has them. From its server, with the website key, it can also send people who signed up before and tell us when someone unsubscribes, so they get no more marketing.')}
+        {t('A website with a form of its own sends each sign-up here: the email, the topics ticked (each topic’s key, or its words), and a phone, name and language when it has them. It also tells us when someone unsubscribes, so they get no more marketing, and needs no set-up for that: the business’s number in the address is enough. A website key is optional: with it, its server can also send people who signed up before, with their dates, and isn’t held to the limit on sign-ups from one place.')}
       </Typography>
       <Box aria-label={t('Address for sign-ups')} sx={code}>{`POST ${endpoint}\n{ "email": "lucia@example.com", "interests": [${settings.interests.slice(0, 2).map(i => `"${i.key}"`).join(', ')}], "lang": "es" }`}</Box>
       <Stack direction="row" useFlexGap sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap', mt: 1 }}>
