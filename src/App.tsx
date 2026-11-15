@@ -57,6 +57,7 @@ const DocumentsPage = page(() => import('./pages/DocumentsPage'), 'DocumentsPage
 const InvoicesPage = page(() => import('./pages/InvoicesPage'), 'InvoicesPage')
 const CreditDebitPage = page(() => import('./pages/CreditDebitPage'), 'CreditDebitPage')
 const PagesPage = page(() => import('./pages/PagesPage'), 'PagesPage')
+const UserAnalyticsPage = page(() => import('./pages/UserAnalyticsPage'), 'UserAnalyticsPage')
 const ProfitLossPage = page(() => import('./pages/ProfitLossPage'), 'ProfitLossPage')
 const AnalyticsPage = page(() => import('./pages/AnalyticsPage'), 'AnalyticsPage')
 const ReviewsPage = page(() => import('./pages/ReviewsPage'), 'ReviewsPage')
@@ -284,6 +285,8 @@ function Routed() {
         <Route path="notifications" element={<NotificationsPage />} />
         {/* Which pages the menu shows: the owners' to set. */}
         <Route path="pages" element={isAdmin && canSeePay ? <PagesPage /> : <Navigate to="/" />} />
+        {/* Who uses the app, on what, from where, and the time on each page: the owners'. */}
+        <Route path="user-analytics" element={isAdmin && canSeePay ? <UserAnalyticsPage /> : <Navigate to="/" />} />
         {/* Alerts became part of Notifications. */}
         <Route path="alerts" element={<Navigate to="/notifications" replace />} />
         <Route path="account/billing" element={isAdmin && canSeePay ? <BillingPage /> : <Navigate to="/" />} />

@@ -69,6 +69,7 @@ import BusinessesIcon from '@mui/icons-material/ApartmentOutlined'
 import NotificationsIcon from '@mui/icons-material/NotificationsNoneOutlined'
 import ConnectIcon from '@mui/icons-material/HubOutlined'
 import PagesIcon from '@mui/icons-material/VisibilityOutlined'
+import UsageIcon from '@mui/icons-material/QueryStatsOutlined'
 import LogoutIcon from '@mui/icons-material/LogoutOutlined'
 import PartnersIcon from '@mui/icons-material/HandshakeOutlined'
 import MoreIcon from '@mui/icons-material/MoreHoriz'
@@ -115,6 +116,7 @@ import { InstallApp, InstallMenuItem } from '../components/InstallApp'
 import { hiddenByAgent } from '../../shared/agents'
 import { HelpDialog, useHelp } from '../components/HelpDialog'
 import { AppErrorBoundary } from './ErrorBoundary'
+import { useUsage } from './useUsage'
 
 // `partner`: which partner areas show the item ('any' = every partner). Items without it are staff-only.
 // `children`: sub-pages, shown indented under the item when it's opened (or its arrow is pressed).
@@ -231,6 +233,8 @@ export const SECTIONS: NavSection[] = [
     { key: 'connections', to: '/connections', label: msg('Connections'), icon: <ConnectIcon />, who: 'admin' },
     { key: 'notifications', to: '/notifications', label: msg('Notifications'), icon: <NotificationsIcon /> },
     { key: 'pages', to: '/pages', label: msg('Pages'), icon: <PagesIcon />, who: 'pay' },
+    // Who uses the app, on what, from where, and the time on each page: the owners'.
+    { key: 'usage', to: '/user-analytics', label: msg('User analytics'), icon: <UsageIcon />, who: 'pay' },
     ...(FEATURES.partners ? [{ key: 'partners', to: '/partners', label: msg('Partners'), icon: <PartnersIcon />, who: 'admin' as const }] : []),
     ...(FEATURES.kiosk ? [{ key: 'kiosk', to: '/kiosk', label: msg('Café tablet'), icon: <KioskIcon />, who: 'admin' as const }] : []),
   ] },
@@ -244,6 +248,10 @@ const YOU: NavItem[] = [
   { key: 'referrals', to: '/referrals', label: msg('Referrals'), icon: <ReferralsIcon />, who: 'admin' },
   { key: 'appearance', to: '/appearance', label: msg('Appearance'), icon: <AppearanceIcon />, partner: 'any' },
 ]
+/** A page by its key, from the menu or your own pages (User analytics names the pages people spent time on). */
+export function menuPage(key: string): NavItem | undefined {
+  return [...SECTIONS.flatMap(s => withChildren(s.items)), ...YOU].find(n => n.key === key)
+}
 const DRAWER = 252
 const MINI = 76
 /** A big monitor (1800 px and wider) and a huge one (2300 px): the page and its top buttons grow to fit. */
@@ -685,6 +693,8 @@ export function AppShell() {
   // The most specific match wins, so /account/billing is Billing, not My account.
   const all = [...SECTIONS.flatMap(s => withChildren(s.items)), ...YOU].sort((a, b) => b.to.length - a.to.length)
   const current = all.find(n => n.to !== '/' && pathname.startsWith(n.to))?.key ?? (pathname === '/' ? 'today' : false)
+  // User analytics: the time spent on the page on screen (Settings → User analytics).
+  useUsage(typeof current === 'string' ? current : null)
   // Under their name: their job (Barista / Bartender), after the access an admin has (Shop manager · Barista / Bartender).
   const jobs = roleNamesOf(me?.id, jobRoles).join(', ')
   const access = t((me && teamRoleLabel(me)) || 'Employee')

@@ -6,6 +6,8 @@ import EditIcon from '@mui/icons-material/EditOutlined'
 import DeleteIcon from '@mui/icons-material/DeleteOutlined'
 import UpIcon from '@mui/icons-material/ArrowUpward'
 import DownIcon from '@mui/icons-material/ArrowDownward'
+import ReadingTimeIcon from '@mui/icons-material/QueryStatsOutlined'
+import { Link as RouterLink } from 'react-router-dom'
 import { useState } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
@@ -38,6 +40,8 @@ const READ_TONE: Record<ReadState, { fg: string; bg: string }> = {
  */
 export function StaffRulesPage() {
   const { api, me, isAdmin, profiles, business } = useApp()
+  // Owners see how long each person spent reading them (Settings → User analytics).
+  const { canSeePay } = useApp()
   const run = useAction()
   const [editing, setEditing] = useState<RuleSectionInput | null>(null)
   const data = useAsync('staff-rules', async () => {
@@ -81,6 +85,7 @@ export function StaffRulesPage() {
       <PageHeader eyebrow={t('Team')} title={t('Staff rules')} actions={<>
         <ExpandAllButton expanded={expanded} disabled={!sections.length} />
         {isAdmin && <ExportButton table={table} disabled={!sections.length} folder="Team" />}
+        {isAdmin && canSeePay && <Button variant="outlined" startIcon={<ReadingTimeIcon />} component={RouterLink} to="/user-analytics?view=pages&page=rules">{t('Time spent reading')}</Button>}
         {isAdmin && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setEditing({ title: '', rules: [], sort: nextSort })}>{t('Add a section')}</Button>}
       </>} />
       <ErrorBox error={data.error} />

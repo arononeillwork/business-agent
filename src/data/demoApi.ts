@@ -24,6 +24,8 @@ import { CASHBACK_DEFAULTS, CASHBACK_MIN, cashbackDue, cashbackFor, cashbackRate
 import { demoSports } from './demoSports'
 import { demoInbox, demoMessenger, demoWhatsApp } from './demoMessages'
 import { DEMO_IDEA_CHAT, demoIdeas } from './demoIdeas'
+import { demoUsage } from './demoUsage'
+import { NO_USAGE, deviceOf, usageReportOf } from '../../shared/usage'
 import { demoEmailPage, demoEmails } from './demoEmail'
 import { demoEmailFull, demoFileLines, demoPicture, demoReplies } from './demoEmail'
 import { DEMO_CAFE_AT, DEMO_PLACES, demoCompetitors } from './demoCompetitors'
@@ -1722,6 +1724,8 @@ export function createDemoApi(): Api {
   const paysAdmin = () => !!(me()?.role === 'admin' && me()?.can_see_pay)
   const requirePay = () => { if (!paysAdmin()) throw new Error('Only admins with pay access can change grants') }
   const requireOwner = () => { if (!paysAdmin()) throw new Error('Only an owner can manage billing') }
+  // User analytics: two months of the team using the app; the person using the demo adds their own visit.
+  const usage = demoUsage(P, 'p-laura')
   /** Mirrors grant_deadline_event() in SQL: the deadline as an admins-only calendar event while the application is open. */
   function grantEvent(a: GrantApplication | undefined, id: string) {
     const i = events.findIndex(e => e.id === `grant:${id}`)
@@ -5280,6 +5284,29 @@ export function createDemoApi(): Api {
     }),
     // The demo tells nobody about its errors: they stay in the browser's console.
     async reportError() {},
+    // As public.record_usage(): on the person's own visit, while they're active; the town is the café's.
+    async recordUsage(report) {
+      const who = me()
+      if (!who?.active) return
+      const at = nowIso()
+      let visit = usage.visits.find(v => v.id === report.visit)
+      if (visit && visit.profile_id !== who.id) return
+      if (!visit) {
+        visit = { id: report.visit, profile_id: who.id, started_at: at, last_seen_at: at, ...deviceOf(typeof navigator === 'undefined' ? '' : navigator.userAgent, report.touch),
+          installed: report.installed, city: 'San Pedro de Alcántara', region: 'Andalusia', country: 'ES', seconds: 0 }
+        usage.visits.push(visit)
+      }
+      visit.last_seen_at = at
+      for (const p of report.pages) {
+        const row = usage.pages.find(x => x.visit_id === report.visit && x.page === p.page)
+        if (row) Object.assign(row, { views: row.views + p.views, seconds: row.seconds + p.seconds, last_at: at })
+        else usage.pages.push({ visit_id: report.visit, page: p.page, views: p.views, seconds: p.seconds, first_at: at, last_at: at })
+        visit.seconds += p.seconds
+      }
+    },
+    async usageReport(from, to) {
+      return paysAdmin() ? clone(usageReportOf(usage.visits, usage.pages, from, to, profiles)) : clone(NO_USAGE)
+    },
     async referrals() {
       requireAdmin()
       return { code: referralDemo.code, opens: referralDemo.opens, referrals: [...referralDemo.referrals] }

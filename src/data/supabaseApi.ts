@@ -9,6 +9,7 @@ import type { HqFunnelRow } from '../../shared/hqFunnel'
 import type { AiMusicQuote, MusicGeneration, MusicTrack } from '../../shared/types'
 import type { InstagramMention } from '../../shared/mentions'
 import type { IdeasCheck, InstagramIdea } from '../../shared/instagramIdeas'
+import type { UsageData } from '../../shared/usage'
 import type { FilingRecord, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { Invoice } from '../../shared/invoices'
 import type { Licence } from '../../shared/licences'
@@ -1829,6 +1830,18 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
       const token = (await sb.auth.getSession().catch(() => null))?.data.session?.access_token
       await fetch('/api/errors', { method: 'POST', keepalive: true, body: JSON.stringify(report),
         headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) } })
+    },
+    // User analytics (worker/usage.ts): kept by the Worker, which adds the device and the town; read by owners.
+    async recordUsage(report) {
+      const token = (await sb.auth.getSession().catch(() => null))?.data.session?.access_token
+      if (!token) return
+      const res = await fetch('/api/usage', { method: 'POST', keepalive: true, body: JSON.stringify(report),
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` } })
+      // Tried again with the next report when the Worker was busy or down; anything else isn't.
+      if (res.status === 429 || res.status >= 500) throw new Error(`Request failed (${res.status})`)
+    },
+    async usageReport(from, to) {
+      return check(await sb.rpc('usage_report', { p_from: from, p_to: to })) as UsageData
     },
     // Support tickets (the support_tickets migration): sent and read as themselves; HQ's list and answers.
     async reportProblem(d) {

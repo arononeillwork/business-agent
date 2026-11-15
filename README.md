@@ -28,6 +28,14 @@ built-in **AI connector** so owners can run it by talking to Claude.
 - Sign-in emails: an owner or shop manager changes the email someone signs in with on the Team page (their
   panel → Change email), for a typo or a new address; they sign in with it straight away, with the same
   password. Only an owner changes an owner's (`emailBlock()` in `shared/teamRoles.ts`, `/api/admin/set-email`).
+- User analytics (Settings, owners): who uses the app, on which devices and from where, and how long they spend on
+  each page, over the last 7, 30 or 90 days or 12 months. People (each person's visits, time, devices and towns),
+  Pages (time per page; open one, Staff rules say, for how long each person spent on it and who never opened it) and
+  Visits. Staff rules has a "Time spent reading" button for owners. A page's time counts while it's on screen and in
+  use (it stops 3 minutes after the last touch, scroll or key); a visit is a tab used without a 30-minute break. The
+  app sends it about once a minute (`src/app/usage.ts`); the Worker adds the device from the browser and the town
+  from Cloudflare, never the address (`POST /api/usage`, `worker/usage.ts`); visits are kept a year (the
+  `user_analytics` migration). Only the page's name is recorded, never what's on it.
 - Sports: the next 3 weeks of football (Spanish, English, Scottish, Dutch and other leagues, cups,
   European nights, national teams), rugby (Six Nations, Premiership, Champions Cup and more), UFC and
   boxing, with "big nights" flagged. The Worker refreshes
