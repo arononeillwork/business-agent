@@ -29,6 +29,7 @@ import { msg, t, tc } from '../i18n'
 import { NewsletterCard } from './NewsletterCard'
 import { WebsiteAccountsCard } from './WebsiteAccountsCard'
 import { DetailsOnWebsite } from './DetailsOnWebsite'
+import { PostsOnWebsite, ReviewsOnWebsite } from './ReviewsAndPostsOnWebsite'
 
 const LEVEL: Record<CheckLevel, { icon: ReactNode; fg: string; bg: string; label: string }> = {
   pass: { icon: <PassIcon fontSize="small" />, fg: tokens.goodFg, bg: tokens.goodBg, label: msg('Fine') },
@@ -103,6 +104,10 @@ export function WebsitePage() {
       <MenuOnWebsite />
 
       <DetailsOnWebsite />
+
+      <ReviewsOnWebsite />
+
+      <PostsOnWebsite />
 
       <NewsletterCard />
 

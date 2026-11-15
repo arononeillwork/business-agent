@@ -12272,3 +12272,26 @@ test.describe('User analytics', () => {
     await expect(page.getByRole('link', { name: 'Time spent reading' })).toHaveCount(0)
   })
 })
+
+test.describe('reviews and posts on the website', () => {
+  test('its Google reviews and Instagram posts shared with its website from Website & SEO', async ({ page }) => {
+    await open(page, '/website')
+    const reviews = page.getByRole('region', { name: 'Your Google reviews on your website' })
+    const shareReviews = reviews.getByRole('switch', { name: 'Share your reviews with the website' })
+    await expect(shareReviews).not.toBeChecked()
+    await shareReviews.click()
+    await toast(page, 'The website can read your reviews')
+    await expect(reviews.getByLabel('Reviews address for the website')).toContainText(/\/api\/site\/1\/reviews$/)
+
+    const posts = page.getByRole('region', { name: 'Your Instagram posts on your website' })
+    const sharePosts = posts.getByRole('switch', { name: 'Share your posts with the website' })
+    await expect(sharePosts).not.toBeChecked()
+    await sharePosts.click()
+    await toast(page, 'The website can read your posts')
+    await expect(posts.getByLabel('Posts address for the website')).toContainText(/\/api\/site\/1\/posts$/)
+    // Each switch is its own: reviews stay shared when posts are turned off.
+    await sharePosts.click()
+    await toast(page, 'The website can no longer read your posts')
+    await expect(shareReviews).toBeChecked()
+  })
+})

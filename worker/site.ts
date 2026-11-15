@@ -14,6 +14,10 @@ import type { MenuItem } from '../shared/menu'
 import { CLOSURES_AHEAD, siteDetails, type DetailsInput } from '../shared/websiteDetails'
 import { addDays, isTimeZone, today } from '../shared/time'
 import type { CalendarEvent, Integration } from '../shared/types'
+import { siteReviews, type ReviewsInput } from '../shared/websiteReviews'
+import { SITE_POSTS, SITE_POSTS_MINUTES, sitePosts } from '../shared/websitePosts'
+import { cached } from './cache'
+import { latestPosts, type LatestPosts } from './offerPosts'
 
 export const site = new Hono<{ Bindings: Env }>()
 
@@ -91,4 +95,80 @@ site.get('/api/site/:business/details', async c => {
     today: day,
   })
   return c.json(feed, 200, { ...CORS, 'cache-control': FRESH })
+})
+
+// ---------------------------------------------------------------------------------------------
+// The business's Google rating and reviews (shared/websiteReviews.ts): what the Reviews page keeps,
+// read from Google by the hourly job (worker/reviews.ts), never from here, so a website asking often
+// costs no look-up at Google. Turned on on Website & SEO (settings.website_reviews).
+// ---------------------------------------------------------------------------------------------
+const REVIEWS_NOT_SHARED = { error: 'This business doesn’t share its reviews with a website.' }
+const REVIEWS_UNAVAILABLE = { error: 'The reviews couldn’t be read just now. Try again in a minute.' }
+
+site.get('/api/site/:business/reviews', async c => {
+  const raw = c.req.param('business')
+  if (!/^[1-9]\d{0,8}$/.test(raw)) return c.json(REVIEWS_NOT_SHARED, 404, CORS)
+  const id = Number(raw)
+  const db = businessDb(c.env, id)
+  const { data: settings, error } = await db.from('settings').select('website_reviews').eq('id', 1).maybeSingle()
+  if (error) return c.json(REVIEWS_UNAVAILABLE, 503, { ...CORS, 'cache-control': 'no-store' })
+  if (settings?.website_reviews !== true) return c.json(REVIEWS_NOT_SHARED, 404, { ...CORS, 'cache-control': 'public, max-age=60' })
+  const [business, kept, last, google] = await Promise.all([
+    db.from('business').select('name').eq('id', id).maybeSingle(),
+    db.from('reviews').select('id, rating, text, reviewer, created_at, reply, language, url, photos').order('created_at', { ascending: false }).limit(1000),
+    db.from('provider_cache').select('data, fetched_at').eq('key', 'reviews').maybeSingle(),
+    db.from('integrations').select('external').eq('provider', 'google_business').maybeSingle(),
+  ])
+  if (business.error || !business.data || kept.error) return c.json(REVIEWS_UNAVAILABLE, 503, { ...CORS, 'cache-control': 'no-store' })
+  const ext = (google.data?.external ?? {}) as Pick<Integration['external'], 'locations' | 'location'>
+  const listing = ext.locations?.find(l => l.name === ext.location)
+  const feed = siteReviews({
+    business: { id, name: business.data.name as string },
+    kept: (kept.data ?? []) as ReviewsInput['kept'],
+    last: (last.data?.data ?? null) as ReviewsInput['last'],
+    checkedAt: (last.data?.fetched_at as string | undefined) ?? null,
+    mapsUrl: listing?.maps_url ?? null,
+    placeId: listing?.place_id ?? secretPlaceId(c.env, db) ?? null,
+  })
+  return c.json(feed, 200, { ...CORS, 'cache-control': FRESH })
+})
+
+// ---------------------------------------------------------------------------------------------
+// The business's latest posts (shared/websitePosts.ts): from its Instagram on Connections, else its
+// Facebook Page (worker/offerPosts.ts), asked at most every 15 minutes for each business however
+// often websites ask; when Instagram can't be read, the posts last read. Turned on on Website & SEO
+// (settings.website_posts).
+// ---------------------------------------------------------------------------------------------
+const POSTS_NOT_SHARED = { error: 'This business doesn’t share its posts with a website.' }
+const POSTS_UNAVAILABLE = { error: 'The posts couldn’t be read just now. Try again in a minute.' }
+const POSTS_KEY = 'site_posts'
+
+site.get('/api/site/:business/posts', async c => {
+  const raw = c.req.param('business')
+  if (!/^[1-9]\d{0,8}$/.test(raw)) return c.json(POSTS_NOT_SHARED, 404, CORS)
+  const id = Number(raw)
+  const db = businessDb(c.env, id)
+  const { data: settings, error } = await db.from('settings').select('website_posts').eq('id', 1).maybeSingle()
+  if (error) return c.json(POSTS_UNAVAILABLE, 503, { ...CORS, 'cache-control': 'no-store' })
+  if (settings?.website_posts !== true) return c.json(POSTS_NOT_SHARED, 404, { ...CORS, 'cache-control': 'public, max-age=60' })
+  const [business, links] = await Promise.all([
+    db.from('business').select('name').eq('id', id).maybeSingle(),
+    db.from('integrations').select('provider, status').in('provider', ['instagram', 'facebook']),
+  ])
+  if (business.error || !business.data || links.error) return c.json(POSTS_UNAVAILABLE, 503, { ...CORS, 'cache-control': 'no-store' })
+  const who = { id, name: business.data.name as string }
+  // Neither connected: no posts, and nothing to ask (the website shows its own pictures).
+  if (!(links.data ?? []).some(l => l.status === 'connected')) {
+    return c.json(sitePosts({ business: who, read: null, fetchedAt: null }), 200, { ...CORS, 'cache-control': FRESH })
+  }
+  try {
+    const { data, fetched_at } = await cached<LatestPosts>(db, POSTS_KEY, SITE_POSTS_MINUTES, () => latestPosts(c.env, db, SITE_POSTS))
+    return c.json(sitePosts({ business: who, read: data, fetchedAt: fetched_at }), 200, { ...CORS, 'cache-control': FRESH })
+  } catch {
+    // Instagram down, or its access run out: the posts last read (kept up to two days), else try again later.
+    const { data: kept } = await db.from('provider_cache').select('data, fetched_at').eq('key', POSTS_KEY).maybeSingle()
+    if (!kept) return c.json(POSTS_UNAVAILABLE, 503, { ...CORS, 'cache-control': 'no-store' })
+    return c.json(sitePosts({ business: who, read: kept.data as LatestPosts, fetchedAt: kept.fetched_at as string }), 200,
+      { ...CORS, 'cache-control': 'public, max-age=60' })
+  }
 })
