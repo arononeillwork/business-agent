@@ -1,5 +1,8 @@
-import { Alert, Box, Button, Card, CardContent, Chip, Link, MenuItem, Stack, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, ButtonBase, Card, CardContent, Chip, Dialog, IconButton, Link, MenuItem, Stack, TextField, Typography } from '@mui/material'
 import ReplyIcon from '@mui/icons-material/ReplyOutlined'
+import CloseIcon from '@mui/icons-material/Close'
+import PrevIcon from '@mui/icons-material/ChevronLeft'
+import NextIcon from '@mui/icons-material/ChevronRight'
 import { useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
@@ -12,7 +15,7 @@ import { Freshness } from '../components/Freshness'
 import type { ExportTable } from '../lib/export'
 import { formatLocal, formatNumber, today } from '../../shared/time'
 import {
-  REVIEW_FILTERS, REVIEW_SORTS, filterReviews, isLow, sortReviews, suggestedReply, summarise, MAX_REPLY, type Review, type ReviewFilter, type ReviewSort,
+  REVIEW_FILTERS, REVIEW_SORTS, filterReviews, isLow, sortReviews, suggestedReply, summarise, MAX_REPLY, type Review, type ReviewFilter, type ReviewPhoto, type ReviewSort,
 } from '../../shared/reviews'
 import { tokens } from '../theme'
 import { t, tn } from '../i18n'
@@ -23,8 +26,8 @@ const month = (ym: string) => formatLocal(`${ym}-15T12:00:00Z`, 'MMM')
 /** "within 5 hours", "within 2 days". */
 const within = (hours: number) => (hours < 48 ? tn(Math.max(1, Math.round(hours)), '{n} hour', '{n} hours') : tn(Math.round(hours / 24), '{n} day', '{n} days'))
 
-/** Reviews: what people say on Google, with figures, and replies (templates edited before sending). Admins only.
- * The list filters by stars or replies and sorts by date or by stars. */
+/** Reviews: what people say on Google (and the photos they add), with figures, and replies (templates edited before sending). Admins only.
+ * The list filters by stars, replies or photos and sorts by date or by stars. */
 export function ReviewsPage() {
   const { api, business } = useApp()
   const [filter, setFilter] = useState<ReviewFilter>('all')
@@ -126,7 +129,7 @@ export function ReviewsPage() {
   )
 }
 
-/** One review: its stars and words, the reply if there is one, and replying (from a template) in place. */
+/** One review: its stars, words and photos, the reply if there is one, and replying (from a template) in place. */
 function ReviewCard({ review: r, canReply, business, contact }: { review: Review; canReply: boolean; business: string; contact: string | null }) {
   const { api } = useApp()
   const run = useAction()
@@ -147,7 +150,8 @@ function ReviewCard({ review: r, canReply, business, contact }: { review: Review
         {r.url && <Link href={r.url} target="_blank" rel="noopener" variant="body2" sx={{ ml: 'auto' }}>{t('Open on Google Maps')}</Link>}
       </Stack>
       {r.text ? <Typography sx={{ whiteSpace: 'pre-wrap' }}>{r.text}</Typography>
-        : <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>{t('Stars only, no words')}</Typography>}
+        : !r.photos?.length && <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>{t('Stars only, no words')}</Typography>}
+      {!!r.photos?.length && <ReviewPhotos photos={r.photos} reviewer={r.reviewer || t('Someone')} />}
 
       {r.reply && draft === null && (
         <Box sx={{ mt: 1.5, pl: 1.5, borderLeft: `3px solid ${tokens.rose}` }}>
@@ -177,5 +181,46 @@ function ReviewCard({ review: r, canReply, business, contact }: { review: Review
         </Box>
       )}
     </Box>
+  )
+}
+
+/** A review's photos, small in a row; one tapped opens large, with the others a step either side. */
+function ReviewPhotos({ photos, reviewer }: { photos: ReviewPhoto[]; reviewer: string }) {
+  const [open, setOpen] = useState<number | null>(null)
+  const shown = open === null ? null : photos[open]
+  const step = (by: number) => setOpen(i => (i === null ? i : (i + by + photos.length) % photos.length))
+  return (
+    <>
+      <Stack component="ul" direction="row" spacing={1} useFlexGap aria-label={t('Photos')} sx={{ flexWrap: 'wrap', listStyle: 'none', p: 0, m: 0, mt: 1 }}>
+        {photos.map((p, i) => (
+          <li key={p.url}>
+            <ButtonBase onClick={() => setOpen(i)} aria-label={t('Photo {n} of {count}', { n: i + 1, count: photos.length })}
+              sx={{ borderRadius: 1.5, overflow: 'hidden', border: 1, borderColor: 'divider' }}>
+              <Box component="img" src={p.thumb ?? p.url} alt="" loading="lazy" referrerPolicy="no-referrer"
+                sx={{ width: { xs: 72, sm: 96 }, height: { xs: 72, sm: 96 }, objectFit: 'cover', display: 'block' }} />
+            </ButtonBase>
+          </li>
+        ))}
+      </Stack>
+      <Dialog open={!!shown} onClose={() => setOpen(null)} maxWidth="md"
+        slotProps={{ paper: { 'aria-label': t('Photo from {name}', { name: reviewer }), sx: { bgcolor: 'common.black', overflow: 'hidden' } } }}
+        onKeyDown={e => { if (e.key === 'ArrowLeft') step(-1); if (e.key === 'ArrowRight') step(1) }}>
+        {shown && <Box sx={{ position: 'relative', bgcolor: 'common.black' }}>
+          <Box component="img" src={shown.url} alt={t('Photo {n} of {count}', { n: open! + 1, count: photos.length })} referrerPolicy="no-referrer"
+            sx={{ display: 'block', maxWidth: '100%', maxHeight: '85vh', mx: 'auto', objectFit: 'contain' }} />
+          <IconButton onClick={() => setOpen(null)} aria-label={t('Close')} sx={{ position: 'absolute', top: 8, right: 8, color: 'common.white', bgcolor: 'rgba(0,0,0,0.45)', '&:hover': { bgcolor: 'rgba(0,0,0,0.65)' } }}>
+            <CloseIcon />
+          </IconButton>
+          {photos.length > 1 && <>
+            <IconButton onClick={() => step(-1)} aria-label={t('Previous photo')} sx={{ position: 'absolute', top: '50%', left: 8, transform: 'translateY(-50%)', color: 'common.white', bgcolor: 'rgba(0,0,0,0.45)', '&:hover': { bgcolor: 'rgba(0,0,0,0.65)' } }}>
+              <PrevIcon />
+            </IconButton>
+            <IconButton onClick={() => step(1)} aria-label={t('Next photo')} sx={{ position: 'absolute', top: '50%', right: 8, transform: 'translateY(-50%)', color: 'common.white', bgcolor: 'rgba(0,0,0,0.45)', '&:hover': { bgcolor: 'rgba(0,0,0,0.65)' } }}>
+              <NextIcon />
+            </IconButton>
+          </>}
+        </Box>}
+      </Dialog>
+    </>
   )
 }

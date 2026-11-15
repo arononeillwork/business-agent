@@ -283,6 +283,31 @@ export async function listReviews(token: string, account: string, location: stri
   return out
 }
 
+/**
+ * Photos and videos customers added to the listing (v4 too), photos attached to reviews among them.
+ * The Reviews API doesn't say which review a photo came with: worker/reviews.ts matches them by the
+ * customer's name and when they were added. Google's addresses for them change over time, so they're
+ * read again with the reviews.
+ */
+export interface GoogleCustomerMedia {
+  name?: string; mediaFormat?: string; googleUrl?: string; thumbnailUrl?: string; createTime?: string
+  attribution?: { profileName?: string }
+}
+
+export async function listCustomerMedia(token: string, account: string, location: string, max = 500): Promise<GoogleCustomerMedia[]> {
+  const locationId = location.split('/').pop()
+  const out: GoogleCustomerMedia[] = []
+  let page: string | undefined
+  do {
+    const q = new URLSearchParams({ pageSize: '100', ...(page ? { pageToken: page } : {}) })
+    const r = await gfetch<{ mediaItems?: GoogleCustomerMedia[]; nextPageToken?: string }>(token,
+      `https://mybusiness.googleapis.com/v4/${account}/locations/${locationId}/media/customers?${q}`)
+    out.push(...(r.mediaItems ?? []))
+    page = r.nextPageToken
+  } while (page && out.length < max)
+  return out
+}
+
 /** Reply to a review (or change the reply): `name` is the review's accounts/…/locations/…/reviews/… path. */
 export const replyToReview = (token: string, name: string, comment: string) =>
   gfetch<{ comment?: string; updateTime?: string }>(token, `https://mybusiness.googleapis.com/v4/${name}/reply`, { method: 'PUT', body: JSON.stringify({ comment }) })

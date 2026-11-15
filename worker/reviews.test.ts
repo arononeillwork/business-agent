@@ -100,6 +100,47 @@ describe('Reviews', () => {
     expect(db.table('notifications').filter(n => n.kind === 'review')).toHaveLength(2)
   })
 
+  it('a review Google sends translation first keeps the reviewer’s own words, and they replace the empty ones kept before', async () => {
+    await connectMaps()
+    const id = 'accounts/1/locations/1/reviews/alicia'
+    // As it was kept before the fix: no words, taken for English.
+    db.tables.reviews.push({ business_id: 1, id, source: 'google', rating: 5, text: null, reviewer: 'Alicia Puertas Gil', created_at: daysAgo(1), language: 'en', photos: [] })
+    apis.google.reviews = [profileReview('alicia', 'FIVE',
+      '(Translated by Google) The best coffee in San Pedro, very friendly staff\n\n(Original)\nEl mejor café de San Pedro, el personal muy amable', 'Alicia Puertas Gil', 1)]
+    const s = await (await call(reviews, '/api/reviews', { headers: admin })).json() as { reviews: Record<string, unknown>[] }
+    expect(s.reviews[0]).toMatchObject({ id, text: 'El mejor café de San Pedro, el personal muy amable', language: 'es' })
+  })
+
+  it('the photos a reviewer added come with their review: same name, within a day; others’ photos and other days’ don’t', async () => {
+    await connectMaps()
+    const photo = (n: string, who: string, at: string, format = 'PHOTO') => ({ name: `accounts/1/locations/1/media/customers/${n}`, mediaFormat: format,
+      googleUrl: `https://lh3.googleusercontent.com/p/${n}`, thumbnailUrl: `https://lh3.googleusercontent.com/p/${n}=s300`, createTime: at, attribution: { profileName: who } })
+    const written = daysAgo(3)
+    const soon = (minutes: number) => new Date(Date.parse(written) + minutes * 60_000).toISOString()
+    apis.google.reviews = [
+      { ...profileReview('ana', 'FIVE', 'Precioso', 'Ana López', 3), createTime: written },
+      profileReview('tom', 'FOUR', 'Nice', 'Tom', 3),
+      { ...profileReview('anon', 'FIVE', 'Bien', 'Ana López', 3), reviewer: { isAnonymous: true } },
+    ]
+    apis.google.customerMedia = [
+      photo('latte', 'ana lópez', soon(2)), photo('cake', 'Ana López', soon(1)),
+      photo('video', 'Ana López', soon(3), 'VIDEO'), photo('last-month', 'Ana López', daysAgo(30)), photo('someone-else', 'Marta', soon(1)),
+    ]
+    const s = await (await call(reviews, '/api/reviews', { headers: admin })).json() as { reviews: { id: string; photos: unknown[] }[] }
+    const of = (id: string) => s.reviews.find(r => r.id === `accounts/1/locations/1/reviews/${id}`)!.photos
+    expect(of('ana')).toEqual([
+      { url: 'https://lh3.googleusercontent.com/p/cake', thumb: 'https://lh3.googleusercontent.com/p/cake=s300' },
+      { url: 'https://lh3.googleusercontent.com/p/latte', thumb: 'https://lh3.googleusercontent.com/p/latte=s300' },
+    ])
+    expect(of('tom')).toEqual([])
+    expect(of('anon')).toEqual([])
+
+    // Google refusing just the photos: the reviews still come, and the photos kept stay.
+    apis.google.mediaRefused = true
+    expect((await checkReviews(env, businessDb(env, 1))).feed.problem).toBeNull()
+    expect(db.table('reviews').find(r => r.id === 'accounts/1/locations/1/reviews/ana')!.photos).toHaveLength(2)
+  })
+
   it('a reply goes to Google and is kept; the notification about it is marked read', async () => {
     await connectMaps()
     apis.google.reviews = [profileReview('new', 'TWO', 'Slow service', 'Tom', 1)]

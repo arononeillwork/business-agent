@@ -21,6 +21,14 @@ export interface Review {
   language: ReviewLanguage
   /** Google Maps' page for it, when Google gives one. */
   url: string | null
+  /** Photos the reviewer added to it (Google Maps connection only), oldest first. */
+  photos: ReviewPhoto[]
+}
+
+/** A photo on a review, as Google hosts it: the full size and a smaller one for the list. */
+export interface ReviewPhoto {
+  url: string
+  thumb: string | null
 }
 
 export interface ReviewsState {
@@ -60,6 +68,25 @@ export function guessLanguage(text: string | null | undefined): ReviewLanguage {
   return es > en ? 'es' : 'en'
 }
 
+// Google translates a review that isn't in the profile's own language, and sends both in one text:
+// "<the review>\n\n(Translated by Google)\n<translation>" or, the other way round, "(Translated by
+// Google) <translation>\n\n(Original)\n<the review>". Cutting from the first marker to the end left
+// nothing at all of the second kind: every review written in Spanish showed as "Stars only".
+const TRANSLATED = /\((?:Translated by Google|Traducido por Google)\)/
+const ORIGINAL = /\(Original\)/
+
+/** The reviewer's own words, without Google's translation of them (null when there are none). */
+export function originalWords(comment: string | null | undefined): string | null {
+  const text = comment?.trim() ?? ''
+  const first = text.search(TRANSLATED)
+  if (first < 0) return text || null
+  if (first > 0) return text.slice(0, first).trim() || null
+  // The translation came first: the review is what follows "(Original)", or the translation when that's all there is.
+  const original = text.search(ORIGINAL)
+  if (original >= 0) return text.slice(original).replace(ORIGINAL, '').trim() || null
+  return text.replace(TRANSLATED, '').trim() || null
+}
+
 export interface ReviewSummary {
   count: number
   average: number | null
@@ -95,17 +122,19 @@ export function summarise(reviews: Review[]): ReviewSummary {
   return { count, average, stars, months, reply_rate: count ? replied.length / count : null, reply_hours, unanswered: count - replied.length }
 }
 
-export type ReviewFilter = 'all' | 'unanswered' | 'low' | 'high'
+export type ReviewFilter = 'all' | 'unanswered' | 'low' | 'high' | 'photos'
 export const REVIEW_FILTERS: { id: ReviewFilter; label: string }[] = [
   { id: 'all', label: msg('All') },
   { id: 'unanswered', label: msg('No reply yet') },
   { id: 'low', label: msg('1 to 3 stars') },
   { id: 'high', label: msg('4 and 5 stars') },
+  { id: 'photos', label: msg('With photos') },
 ]
 export function filterReviews(reviews: Review[], f: ReviewFilter) {
   if (f === 'unanswered') return reviews.filter(r => !r.reply)
   if (f === 'low') return reviews.filter(r => r.rating <= 3)
   if (f === 'high') return reviews.filter(r => r.rating >= 4)
+  if (f === 'photos') return reviews.filter(r => r.photos?.length)
   return reviews
 }
 

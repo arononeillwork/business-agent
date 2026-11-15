@@ -1,6 +1,6 @@
 // Reviews page: Google reviews read from the business's own profile (the Google Maps connection:
-// all of them, and replies), or until Google approves that, from the public listing (Places API:
-// the 5 newest, no replies). Every review seen is kept (public.reviews), so each new one is noticed
+// all of them, with replies and the photos people added), or until Google approves that, from the
+// public listing (Places API: the 5 newest, no replies). Every review seen is kept (public.reviews), so each new one is noticed
 // once: the Worker looks every hour (every 3 hours on Places, which Google charges for past 1,000
 // look-ups a month: shared/refresh.ts) and admins get a notification, a low rating flagged. Opening
 // the page shows what's kept; it only asks Google when that's due.
@@ -11,7 +11,7 @@ import { explain, googleSession, lasting, markBroken, myBusinessApiOff } from '.
 import { cached } from './cache'
 import * as google from './providers/google'
 import { placeReviews } from './providers/places'
-import { CONNECT_MAPS, guessLanguage, isLow, starsOf, MAX_REPLY, type Review, type ReviewFeed, type ReviewsState } from '../shared/reviews'
+import { CONNECT_MAPS, guessLanguage, isLow, originalWords, starsOf, MAX_REPLY, type Review, type ReviewFeed, type ReviewPhoto, type ReviewsState } from '../shared/reviews'
 import { MINUTES } from '../shared/refresh'
 import { signInCheck } from './signedIn'
 
@@ -37,7 +37,34 @@ const isConnected = async (db: SupabaseClient) => {
   return data?.status === 'connected' && !!ext.location && !!ext.account
 }
 
-interface Feed { feed: ReviewFeed | null; list: Review[]; google_rating: number | null; google_count: number | null; problem: string | null }
+interface Feed {
+  feed: ReviewFeed | null; list: Review[]; google_rating: number | null; google_count: number | null; problem: string | null
+  /** Whether the reviews' photos could be read this time (if not, the ones kept stay as they were). */
+  photos?: boolean
+}
+
+const DAY = 86_400_000
+/** Most photos kept for one review (the `review_photos` migration holds it to this). */
+const MAX_REVIEW_PHOTOS = 20
+
+/**
+ * The photos a reviewer added with their review. Google keeps them among the listing's customer photos
+ * without saying which review they came with, so: the same name, added within a day of the review being
+ * written or last changed. Anonymous reviews get none.
+ */
+function photosFor(reviewer: string, created: string, updated: string | undefined, media: google.GoogleCustomerMedia[]): ReviewPhoto[] {
+  const who = reviewer.trim().toLowerCase()
+  if (!who) return []
+  const from = Date.parse(created) - DAY
+  const to = Math.max(Date.parse(updated ?? '') || 0, Date.parse(created)) + DAY
+  return media
+    .filter(m => (m.mediaFormat ?? 'PHOTO') === 'PHOTO' && m.googleUrl?.startsWith('https://') && m.attribution?.profileName?.trim().toLowerCase() === who)
+    .map(m => ({ m, at: Date.parse(m.createTime ?? '') }))
+    .filter(({ at }) => at >= from && at <= to)
+    .sort((a, b) => a.at - b.at)
+    .slice(0, MAX_REVIEW_PHOTOS)
+    .map(({ m }) => ({ url: m.googleUrl!, thumb: m.thumbnailUrl?.startsWith('https://') ? m.thumbnailUrl : null }))
+}
 
 /** Reviews as Google has them now, from the best source there is. */
 async function readFeed(env: Env, db: SupabaseClient): Promise<Feed> {
@@ -45,16 +72,21 @@ async function readFeed(env: Env, db: SupabaseClient): Promise<Feed> {
   if (await isConnected(db)) {
     try {
       const s = await googleSession(env, db)
-      const raw = await google.listReviews(s.token, s.account!, s.location!)
+      const [raw, media] = await Promise.all([
+        google.listReviews(s.token, s.account!, s.location!),
+        // Photos are extra: should Google refuse just those, the reviews still come through.
+        google.listCustomerMedia(s.token, s.account!, s.location!).catch(() => null),
+      ])
       const list = raw.flatMap((r): Review[] => {
         const rating = starsOf(r.starRating)
         if (!rating || !r.createTime) return []
-        const text = r.comment?.replace(/\n*\(Translated by Google\)[\s\S]*$/, '').trim() || null
-        return [{ id: r.name, source: 'google', rating, text, reviewer: r.reviewer?.isAnonymous ? '' : r.reviewer?.displayName ?? '',
+        const text = originalWords(r.comment)
+        const reviewer = r.reviewer?.isAnonymous ? '' : r.reviewer?.displayName ?? ''
+        return [{ id: r.name, source: 'google', rating, text, reviewer,
           created_at: r.createTime, reply: r.reviewReply?.comment ?? null, replied_at: r.reviewReply?.updateTime ?? null,
-          language: guessLanguage(text), url: null }]
+          language: guessLanguage(text), url: null, photos: media ? photosFor(reviewer, r.createTime, r.updateTime, media) : [] }]
       })
-      return { feed: 'business_profile', list, google_rating: null, google_count: null, problem: null }
+      return { feed: 'business_profile', list, google_rating: null, google_count: null, problem: null, photos: !!media }
     } catch (e) {
       problem = explain('google_business', e)
       // Reviews' own API being off leaves Google Maps working (hours): the page says so, the connection stays.
@@ -68,7 +100,7 @@ async function readFeed(env: Env, db: SupabaseClient): Promise<Feed> {
         const rating = starsOf(r.rating)
         if (!rating || !r.publishTime) return []
         return [{ id: r.name, source: 'google', rating, text: r.text, reviewer: r.author, created_at: r.publishTime, reply: null, replied_at: null,
-          language: r.language?.startsWith('es') ? 'es' : r.language?.startsWith('en') ? 'en' : guessLanguage(r.text), url: r.url }]
+          language: r.language?.startsWith('es') ? 'es' : r.language?.startsWith('en') ? 'en' : guessLanguage(r.text), url: r.url, photos: [] }]
       })
       return { feed: 'places', list, google_rating: p.rating, google_count: p.count, problem }
     } catch (e) {
@@ -91,8 +123,11 @@ export async function checkReviews(env: Env, db: SupabaseClient): Promise<{ feed
   const { data: known } = await db.from('reviews').select('id').in('id', feed.list.map(r => r.id))
   const seen = new Set((known ?? []).map(r => r.id as string))
   const fresh = feed.list.filter(r => !seen.has(r.id))
-  // Places has no replies: keep the ones made here; the profile's own are the truth.
-  const rows = feed.list.map(({ reply, replied_at, ...r }) => (feed.feed === 'business_profile' ? { ...r, reply, replied_at } : r))
+  // Places has no replies: keep the ones made here; the profile's own are the truth. Photos likewise,
+  // only when they could be read (Google's addresses for them change, so they're written each time).
+  const rows = feed.list.map(({ reply, replied_at, photos, ...r }) => ({
+    ...r, ...(feed.feed === 'business_profile' ? { reply, replied_at } : {}), ...(feed.photos ? { photos } : {}),
+  }))
   const { error } = await db.from('reviews').upsert(rows, { onConflict: 'business_id,id' })
   if (error) throw new Error(error.message)
   const week = Date.now() - 7 * 86_400_000
@@ -113,7 +148,7 @@ export async function checkReviews(env: Env, db: SupabaseClient): Promise<{ feed
 /** Is there anything to read reviews from (the cron skips the work otherwise)? */
 export const reviewsConfigured = async (env: Env, db: SupabaseClient) => placesOn(env, db) || await isConnected(db)
 
-type FeedInfo = Omit<Feed, 'list'>
+type FeedInfo = Omit<Feed, 'list' | 'photos'>
 
 /**
  * Google's reviews checked (checkReviews) when that's due for where they came from last time: every
@@ -127,16 +162,16 @@ export async function refreshReviews(env: Env, db: SupabaseClient, early = 0) {
     if (kept.feed === 'places' && !await isConnected(db)) return MINUTES.reviewsPlaces - early
     return 0
   }, async () => {
-    const { feed: { list: _list, ...info } } = await checkReviews(env, db)
+    const { feed: { list: _list, photos: _photos, ...info } } = await checkReviews(env, db)
     return info
   })
 }
 
 async function state(db: SupabaseClient, feed: FeedInfo): Promise<ReviewsState> {
-  const { data } = await db.from('reviews').select('id, source, rating, text, reviewer, created_at, reply, replied_at, language, url')
+  const { data } = await db.from('reviews').select('id, source, rating, text, reviewer, created_at, reply, replied_at, language, url, photos')
     .order('created_at', { ascending: false }).limit(1000)
   return { feed: feed.feed, can_reply: feed.feed === 'business_profile', google_rating: feed.google_rating, google_count: feed.google_count,
-    reviews: (data ?? []) as Review[], problem: feed.problem }
+    reviews: ((data ?? []) as Review[]).map(r => ({ ...r, photos: r.photos ?? [] })), problem: feed.problem }
 }
 
 // The reviews kept, checked with Google first when that's due (new ones noticed).

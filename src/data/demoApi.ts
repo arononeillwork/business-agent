@@ -587,15 +587,16 @@ export function createDemoApi(): Api {
       attachments: [{ id: 'att-3', name: 'Fra. 2026/311.pdf', size: 120_480, type: 'application/pdf', imported: false }] },
   ]
   const needInvoices = () => { if (!(me()?.role === 'admin' && me()?.can_see_pay)) throw new Error('Only admins with pay access manage invoices') }
-  // Reviews on the café's Google profile since it opened in April: mostly glowing, two waiting on a reply.
+  // Reviews on the café's Google profile since it opened in April: mostly glowing, two waiting on a reply, two with photos.
   const review = (id: string, rating: Review['rating'], reviewer: string, created_at: string, language: Review['language'], text: string | null,
-    reply: string | null = null, replied_at: string | null = null): Review =>
-    ({ id: `accounts/1/locations/1/reviews/${id}`, source: 'google', rating, reviewer, created_at, language, text, reply, replied_at, url: null })
+    reply: string | null = null, replied_at: string | null = null, photos: string[] = []): Review =>
+    ({ id: `accounts/1/locations/1/reviews/${id}`, source: 'google', rating, reviewer, created_at, language, text, reply, replied_at, url: null,
+      photos: photos.map(p => ({ url: demoPhoto(p, /croissant|cake|toast/i.test(p)), thumb: null })) })
   const demoReviews: Review[] = [
     review('r12', 2, 'Tom Hughes', '2026-09-28T16:20:00Z', 'en', 'Coffee was good but we waited 20 minutes for two flat whites on Saturday morning, and nobody said sorry.'),
     review('r11', 3, 'Javier Ruiz', '2026-09-24T09:05:00Z', 'es', 'El café está bien, pero la terraza se llena enseguida y no hay sitio para sentarse.'),
     review('r10', 5, 'Lucía Pérez', '2026-09-19T10:40:00Z', 'es', 'El mejor café de San Pedro. El matcha latte con leche de avena es una maravilla y el personal muy amable.',
-      '¡Hola, Lucía! Muchísimas gracias por tu reseña. ¡Te esperamos pronto!', '2026-09-19T15:00:00Z'),
+      '¡Hola, Lucía! Muchísimas gracias por tu reseña. ¡Te esperamos pronto!', '2026-09-19T15:00:00Z', ['Matcha latte with oat milk', 'Butter croissant']),
     review('r9', 5, 'Sarah Collins', '2026-09-08T08:55:00Z', 'en', 'Lovely little spot, really friendly staff and the best flat white I’ve had on the coast.',
       'Hi Sarah, thank you so much! See you soon for the next one.', '2026-09-08T12:30:00Z'),
     review('r8', 4, 'Miguel Ángel Torres', '2026-08-30T11:10:00Z', 'es', 'Muy buen café de especialidad. Un poco caro, pero merece la pena.',
@@ -605,7 +606,7 @@ export function createDemoApi(): Api {
     review('r6', 5, 'Carmen López', '2026-07-22T10:15:00Z', 'es', 'Riquísimo todo. Volveremos.', '¡Gracias, Carmen!', '2026-07-23T08:00:00Z'),
     review('r5', 4, 'David Smith', '2026-07-03T13:45:00Z', 'en', 'Good coffee, nice vibe. Would love more seating inside.',
       'Thanks David! More seats are on the way.', '2026-07-05T10:00:00Z'),
-    review('r4', 5, 'Ana García', '2026-06-12T08:20:00Z', 'es', null, '¡Gracias, Ana!', '2026-06-12T12:00:00Z'),
+    review('r4', 5, 'Ana García', '2026-06-12T08:20:00Z', 'es', null, '¡Gracias, Ana!', '2026-06-12T12:00:00Z', ['Flat white on the terrace']),
     review('r3', 5, 'Pablo Moreno', '2026-05-18T09:00:00Z', 'es', 'Por fin un café de especialidad en San Pedro. Gracias por abrir.', '¡Gracias a ti, Pablo!', '2026-05-18T11:00:00Z'),
     review('r2', 5, 'Laura Fernández', '2026-04-25T10:30:00Z', 'es', 'Me encanta el sitio y la música. El chai está buenísimo.', '¡Gracias, Laura!', '2026-04-26T09:00:00Z'),
     review('r1', 4, 'James O’Brien', '2026-04-11T09:10:00Z', 'en', 'Great opening week, coffee spot on.', 'Thanks James!', '2026-04-11T16:00:00Z'),
