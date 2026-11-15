@@ -6402,6 +6402,49 @@ test.describe('menu, menu design and screens', () => {
     await toast(page, 'Saved. The screen shows the changes within a minute.')
     await expect(page.getByRole('button', { name: 'Counter screen', exact: true })).toContainText('Showing TV menu board')
   })
+
+  test('a screen’s own address: a page on the café’s own website shows the screen, with the code for that page', async ({ page }) => {
+    await open(page, '/screens')
+    const link = page.getByRole('region', { name: 'The screen and its link' })
+    await link.getByRole('button', { name: 'Use your own website’s address' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Your own website’s address' })
+    const address = dialog.getByRole('textbox', { name: 'Your page’s address' })
+    await address.fill('http://easybeanscoffee.com/display-menu')
+    await expect(dialog).toContainText('Your own address should start with https://')
+    await expect(dialog.getByRole('button', { name: 'Save' })).toBeDisabled()
+    // Typed without https://, it's added; the code for that page shows the counter TV's link (the first screen's, /display-menu).
+    await address.fill('easybeanscoffee.com/display-menu')
+    await expect(dialog.getByLabel('The code for your page')).toContainText(/^<iframe src="[^"]+\/display-menu" title="Screen" allow="autoplay; fullscreen"/)
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Saved. Your page shows the screen once the code is on it.')
+    await expect(link.getByRole('link', { name: 'easybeanscoffee.com/display-menu' })).toHaveAttribute('href', 'https://easybeanscoffee.com/display-menu')
+    await expect(page.getByText('Unsaved changes')).toHaveCount(0)
+
+    // Taken off again.
+    await link.getByRole('button', { name: 'Change your own address' }).click()
+    await dialog.getByRole('button', { name: 'Take it off' }).click()
+    await toast(page, 'Your own address is off this screen')
+    await expect(link.getByRole('button', { name: 'Use your own website’s address' })).toBeVisible()
+  })
+
+  test('a portrait screen stands upright on a TV that shows landscape, turned the other way with a tap or the remote', async ({ page }) => {
+    await page.clock.install({ time: WED_0900 })
+    // The window's slideshow is portrait; this browser is landscape, like a TV hung on its side.
+    await page.goto('/slideshow/window?demo')
+    await expect(page.getByRole('img', { name: 'Butter croissants' })).toBeVisible()
+    await expect(page.locator('[data-turned]')).toHaveAttribute('data-turned', 'right')
+    await page.keyboard.press('ArrowLeft')
+    await expect(page.locator('[data-turned]')).toHaveAttribute('data-turned', 'left')
+    // This TV keeps it.
+    await page.reload()
+    await expect(page.locator('[data-turned]')).toHaveAttribute('data-turned', 'left')
+    await page.mouse.click(20, 20)
+    await expect(page.locator('[data-turned]')).toHaveAttribute('data-turned', 'right')
+    // A landscape screen isn't turned.
+    await page.goto('/display-menu?demo')
+    await expect(page.getByText('Butter croissants')).toBeVisible()
+    await expect(page.locator('[data-turned]')).toHaveCount(0)
+  })
 })
 
 test.describe('offers and specials', () => {

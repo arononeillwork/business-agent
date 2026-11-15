@@ -101,6 +101,11 @@ export interface Screen {
   token: string
   /** Its link name, for its short link (/display-menu/<slug>, /slideshow/<slug>); empty: made from its name when saved. */
   slug: string
+  /**
+   * Its own address: a page on the business's own website that shows it (easybeanscoffee.com/display-menu),
+   * with embedCode() on it. Null or missing: none.
+   */
+  own_url?: string | null
   orientation: 'landscape' | 'portrait'
   /** How long each slide shows, unless it says otherwise. */
   seconds: number
@@ -132,7 +137,7 @@ export const MAX_SLIDES = 100
 export const SECONDS_CHOICES = [5, 8, 10, 15, 20, 30, 45, 60, 120]
 
 export const newScreen = (name: string, kind: ScreenKind = 'screen'): ScreenInput => ({
-  name, kind, slug: '', orientation: 'landscape', seconds: kind === 'slideshow' ? 8 : 10, transition: 'fade', transition_ms: 800, shuffle: false,
+  name, kind, slug: '', own_url: null, orientation: 'landscape', seconds: kind === 'slideshow' ? 8 : 10, transition: 'fade', transition_ms: 800, shuffle: false,
   fit: kind === 'slideshow' ? 'contain' : 'cover', music_url: null, music_volume: 40, video_sound: false, show_clock: false, ticker: null,
   // A picture slideshow starts with the live offers' pictures, so it has something to show straight away.
   slides: kind === 'slideshow' ? [offersSlide()] : [], active: true,
@@ -218,9 +223,10 @@ export function slideProblem(s: Pick<Slide, 'kind' | 'url' | 'design_id' | 'seco
   return null
 }
 
-export function screenProblem(s: Pick<ScreenInput, 'name' | 'seconds' | 'transition_ms' | 'music_url' | 'music_volume' | 'ticker' | 'slides'> & { slug?: string }): string | null {
+export function screenProblem(s: Pick<ScreenInput, 'name' | 'seconds' | 'transition_ms' | 'music_url' | 'music_volume' | 'ticker' | 'slides'> & { slug?: string; own_url?: string | null }): string | null {
   if (!s.name.trim()) return msg('Give the screen a name')
   if (s.slug && !LINK_NAME.test(s.slug)) return msg('A link name is up to 40 small letters, numbers and dashes, starting with a letter')
+  if (s.own_url && !OWN_URL.test(s.own_url)) return msg('Your own address should start with https://')
   if (!(s.seconds >= 3 && s.seconds <= 3600)) return msg('Show each slide for between 3 seconds and an hour')
   if (!(s.transition_ms >= 0 && s.transition_ms <= 5000)) return msg('The change between slides can take up to 5 seconds')
   if (s.music_url && !/^https:\/\/\S+$/i.test(s.music_url)) return msg('The music’s address should start with https://')
@@ -390,3 +396,15 @@ export function parseShortLink(path: string): { business: number; name: string |
 
 /** Whether a page's path is a screen's short link (no sign-in). */
 export const isShortLink = (path: string) => /^\/(display-menu|slideshow)(\/|$)/.test(path)
+
+// Its own address -----------------------------------------------------------------------------
+
+/** An address on the business's own website (as the database takes it): https, with a host. */
+export const OWN_URL = /^https:\/\/[^\s/]+\.\S+$/i
+
+/**
+ * The code for a page on the business's own website that shows a screen: its link, filling the page.
+ * Whatever's picked on the Screens page reaches it within a minute, as it does at the link itself.
+ */
+export const embedCode = (link: string) =>
+  `<iframe src="${link.replace(/"/g, '&quot;')}" title="Screen" allow="autoplay; fullscreen" style="position:fixed;inset:0;width:100%;height:100%;border:0;background:#000"></iframe>`
