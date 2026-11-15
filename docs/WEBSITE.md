@@ -84,6 +84,12 @@ business turns it on and sets it up on Website & SEO → **Newsletter sign-ups**
 a key that stays put, and its words in Spanish and English), and whether the form asks for a name or a
 phone. Off, or a number that's no business, every address below is `404` with the same answer.
 
+Each sign-up also shows on **Leads & enquiries** as a "Newsletter sign-up" from the website, with the
+topics they ticked (worded as on the form) kept on it, whether they're new or already a customer; signing
+up again adds any new topics to the open one. From there an admin can **Move to Customers**, which makes
+the person a customer and takes the enquiry off the list (their topics stay on Customers as tags). A
+list brought in makes no enquiries.
+
 A website takes sign-ups in one of three ways:
 
 1. **The app's form, as a link** (`GET https://businesssagent.com/api/site/<business>/newsletter`), for an

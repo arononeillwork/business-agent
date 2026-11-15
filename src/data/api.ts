@@ -637,6 +637,8 @@ export interface Api {
   /** Add an enquiry (no id; with `lead`, for someone new, added to Customers as a lead) or change one; returns its id. */
   saveEnquiry(e: EnquiryInput, lead?: NewLead): Promise<string>
   deleteEnquiry(id: string): Promise<void>
+  /** Move someone from Leads & enquiries to Customers: they become a customer (their topics stay on them as tags) and the enquiry leaves the list. */
+  moveEnquiryToCustomers(id: string): Promise<void>
 
   // Campaigns (admins): one message to the customers and leads who said yes to marketing.
   campaigns(): Promise<Campaign[]>

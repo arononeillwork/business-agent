@@ -41,13 +41,15 @@ export interface Enquiry {
   assigned_to: string | null
   lost_reason: string | null
   notes: string | null
+  /** For a newsletter sign-up: the topics they ticked, as the form words them ("Learning English"). */
+  interests: string[]
   received_at: string
   /** When it was won or lost (the database keeps it). */
   closed_at: string | null
   /** The person, from Customers. */
   customer?: Pick<Customer, 'first_name' | 'last_name' | 'company' | 'email' | 'phone' | 'kind'> | null
 }
-export type EnquiryInput = Partial<Omit<Enquiry, 'id' | 'customer' | 'closed_at'>> & { id?: string; title: string }
+export type EnquiryInput = Partial<Omit<Enquiry, 'id' | 'customer' | 'closed_at' | 'interests'>> & { id?: string; title: string }
 /** Someone new, typed in with their enquiry: they're added to Customers as a lead. */
 export type NewLead = Pick<CustomerInput, 'first_name' | 'last_name' | 'email' | 'phone' | 'company' | 'marketing_consent'>
 

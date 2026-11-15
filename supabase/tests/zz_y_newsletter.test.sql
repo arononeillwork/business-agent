@@ -95,6 +95,13 @@ do $$ begin
             from public.customers where id = current_setting('test.lucia')::uuid), 'topics added, her name kept';
   assert (select count(*) from public.newsletter_events where customer_id = current_setting('test.lucia')::uuid) = 2, 'both kept';
 end $$;
+-- ... and on Leads & enquiries once: a newsletter sign-up from the website with the topics as ticked, gaining the new ones.
+do $$ begin
+  assert (select count(*) from public.enquiries where customer_id = current_setting('test.lucia')::uuid) = 1, 'one enquiry';
+  assert (select title = 'Newsletter sign-up' and channel = 'website' and stage = 'new'
+            and (select array_agg(x order by x) from unnest(interests) x) = array['Coffee tips', 'Learning English', 'Offers']
+            from public.enquiries where customer_id = current_setting('test.lucia')::uuid), 'with every topic ticked';
+end $$;
 
 -- 6. Someone already on Customers (from Square, a customer) stays who they were and gains the yes and the topics.
 reset role;
@@ -107,6 +114,11 @@ do $$ begin
             and tags = array['Events', 'Regular'] from public.customers where email = 'nl-pablo@example.com'), 'a customer still, from Square';
   assert (select lang is null from public.newsletter_events where email = 'nl-pablo@example.com'), 'a language that isn''t one is left out';
 end $$;
+-- ... and still shows on Leads & enquiries, where an admin can move people to Customers.
+do $$ begin
+  assert (select count(*) = 1 and bool_and(title = 'Newsletter sign-up' and channel = 'website' and interests = array['Events'])
+            from public.enquiries e join public.customers c on c.id = e.customer_id where c.email = 'nl-pablo@example.com'), 'a customer signing up has an enquiry too';
+end $$;
 
 -- 7. A list brought in says when they signed up (never in the future); an email that isn't one is refused.
 do $$ declare v uuid; begin
@@ -114,6 +126,10 @@ do $$ declare v uuid; begin
   assert (select at = '2026-10-17 10:00+00' and via = 'import' from public.newsletter_events where customer_id = v), 'when they signed up';
   v := public.newsletter_signup('nl-future@example.com', null, null, null, '{}', '{}', null, null, 'import', null, now() + interval '3 days');
   assert (select at <= now() from public.newsletter_events where customer_id = v), 'not in the future';
+end $$;
+do $$ begin
+  assert not exists (select 1 from public.enquiries e join public.customers c on c.id = e.customer_id where c.email in ('nl-old@example.com', 'nl-future@example.com')),
+    'a list brought in makes no enquiries';
 end $$;
 select pg_temp.expect_error($q$select public.newsletter_signup('not-an-email')$q$, 'Enter a valid email');
 select pg_temp.expect_error($q$select public.newsletter_signup('')$q$, 'Enter a valid email');

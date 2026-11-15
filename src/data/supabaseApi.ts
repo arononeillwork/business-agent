@@ -1307,6 +1307,11 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
       return (check(await sb.from('enquiries').insert({ ...row, customer_id: customerId }).select('id').single()) as { id: string }).id
     },
     async deleteEnquiry(id) { check(await sb.from('enquiries').delete().eq('id', id)) },
+    async moveEnquiryToCustomers(id) {
+      const { customer_id } = check(await sb.from('enquiries').select('customer_id').eq('id', id).single()) as { customer_id: string }
+      check(await sb.from('customers').update({ kind: 'customer' }).eq('id', customer_id))
+      check(await sb.from('enquiries').delete().eq('id', id))
+    },
     async campaigns() {
       return check(await sb.from('campaigns').select('*').order('created_at', { ascending: false })) as Campaign[]
     },
