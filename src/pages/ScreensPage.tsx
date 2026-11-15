@@ -365,7 +365,7 @@ function ScreenEditor({ screen, main, designs, items, allergens, brand, offers, 
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t('Once round: {time}', { time: duration(loopSeconds(s)) })}</Typography>
             </Stack>
           </Box>
-          <Button variant="outlined" startIcon={<OpenIcon />} component="a" href={shortLink(screen, business?.id, main)} target="_blank" rel="noopener">
+          <Button variant="outlined" startIcon={<OpenIcon />} component="a" href={s.own_url || shortLink(screen, business?.id, main)} target="_blank" rel="noopener">
             {slideshow ? t('Open the slideshow') : t('Open the screen')}
           </Button>
         </Stack>
@@ -690,7 +690,7 @@ function SingleDisplayEditor({ screen, main, designs, items, allergens, brand, o
               <Typography variant="caption" sx={{ color: 'text.secondary', overflowWrap: 'anywhere' }}>{showingText(slides, designs)}</Typography>
             </Stack>
           </Box>
-          <Button variant="outlined" startIcon={<OpenIcon />} component="a" href={shortLink(screen, business?.id, main)} target="_blank" rel="noopener">{t('Open the screen')}</Button>
+          <Button variant="outlined" startIcon={<OpenIcon />} component="a" href={draft.own_url || shortLink(screen, business?.id, main)} target="_blank" rel="noopener">{t('Open the screen')}</Button>
         </Stack>
         <LinkPanel screen={screen} main={main} slug={draft.slug} onSlug={slug => set({ slug })} own={draft.own_url ?? null} onOwn={own_url => set({ own_url })}
           preview={<Preview s={s} feed={feed} note={t('A silent preview of what the screen shows.')} />} />
@@ -870,10 +870,13 @@ function LinkPanel({ screen, main, slug, onSlug, own, onOwn, preview }: {
   const [renaming, setRenaming] = useState(false)
   const [privateOpen, setPrivateOpen] = useState(false)
   const [relinking, setRelinking] = useState(false)
+  const [owning, setOwning] = useState(false)
   const link = shortLink(screen, business?.id, main)
   const named = shortLink(screen, business?.id)
+  // With its own address (a page on the business's website), that is the screen's link; Business Agent's still works.
+  const shown = own ?? link
   const secret = screenLink(screen.token)
-  const qr = useMemo(() => { try { return `data:image/svg+xml;utf8,${encodeURIComponent(qrSvg(link, { dark: '#2B2522', light: '#FFFFFF' }))}` } catch { return null } }, [link])
+  const qr = useMemo(() => { try { return `data:image/svg+xml;utf8,${encodeURIComponent(qrSvg(shown, { dark: '#2B2522', light: '#FFFFFF' }))}` } catch { return null } }, [shown])
   const copy = (text: string) => navigator.clipboard.writeText(text).then(() => notify(t('Link copied'), 'success'), () => notify(text, 'info'))
   const relink = () => run(async () => { await api.newScreenLink(screen.id); setRelinking(false) }, t('New link made. Open it on the screen: the old one no longer works.'))
   const mono = { fontFamily: 'monospace', fontSize: '0.88rem', lineHeight: 1.5 }
@@ -882,18 +885,31 @@ function LinkPanel({ screen, main, slug, onSlug, own, onOwn, preview }: {
       <Stack direction="row" spacing={2} sx={{ alignItems: 'flex-start' }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           {/* Several lines when it's long, so the whole link shows. */}
-          <TextField fullWidth multiline maxRows={3} label={t('The screen’s link')} value={link}
+          <TextField fullWidth multiline maxRows={3} label={t('The screen’s link')} value={shown}
             slotProps={{ htmlInput: { readOnly: true, style: mono },
               input: { endAdornment: <InputAdornment position="end" sx={{ alignSelf: 'flex-start', mt: 1.25 }}>
-                <Tooltip title={t('Copy link')}><IconButton size="small" aria-label={t('Copy link')} onClick={() => copy(link)}><CopyIcon fontSize="small" /></IconButton></Tooltip>
-                <Tooltip title={t('Change the link name')}><IconButton size="small" aria-label={t('Change the link name')} onClick={() => setRenaming(true)}><EditIcon fontSize="small" /></IconButton></Tooltip>
+                <Tooltip title={t('Copy link')}><IconButton size="small" aria-label={t('Copy link')} onClick={() => copy(shown)}><CopyIcon fontSize="small" /></IconButton></Tooltip>
+                {own
+                  ? <Tooltip title={t('Change your own address')}><IconButton size="small" aria-label={t('Change your own address')} onClick={() => setOwning(true)}><EditIcon fontSize="small" /></IconButton></Tooltip>
+                  : <Tooltip title={t('Change the link name')}><IconButton size="small" aria-label={t('Change the link name')} onClick={() => setRenaming(true)}><EditIcon fontSize="small" /></IconButton></Tooltip>}
               </InputAdornment> } }} />
-          {main && (
-            <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 0.75, overflowWrap: 'anywhere' }}>
-              {t('Your first screen opens at the short address. It also opens at {link}.', { link: named.replace(/^https?:\/\//, '') })}
-            </Typography>
+          {own ? (
+            <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5, mt: 0.5, flexWrap: 'wrap' }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', overflowWrap: 'anywhere' }}>
+                {t('Your website shows it. It also opens at {link}.', { link: link.replace(/^https?:\/\//, '') })}
+              </Typography>
+              <Button size="small" onClick={() => setRenaming(true)}>{t('Change the link name')}</Button>
+            </Stack>
+          ) : (
+            <>
+              {main && (
+                <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 0.75, overflowWrap: 'anywhere' }}>
+                  {t('Your first screen opens at the short address. It also opens at {link}.', { link: named.replace(/^https?:\/\//, '') })}
+                </Typography>
+              )}
+              <Button size="small" startIcon={<WebIcon />} onClick={() => setOwning(true)} sx={{ mt: 0.75, ml: -1 }}>{t('Use your own website’s address')}</Button>
+            </>
           )}
-          <OwnAddress screen={screen} link={link} own={own} onSaved={onOwn} />
         </Box>
         {qr && <Box component="img" src={qr} alt={t('QR code for the screen’s link')} sx={{ width: 88, height: 88, flexShrink: 0, borderRadius: 2, border: `1px solid ${tokens.line}`, bgcolor: '#fff', p: 0.5, display: { xs: 'none', sm: 'block' } }} />}
       </Stack>
@@ -925,6 +941,7 @@ function LinkPanel({ screen, main, slug, onSlug, own, onOwn, preview }: {
         {preview}
       </Box>
       {renaming && <LinkNameDialog screen={screen} slug={slug} onClose={() => setRenaming(false)} onSaved={x => { onSlug(x); setRenaming(false) }} />}
+      {owning && <OwnAddressDialog screen={screen} link={link} own={own} onClose={() => setOwning(false)} onSaved={x => { onOwn(x); setOwning(false) }} />}
       {relinking && (
         <Dialog open onClose={() => setRelinking(false)} maxWidth="xs" fullWidth>
           <DialogTitle>{t('Make a new link?')}</DialogTitle>
@@ -942,31 +959,10 @@ function LinkPanel({ screen, main, slug, onSlug, own, onOwn, preview }: {
 }
 
 /**
- * The screen's own address: a page on the business's own website for the TV (Easy Beans' TV opens
- * easybeanscoffee.com/display-menu). With the code from its dialog on it, the page shows the screen,
- * so what's picked here reaches it within a minute.
+ * Its own address, saved straight away: a page on the business's own website for the TV (Easy Beans' TV
+ * opens easybeanscoffee.com/display-menu), and the code that makes that page show the screen, so what's
+ * picked here reaches it within a minute. The code frames Business Agent's link (`link`), never the page itself.
  */
-function OwnAddress({ screen, link, own, onSaved }: { screen: Screen; link: string; own: string | null; onSaved: (url: string | null) => void }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <>
-      {own ? (
-        <Stack direction="row" sx={{ alignItems: 'center', gap: 0.75, mt: 1, flexWrap: 'wrap' }}>
-          <WebIcon fontSize="small" sx={{ color: tokens.inkSoft }} />
-          <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('Your own address:')}</Typography>
-          <Typography component="a" href={own} target="_blank" rel="noopener" variant="body2"
-            sx={{ fontFamily: 'monospace', color: tokens.roseDeep, overflowWrap: 'anywhere' }}>{own.replace(/^https:\/\//, '')}</Typography>
-          <Button size="small" onClick={() => setOpen(true)}>{t('Change your own address')}</Button>
-        </Stack>
-      ) : (
-        <Button size="small" startIcon={<WebIcon />} onClick={() => setOpen(true)} sx={{ mt: 0.75, ml: -1 }}>{t('Use your own website’s address')}</Button>
-      )}
-      {open && <OwnAddressDialog screen={screen} link={link} own={own} onClose={() => setOpen(false)} onSaved={x => { onSaved(x); setOpen(false) }} />}
-    </>
-  )
-}
-
-/** Its own address, saved straight away, and the code that makes that page show the screen. */
 function OwnAddressDialog({ screen, link, own, onClose, onSaved }: { screen: Screen; link: string; own: string | null; onClose: () => void; onSaved: (url: string | null) => void }) {
   const { api } = useApp()
   const run = useAction()
