@@ -24,8 +24,8 @@ import { CASHBACK_DEFAULTS, CASHBACK_MIN, cashbackDue, cashbackFor, cashbackRate
 import { demoSports } from './demoSports'
 import { demoInbox, demoMessenger, demoWhatsApp } from './demoMessages'
 import { demoIdeas } from './demoIdeas'
-import { demoSignIns, demoUsage } from './demoUsage'
-import { NO_USAGE, deviceOf, usageReportOf } from '../../shared/usage'
+import { DEMO_CAFE_NETWORK, demoSignIns, demoUsage } from './demoUsage'
+import { NO_LOCATED_USAGE, deviceOf, usageReportOf } from '../../shared/usage'
 import { demoEmailPage, demoEmails } from './demoEmail'
 import { demoEmailFull, demoFileLines, demoPicture, demoReplies } from './demoEmail'
 import { DEMO_CAFE_AT, DEMO_PLACES, demoCompetitors } from './demoCompetitors'
@@ -5296,7 +5296,7 @@ export function createDemoApi(): Api {
       if (visit && visit.profile_id !== who.id) return
       if (!visit) {
         visit = { id: report.visit, profile_id: who.id, started_at: at, last_seen_at: at, ...deviceOf(typeof navigator === 'undefined' ? '' : navigator.userAgent, report.touch),
-          installed: report.installed, city: 'San Pedro de Alcántara', region: 'Andalusia', country: 'ES', seconds: 0 }
+          installed: report.installed, city: 'San Pedro de Alcántara', region: 'Andalusia', country: 'ES', seconds: 0, network: DEMO_CAFE_NETWORK }
         usage.visits.push(visit)
       }
       visit.last_seen_at = at
@@ -5308,7 +5308,13 @@ export function createDemoApi(): Api {
       }
     },
     async usageReport(from, to) {
-      return paysAdmin() ? clone(usageReportOf(usage.visits, usage.pages, from, to, profiles)) : clone(NO_USAGE)
+      return paysAdmin() ? clone(usageReportOf(usage.visits, usage.pages, from, to, profiles, usage.named)) : clone(NO_LOCATED_USAGE)
+    },
+    async nameUsageLocation(network, name) {
+      if (!paysAdmin()) throw new Error('Only an owner names locations')
+      const named = name?.trim()
+      if (named) usage.named[network] = named.slice(0, 60)
+      else delete usage.named[network]
     },
     async usageSignIns() {
       return paysAdmin() ? demoSignIns(profiles) : []

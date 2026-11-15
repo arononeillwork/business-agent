@@ -96,6 +96,8 @@ export interface UsageVisit {
   country: string | null
   seconds: number
   pages: UsagePageTime[]
+  /** Where it was used (usage_report_by_location()): a named connection's name, else its town; '' when not known. */
+  location?: string
 }
 
 /** One person's time on one page in the period. */
@@ -121,6 +123,83 @@ export interface UsageData {
 
 export const NO_USAGE: UsageData = { people: [], pages: [], devices: [], places: [], visits: [], names: [], total_visits: 0 }
 
+// ---- by location (public.usage_report_by_location()) ------------------------------------------------
+// One sign-in can be used at several shops, so a visit's location is where it was used: the internet connection
+// it came from, by the name an owner gave it ("San Pedro café"), else its town. The page shows the locations
+// together (atLocation(data, null)) or one at a time.
+
+type Located<T> = T & { location: string }
+
+/** An internet connection visits came from (an id that can't be turned back into the address), to name. */
+export interface UsageNetwork { network: string; name: string | null; city: string | null; country: string | null; visits: number; people: number; last_at: string }
+
+/** The period's visits with each total kept apart by location. */
+export interface LocatedUsage {
+  people: Located<PersonTotals>[]
+  pages: Located<PersonPage>[]
+  devices: Located<PersonDevice>[]
+  places: Located<PersonPlace>[]
+  visits: (Located<UsageVisit> & { network: string | null })[]
+  networks: UsageNetwork[]
+  names: UsageName[]
+  total_visits: number
+}
+
+export const NO_LOCATED_USAGE: LocatedUsage = { ...NO_USAGE, people: [], pages: [], devices: [], places: [], visits: [], networks: [] }
+
+/** A location's name: a named connection's, else the town (else region or country) the connection is in. */
+export const locationOf = (v: { city: string | null; region?: string | null; country: string | null }, name?: string | null) =>
+  name || v.city || v.region || v.country || ''
+
+/** Add up rows that are the same but for their location. */
+function merge<T extends { location: string }>(rows: T[], key: (r: T) => string, add: (a: Omit<T, 'location'>, b: T) => Omit<T, 'location'>): Omit<T, 'location'>[] {
+  const out = new Map<string, Omit<T, 'location'>>()
+  for (const r of rows) {
+    const k = key(r)
+    const was = out.get(k)
+    const { location: _, ...rest } = r
+    out.set(k, was ? add(was, r) : rest)
+  }
+  return [...out.values()]
+}
+
+/** The figures for one location (or, with null, every location together), as the page shows them. */
+export function atLocation(data: LocatedUsage, location: string | null): UsageData {
+  const here = <T extends { location: string }>(rows: T[]) => (location === null ? rows : rows.filter(r => r.location === location))
+  const people = merge(here(data.people), r => r.profile_id, (a, b) => ({
+    ...a, visits: a.visits + b.visits, seconds: a.seconds + b.seconds, first_at: earlier(a.first_at, b.first_at), last_at: later(a.last_at, b.last_at),
+  }))
+  return {
+    people,
+    pages: merge(here(data.pages), r => `${r.profile_id}|${r.page}`, (a, b) => ({
+      ...a, views: a.views + b.views, seconds: a.seconds + b.seconds, first_at: earlier(a.first_at, b.first_at), last_at: later(a.last_at, b.last_at),
+    })),
+    devices: merge(here(data.devices), r => [r.profile_id, r.device, r.os, r.browser].join('|'), (a, b) => ({
+      ...a, installed: a.installed || b.installed, visits: a.visits + b.visits, last_at: later(a.last_at, b.last_at),
+    })),
+    places: merge(here(data.places), r => [r.profile_id, r.city, r.region, r.country].join('|'), (a, b) => ({
+      ...a, visits: a.visits + b.visits, last_at: later(a.last_at, b.last_at),
+    })),
+    visits: here(data.visits),
+    names: data.names,
+    total_visits: location === null ? data.total_visits : people.reduce((n, p) => n + p.visits, 0),
+  }
+}
+
+/** One location on the Locations tab: who used it there, how often, for how long, and its connections. */
+export interface UsageLocation { location: string; people: number; visits: number; seconds: number; last_at: string; networks: UsageNetwork[] }
+
+/** Every location in the period, the busiest first. */
+export function locationsOf(data: LocatedUsage): UsageLocation[] {
+  const out = new Map<string, UsageLocation>()
+  for (const p of data.people) {
+    const x = out.get(p.location) ?? { location: p.location, people: 0, visits: 0, seconds: 0, last_at: p.last_at, networks: [] }
+    out.set(p.location, { ...x, people: x.people + 1, visits: x.visits + p.visits, seconds: x.seconds + p.seconds, last_at: later(x.last_at, p.last_at) })
+  }
+  for (const n of data.networks) out.get(locationOf(n, n.name))?.networks.push(n)
+  return [...out.values()].sort((a, b) => b.visits - a.visits || b.last_at.localeCompare(a.last_at) || a.location.localeCompare(b.location))
+}
+
 export type UsagePeriod = '7' | '30' | '90' | '365'
 export const USAGE_PERIODS: { id: UsagePeriod; label: string; days: number }[] = [
   { id: '7', label: msg('Last 7 days'), days: 7 },
@@ -143,48 +222,64 @@ const byLast = <T extends { visits: number; last_at: string }>(a: T, b: T) => b.
 /** What a stored page row of a visit is (the demo's, shaped like the table). */
 export interface StoredPage extends UsagePageTime { visit_id: string; first_at: string; last_at: string }
 
-/** public.usage_report() over visits and their pages kept elsewhere (the demo): the same shape, the same rules. `people`: everyone's names. */
-export function usageReportOf(visits: Omit<UsageVisit, 'pages'>[], pages: StoredPage[], from: string, to: string,
-  people: { id: string; full_name: string; colour: string; role: string }[] = []): UsageData {
+/** A visit as kept (the demo's, shaped like the table). */
+export type StoredVisit = Omit<UsageVisit, 'pages' | 'location'> & { network?: string | null }
+
+/**
+ * public.usage_report_by_location() over visits and their pages kept elsewhere (the demo): the same shape, the
+ * same rules. `people`: everyone's names; `named`: the owners' names for connections.
+ */
+export function usageReportOf(visits: StoredVisit[], pages: StoredPage[], from: string, to: string,
+  people: { id: string; full_name: string; colour: string; role: string }[] = [], named: Record<string, string> = {}): LocatedUsage {
   const inPeriod = visits.filter(v => v.started_at >= from && v.started_at < to)
+    .map(v => ({ ...v, network: v.network ?? null, location: locationOf(v, v.network ? named[v.network] : null) }))
   const ids = new Map(inPeriod.map(v => [v.id, v]))
   const own = pages.filter(p => ids.has(p.visit_id))
-  const totals = new Map<string, PersonTotals>()
-  const devices = new Map<string, PersonDevice>()
-  const places = new Map<string, PersonPlace>()
+  const totals = new Map<string, LocatedUsage['people'][number]>()
+  const devices = new Map<string, LocatedUsage['devices'][number]>()
+  const places = new Map<string, LocatedUsage['places'][number]>()
+  const networks = new Map<string, UsageNetwork & { who: Set<string> }>()
   for (const v of inPeriod) {
-    const p = totals.get(v.profile_id)
-    totals.set(v.profile_id, p
+    const tk = `${v.profile_id}|${v.location}`
+    const p = totals.get(tk)
+    totals.set(tk, p
       ? { ...p, visits: p.visits + 1, seconds: p.seconds + v.seconds, first_at: earlier(p.first_at, v.started_at), last_at: later(p.last_at, v.last_seen_at) }
-      : { profile_id: v.profile_id, visits: 1, seconds: v.seconds, first_at: v.started_at, last_at: v.last_seen_at })
-    const dk = [v.profile_id, v.device, v.os, v.browser].join('|')
+      : { profile_id: v.profile_id, location: v.location, visits: 1, seconds: v.seconds, first_at: v.started_at, last_at: v.last_seen_at })
+    const dk = [v.profile_id, v.location, v.device, v.os, v.browser].join('|')
     const d = devices.get(dk)
     devices.set(dk, d
       ? { ...d, installed: d.installed || v.installed, visits: d.visits + 1, last_at: later(d.last_at, v.last_seen_at) }
-      : { profile_id: v.profile_id, device: v.device, os: v.os, browser: v.browser, installed: v.installed, visits: 1, last_at: v.last_seen_at })
+      : { profile_id: v.profile_id, location: v.location, device: v.device, os: v.os, browser: v.browser, installed: v.installed, visits: 1, last_at: v.last_seen_at })
     if (v.country) {
-      const pk = [v.profile_id, v.city, v.region, v.country].join('|')
+      const pk = [v.profile_id, v.location, v.city, v.region, v.country].join('|')
       const pl = places.get(pk)
       places.set(pk, pl
         ? { ...pl, visits: pl.visits + 1, last_at: later(pl.last_at, v.last_seen_at) }
-        : { profile_id: v.profile_id, city: v.city, region: v.region, country: v.country, visits: 1, last_at: v.last_seen_at })
+        : { profile_id: v.profile_id, location: v.location, city: v.city, region: v.region, country: v.country, visits: 1, last_at: v.last_seen_at })
+    }
+    if (v.network) {
+      const n = networks.get(v.network) ?? { network: v.network, name: named[v.network] ?? null, city: v.city, country: v.country, visits: 0, people: 0, last_at: v.last_seen_at, who: new Set<string>() }
+      n.who.add(v.profile_id)
+      networks.set(v.network, { ...n, visits: n.visits + 1, people: n.who.size, last_at: later(n.last_at, v.last_seen_at) })
     }
   }
-  const byPage = new Map<string, PersonPage>()
+  const byPage = new Map<string, LocatedUsage['pages'][number]>()
   for (const p of own) {
-    const who = ids.get(p.visit_id)!.profile_id
-    const k = `${who}|${p.page}`
+    const v = ids.get(p.visit_id)!
+    const k = `${v.profile_id}|${v.location}|${p.page}`
     const x = byPage.get(k)
     byPage.set(k, x
       ? { ...x, views: x.views + p.views, seconds: x.seconds + p.seconds, first_at: earlier(x.first_at, p.first_at), last_at: later(x.last_at, p.last_at) }
-      : { profile_id: who, page: p.page, views: p.views, seconds: p.seconds, first_at: p.first_at, last_at: p.last_at })
+      : { profile_id: v.profile_id, location: v.location, page: p.page, views: p.views, seconds: p.seconds, first_at: p.first_at, last_at: p.last_at })
   }
   const latest = [...inPeriod].sort((a, b) => b.started_at.localeCompare(a.started_at)).slice(0, VISITS_LISTED)
+  const whose = new Set(inPeriod.map(v => v.profile_id))
   return {
     people: [...totals.values()], pages: [...byPage.values()], devices: [...devices.values()], places: [...places.values()],
-    names: people.filter(p => totals.has(p.id)).map(p => ({ profile_id: p.id, full_name: p.full_name, colour: p.colour, role: p.role })),
+    names: people.filter(p => whose.has(p.id)).map(p => ({ profile_id: p.id, full_name: p.full_name, colour: p.colour, role: p.role })),
     visits: latest.map(v => ({ ...v, pages: own.filter(p => p.visit_id === v.id).sort((a, b) => a.first_at.localeCompare(b.first_at))
       .map(p => ({ page: p.page, views: p.views, seconds: p.seconds })) })),
+    networks: [...networks.values()].map(({ who: _, ...n }) => n).sort((a, b) => b.visits - a.visits || b.last_at.localeCompare(a.last_at)),
     total_visits: inPeriod.length,
   }
 }

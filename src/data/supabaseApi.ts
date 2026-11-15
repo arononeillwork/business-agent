@@ -9,7 +9,7 @@ import type { HqFunnelRow } from '../../shared/hqFunnel'
 import type { AiMusicQuote, MusicGeneration, MusicTrack } from '../../shared/types'
 import type { InstagramMention } from '../../shared/mentions'
 import type { IdeasCheck, IdeasStatus, InstagramIdea } from '../../shared/instagramIdeas'
-import type { UsageData, UsageSignIn } from '../../shared/usage'
+import type { LocatedUsage, UsageSignIn } from '../../shared/usage'
 import type { FilingRecord, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { Invoice } from '../../shared/invoices'
 import type { Licence } from '../../shared/licences'
@@ -1843,7 +1843,12 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
       if (!res.ok && res.status !== 400 && res.status !== 413) throw new Error(`Request failed (${res.status})`)
     },
     async usageReport(from, to) {
-      return check(await sb.rpc('usage_report', { p_from: from, p_to: to })) as UsageData
+      return check(await sb.rpc('usage_report_by_location', { p_from: from, p_to: to })) as LocatedUsage
+    },
+    async nameUsageLocation(network, name) {
+      const named = name?.trim()
+      if (named) check(await sb.from('usage_locations').upsert({ network, name: named, updated_at: new Date().toISOString() }, { onConflict: 'business_id,network' }))
+      else check(await sb.from('usage_locations').delete().eq('network', network))
     },
     async usageSignIns() {
       return check(await sb.rpc('usage_sign_ins')) as UsageSignIn[]

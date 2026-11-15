@@ -13,7 +13,7 @@ import type { HqSupportTicket, SupportDraft, SupportStatus, SupportTicket } from
 import type { KindInfo } from '../../shared/social'
 import type { InstagramMention } from '../../shared/mentions'
 import type { IdeasCheck, IdeasStatus, InstagramIdea } from '../../shared/instagramIdeas'
-import type { UsageData, UsageReport, UsageSignIn } from '../../shared/usage'
+import type { LocatedUsage, UsageReport, UsageSignIn } from '../../shared/usage'
 import type { FilingRecord, Quarter, TaxDocKind, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { InboxInvoice, InboxState as InvoiceInbox, Invoice, InvoiceInput } from '../../shared/invoices'
 import type { EmailQuery, EmailState } from '../../shared/email'
@@ -1158,8 +1158,13 @@ export interface Api {
   reportError(report: ClientErrorReport): Promise<void>
   /** User analytics: the time spent on each page, as the app is used (src/app/usage.ts); sent even as the page closes. */
   recordUsage(report: UsageReport): Promise<void>
-  /** Owners (Settings → User analytics): the visits that started from `from` until `to` (public.usage_report()); anyone else gets none. */
-  usageReport(from: string, to: string): Promise<UsageData>
+  /**
+   * Owners (Settings → User analytics): the visits that started from `from` until `to`, each total kept apart by
+   * location (public.usage_report_by_location()); anyone else gets none.
+   */
+  usageReport(from: string, to: string): Promise<LocatedUsage>
+  /** Owners: name an internet connection visits came from ("San Pedro café"), or with null, take its name off. */
+  nameUsageLocation(network: string, name: string | null): Promise<void>
   /** Owners: each person's last sign-in and how (Google, email…), from Supabase's own records (public.usage_sign_ins()); anyone else gets none. */
   usageSignIns(): Promise<UsageSignIn[]>
   /**
