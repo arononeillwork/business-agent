@@ -4,6 +4,7 @@ import {
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/EditOutlined'
+import PersonAddIcon from '@mui/icons-material/PersonAddAlt1Outlined'
 import { useMemo, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
@@ -58,6 +59,7 @@ export function LeadsPage() {
   const shown = all.filter(e => (show === 'all' ? true : show === 'open' ? isOpen(e) : e.stage === show))
   const count = (s: Show) => all.filter(e => (s === 'all' ? true : s === 'open' ? isOpen(e) : e.stage === s)).length
 
+  const toCustomers = (e: Enquiry) => run(() => api.moveEnquiryToCustomers(e.id), t('{name} is on Customers now', { name: who(e) || e.customer?.email || e.title }))
   const move = (e: Enquiry, stage: EnquiryStage) => run(() => api.saveEnquiry({ id: e.id, title: e.title, stage }), t('Moved to {stage}', { stage: t(stageLabel(stage)) }))
 
   const table = (): ExportTable => ({
@@ -113,6 +115,11 @@ export function LeadsPage() {
                           <Typography variant="body2" sx={{ fontWeight: 500 }}>{e.title}</Typography>
                           <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>{[who(e), e.customer?.company, e.customer?.phone ?? e.customer?.email].filter(Boolean).join(' · ')}</Typography>
                           <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t('{channel}, {date}', { channel: t(channelLabel(e.channel)), date: day(localDate(e.received_at)) })}</Typography>
+                          {e.interests.length > 0 && (
+                            <Stack direction="row" spacing={0.5} useFlexGap sx={{ flexWrap: 'wrap', mt: 0.5 }} aria-label={t('Topics they ticked')}>
+                              {e.interests.map(i => <Tag key={i} fg={tokens.ubeDeep} bg={tokens.ubeSoft}>{i}</Tag>)}
+                            </Stack>
+                          )}
                         </TableCell>
                         <TableCell sx={{ whiteSpace: 'nowrap' }}>{day(e.wanted_on)}</TableCell>
                         <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{e.value === null ? '' : formatMoney(e.value)}</TableCell>
@@ -129,6 +136,10 @@ export function LeadsPage() {
                           {e.stage === 'lost' && e.lost_reason && <Typography variant="caption" sx={{ color: 'text.secondary' }}>{e.lost_reason}</Typography>}
                         </TableCell>
                         <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                          {e.customer?.kind === 'lead'
+                            ? <Button size="small" startIcon={<PersonAddIcon />} aria-label={t('Move {name} to Customers', { name: who(e) || e.customer?.email || e.title })}
+                                onClick={() => void toCustomers(e)}>{t('Move to Customers')}</Button>
+                            : null}
                           <IconButton size="small" aria-label={t('Edit {name}', { name: e.title })} onClick={() => setEditing(e)}><EditIcon fontSize="small" /></IconButton>
                         </TableCell>
                       </TableRow>
@@ -137,7 +148,7 @@ export function LeadsPage() {
                 </Table>
               </Box>}
           <Typography variant="body2" sx={{ color: 'text.secondary', mt: 2 }}>
-            {t('Everyone here is on the Customers page too: a lead until something of theirs is won.')}{' '}
+            {t('Everyone here is on the Customers page too: a lead until something of theirs is won, or until you move them there.')}{' '}
             <RouterLink to="/customers">{t('Open Customers')}</RouterLink>
           </Typography>
         </CardContent>

@@ -8664,6 +8664,20 @@ test.describe('leads and enquiries', () => {
     await expect(page.getByRole('main').getByRole('row').filter({ hasText: 'Rocío' })).toContainText('Customer')
   })
 
+  test('a newsletter sign-up shows with the topics they ticked, and can be moved to Customers', async ({ page }) => {
+    await open(page, '/leads')
+    const list = page.getByRole('region', { name: 'Enquiries' })
+    const row = list.getByRole('row').filter({ hasText: 'Newsletter sign-up' })
+    await expect(row).toContainText('Marta Jiménez')
+    await expect(row).toContainText('Website')
+    await expect(row.getByLabel('Topics they ticked')).toHaveText('Coffee tipsEvents')
+    await row.getByRole('button', { name: 'Move Marta Jiménez to Customers' }).click()
+    await toast(page, 'Marta Jiménez is on Customers now')
+    await expect(list.getByRole('row').filter({ hasText: 'Newsletter sign-up' })).toHaveCount(0)
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Customers', exact: true }).click()
+    await expect(page.getByRole('main').getByRole('row').filter({ hasText: 'Marta' })).toContainText('Customer')
+  })
+
   test('employees don’t get leads or campaigns', async ({ page }) => {
     await open(page, '/', 'maria@example.com')
     for (const name of ['Leads & enquiries', 'Campaigns', 'Hiring']) await expect(page.getByRole('link', { name })).toHaveCount(0)

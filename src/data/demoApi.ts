@@ -1737,7 +1737,7 @@ export function createDemoApi(): Api {
   grantApps.forEach(a => grantEvent(a, a.id))
 
   // Leads & enquiries: what the café's leads asked for, one won and one lost (the database's rules: enquiry_rules()).
-  const enquiry = (e: Partial<Enquiry> & { customer_id: string; title: string }): Enquiry => ({ id: uid(), channel: 'other', stage: 'new', value: null,
+  const enquiry = (e: Partial<Enquiry> & { customer_id: string; title: string }): Enquiry => ({ id: uid(), channel: 'other', stage: 'new', value: null, interests: [],
     wanted_on: null, follow_up_on: null, assigned_to: null, lost_reason: null, notes: null, received_at: nowIso(), closed_at: null, ...e })
   const customerNamed = (first: string) => customers.find(c => c.first_name === first)!.id
   const enquiryList: Enquiry[] = [
@@ -1747,6 +1747,7 @@ export function createDemoApi(): Api {
       wanted_on: addDays(today(), 10), follow_up_on: addDays(today(), 2), assigned_to: P.mark, received_at: daysAgo(1) }),
     enquiry({ customer_id: customerNamed('Elena'), title: 'Coffee for 30 desks, twice a week', channel: 'email', stage: 'quoted', value: 640,
       follow_up_on: addDays(today(), -1), assigned_to: P.aron, received_at: daysAgo(12) }),
+    enquiry({ customer_id: customerNamed('Marta'), title: 'Newsletter sign-up', channel: 'website', interests: ['Coffee tips', 'Events'], received_at: daysAgo(1) }),
     enquiry({ customer_id: customerNamed('Javier'), title: 'Coffee for a Sunday running club', channel: 'instagram', received_at: daysAgo(6) }),
     enquiry({ customer_id: customerNamed('Liam'), title: 'Latte art class for 6 friends', channel: 'walk_in', stage: 'won', value: 150,
       received_at: daysAgo(24), closed_at: daysAgo(18) }),
@@ -4185,6 +4186,14 @@ export function createDemoApi(): Api {
       requireAdmin()
       const i = enquiryList.findIndex(x => x.id === id)
       if (i >= 0) enquiryList.splice(i, 1)
+    },
+    async moveEnquiryToCustomers(id) {
+      requireAdmin()
+      const i = enquiryList.findIndex(x => x.id === id)
+      if (i < 0) throw new Error('That enquiry has gone')
+      const c = customers.find(x => x.id === enquiryList[i].customer_id)
+      if (c) c.kind = 'customer'
+      enquiryList.splice(i, 1)
     },
     async campaigns() {
       if (!isAdmin()) return []
