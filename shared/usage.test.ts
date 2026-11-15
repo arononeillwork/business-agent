@@ -2,8 +2,8 @@
 // totals the owners' page shows, worked out the same way public.usage_report() does.
 import { describe, expect, it } from 'vitest'
 import {
-  MAX_PAGES, MAX_SECONDS, cleanUsageReport, deviceOf, pageReaders, pagesUsage, peopleUsage, usageRange, usageReportOf, usageTotals,
-  type StoredPage, type UsageVisit,
+  MAX_PAGES, MAX_SECONDS, atLocation, cleanUsageReport, deviceOf, locationsOf, pageReaders, pagesUsage, peopleUsage, usageRange, usageReportOf, usageTotals,
+  type StoredPage, type StoredVisit,
 } from './usage'
 
 const VISIT = '6f1d3c2a-8b4e-4f7a-9c1d-2e3f4a5b6c7d'
@@ -64,7 +64,7 @@ describe('the device, from the browser', () => {
 // Julio read the staff rules on his phone over two visits; Ana opened them once on the computer; Bea used the app
 // but never opened them; Carl didn't use it at all.
 const at = (h: number) => new Date(Date.UTC(2026, 10, 10, h)).toISOString()
-const visit = (id: string, who: string, h: number, extra: Partial<UsageVisit> = {}): Omit<UsageVisit, 'pages'> => ({
+const visit = (id: string, who: string, h: number, extra: Partial<StoredVisit> = {}): StoredVisit => ({
   id, profile_id: who, started_at: at(h), last_seen_at: at(h + 1), device: 'phone', os: 'iOS', browser: 'Safari', installed: true,
   city: 'Marbella', region: 'Andalusia', country: 'ES', seconds: 0, ...extra,
 })
@@ -85,7 +85,8 @@ const pages = [
   page('v0', 'rules', 999, -48),
 ]
 const team = ['julio', 'ana', 'bea', 'carl'].map(id => ({ id, full_name: id[0].toUpperCase() + id.slice(1), colour: '#000000', role: 'employee' }))
-const data = usageReportOf(visits, pages, at(0), at(24), team)
+const located = usageReportOf(visits, pages, at(0), at(24), team)
+const data = atLocation(located, null)
 
 describe('what owners see', () => {
   it('totals the period’s visits, as usage_report() does', () => {
@@ -139,5 +140,45 @@ describe('what owners see', () => {
   it('covers the last days asked for, up to now', () => {
     const now = Date.UTC(2026, 10, 15, 12)
     expect(usageRange('7', now)).toEqual({ from: new Date(Date.UTC(2026, 10, 8, 12)).toISOString(), to: new Date(now + 60_000).toISOString() })
+  })
+})
+
+// Locations: the San Pedro shop's broadband (named), Julio's phone on mobile data (not named), and the same
+// Marbella town for anyone without a named connection there.
+describe('by location', () => {
+  const SHOP = 'aaaaaaaaaaaaaaaa'
+  const PHONE = 'bbbbbbbbbbbbbbbb'
+  const shopVisits = [
+    visit('s1', 'julio', 8, { network: SHOP, city: 'Marbella', seconds: 100 }),
+    visit('s2', 'julio', 12, { network: PHONE, city: 'Marbella', seconds: 20 }),
+    visit('s3', 'ana', 9, { network: SHOP, city: 'Marbella', seconds: 30 }),
+    visit('s4', 'bea', 10, { network: null, city: null, region: null, country: null, seconds: 5 }),
+  ]
+  const shopPages = [page('s1', 'rules', 100, 8), page('s2', 'rota', 20, 12), page('s3', 'rules', 30, 9), page('s4', 'today', 5, 10)]
+
+  it('is the town when nobody has named the connection', () => {
+    const r = usageReportOf(shopVisits, shopPages, at(0), at(24), team)
+    expect(locationsOf(r).map(l => [l.location, l.people, l.visits])).toEqual([['Marbella', 2, 3], ['', 1, 1]])
+    expect(r.networks.map(n => [n.network, n.visits, n.people, n.name])).toEqual([[SHOP, 2, 2, null], [PHONE, 1, 1, null]])
+  })
+
+  it('keeps a named shop apart, each total its own, and adds them all up together', () => {
+    const r = usageReportOf(shopVisits, shopPages, at(0), at(24), team, { [SHOP]: 'San Pedro café' })
+    const locations = locationsOf(r)
+    expect(locations.map(l => [l.location, l.people, l.visits, l.seconds])).toEqual([['San Pedro café', 2, 2, 130], ['Marbella', 1, 1, 20], ['', 1, 1, 5]])
+    expect(locations[0].networks.map(n => n.network)).toEqual([SHOP])
+    expect(locations[1].networks.map(n => n.network)).toEqual([PHONE])
+
+    const shop = atLocation(r, 'San Pedro café')
+    expect(shop.total_visits).toBe(2)
+    expect(pageReaders(shop, 'rules', ['ana', 'bea', 'julio']).readers.map(x => [x.profile_id, x.seconds])).toEqual([['julio', 100], ['ana', 30]])
+    expect(shop.visits.map(v => v.id)).toEqual(['s3', 's1'])
+    expect(atLocation(r, 'Marbella').people).toEqual([{ profile_id: 'julio', visits: 1, seconds: 20, first_at: at(12), last_at: at(13) }])
+
+    // Together: Julio's shop and phone visits are one person again.
+    const all = atLocation(r, null)
+    expect(all.total_visits).toBe(4)
+    expect(all.people.find(p => p.profile_id === 'julio')).toEqual({ profile_id: 'julio', visits: 2, seconds: 120, first_at: at(8), last_at: at(13) })
+    expect(all.devices.filter(d => d.profile_id === 'julio')).toEqual([expect.objectContaining({ visits: 2 })])
   })
 })

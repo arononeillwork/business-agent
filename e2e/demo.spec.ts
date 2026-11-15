@@ -12179,7 +12179,7 @@ test.describe('User analytics', () => {
     const people = page.getByRole('table', { name: 'People' })
     await expect(people.getByRole('row', { name: /Julio/ })).toContainText('Phone · iOS · installed app')
     await expect(people.getByRole('row', { name: /Mark Murray/ })).toContainText('Computer · Windows · Edge')
-    await expect(people.getByRole('row', { name: /Mark Murray/ })).toContainText('Marbella, Spain')
+    await expect(people.getByRole('row', { name: /Mark Murray/ })).toContainText('Marbella café')
     await expect(page.getByRole('region', { name: 'Didn’t use the app in this period' })).toContainText('Cleaner')
 
     // One person: their pages, devices, places and visits; from a page of theirs to who else read it.
@@ -12187,7 +12187,7 @@ test.describe('User analytics', () => {
     const julio = page.getByRole('dialog', { name: 'Julio' })
     await expect(julio.getByRole('table', { name: 'Their pages' })).toContainText('Staff rules')
     await expect(julio.getByRole('region', { name: 'Devices' })).toContainText('Phone · iOS · installed app')
-    await expect(julio.getByRole('region', { name: 'Places' })).toContainText('San Pedro de Alcántara, Spain')
+    await expect(julio.getByRole('region', { name: 'Locations' })).toContainText('San Pedro café')
     await expect(julio).toContainText(/Last signed in: .+ with Apple\./)
     await expect(julio.getByRole('table', { name: 'Visits' })).toBeVisible()
     await julio.getByRole('table', { name: 'Their pages' }).getByRole('row', { name: /Staff rules/ }).click()
@@ -12197,6 +12197,50 @@ test.describe('User analytics', () => {
     // Every visit, with its pages.
     await page.getByRole('tab', { name: 'Visits' }).click()
     await expect(page.getByRole('table', { name: 'Visits' }).getByRole('row').filter({ hasText: 'Staff rules (2 min 10 s)' })).toContainText('Mark Murray')
+  })
+
+  test('one sign-in used at two shops: each location’s figures apart, or all together, and naming a shop’s connection', async ({ page }) => {
+    await open(page, '/user-analytics?view=locations')
+    const locations = page.getByRole('table', { name: 'Locations' })
+    await expect(locations.getByRole('row', { name: /San Pedro café/ })).toBeVisible()
+    await expect(locations.getByRole('row', { name: /Marbella café/ })).toBeVisible()
+    // A connection nobody named shows as its town.
+    await expect(locations.getByRole('row', { name: /^Estepona/ })).toBeVisible()
+
+    // One location: everything on the page is what was used there.
+    await locations.getByRole('button', { name: 'Marbella café: only what was used there' }).click()
+    await expect(page.getByText('Only what was used at Marbella café.')).toBeVisible()
+    const people = page.getByRole('table', { name: 'People' })
+    await expect(people.getByRole('row', { name: /Mark Murray/ })).toBeVisible()
+    await expect(people.getByRole('row', { name: /Aron O'Neill/ })).toBeVisible()
+    await expect(people.getByRole('row', { name: /Maria/ })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Show all' }).click()
+    await expect(people.getByRole('row', { name: /Maria/ })).toBeVisible()
+
+    // Location by location: the owner's one Google sign-in at both shops, each with its own figures.
+    await page.getByRole('button', { name: 'By location' }).click()
+    await expect(page).toHaveURL(/split=1/)
+    const sanPedro = page.getByRole('table', { name: 'People at San Pedro café' })
+    const marbella = page.getByRole('table', { name: 'People at Marbella café' })
+    await expect(sanPedro.getByRole('row', { name: /Julio/ })).toBeVisible()
+    await expect(sanPedro.getByRole('row', { name: /Aron O'Neill/ })).toBeVisible()
+    await expect(marbella.getByRole('row', { name: /Aron O'Neill/ })).toBeVisible()
+    await expect(marbella.getByRole('row', { name: /Julio/ })).toHaveCount(0)
+    await page.getByRole('tab', { name: 'Pages' }).click()
+    await expect(page.getByRole('table', { name: 'Pages at Marbella café' }).getByRole('row', { name: /Finances/ })).toBeVisible()
+    await page.getByRole('button', { name: 'Combined' }).click()
+    await expect(page).not.toHaveURL(/split=1/)
+    await expect(page.getByRole('table', { name: 'Pages', exact: true })).toBeVisible()
+
+    // Naming a connection: its visits show under the name.
+    await page.getByRole('tab', { name: 'Locations' }).click()
+    await locations.getByRole('button', { name: 'Name the connections at Dublin' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Name connections' })
+    await dialog.getByRole('textbox', { name: 'Name' }).fill('Dublin office')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(page.getByText('Named Dublin office')).toBeVisible()
+    await dialog.getByRole('button', { name: 'Done' }).click()
+    await expect(locations.getByRole('row', { name: /Dublin office/ })).toBeVisible()
   })
 
   test('employees can’t open it, and don’t see it in the menu or on Staff rules', async ({ page }) => {

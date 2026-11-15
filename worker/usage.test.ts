@@ -6,7 +6,7 @@
 //   - the connection's address isn't kept, only the town, region and country
 //   - visits go after a year, a business's own only
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { REPORTS_A_MINUTE, clearOldUsage, forgetUsageReports, placeOf, usage } from './usage'
+import { REPORTS_A_MINUTE, clearOldUsage, forgetUsageReports, networkOf, networkPrefix, placeOf, usage } from './usage'
 import { businessDb, type Env } from './supabase'
 import { FakeSupabase, type Row } from './test/fakeSupabase'
 import { MAX_REPORT_BYTES } from '../shared/usage'
@@ -70,7 +70,7 @@ describe('the app’s usage reports', () => {
     expect((await send(report)).status).toBe(204)
     expect(kept).toEqual([{ business: '1', args: {
       p_profile: 'staff-1', p_visit: VISIT, p_device: 'phone', p_os: 'iOS', p_browser: 'Safari', p_installed: true,
-      p_city: 'San Pedro de Alcántara', p_region: 'Andalusia', p_country: 'ES', p_pages: report.pages,
+      p_city: 'San Pedro de Alcántara', p_region: 'Andalusia', p_country: 'ES', p_pages: report.pages, p_network: expect.stringMatching(/^[0-9a-f]{16}$/),
     } }])
     expect(JSON.stringify(kept)).not.toContain('203.0.113.7')
 
@@ -128,6 +128,32 @@ describe('the app’s usage reports', () => {
     expect((await send(report, { authorization: 'Bearer dos-token' })).status).toBe(204)
     clock += 60_000
     expect((await send(report)).status).toBe(204)
+  })
+})
+
+describe('which connection a visit came from', () => {
+  it('is the place’s part of the address: an IPv4 address’s first three parts, an IPv6 address’s first three groups', () => {
+    expect(networkPrefix('203.0.113.7')).toBe('203.0.113')
+    expect(networkPrefix('2a02:9130:84a0:1d2c:a9f1::7')).toBe('2a02:9130:84a0')
+    expect(networkPrefix('2a02:0:0:1::')).toBe('2a02:0:0')
+    expect(networkPrefix('::1')).toBe('0:0:0')
+    expect(networkPrefix('not an address')).toBeNull()
+    expect(networkPrefix('2a02::9130::1')).toBeNull()
+  })
+
+  it('is the same id for every device on a shop’s connection, its own for each business, and never the address', async () => {
+    const shop = await networkOf(env, 1, '203.0.113.7')
+    expect(shop).toMatch(/^[0-9a-f]{16}$/)
+    expect(await networkOf(env, 1, '203.0.113.200')).toBe(shop)
+    expect(await networkOf(env, 1, '198.51.100.7')).not.toBe(shop)
+    expect(await networkOf(env, 2, '203.0.113.7')).not.toBe(shop)
+    expect(await networkOf(env, 1, undefined)).toBeNull()
+  })
+
+  it('keeps the same connection for two people at the same shop', async () => {
+    expect((await send(report, { 'cf-connecting-ip': '203.0.113.7' })).status).toBe(204)
+    expect((await send({ ...report, visit: VISIT.replace('6f', '7a') }, { authorization: 'Bearer admin-token', 'cf-connecting-ip': '203.0.113.99' })).status).toBe(204)
+    expect(kept[0].args.p_network).toBe(kept[1].args.p_network)
   })
 })
 

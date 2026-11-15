@@ -40,6 +40,11 @@ built-in **AI connector** so owners can run it by talking to Claude.
   own records (the `user_analytics_sign_ins` migration), so someone who signed in shows even before a visit is
   recorded. When Supabase can't confirm a sign-in (an outage), the Worker answers 503 and the app sends the report
   again with the next one instead of dropping it.
+  Locations: one sign-in (the business's own Google account, say) can be used at several shops, so each visit keeps
+  which internet connection it came from, as an id the Worker makes with a secret that can't be turned back into
+  the address. Owners name each shop's connection once on the Locations tab ("San Pedro café"); one not named shows
+  as its town. Every tab shows all locations combined, one location (the Location filter, `?at=`), or location by
+  location (`?split=1`), each with its own figures (the `user_analytics_locations` migration, `usage_report_by_location()`).
 - Sports: the next 3 weeks of football (Spanish, English, Scottish, Dutch and other leagues, cups,
   European nights, national teams), rugby (Six Nations, Premiership, Champions Cup and more), UFC and
   boxing, with "big nights" flagged. The Worker refreshes

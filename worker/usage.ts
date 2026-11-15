@@ -1,7 +1,8 @@
 // User analytics (Settings → User analytics, shared/usage.ts): the app's reports of what it's used for, kept for
 // the owners. The app sends a visit's time on each page about once a minute and as it's hidden or closed
-// (src/app/usage.ts); this adds the device, from the browser's own description, and the town, from where
-// Cloudflare places the connection (the address itself isn't kept), and keeps it as the person who sent it, in
+// (src/app/usage.ts); this adds the device, from the browser's own description, the town, from where Cloudflare
+// places the connection, and which connection it is, as an id that can't be turned back into the address (the
+// address itself isn't kept: the user_analytics_locations migration), and keeps it as the person who sent it, in
 // their business (public.record_usage(), the user_analytics migration). Visits go after a year (nightly).
 //   POST /api/usage   someone signed in: { visit, installed, touch, pages: [{ page, views, seconds }] } → 204; 503 when
 //                     Supabase can't say who they are (the app sends it again), 401 when the sign-in isn't one
@@ -10,6 +11,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { bearer, businessDb, type Env } from './supabase'
 import { signInCheck, signedInUser } from './signedIn'
 import { reportError } from './errors'
+import { hmacHex } from './crypto'
 import { KEEP_DAYS, MAX_REPORT_BYTES, cleanUsageReport, deviceOf } from '../shared/usage'
 
 /** Reports one person may send a minute, in this Worker instance (the app sends one a minute, a few more as it's hidden). */
@@ -45,6 +47,34 @@ export function placeOf(req: Request): { city: string | null; region: string | n
   const from = cf ?? { city: req.headers.get('cf-ipcity'), region: req.headers.get('cf-region'), country: req.headers.get('cf-ipcountry') }
   const country = text(from.country)?.toUpperCase() ?? null
   return { city: text(from.city), region: text(from.region), country: country && /^[A-Z]{2}$/.test(country) && country !== 'XX' && country !== 'T1' ? country : null }
+}
+
+/**
+ * The part of an address that's the place's connection rather than one device on it: an IPv4 address's first
+ * three parts (a shop's broadband keeps them), an IPv6 address's first three groups (its /48).
+ */
+export function networkPrefix(ip: string): string | null {
+  const v4 = ip.trim().match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.\d{1,3}$/)
+  if (v4) return `${v4[1]}.${v4[2]}.${v4[3]}`
+  const parts = ip.trim().toLowerCase().split('::')
+  if (!ip.includes(':') || parts.length > 2) return null
+  const [head, tail] = parts
+  const front = head ? head.split(':') : []
+  const back = tail !== undefined && tail ? tail.split(':') : []
+  const groups = tail === undefined ? front : [...front, ...Array(Math.max(0, 8 - front.length - back.length)).fill('0'), ...back]
+  if (groups.length !== 8 || !groups.every(g => /^[0-9a-f]{1,4}$/.test(g))) return null
+  return groups.slice(0, 3).map(g => g.replace(/^0+(?=.)/, '')).join(':')
+}
+
+/**
+ * Which connection a request came from, as an id that's the same each time for a business and can't be turned
+ * back into the address (made with a secret, and each business's are its own). None when there's no address.
+ */
+export async function networkOf(env: Env, businessId: number, ip: string | undefined | null): Promise<string | null> {
+  const prefix = ip ? networkPrefix(ip) : null
+  const secret = env.INTEGRATION_KEY ?? env.SUPABASE_SERVICE_ROLE_KEY
+  if (!prefix || !secret) return null
+  return (await hmacHex(secret, `usage-network|${businessId}|${prefix}`)).slice(0, 16)
 }
 
 /** Nightly: visits older than a year, with their pages. */
@@ -86,9 +116,10 @@ usage.post('/api/usage', async c => {
   if (!take(user.id)) return c.json({ error: 'Too many reports. Try again in a minute.' }, 429, { 'retry-after': '60' })
   const { device, os, browser } = deviceOf(c.req.header('user-agent') ?? '', report.touch)
   const place = placeOf(c.req.raw)
+  const network = await networkOf(c.env, businessId as number, c.req.header('cf-connecting-ip'))
   const { error } = await businessDb(c.env, businessId as number).rpc('record_usage', {
     p_profile: user.id, p_visit: report.visit, p_device: device, p_os: os, p_browser: browser, p_installed: report.installed,
-    p_city: place.city, p_region: place.region, p_country: place.country, p_pages: report.pages,
+    p_city: place.city, p_region: place.region, p_country: place.country, p_pages: report.pages, p_network: network,
   })
   if (error) {
     // Kept for HQ (Businesses → Errors), so a report that can't be kept doesn't go unnoticed.
