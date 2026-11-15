@@ -19,6 +19,9 @@ const VISIT = '6f1d3c2a-8b4e-4f7a-9c1d-2e3f4a5b6c7d'
 
 let db: FakeSupabase
 let kept: { args: Row; business: string | null }[]
+/** What the route left running after answering (ctx.waitUntil): HQ's error report. */
+let background: Promise<unknown>[]
+const ctx = () => ({ waitUntil: (p: Promise<unknown>) => { background.push(p) }, passThroughOnException() {}, props: {} }) as unknown as ExecutionContext
 let clock = 0
 /** Supabase not answering at all (an outage), or only keeping reports failing. */
 let down: 'all' | 'record' | null = null
@@ -26,6 +29,7 @@ let down: 'all' | 'record' | null = null
 beforeEach(() => {
   db = new FakeSupabase()
   kept = []
+  background = []
   clock = Date.now()
   down = null
   forgetUsageReports(() => clock)
@@ -58,7 +62,7 @@ const send = (body: unknown, headers: Record<string, string> = {}) => usage.requ
     'content-type': 'application/json', origin: APP, authorization: 'Bearer staff-token', 'user-agent': IPHONE,
     'cf-connecting-ip': '203.0.113.7', 'cf-ipcity': 'San Pedro de Alcántara', 'cf-region': 'Andalusia', 'cf-ipcountry': 'ES', ...headers,
   },
-}, env)
+}, env, ctx())
 const report = { visit: VISIT, installed: true, touch: true, pages: [{ page: 'rules', views: 1, seconds: 125 }, { page: 'rota', views: 1, seconds: 0 }] }
 
 describe('the app’s usage reports', () => {
@@ -111,7 +115,9 @@ describe('the app’s usage reports', () => {
   it('tells HQ when a report can’t be kept, and says so to the app', async () => {
     down = 'record'
     expect((await send(report)).status).toBe(502)
-    await new Promise(r => setTimeout(r, 0))
+    // The report to HQ goes on after the answer: wait for it, however long the machine takes.
+    expect(background).toHaveLength(1)
+    await Promise.all(background)
     expect(db.table('app_errors')).toEqual([expect.objectContaining({ source: 'usage: keeping a report', business_id: 1, user_id: 'staff-1', last_path: '/api/usage' })])
   })
 
