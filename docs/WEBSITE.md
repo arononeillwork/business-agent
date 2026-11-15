@@ -121,18 +121,27 @@ Content-Type: application/json
 - Any site may call it from a browser (CORS is open). A field called `website` must stay empty: it's
   the form's trap for robots, which are told it worked while nothing is saved.
 
-**From the website's server**, with the business's **website key** (made on Website & SEO, shown once;
-only its hash is kept) as `Authorization: Bearer nl_…`. Never put it in the website's pages.
+**From the website's server**, with no set-up: the business's number in the address is all it needs.
 
-- Sign-ups skip the limit on one address (they all come from the server's), and may carry
-  `"signed_up_at"` (a date or a time), for people who signed up before: they're kept as from a list.
+- Send the same `POST` as above, and add `X-Visitor-IP: <the visitor's address>` (their address, not the
+  server's), so the limit of five an hour counts each visitor on their own. On top of that a business
+  takes at most 200 keyless sign-ups an hour, whatever addresses are said.
 - `POST /api/site/<business>/unsubscribe` with `{ "email": "…" }` takes back someone's yes when they
-  unsubscribe on the website, so the business's campaigns leave them out:
-  `200 { "ok": true, "found": true }` (`false`: they weren't on Customers).
-- A wrong key is `401`.
+  unsubscribe on the website, so the business's campaigns leave them out: `200 { "ok": true }`. It never
+  says whether they were on the list, and at most 200 an hour are taken without the key.
+
+**With the business's website key** (optional; made on Website & SEO, shown once, only its hash kept; sent
+as `Authorization: Bearer nl_…`, never in the website's pages), a server also:
+
+- skips the limits on sign-ups (they all come from the server's address), and may carry
+  `"signed_up_at"` (a date or a time), for people who signed up before: they're kept as from a list;
+- hears whether an unsubscribed address was on the list: `200 { "ok": true, "found": true }` (`false`:
+  they weren't on Customers).
+
+A wrong key is `401`. (Website accounts below do need the key.)
 
 Easy Beans' topics here have its website's keys (`coffee`, `spanish`, `english`, `menu`, `events`,
-`offers`), so its `/api/signup` can send each sign-up on from its server with the key, before it copies
+`offers`), so its `/api/signup` can send each sign-up on from its server, before it copies
 the person to Square (so they're on Customers as from the website, not from Square), and its unsubscribe
 link can send unsubscribes (a change in the website's own repository). A list from before also comes in
 on Website & SEO from a CSV (another newsletter service's export, or the website's own: only people
@@ -390,8 +399,8 @@ Business Agent itself, only its owner or a shop manager on **Website & SEO**:
    Instagram, TikTok) and the Opening hours page, then turn on **Share your details with the website**.
    Closures go on the Calendar ("Closed for…"), and Google Maps gets the same if it's connected; its
    listing's own Maps link is the one the website gets.
-3. **Newsletter sign-ups:** turn them on and set the topics; **Make a website key** for its website's
-   server.
+3. **Newsletter sign-ups:** turn them on and set the topics. Its website's server needs no key for them
+   (a **website key** is optional).
 4. **Accounts & rewards:** turn on **Website accounts** (it uses the same website key).
 5. **Google rating and reviews:** connect Google Maps on Connections (its own profile), then turn on **Share
    your reviews with the website**.
@@ -399,7 +408,7 @@ Business Agent itself, only its owner or a shop manager on **Website & SEO**:
    with the website**.
 
 Its website then reads `GET /api/site/<business>/menu`, `/details`, `/reviews` and `/posts` (from its pages or its server), and
-its server sends sign-ups and accounts with the key. Each address on Website & SEO already has the
+its server sends sign-ups (no key needed) and accounts (with the key). Each address on Website & SEO already has the
 business's number in it. Easy Beans' website (its own repository) reads its number from one setting,
 `BUSINESS_AGENT_BUSINESS`, so a site built from it for another business changes only that.
 

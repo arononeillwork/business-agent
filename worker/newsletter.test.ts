@@ -11,7 +11,7 @@
 //   - the form page speaks the visitor's language, asks what the business wants, and escapes its words
 //   - only an admin makes the key (shown once; only its hash is kept) and brings in a list
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { newsletter, IMPORT_BATCH } from './newsletter'
+import { newsletter, IMPORT_BATCH, LIMIT_KEYLESS_PER_HOUR } from './newsletter'
 import { formPage, inkOn } from '../shared/newsletterForm'
 import type { Env } from './supabase'
 import { FakeSupabase, type Row } from './test/fakeSupabase'
@@ -169,11 +169,38 @@ describe('newsletter sign-ups', () => {
     expect(signups).toHaveLength(2)
   })
 
-  it('unsubscribes someone only for the website’s server, with its key', async () => {
+  it('takes a website’s server without any key: its visitors are counted by the address it forwards, and the business has a cap an hour', async () => {
+    turnOn()
+    const server = { 'cf-connecting-ip': '76.76.21.21', 'x-visitor-ip': '198.51.100.9' }
+    await post('/api/site/1/signup', { email: 'first@example.com' }, server)
+    expect(signups[0]).toMatchObject({ p_via: 'website', p_email: 'first@example.com' })
+    const hash = signups[0].p_ip_hash as string
+    for (let i = 0; i < 5; i++) db.table('newsletter_events').push({ business_id: 1, action: 'signup', ip_hash: hash, created_at: new Date().toISOString() })
+    expect((await post('/api/site/1/signup', { email: 'same@example.com' }, server)).status).toBe(429)
+    // Another visitor, through the same server, is fine.
+    expect((await post('/api/site/1/signup', { email: 'other@example.com' }, { ...server, 'x-visitor-ip': '198.51.100.10' })).status).toBe(200)
+    // A server that makes the addresses up still hits the business's cap.
+    db.table('newsletter_events').push(...Array.from({ length: LIMIT_KEYLESS_PER_HOUR }, (_, i) => ({ business_id: 1, action: 'signup', ip_hash: `h${i}`, created_at: new Date().toISOString() })))
+    expect((await post('/api/site/1/signup', { email: 'late@example.com' }, { ...server, 'x-visitor-ip': '198.51.100.11' })).status).toBe(429)
+    // The key lifts both.
+    db.table('newsletter')[0].key_hash = await sha256('nl_good')
+    expect((await post('/api/site/1/signup', { email: 'keyed@example.com' }, { authorization: 'Bearer nl_good' })).status).toBe(200)
+  })
+
+  it('unsubscribes someone for a website’s server: with its key it hears if they were on the list, without it nothing is given away', async () => {
     turnOn(1, { key_hash: await sha256('nl_good') })
-    expect((await post('/api/site/1/unsubscribe', { email: 'lucia@example.com' })).status).toBe(401)
     expect((await post('/api/site/1/unsubscribe', { email: 'lucia@example.com' }, { authorization: 'Bearer nl_bad' })).status).toBe(401)
-    let res = await post('/api/site/1/unsubscribe', { email: ' Lucia@example.com ' }, { authorization: 'Bearer nl_good' })
+    let res = await post('/api/site/1/unsubscribe', { email: 'lucia@example.com' })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true })
+    res = await post('/api/site/1/unsubscribe', { email: 'nobody@example.com' })
+    expect(await res.json()).toEqual({ ok: true })
+    db.table('newsletter_events').push(...Array.from({ length: LIMIT_KEYLESS_PER_HOUR }, () => ({ business_id: 1, action: 'unsubscribe', created_at: new Date().toISOString() })))
+    expect((await post('/api/site/1/unsubscribe', { email: 'lucia@example.com' })).status).toBe(429)
+    expect((await post('/api/site/1/unsubscribe', { email: 'lucia@example.com' }, { authorization: 'Bearer nl_good' })).status).toBe(200)
+    db.table('newsletter_events').length = 0
+    unsubscribes.length = 0
+    res = await post('/api/site/1/unsubscribe', { email: ' Lucia@example.com ' }, { authorization: 'Bearer nl_good' })
     expect(await res.json()).toEqual({ ok: true, found: true })
     res = await post('/api/site/1/unsubscribe', { email: 'nobody@example.com' }, { authorization: 'Bearer nl_good' })
     expect(await res.json()).toEqual({ ok: true, found: false })
