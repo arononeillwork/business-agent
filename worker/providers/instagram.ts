@@ -304,6 +304,12 @@ export async function conversation(cfg: InstagramConfig, me: Me, id: string) {
   return { conversation: { ...chat, recent: chat.recent.slice(0, 5) }, messages: [...chat.recent].reverse() }
 }
 
+/** A chat's 20 latest messages, oldest first, without looking up who it's with (the Ideas chat, worker/instagramIdeas.ts). */
+export async function chatMessages(cfg: InstagramConfig, me: Me, id: string): Promise<InboxMessage[]> {
+  const c = await detailed<RawConversation>(cfg, f => `${encodeURIComponent(id)}?fields=id,messages.limit(20){${f}}`)
+  return (c.messages?.data ?? []).map(m => toInboxMessage(m, me)).sort((a, b) => a.at.localeCompare(b.at))
+}
+
 /**
  * Reply by text. Within 24 hours of the customer's last message it goes as a normal reply; up to 7
  * days, a person replying sends it with the HUMAN_AGENT tag (the Meta app needs the Human Agent feature).

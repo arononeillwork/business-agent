@@ -20,6 +20,8 @@ export type MediaStorage = 'google_drive' | 'onedrive' | 'r2'
 /** Music: the business's tracks for stories and reels (docs/SOCIAL_MUSIC_PLAN.md); only audio goes there. Menu: the menu's pictures. */
 /** Ideas: the photos and videos the team makes for a post idea (Social planner → Ideas), before an admin posts them. */
 export const FOLDERS = ['Posts', 'Carousels', 'Reels', 'Stories', 'Menu', 'Music', 'Content', 'Ideas'] as const
+/** Ideas from Instagram (To Do List → Ideas): copies of the posts sent to the Ideas chat, as Instagram has them (JPEG, PNG or WebP, MP4 or MOV). */
+export const INSTAGRAM_IDEAS_FOLDER = 'Instagram ideas'
 
 const TYPES: Record<string, { ext: string; type: 'image' | 'video' | 'audio'; max: number }> = {
   'image/jpeg': { ext: 'jpg', type: 'image', max: MAX_PHOTO_BYTES },
@@ -57,7 +59,7 @@ export async function mediaStorage(env: Env, db: SupabaseClient): Promise<MediaS
  * (the Menu folder: a JPEG, PNG or WebP picture up to 20 MB; the Content folder: one of those, or an MP4/MOV video up to 100 MB).
  */
 export function checkFile(type: string, size: number | null, folder?: string) {
-  const t = (folder === 'Menu' ? MENU_TYPES : folder === 'Content' ? CONTENT_TYPES : TYPES)[type]
+  const t = (folder === 'Menu' ? MENU_TYPES : folder === 'Content' || folder === INSTAGRAM_IDEAS_FOLDER ? CONTENT_TYPES : TYPES)[type]
   if (!t) {
     throw new MediaError(folder === 'Menu' ? 'Use a JPEG, PNG or WebP picture' : folder === 'Content' ? 'Use a JPEG, PNG or WebP photo, or an MP4 or MOV video'
       : 'Use a JPEG photo, an MP4 or MOV video, or an MP3 or M4A track')
@@ -89,7 +91,7 @@ export async function mediaAddress(env: Env, origin: string, storage: 'google_dr
 /** Store a photo, video or track in the folder for its kind; returns the public address. */
 export async function storeMedia(env: Env, db: SupabaseClient, origin: string,
   f: { type: string; size: number; body: ReadableStream | ArrayBuffer; folder: string }): Promise<StoredMedia> {
-  const folder = (FOLDERS as readonly string[]).includes(f.folder) ? f.folder : 'Posts'
+  const folder = (FOLDERS as readonly string[]).includes(f.folder) || f.folder === INSTAGRAM_IDEAS_FOLDER ? f.folder : 'Posts'
   const t = checkFile(f.type, f.size, folder)
   if ((t.type === 'audio') !== (folder === 'Music')) throw new MediaError(t.type === 'audio' ? 'Tracks go in the music library' : 'The music library takes MP3 or M4A tracks')
   // Social posts and the music library under Social/<kind>; the menu's pictures in a folder of their own.

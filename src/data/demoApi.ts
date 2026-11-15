@@ -23,6 +23,7 @@ import { creatorBoard } from '../../shared/creators'
 import { CASHBACK_DEFAULTS, CASHBACK_MIN, cashbackDue, cashbackFor, cashbackRates, followersIn } from '../../shared/cashback'
 import { demoSports } from './demoSports'
 import { demoInbox, demoMessenger, demoWhatsApp } from './demoMessages'
+import { DEMO_IDEA_CHAT, demoIdeas } from './demoIdeas'
 import { demoEmailPage, demoEmails } from './demoEmail'
 import { demoEmailFull, demoFileLines, demoPicture, demoReplies } from './demoEmail'
 import { DEMO_CAFE_AT, DEMO_PLACES, demoCompetitors } from './demoCompetitors'
@@ -1338,6 +1339,8 @@ export function createDemoApi(): Api {
       source: 'instagram_paste', rank: i < 4 ? i + 1 : null }, `2026-03-${String(25 + (i % 7)).padStart(2, '0')}T12:00:00.000Z`)),
   ]
   let adminNotes: string | null = 'Demo: alarm code holder, wifi for the kiosk, landlord and gestor contacts.'
+  // To Do List → Ideas: what the owner sent to the Instagram Ideas chat.
+  const ideas = demoIdeas()
   const settings: Settings = {
     early_clock_in_minutes: 10, unscheduled_clock_in: 'flag', auto_clock_out_minutes: 60,
     forgot_clock_out_grace_minutes: 30, phone_clock_in: 'anywhere', min_break_minutes: 15,
@@ -1346,6 +1349,7 @@ export function createDemoApi(): Api {
     alert_shift_reminders: true, alert_missed_clock_in: true, alert_rota: true, alert_time_off: true,
     holiday_reminders: true, holiday_reminder_days: 7, holiday_reminder_day_before: true, holiday_reminder_kinds: ['national', 'regional', 'local'],
     whatsapp_retention_days: DEFAULT_WHATSAPP_RETENTION, hidden_pages: [], mileage_rate: DEFAULT_MILEAGE_RATE,
+    idea_chat: DEMO_IDEA_CHAT,
     // The menu is kept here (Custom), its sections not arranged yet. "Add what's on your printed menus"
     // (Menu page) adds the café's printed menus beside the costed recipes, in their order of sections.
     menu_source: 'custom', menu_sections: [], menu_synced_at: null, menu_sync_error: null,
@@ -4681,6 +4685,17 @@ export function createDemoApi(): Api {
       const i = todoCategories.findIndex(x => x.id === id)
       if (i >= 0) todoCategories.splice(i, 1)
       todos.forEach(t => { if (t.category_id === id) t.category_id = null })
+    },
+    async instagramIdeas() {
+      return clone(ideas.filter(i => !i.hidden))
+    },
+    async hideInstagramIdea(id) {
+      requireAdmin()
+      const idea = ideas.find(i => i.id === id)
+      if (idea) idea.hidden = true
+    },
+    async checkIdeasChat() {
+      return { chat: settings.idea_chat ? 'read' : 'none', added: 0, copied: 0 }
     },
     async sentAlerts() {
       requireAdmin()

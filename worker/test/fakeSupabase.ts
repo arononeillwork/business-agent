@@ -29,11 +29,12 @@ const KEYS: Record<string, string[]> = {
   newsletter: ['business_id'],
   instagram_mentions: ['id'], social_follower_days: ['source', 'day'],
   reviews: ['id'],
+  instagram_ideas: ['message_id'],
 }
 /** Keyed tables that still get a numeric id of their own (an identity column beside the unique key). */
-const AUTO_ID = new Set(['whatsapp_messages'])
+const AUTO_ID = new Set(['whatsapp_messages', 'instagram_ideas'])
 /** Tables whose id is a uuid (the tools check it is one). */
-const UUID_ID = new Set(['competitors', 'competitor_items', 'competitor_prices', 'competitor_notes'])
+const UUID_ID = new Set(['competitors', 'competitor_items', 'competitor_prices', 'competitor_notes', 'instagram_ideas'])
 
 /** The business a row is, unless it says (the one business most tests have). */
 export const FIRST_BUSINESS = 1

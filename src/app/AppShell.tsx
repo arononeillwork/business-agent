@@ -21,6 +21,7 @@ import ScreensIcon from '@mui/icons-material/TvOutlined'
 import CamerasIcon from '@mui/icons-material/VideocamOutlined'
 import WasteIcon from '@mui/icons-material/DeleteSweepOutlined'
 import TodoIcon from '@mui/icons-material/ChecklistRtlOutlined'
+import IdeasIcon from '@mui/icons-material/LightbulbOutlined'
 import HoursIcon from '@mui/icons-material/ScheduleOutlined'
 import BrandIcon from '@mui/icons-material/BrushOutlined'
 import QrCodesIcon from '@mui/icons-material/QrCode2Outlined'
@@ -135,7 +136,10 @@ export const SECTIONS: NavSection[] = [
     { key: 'business', to: '/business', label: msg('Business'), icon: <BusinessIcon />, partner: 'any' },
     // The people the business calls on (the lawyer, the bank, the plumber): the owners' own.
     { key: 'contacts', to: '/contacts', label: msg('Contacts'), icon: <ContactsIcon />, who: 'pay' },
-    { key: 'todo', to: '/todo', label: msg('To Do List'), short: msg('To do'), icon: <TodoIcon /> },
+    { key: 'todo', to: '/todo', label: msg('To Do List'), short: msg('To do'), icon: <TodoIcon />, children: [
+      // Posts and reels sent to the Instagram Ideas chat (worker/instagramIdeas.ts).
+      { key: 'ideas', to: '/todo/ideas', label: msg('Ideas'), icon: <IdeasIcon /> },
+    ] },
     // Opening up at the start of the day and closing at the end: the whole team ticks things off.
     { key: 'checklists', to: '/checklists', label: msg('Daily checklists'), short: msg('Checklists'), icon: <ChecklistsIcon /> },
     { key: 'hours', to: '/opening-hours', label: msg('Opening hours'), icon: <HoursIcon />, partner: 'any' },

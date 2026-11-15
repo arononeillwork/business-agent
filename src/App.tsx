@@ -73,6 +73,7 @@ const OffersPage = page(() => import('./pages/OffersPage'), 'OffersPage')
 const ContentPage = page(() => import('./pages/ContentPage'), 'ContentPage')
 const PartnersPage = page(() => import('./pages/PartnersPage'), 'PartnersPage')
 const TodoPage = page(() => import('./pages/TodoPage'), 'TodoPage')
+const IdeasPage = page(() => import('./pages/IdeasPage'), 'IdeasPage')
 const CustomersPage = page(() => import('./pages/CustomersPage'), 'CustomersPage')
 const LoyaltyPage = page(() => import('./pages/LoyaltyPage'), 'LoyaltyPage')
 const SalesRepsPage = page(() => import('./pages/SalesRepsPage'), 'SalesRepsPage')
@@ -251,6 +252,7 @@ function Routed() {
         <Route path="food-safety" element={<FoodSafetyPage />} />
         <Route path="waste" element={<WastePage />} />
         <Route path="todo" element={<TodoPage />} />
+        <Route path="todo/ideas" element={<IdeasPage />} />
         <Route path="opening-hours" element={<OpeningHoursPage />} />
         <Route path="brand" element={<BrandPage />} />
         <Route path="qr-codes" element={<QrCodesPage />} />

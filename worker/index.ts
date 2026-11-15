@@ -52,6 +52,7 @@ import { competitors, watchCompetitors } from './competitors'
 import { push, pushNotifications } from './push'
 import { repPage } from './repPage'
 import { postIdeas } from './postIdeas'
+import { ideas, readIdeasChat } from './instagramIdeas'
 import { socialAnalytics } from './socialAnalytics'
 import { EMAIL_ADDRESS, accessOf, emailBlock, teamRoleOf } from '../shared/teamRoles'
 import type { Profile } from '../shared/types'
@@ -332,6 +333,7 @@ app.route('/', screens)
 app.route('/', content)
 // Post ideas (Social planner): the team's photos and videos for an idea, kept in the café's storage.
 app.route('/', postIdeas)
+app.route('/', ideas)
 
 // Accounts & rewards on the business's own website, for its server only (worker/siteAccount.ts). Before the
 // newsletter's and the menu's routes, so their open CORS answer never reaches these.
@@ -550,6 +552,8 @@ export default {
         await pushGoogleMenu(env, b).catch(failed('google menu', id))
         // Every 15 minutes (or as the business chose): new Instagram tags and story mentions, for admins to repost or ignore.
         if (now.has('mentions')) await checkMentions(env, b).catch(failed('instagram mentions', id))
+        // Every 15 minutes, in a minute of its own: posts sent to the Instagram Ideas chat, onto To Do List → Ideas.
+        if (now.has('ideas')) await readIdeasChat(env, b, new URL(businessConfig.appUrl).origin).catch(failed('instagram ideas', id))
         // Every hour (or as the business chose): Square customers added or changed since the last look, into Customers.
         if (now.has('customers')) await syncSquareCustomers(env, b).catch(failed('square customers', id))
         // Every 15 minutes: customers' credit (Sales reps & rewards) onto their gift card on Square, and what

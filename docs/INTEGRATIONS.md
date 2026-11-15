@@ -203,6 +203,16 @@ shared. Reply to those in the Instagram app until then.
 Not possible through Meta's API: editing the Instagram bio. Keep the bio link pointing at a page
 that shows current hours (Google Maps listing), which the app keeps up to date.
 
+**The Ideas chat (To Do List → Ideas)** needs messages allowed, like the Messages page. Meta's API doesn't
+share an account's saved posts or group chats, and can't make, name or pin a chat, so the Ideas chat is an
+ordinary chat the owner starts in the Instagram app: from their own account they message the business,
+then pin the chat on the business account. An admin types that account's username on the Ideas page
+(`settings.idea_chat`). Posts, reels, photos and videos shared into it from either side become ideas;
+the chat is left off the Messages page. Instagram gives a chat's 20 latest messages, and a shared post's
+picture by a link that stops working after a few days, so the Worker reads the chat every 15 minutes and
+copies the pictures into the connected Drive or OneDrive (or R2) as it goes; with neither, Instagram's
+link is kept and the page says to connect one.
+
 ## 5. Spotify (approved café playlist)
 
 Licensing first: Spotify's standard plans are for personal use, and background music in a
