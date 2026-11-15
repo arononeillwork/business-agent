@@ -412,6 +412,15 @@ built-in **AI connector** so owners can run it by talking to Claude.
   now and takes it off when the offer ends (it can go on any screen too). The slides fold up to one line
   each, and a bar to save follows down the page while there are changes (`shared/screens.ts`,
   `worker/screens.ts`, the `screen_links` migration).
+- Single display (Screens, admins): for now each screen is a single display, one thing at a time, full
+  screen, on its `/display-menu` link; **Slideshow** (things taking turns, and picture slideshows) shows as
+  coming soon, switched off in `src/app/features.ts` (`screenSlideshows`; slideshows' links keep playing).
+  The latest Instagram posts (the Facebook Page's while Instagram isn't connected) are a tap away: the post's
+  photo, kept in Google Drive or OneDrive, fills the screen, or without either the post itself plays from
+  Instagram (a reel too). A digital menu, a picture from the device or an address go on the same way.
+  Everything the screen has shown stays under **Shown before**, newest first, each with its switch: switched
+  on, it's back on the screen and the one that was on goes off. Those save straight away; the screen's own
+  settings wait for Save (`shared/singleDisplay.ts`).
 - Offers & specials (Marketing section, admins): a special or an offer for a set time (an hour, until
   the end of the day, 24 hours like a story, a week, or until a time picked), with its price, what it
   usually costs crossed out, details and a photo. It shows on the screens picked from the minute it

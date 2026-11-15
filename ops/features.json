@@ -204,6 +204,15 @@
       "needs": []
     },
     {
+      "id": "screen-slideshows",
+      "name": "Screen slideshows",
+      "area": "Menu",
+      "page": "/screens",
+      "does": "Menus, pictures and videos taking turns on a screen; until then each is a single display",
+      "switch": "screenSlideshows",
+      "needs": []
+    },
+    {
       "id": "stock",
       "name": "Current stock",
       "area": "Stock",

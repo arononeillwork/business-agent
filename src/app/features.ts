@@ -28,6 +28,11 @@ export const FEATURES = {
    * access to the whole Drive, a restricted permission. Switch on once Google has approved the app for it.
    */
   driveFolders: false,
+  /**
+   * Slideshows on the Screens page: menus, pictures, videos and pages taking turns, and picture slideshows. Off for now:
+   * each screen is a single display, one thing at a time (its link /display-menu/…). Slideshows' links keep playing.
+   */
+  screenSlideshows: false,
 }
 
 /** Whether something marked as part of one of these (`onlyWith`, e.g. a row of the pricing table) shows: unless that part is switched off. */
