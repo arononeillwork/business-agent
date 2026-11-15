@@ -74,6 +74,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
     /shared\/(menu|screens)/], tests: String.raw`menu|screen|Higgsfield` },
   { name: 'screen languages', files: [/ScreenSlideVersions/, /i18n\/es\/screenLanguages/, /shared\/screenLanguages/], tests: String.raw`screen|slide` },
   { name: 'screen links', files: [/i18n\/es\/screenLinks/, /worker\/screens/], tests: String.raw`screen|slide|offer` },
+  { name: 'single display', files: [/shared\/singleDisplay/, /i18n\/es\/singleDisplay/], tests: String.raw`screen|single display` },
   { name: 'google maps menu', files: [/MenuPage/], tests: String.raw`Google Maps` },
   { name: 'ads', files: [/AdsPage/, /shared\/ads/], tests: String.raw`ads|campaign|UTM` },
   { name: 'reviews', files: [/(Reviews|Website)Page/, /shared\/(seo|reviews)/], tests: String.raw`review|SEO|website` },

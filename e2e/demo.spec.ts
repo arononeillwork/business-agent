@@ -6136,6 +6136,7 @@ test.describe('menu, menu design and screens', () => {
   })
 
   test('screens: the counter TV’s link, slides added by address, and how it plays them, previewed as they change', async ({ page }) => {
+    test.skip(!FEATURES.screenSlideshows, 'Slideshows are switched off for now: a screen is a single display')
     await open(page, '/screens')
     await expect(page.getByRole('heading', { name: 'Screens', level: 1 })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Counter TV', exact: true })).toContainText('On now')
@@ -6177,6 +6178,7 @@ test.describe('menu, menu design and screens', () => {
   })
 
   test('a slide in English and Spanish: a tab each, with its own address and its own switch', async ({ page }) => {
+    test.skip(!FEATURES.screenSlideshows, 'Slideshows are switched off for now: a screen is a single display')
     await open(page, '/screens')
     const web = page.getByRole('article', { name: 'Our website' })
     await expect(web).toContainText('Web page')
@@ -6255,6 +6257,7 @@ test.describe('menu, menu design and screens', () => {
   })
 
   test('a picture slideshow: a link of its own, pictures from the device or an address, and the live offers’ pictures', async ({ page }) => {
+    test.skip(!FEATURES.screenSlideshows, 'Slideshows are switched off for now: a screen is a single display')
     const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')
     await open(page, '/connections')
     // Storage connected, so pictures from the device can be kept.
@@ -6299,6 +6302,105 @@ test.describe('menu, menu design and screens', () => {
     await toast(page, 'Saved. Open the new link on the screen: the old short link no longer works.')
     await expect(page.getByRole('textbox', { name: 'The screen’s link' })).toHaveValue(/\/slideshow\/terrace$/)
     await expect(page.getByText('Unsaved changes')).toHaveCount(0)
+  })
+
+  test('screens: a single display shows one thing at a time: an Instagram post with a tap, and what it showed before back on with its switch', async ({ page }) => {
+    await open(page, '/screens')
+    // Two ways to use a screen: a single display, on the /display-menu link, and a slideshow, coming soon.
+    const modes = page.getByRole('radiogroup', { name: 'What the screens show' })
+    await expect(modes.getByRole('radio', { name: /^Single display/ })).toBeChecked()
+    await expect(modes).toContainText('/display-menu')
+    await expect(modes.getByRole('radio', { name: /^Slideshow/ })).toBeDisabled()
+    await expect(modes).toContainText('Coming soon')
+    await expect(page.getByRole('button', { name: 'New picture slideshow' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Window slideshow' })).toHaveCount(0)
+    await expect(page.getByRole('textbox', { name: 'The screen’s link' })).toHaveValue(/\/display-menu$/)
+    await page.getByRole('button', { name: 'Add screen' }).click()
+    await expect(page.getByRole('dialog', { name: 'Add a screen' }).getByRole('radio')).toHaveCount(0)
+    await page.getByRole('dialog', { name: 'Add a screen' }).getByRole('button', { name: 'Cancel' }).click()
+
+    // The counter TV's three take turns until one is picked.
+    const before = page.getByRole('region', { name: 'Shown before' })
+    await expect(before).toContainText('3 are on, so they take turns.')
+    // A post with a tap: on the screen on its own, as the post itself on Instagram (no storage to keep its photo).
+    const instagram = page.getByRole('region', { name: 'Show an Instagram post' })
+    await expect(instagram).toContainText('Until Google Drive or OneDrive is connected')
+    await instagram.getByRole('button', { name: /^Show Banana bread fresh from the oven/ }).click()
+    await toast(page, /^Banana bread fresh from the oven .* goes on Counter TV within a minute$/)
+    const post = before.getByRole('article', { name: /^Banana bread fresh from the oven/ })
+    await expect(post).toContainText('Instagram postOn the screen')
+    await expect(before.getByRole('article').first()).toHaveAccessibleName(/^Banana bread/)
+    await expect(before.getByRole('switch', { checked: true })).toHaveCount(1)
+    await expect(before).not.toContainText('take turns')
+    await expect(instagram.getByRole('button', { name: /^Show Banana bread/ })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByRole('button', { name: 'Counter TV', exact: true })).toContainText('Showing Banana bread')
+    // Today's last-day offer still takes its turn first, then the post.
+    const preview = page.getByRole('region', { name: 'Preview of the screen' })
+    await expect(preview).toContainText('Butter croissants')
+    await page.clock.fastForward('00:00:16')
+    await expect(preview.locator('iframe')).toHaveAttribute('src', 'https://www.instagram.com/p/DEMO2banana/embed')
+    await expect(preview).not.toContainText('Flat white')
+
+    // What it showed before goes back on with its switch: the post goes off, and stays in the list.
+    await before.getByRole('switch', { name: 'Show Flat white' }).check()
+    await toast(page, 'Flat white goes on Counter TV within a minute')
+    await expect(post.getByRole('switch')).not.toBeChecked()
+    await expect(before.getByRole('switch', { checked: true })).toHaveCount(1)
+    // The same post again: its own row back on, not a second one.
+    await instagram.getByRole('button', { name: /^Show Banana bread/ }).click()
+    await expect(post.getByRole('switch')).toBeChecked()
+    await expect(before.getByRole('article')).toHaveCount(5)
+    // One that's off can go from the list; the one on the screen can't.
+    await expect(post.getByRole('button', { name: /^Remove/ })).toBeDisabled()
+    await before.getByRole('button', { name: 'Remove Lo-fi live' }).click()
+    await toast(page, 'Lo-fi live: off the list')
+    await expect(before.getByRole('article')).toHaveCount(4)
+    // All off: nothing on it, and the screen shows the café's name.
+    await post.getByRole('switch').uncheck()
+    await toast(page, 'Saved. The screen shows the changes within a minute.')
+    await expect(page.getByRole('button', { name: 'Counter TV', exact: true })).toContainText('Nothing on it')
+  })
+
+  test('a single display: with storage connected a post’s photo fills the screen; a digital menu or a picture from the device go on it too', async ({ page }) => {
+    const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')
+    await open(page, '/connections')
+    await page.getByRole('region', { name: 'Files and storage' }).getByRole('button', { name: 'Connect Google Drive' }).click()
+    await expect(page.getByRole('region', { name: 'Files and storage' }).getByRole('article', { name: 'Google Drive' })).toContainText('Connected')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Screens' }).click()
+
+    // The post's photo, kept in Drive, full screen.
+    const instagram = page.getByRole('region', { name: 'Show an Instagram post' })
+    await instagram.getByRole('button', { name: /^Show Sunny morning on the terrace/ }).click()
+    await toast(page, /^Sunny morning on the terrace .* goes on Counter TV within a minute$/)
+    await expect(instagram).not.toContainText('Until Google Drive or OneDrive is connected')
+    const before = page.getByRole('region', { name: 'Shown before' })
+    await expect(before.getByRole('article', { name: /^Sunny morning on the terrace/ })).toContainText('Instagram postOn the screen')
+    await page.clock.fastForward('00:00:16')
+    await expect(page.getByRole('region', { name: 'Preview of the screen' }).getByRole('img', { name: /^Sunny morning on the terrace/ })).toBeVisible()
+
+    // A digital menu it has shown before: that one back on, where it is.
+    await page.getByRole('combobox', { name: 'A digital menu' }).click()
+    await page.getByRole('option', { name: 'TV menu board' }).click()
+    await page.getByRole('button', { name: 'Show the menu' }).click()
+    await toast(page, 'TV menu board goes on Counter TV within a minute')
+    await expect(before.getByRole('article', { name: 'TV menu board' }).getByRole('switch')).toBeChecked()
+    await expect(before.getByRole('switch', { checked: true })).toHaveCount(1)
+    await expect(before.getByRole('article')).toHaveCount(5)
+
+    // A picture from this device: kept in Drive, then on the screen, first in the list.
+    await page.getByLabel('Pictures from this device').setInputFiles({ name: 'terrace.png', mimeType: 'image/png', buffer: PNG })
+    await toast(page, 'terrace goes on Counter TV within a minute')
+    await expect(before.getByRole('article').first()).toHaveAccessibleName('terrace')
+    await expect(page.getByRole('button', { name: 'Counter TV', exact: true })).toContainText('Showing terrace')
+
+    // The screen's settings wait for Save; picking something doesn't save them, or lose them.
+    await page.getByRole('textbox', { name: 'Name' }).fill('Counter screen')
+    await before.getByRole('switch', { name: 'Show TV menu board' }).check()
+    await toast(page, 'TV menu board goes on Counter TV within a minute')
+    await expect(page.getByRole('textbox', { name: 'Name' })).toHaveValue('Counter screen')
+    await page.getByRole('button', { name: 'Save changes' }).click()
+    await toast(page, 'Saved. The screen shows the changes within a minute.')
+    await expect(page.getByRole('button', { name: 'Counter screen', exact: true })).toContainText('Showing TV menu board')
   })
 })
 

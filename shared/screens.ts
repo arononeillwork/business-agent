@@ -48,6 +48,8 @@ export interface Slide {
   /** Which versions show: English first, then Spanish. Missing: shown (a version with nothing to show is skipped). */
   show_en?: boolean
   show_es?: boolean
+  /** The Instagram (or Facebook) post it was made from, by its link: picking that post again shows this one (shared/singleDisplay.ts). */
+  post?: string | null
 }
 
 /** The two versions a slide can have, in the order they show. */

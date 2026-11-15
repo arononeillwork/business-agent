@@ -25,9 +25,11 @@ import OfferIcon from '@mui/icons-material/LocalOfferOutlined'
 import TvIcon from '@mui/icons-material/TvOutlined'
 import SlideshowIcon from '@mui/icons-material/SlideshowOutlined'
 import LockIcon from '@mui/icons-material/LockOutlined'
+import PlayIcon from '@mui/icons-material/PlayArrowRounded'
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link as RouterLink, useSearchParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
+import { FEATURES } from '../app/features'
 import { useAsync, useTick } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader, Tag } from '../components/common'
@@ -47,6 +49,9 @@ import type { Brand } from '../../shared/types'
 import { tokens } from '../theme'
 import { SlideVersions } from './ScreenSlideVersions'
 import { currentCountry } from '../../shared/country'
+import { fromPost, onNow, postSlide, postTitle, show, showOnly } from '../../shared/singleDisplay'
+import type { SourcePost } from '../../shared/offerFromPost'
+import { formatLocal } from '../../shared/time'
 import { msg, t, tc, tn } from '../i18n'
 
 const inputOf = ({ id, token: _token, last_seen_at: _seen, updated_at: _updated, ...s }: Screen): ScreenInput => ({ ...s, id })
@@ -79,7 +84,7 @@ const offerPicturesFor = (screenId: string, offers: Offer[]): OfferPicture[] => 
  * private one; changes reach it within a minute.
  */
 export function ScreensPage() {
-  const { api } = useApp()
+  const { api, business } = useApp()
   const run = useAction()
   const screens = useAsync('screens', () => api.screens(), [], { refetchInterval: 60_000 })
   const designs = useAsync('menu-designs', () => api.menuDesigns(), [])
@@ -87,19 +92,25 @@ export function ScreensPage() {
   const allergens = useAsync('menu-allergens', () => api.menuAllergens(), [])
   const brand = useAsync('brand', () => api.brand(), [])
   const offers = useAsync('offers', () => api.offers(), [])
+  // Whether the café's storage is connected: a post's photo is kept there to fill a single display.
+  const integ = useAsync('integrations', () => api.integrations(), [])
   const [params, setParams] = useSearchParams()
   const [selected, setSelected] = useState<string | null>(null)
   const [creating, setCreating] = useState<ScreenKind | null>(null)
+  // A single display (one thing at a time), or a slideshow (things taking turns): switched off for now.
+  const [mode, setMode] = useState<ScreenMode>('single')
+  const single = !FEATURES.screenSlideshows || mode === 'single'
   useTick(30_000)
-  const list = screens.data ?? []
+  const all = screens.data ?? []
+  const tvs = all.filter(s => s.kind !== 'slideshow')
+  const slideshows = single ? [] : all.filter(s => s.kind === 'slideshow')
+  const list = [...tvs, ...slideshows]
   const current = list.find(s => s.id === selected) ?? list[0] ?? null
-  const tvs = list.filter(s => s.kind !== 'slideshow')
-  const slideshows = list.filter(s => s.kind === 'slideshow')
   const digital = (designs.data ?? []).filter(d => d.format === 'digital')
-  // From Menu design → "Show on a screen": put that menu on one.
+  // From Menu design → "Show on a screen": put that menu on one (on a single display, on its own).
   const adding = digital.find(d => d.id === params.get('menu')) ?? null
   const addTo = (s: Screen) => run(async () => {
-    await api.saveScreen({ ...inputOf(s), slides: [...s.slides, menuSlide(adding!.id)] })
+    await api.saveScreen({ ...inputOf(s), slides: single ? show(s.slides, menuSlide(adding!.id)) : [...s.slides, menuSlide(adding!.id)] })
     setParams({})
     setSelected(s.id)
   }, t('{menu} is on {screen}', { menu: adding!.name, screen: s.name }))
@@ -110,20 +121,25 @@ export function ScreensPage() {
   }, t('Added {name}', { name: t('Menu screen') }))
   const buttons = (
     <>
-      <Button variant="outlined" startIcon={<SlideshowIcon />} onClick={() => setCreating('slideshow')}>{t('New picture slideshow')}</Button>
+      {!single && <Button variant="outlined" startIcon={<SlideshowIcon />} onClick={() => setCreating('slideshow')}>{t('New picture slideshow')}</Button>}
       <Button variant="contained" startIcon={<AddIcon />} onClick={() => setCreating('screen')}>{t('Add screen')}</Button>
     </>
   )
+  const editorProps = (s: Screen) => ({ screen: s, main: s.id === tvs[0]?.id, designs: digital, items: items.data ?? [], allergens: allergens.data, brand: brand.data,
+    allOffers: offers.data ?? [], offers: (offers.data ?? []).filter(o => o.screen_ids.includes(s.id) && ['on', 'coming'].includes(offerState(o))) })
 
   return (
     <>
       <PageHeader eyebrow={t('Menu')} title={t('Screens')} actions={buttons} />
+      <ScreenModes mode={single ? 'single' : 'slideshow'} onMode={setMode} link={shortLinkPath({ kind: 'screen', slug: '' }, business?.id, true)} />
       <ErrorBox error={screens.error} />
       {adding && (
         <Alert severity="info" sx={{ mb: 2.5 }} onClose={() => setParams({})}>
           <Typography variant="body2" sx={{ mb: 1 }}>{t('Put “{name}” on a screen:', { name: adding.name })}</Typography>
           <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
-            {tvs.map(s => <Button key={s.id} size="small" variant="outlined" onClick={() => addTo(s)}>{t('Add to {screen}', { screen: s.name })}</Button>)}
+            {tvs.map(s => <Button key={s.id} size="small" variant="outlined" onClick={() => addTo(s)}>
+              {single ? t('Show on {screen}', { screen: s.name }) : t('Add to {screen}', { screen: s.name })}
+            </Button>)}
             <Button size="small" variant="contained" onClick={newWith}>{t('A new screen with it')}</Button>
           </Stack>
         </Alert>
@@ -139,7 +155,8 @@ export function ScreensPage() {
           <Stack spacing={2.5} sx={{ width: { xs: '100%', md: 280 }, flexShrink: 0 }}>
             {tvs.length > 0 && (
               <ScreenGroup title={t('Screens')}>
-                {tvs.map((s, i) => <ScreenCard key={s.id} screen={s} main={i === 0} selected={s.id === current?.id} onClick={() => setSelected(s.id)} />)}
+                {tvs.map((s, i) => <ScreenCard key={s.id} screen={s} main={i === 0} selected={s.id === current?.id} onClick={() => setSelected(s.id)}
+                  showing={single ? showingText(s.slides, digital) : undefined} />)}
               </ScreenGroup>
             )}
             {slideshows.length > 0 && (
@@ -149,14 +166,48 @@ export function ScreensPage() {
             )}
           </Stack>
           <Box sx={{ flex: 1, minWidth: 0, width: '100%' }}>
-            {current && <ScreenEditor key={current.id} screen={current} main={current.id === tvs[0]?.id} designs={digital} items={items.data ?? []}
-              allergens={allergens.data} brand={brand.data} allOffers={offers.data ?? []}
-              offers={(offers.data ?? []).filter(o => o.screen_ids.includes(current.id) && ['on', 'coming'].includes(offerState(o)))} />}
+            {current && (single
+              ? <SingleDisplayEditor key={current.id} {...editorProps(current)} storage={!!integ.data?.media_storage} />
+              : <ScreenEditor key={current.id} {...editorProps(current)} />)}
           </Box>
         </Stack>
       )}
-      {creating && <NewScreenDialog kind={creating} onClose={() => setCreating(null)} onMade={setSelected} />}
+      {creating && <NewScreenDialog kind={creating} kinds={!single} onClose={() => setCreating(null)} onMade={setSelected} />}
     </>
+  )
+}
+
+type ScreenMode = 'single' | 'slideshow'
+
+/**
+ * How the screens show things: one thing at a time, full screen, on the screen's /display-menu link
+ * (a single display); or things taking turns (a slideshow), switched off for now.
+ */
+function ScreenModes({ mode, onMode, link }: { mode: ScreenMode; onMode: (m: ScreenMode) => void; link: string }) {
+  const options: { id: ScreenMode; title: string; body: string; icon: ReactNode; note?: string; soon?: boolean }[] = [
+    { id: 'single', title: t('Single display'), icon: <TvIcon />, note: link,
+      body: t('One thing on the screen at a time, full screen: an Instagram post, a picture or your digital menu.') },
+    { id: 'slideshow', title: t('Slideshow'), icon: <SlideshowIcon />, soon: !FEATURES.screenSlideshows,
+      body: t('Menus, pictures, videos and pages taking turns, with music.') },
+  ]
+  return (
+    <RadioGroup value={mode} onChange={e => onMode(e.target.value as ScreenMode)} aria-label={t('What the screens show')}
+      sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, mb: 3 }}>
+      {options.map(o => (
+        <FormControlLabel key={o.id} value={o.id} disabled={o.soon} control={<Radio size="small" sx={{ mt: -0.5 }} />}
+          sx={{ m: 0, p: 1.75, alignItems: 'flex-start', borderRadius: 3, bgcolor: mode === o.id ? tokens.roseWash : 'transparent',
+            border: `1px solid ${mode === o.id ? tokens.rose : tokens.line}`, borderStyle: o.soon ? 'dashed' : 'solid' }}
+          label={<Box sx={{ pl: 0.5 }}>
+            <Stack direction="row" sx={{ gap: 0.75, alignItems: 'center', flexWrap: 'wrap', color: o.soon ? 'text.disabled' : tokens.roseDeep }}>
+              {o.icon}
+              <Typography sx={{ fontWeight: 600, color: o.soon ? 'text.secondary' : 'text.primary' }}>{o.title}</Typography>
+              {o.soon && <Tag>{t('Coming soon')}</Tag>}
+            </Stack>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>{o.body}</Typography>
+            {o.note && <Typography variant="caption" sx={{ display: 'block', color: tokens.roseDeep, fontFamily: 'monospace', mt: 0.5 }}>{o.note}</Typography>}
+          </Box>} />
+      ))}
+    </RadioGroup>
   )
 }
 
@@ -175,7 +226,18 @@ function Status({ screen }: { screen: Screen }) {
   return <Tag fg={tokens.warnFg} bg={tokens.warnBg}>{screen.last_seen_at ? t('Last seen {when}', { when: ago(screen.last_seen_at) }) : t('Not opened on a screen yet')}</Tag>
 }
 
-function ScreenCard({ screen: s, main, selected, onClick }: { screen: Screen; main: boolean; selected: boolean; onClick: () => void }) {
+/** What a single display shows now, in a line: the one that's on, how many take turns, or nothing. */
+const showingText = (slides: Slide[], designs: MenuDesign[]) => {
+  const on = onNow(slides)
+  if (!on.length) return t('Nothing on it')
+  return on.length === 1 ? t('Showing {name}', { name: slideName(on[0], designs) }) : t('{n} taking turns', { n: on.length })
+}
+
+function ScreenCard({ screen: s, main, selected, onClick, showing }: {
+  screen: Screen; main: boolean; selected: boolean; onClick: () => void
+  /** A single display's: what it shows now (else how many slides it plays). */
+  showing?: string
+}) {
   const { business } = useApp()
   const count = s.slides.filter(x => x.active).length
   return (
@@ -187,8 +249,8 @@ function ScreenCard({ screen: s, main, selected, onClick }: { screen: Screen; ma
           </Box>
           <Box sx={{ minWidth: 0, flex: 1 }}>
             <Typography sx={{ fontWeight: 600, lineHeight: 1.35 }}>{s.name}</Typography>
-            <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.25 }}>
-              {`${s.kind === 'slideshow' ? tn(count, '{n} picture', '{n} pictures') : tn(count, '{n} slide', '{n} slides')} · ${s.orientation === 'portrait' ? t('Portrait') : t('Landscape')}`}
+            <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.25, overflowWrap: 'anywhere' }}>
+              {`${showing ?? (s.kind === 'slideshow' ? tn(count, '{n} picture', '{n} pictures') : tn(count, '{n} slide', '{n} slides'))} · ${s.orientation === 'portrait' ? t('Portrait') : t('Landscape')}`}
             </Typography>
             <Typography variant="caption" noWrap sx={{ color: tokens.roseDeep, display: 'block', fontFamily: 'monospace', fontSize: '0.74rem', mt: 0.25 }}>
               {shortLinkPath(s, business?.id, main)}
@@ -215,22 +277,39 @@ function Panel({ title, intro, action, label, children }: { title: string; intro
   )
 }
 
-/** One screen: its link, a live preview of the changes, its slides and how it plays them. */
-function ScreenEditor({ screen, main, designs, items, allergens, brand, offers, allOffers }: {
+interface EditorProps {
   screen: Screen; main: boolean; designs: MenuDesign[]; items: Item[]; allergens: MenuAllergens | null; brand: Brand | null
   /** The offers on this screen that are on now or coming up (Offers & specials). */
   offers: Offer[]
   /** Every offer, for the live offers' pictures. */
   allOffers: Offer[]
-}) {
-  const { api, business, settings } = useApp()
+}
+
+/** What the preview plays: the screen as it is on the page now, saved or not, with the digital menus as they are. */
+function useScreenFeed(s: ScreenInput, screen: Screen, { designs, items, allergens, brand, offers, pictures }:
+  Pick<EditorProps, 'designs' | 'items' | 'allergens' | 'brand' | 'offers'> & { pictures: OfferPicture[] }): DisplayFeed {
+  const { business, settings } = useApp()
+  return useMemo<DisplayFeed>(() => ({
+    screen: { ...s, id: screen.id, updated_at: screen.updated_at },
+    sections: settings?.menu_sections ?? [],
+    business: { name: business?.name ?? '', logo: brand?.logo_mark ?? brand?.logo ?? null, heading_font: brand?.heading_font, body_font: brand?.body_font, colours: brand?.colours },
+    menus: Object.fromEntries(designs.map(({ images: _images, ...d }) => [d.id, { design: { ...d, image_url: imageOf({ image_id: d.image_id, images: _images })?.url ?? null }, items }])),
+    allergens,
+    offers: offers.map(({ id, title, details, price, was_price, image_url, starts_at, ends_at, screen_mode, seconds }): ScreenOffer =>
+      ({ id, title, details, price, was_price, image_url, starts_at, ends_at, screen_mode, seconds })),
+    offer_pictures: pictures,
+  }), [s, screen.id, screen.updated_at, settings?.menu_sections, business?.name, brand, designs, items, allergens, offers, pictures])
+}
+
+/** One screen as a slideshow: its link, a live preview of the changes, its slides and how it plays them. */
+function ScreenEditor({ screen, main, designs, items, allergens, brand, offers, allOffers }: EditorProps) {
+  const { api, business } = useApp()
   const run = useAction()
   const saved = inputOf(screen)
   const [s, setS] = useState<ScreenInput>(saved)
   const [open, setOpen] = useState<string[]>([])
   const [address, setAddress] = useState('')
   const [menu, setMenu] = useState('')
-  const [deleting, setDeleting] = useState(false)
   const [uploading, setUploading] = useState(0)
   const file = useRef<HTMLInputElement>(null)
   const dirty = JSON.stringify(s) !== JSON.stringify(saved)
@@ -246,18 +325,7 @@ function ScreenEditor({ screen, main, designs, items, allergens, brand, offers, 
   const addSlides = (added: Slide[]) => { setS(x => ({ ...x, slides: [...x.slides, ...added] })); setOpen(o => [...o, ...added.map(a => a.id)]) }
   const pictures = useMemo(() => offerPicturesFor(screen.id, allOffers), [screen.id, allOffers])
   const livePictures = pictures.filter(p => offerState({ ...p, active: true }) === 'on').length
-
-  // The preview plays what's on the page now, saved or not, with the digital menus as they are.
-  const feed = useMemo<DisplayFeed>(() => ({
-    screen: { ...s, id: screen.id, updated_at: screen.updated_at },
-    sections: settings?.menu_sections ?? [],
-    business: { name: business?.name ?? '', logo: brand?.logo_mark ?? brand?.logo ?? null, heading_font: brand?.heading_font, body_font: brand?.body_font, colours: brand?.colours },
-    menus: Object.fromEntries(designs.map(({ images: _images, ...d }) => [d.id, { design: { ...d, image_url: imageOf({ image_id: d.image_id, images: _images })?.url ?? null }, items }])),
-    allergens,
-    offers: offers.map(({ id, title, details, price, was_price, image_url, starts_at, ends_at, screen_mode, seconds }): ScreenOffer =>
-      ({ id, title, details, price, was_price, image_url, starts_at, ends_at, screen_mode, seconds })),
-    offer_pictures: pictures,
-  }), [s, screen.id, screen.updated_at, settings?.menu_sections, business?.name, brand, designs, items, allergens, offers, pictures])
+  const feed = useScreenFeed(s, screen, { designs, items, allergens, brand, offers, pictures })
 
   const addAddress = () => {
     const url = cleanUrl(address)
@@ -284,7 +352,6 @@ function ScreenEditor({ screen, main, designs, items, allergens, brand, offers, 
     if (problem) throw new Error(t(problem))
     await api.saveScreen(s)
   }, t('Saved. The screen shows the changes within a minute.'))
-  const remove = () => run(() => api.deleteScreen(screen.id), t('Deleted {name}', { name: screen.name }))
 
   return (
     <Stack spacing={2.5}>
@@ -302,17 +369,8 @@ function ScreenEditor({ screen, main, designs, items, allergens, brand, offers, 
             {slideshow ? t('Open the slideshow') : t('Open the screen')}
           </Button>
         </Stack>
-        <LinkPanel screen={screen} main={main} slug={s.slug} onSlug={slug => set({ slug })} preview={
-          <Box sx={{ display: 'grid', placeItems: 'center', bgcolor: tokens.surfaceAlt, borderRadius: 3, p: { xs: 1.5, md: 2 } }}>
-            <Box sx={{ width: '100%', maxWidth: s.orientation === 'portrait' ? 200 : 520 }}>
-              <Box role="region" aria-label={t('Preview of the screen')} sx={{ position: 'relative', aspectRatio: s.orientation === 'portrait' ? '9 / 16' : '16 / 9',
-                borderRadius: '10px', overflow: 'hidden', border: '6px solid #111', bgcolor: '#000' }}>
-                <ScreenPlayer feed={feed} preview />
-              </Box>
-              <Typography variant="caption" sx={{ display: 'block', textAlign: 'center', color: 'text.secondary', mt: 1 }}>{t('A silent preview of the changes below, as the screen will play them.')}</Typography>
-            </Box>
-          </Box>
-        } />
+        <LinkPanel screen={screen} main={main} slug={s.slug} onSlug={slug => set({ slug })}
+          preview={<Preview s={s} feed={feed} note={t('A silent preview of the changes below, as the screen will play them.')} />} />
       </Card>
 
       <input ref={file} type="file" accept="image/*" multiple hidden aria-label={t('Pictures from this device')}
@@ -373,31 +431,7 @@ function ScreenEditor({ screen, main, designs, items, allergens, brand, offers, 
         </Panel>
       )}
 
-      {(!slideshow || offers.length > 0) && (
-        <Panel title={t('Offers on this screen')}
-          action={<Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap' }}>
-            <Button size="small" startIcon={<InstagramIcon />} component={RouterLink} to={`/offers?from=instagram&screen=${screen.id}`}>{t('From Instagram')}</Button>
-            <Button size="small" startIcon={<OfferIcon />} component={RouterLink} to={`/offers?new=1&screen=${screen.id}`}>{t('New offer')}</Button>
-          </Stack>}
-          intro={offers.length ? t('Each shows from the minute it starts to the minute it ends, then comes off by itself.')
-            : t('None coming up. An offer or a special from Offers & specials shows here for its time, then comes off by itself.')}>
-          <Stack spacing={1}>
-            {offers.map(o => (
-              <Stack key={o.id} direction="row" sx={{ alignItems: 'center', gap: 1.5, flexWrap: 'wrap', px: 1.5, py: 1.25, borderRadius: 2.5, border: `1px solid ${tokens.line}` }}>
-                <OfferIcon fontSize="small" sx={{ color: tokens.inkSoft }} />
-                <Box sx={{ flex: 1, minWidth: 180 }}>
-                  <Typography sx={{ fontWeight: 500, lineHeight: 1.4 }}>{o.title}</Typography>
-                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                    {`${offerWhenText(o)} · ${o.screen_mode === 'only' ? t('on its own') : t('in turn, {time} each time', { time: secondsText(o.seconds) })}`}
-                  </Typography>
-                </Box>
-                {offerState(o) === 'on' ? <Tag fg={tokens.goodFg} bg={tokens.goodBg}>{t('Showing now')}</Tag> : <Tag>{t('Coming up')}</Tag>}
-              </Stack>
-            ))}
-          </Stack>
-          {offers.length > 0 && <Button size="small" component={RouterLink} to="/offers" sx={{ mt: 1.25 }}>{t('Change them on Offers & specials')}</Button>}
-        </Panel>
-      )}
+      {(!slideshow || offers.length > 0) && <OffersPanel screen={screen} offers={offers} />}
 
       <Panel title={t('How it plays')}>
         <Stack spacing={2.5}>
@@ -438,61 +472,385 @@ function ScreenEditor({ screen, main, designs, items, allergens, brand, offers, 
         </Stack>
       </Panel>
 
-      {!slideshow && (
-        <Panel title={t('Music and extras')}>
-          <Stack spacing={2.5}>
-            <Box>
-              <TextField fullWidth size="small" label={t('Music address (optional)')} placeholder={t('An MP3, a radio stream, or a YouTube video or playlist')} value={s.music_url ?? ''}
-                onChange={e => set({ music_url: e.target.value.trim() ? (cleanUrl(e.target.value) ?? null) : null })}
-                slotProps={{ input: { startAdornment: <InputAdornment position="start"><MusicIcon fontSize="small" /></InputAdornment> } }} />
-              {s.music_url && (
-                <Box sx={{ px: 1, mt: 1.5 }}>
-                  <Typography variant="body2" id="volume-label">{t('Volume: {n}%', { n: s.music_volume })}</Typography>
-                  <Slider aria-labelledby="volume-label" value={s.music_volume} min={0} max={100} step={5} onChange={(_, v) => set({ music_volume: v as number })} />
-                </Box>
-              )}
-              <FormControlLabel sx={{ mt: 1 }} control={<Switch checked={s.video_sound} onChange={e => set({ video_sound: e.target.checked })} />}
-                label={t('Videos play their own sound (the music pauses for them)')} />
-              <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 0.5 }}>
-                {currentCountry() === 'IE' ? t('Playing music in the café needs the usual licences (IMRO and PPI in Ireland): see Licences & renewals.')
-                  : t('Playing music in the café needs the usual licences (SGAE and AGEDI/AIE in Spain): see Licences & renewals.')}
+      {!slideshow && <MusicExtras s={s} set={set} />}
+
+      <NameOnOff s={s} set={set} screen={screen} />
+
+      {dirty && <UnsavedBar onUndo={() => setS(saved)} onSave={save} />}
+    </Stack>
+  )
+}
+
+/** The offers from Offers & specials on this screen, on now or coming up, and making a new one for it. */
+function OffersPanel({ screen, offers }: { screen: Screen; offers: Offer[] }) {
+  return (
+    <Panel title={t('Offers on this screen')}
+      action={<Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap' }}>
+        <Button size="small" startIcon={<InstagramIcon />} component={RouterLink} to={`/offers?from=instagram&screen=${screen.id}`}>{t('From Instagram')}</Button>
+        <Button size="small" startIcon={<OfferIcon />} component={RouterLink} to={`/offers?new=1&screen=${screen.id}`}>{t('New offer')}</Button>
+      </Stack>}
+      intro={offers.length ? t('Each shows from the minute it starts to the minute it ends, then comes off by itself.')
+        : t('None coming up. An offer or a special from Offers & specials shows here for its time, then comes off by itself.')}>
+      <Stack spacing={1}>
+        {offers.map(o => (
+          <Stack key={o.id} direction="row" sx={{ alignItems: 'center', gap: 1.5, flexWrap: 'wrap', px: 1.5, py: 1.25, borderRadius: 2.5, border: `1px solid ${tokens.line}` }}>
+            <OfferIcon fontSize="small" sx={{ color: tokens.inkSoft }} />
+            <Box sx={{ flex: 1, minWidth: 180 }}>
+              <Typography sx={{ fontWeight: 500, lineHeight: 1.4 }}>{o.title}</Typography>
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                {`${offerWhenText(o)} · ${o.screen_mode === 'only' ? t('on its own') : t('in turn, {time} each time', { time: secondsText(o.seconds) })}`}
               </Typography>
             </Box>
-            <Box>
-              <Typography variant="subtitle2" component="h4" sx={{ mb: 0.5 }}>{t('On top')}</Typography>
-              <FormControlLabel control={<Switch checked={s.show_clock} onChange={e => set({ show_clock: e.target.checked })} />} label={t('The time, in a corner')} />
-              <TextField fullWidth size="small" label={t('A line running along the bottom (optional)')} placeholder={t('e.g. Today’s special: pumpkin spice latte · Free Wi-Fi: ask at the counter')}
-                value={s.ticker ?? ''} onChange={e => set({ ticker: e.target.value || null })} slotProps={{ htmlInput: { maxLength: 280 } }} sx={{ mt: 1.25 }} />
-            </Box>
+            {offerState(o) === 'on' ? <Tag fg={tokens.goodFg} bg={tokens.goodBg}>{t('Showing now')}</Tag> : <Tag>{t('Coming up')}</Tag>}
           </Stack>
-        </Panel>
-      )}
+        ))}
+      </Stack>
+      {offers.length > 0 && <Button size="small" component={RouterLink} to="/offers" sx={{ mt: 1.25 }}>{t('Change them on Offers & specials')}</Button>}
+    </Panel>
+  )
+}
 
-      <Panel title={t('Name, on or off')}>
+type SetScreen = (patch: Partial<ScreenInput>) => void
+
+/** The screen's music, and the clock and running line on top. */
+function MusicExtras({ s, set }: { s: ScreenInput; set: SetScreen }) {
+  return (
+    <Panel title={t('Music and extras')}>
+      <Stack spacing={2.5}>
+        <Box>
+          <TextField fullWidth size="small" label={t('Music address (optional)')} placeholder={t('An MP3, a radio stream, or a YouTube video or playlist')} value={s.music_url ?? ''}
+            onChange={e => set({ music_url: e.target.value.trim() ? (cleanUrl(e.target.value) ?? null) : null })}
+            slotProps={{ input: { startAdornment: <InputAdornment position="start"><MusicIcon fontSize="small" /></InputAdornment> } }} />
+          {s.music_url && (
+            <Box sx={{ px: 1, mt: 1.5 }}>
+              <Typography variant="body2" id="volume-label">{t('Volume: {n}%', { n: s.music_volume })}</Typography>
+              <Slider aria-labelledby="volume-label" value={s.music_volume} min={0} max={100} step={5} onChange={(_, v) => set({ music_volume: v as number })} />
+            </Box>
+          )}
+          <FormControlLabel sx={{ mt: 1 }} control={<Switch checked={s.video_sound} onChange={e => set({ video_sound: e.target.checked })} />}
+            label={t('Videos play their own sound (the music pauses for them)')} />
+          <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 0.5 }}>
+            {currentCountry() === 'IE' ? t('Playing music in the café needs the usual licences (IMRO and PPI in Ireland): see Licences & renewals.')
+              : t('Playing music in the café needs the usual licences (SGAE and AGEDI/AIE in Spain): see Licences & renewals.')}
+          </Typography>
+        </Box>
+        <Box>
+          <Typography variant="subtitle2" component="h4" sx={{ mb: 0.5 }}>{t('On top')}</Typography>
+          <FormControlLabel control={<Switch checked={s.show_clock} onChange={e => set({ show_clock: e.target.checked })} />} label={t('The time, in a corner')} />
+          <TextField fullWidth size="small" label={t('A line running along the bottom (optional)')} placeholder={t('e.g. Today’s special: pumpkin spice latte · Free Wi-Fi: ask at the counter')}
+            value={s.ticker ?? ''} onChange={e => set({ ticker: e.target.value || null })} slotProps={{ htmlInput: { maxLength: 280 } }} sx={{ mt: 1.25 }} />
+        </Box>
+      </Stack>
+    </Panel>
+  )
+}
+
+/** The screen's name, whether it's playing, and deleting it (straight away, once sure). */
+function NameOnOff({ s, set, screen }: { s: ScreenInput; set: SetScreen; screen: Screen }) {
+  const { api } = useApp()
+  const run = useAction()
+  const [deleting, setDeleting] = useState(false)
+  const remove = () => run(() => api.deleteScreen(screen.id), t('Deleted {name}', { name: screen.name }))
+  return (
+    <Panel title={t('Name, on or off')}>
+      <Stack spacing={2}>
+        <TextField fullWidth label={t('Name')} value={s.name} onChange={e => set({ name: e.target.value })} slotProps={{ htmlInput: { maxLength: 80 } }} sx={{ maxWidth: 480 }} />
+        <FormControlLabel control={<Switch checked={s.active} onChange={e => set({ active: e.target.checked })} />}
+          label={s.active ? t('Playing') : t('Switched off: the screen shows your name and logo')} />
+        <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', alignItems: 'center', pt: 1, borderTop: `1px solid ${tokens.line}` }}>
+          {deleting ? <>
+            <Typography variant="body2" sx={{ mr: 1 }}>{t('Delete {name}? Its link stops working.', { name: screen.name })}</Typography>
+            <Button size="small" color="error" variant="contained" onClick={remove}>{t('Delete')}</Button>
+            <Button size="small" onClick={() => setDeleting(false)}>{t('Keep')}</Button>
+          </> : <Button size="small" color="error" startIcon={<DeleteIcon />} onClick={() => setDeleting(true)}>{s.kind === 'slideshow' ? t('Delete slideshow') : t('Delete screen')}</Button>}
+        </Stack>
+      </Stack>
+    </Panel>
+  )
+}
+
+/** The changes stay on the page until saved: the bar follows down the page while there are some. */
+function UnsavedBar({ onUndo, onSave }: { onUndo: () => void; onSave: () => void }) {
+  return (
+    <Card role="region" aria-label={t('Unsaved changes')} sx={{ position: 'sticky', bottom: { xs: 82, md: 20 }, zIndex: 2, px: 2, py: 1.5,
+      display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', borderColor: tokens.rose, boxShadow: `0 16px 40px -16px ${tokens.shadow}` }}>
+      <Typography variant="body2" sx={{ flex: 1, minWidth: 140, fontWeight: 500 }}>{t('Unsaved changes')}</Typography>
+      <Button onClick={onUndo}>{t('Undo changes')}</Button>
+      <Button variant="contained" onClick={onSave}>{t('Save changes')}</Button>
+    </Card>
+  )
+}
+
+/** The screen as it plays, small and silent, in its shape. */
+function Preview({ s, feed, note }: { s: Pick<ScreenInput, 'orientation'>; feed: DisplayFeed; note: string }) {
+  return (
+    <Box sx={{ display: 'grid', placeItems: 'center', bgcolor: tokens.surfaceAlt, borderRadius: 3, p: { xs: 1.5, md: 2 } }}>
+      <Box sx={{ width: '100%', maxWidth: s.orientation === 'portrait' ? 200 : 520 }}>
+        <Box role="region" aria-label={t('Preview of the screen')} sx={{ position: 'relative', aspectRatio: s.orientation === 'portrait' ? '9 / 16' : '16 / 9',
+          borderRadius: '10px', overflow: 'hidden', border: '6px solid #111', bgcolor: '#000' }}>
+          <ScreenPlayer feed={feed} preview />
+        </Box>
+        <Typography variant="caption" sx={{ display: 'block', textAlign: 'center', color: 'text.secondary', mt: 1 }}>{note}</Typography>
+      </Box>
+    </Box>
+  )
+}
+
+/**
+ * A single display: one thing on the screen at a time, full screen. The latest Instagram posts to
+ * tap; a digital menu, a picture or an address; and everything it has shown, each with its switch:
+ * switched on, it's back on the screen and the one that was on goes off. Those are saved straight
+ * away; the screen's settings below them wait for Save.
+ */
+function SingleDisplayEditor({ screen, main, designs, items, allergens, brand, offers, allOffers, storage }: EditorProps & {
+  /** The café's storage is connected: a post's photo is kept there, and fills the screen. */
+  storage: boolean
+}) {
+  const { api, business } = useApp()
+  const run = useAction()
+  const saved = inputOf(screen)
+  // The settings until they're saved. What it shows is saved as it's picked, and shown straight
+  // away (`pending`) until the save is back.
+  const [draft, setDraft] = useState<ScreenInput>(saved)
+  const [pending, setPending] = useState<Slide[] | null>(null)
+  const turn = useRef(0)
+  const [menu, setMenu] = useState('')
+  const [address, setAddress] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const file = useRef<HTMLInputElement>(null)
+  const slides = pending ?? screen.slides
+  const s: ScreenInput = { ...draft, slides }
+  const set: SetScreen = patch => setDraft(x => ({ ...x, ...patch }))
+  const dirty = JSON.stringify({ ...draft, slides: null }) !== JSON.stringify({ ...saved, slides: null })
+  const pictures = useMemo(() => offerPicturesFor(screen.id, allOffers), [screen.id, allOffers])
+  const feed = useScreenFeed(s, screen, { designs, items, allergens, brand, offers, pictures })
+  const on = onNow(slides)
+  const nameOf = (sl: Slide) => slideName(sl, designs)
+  const goesOn = (name: string) => t('{name} goes on {screen} within a minute', { name, screen: screen.name })
+
+  /** What it shows, saved straight away, with the screen's saved settings (not the ones still being changed). */
+  const put = async (change: (now: Slide[]) => Slide[] | Promise<Slide[]>, success: string) => {
+    const n = ++turn.current
+    await run(async () => {
+      const next = await change(slides)
+      const problem = screenProblem({ ...saved, slides: next })
+      if (problem) throw new Error(t(problem))
+      setPending(next)
+      await api.saveScreen({ ...saved, slides: next })
+    }, success, { fresh: true })
+    if (turn.current === n) setPending(null)
+  }
+  const toggle = (sl: Slide, turnOn: boolean) => void put(now => (turnOn ? showOnly(now, sl.id) : now.map(x => (x.id === sl.id ? { ...x, active: false } : x))),
+    turnOn ? goesOn(nameOf(sl)) : t('Saved. The screen shows the changes within a minute.'))
+  const remove = (sl: Slide) => void put(now => now.filter(x => x.id !== sl.id), t('{name}: off the list', { name: nameOf(sl) }))
+  // A post's photo is kept in the café's storage (Instagram's own link runs out), else the post itself shows.
+  const showPost = (p: SourcePost) => put(async now => {
+    const slide = fromPost(now, p) ?? postSlide(p, storage && p.image_url && !p.video ? await api.keepPostPhoto(p.image_url) : null)
+    if (!slide) throw new Error(t('This post can’t go on a screen'))
+    return show(now, slide)
+  }, goesOn(postTitle(p.caption) ?? t('Instagram post')))
+  const showMenu = () => {
+    const d = designs.find(x => x.id === menu)
+    if (!d) return
+    setMenu('')
+    void put(now => show(now, menuSlide(d.id)), goesOn(d.name))
+  }
+  const showAddress = () => {
+    const url = cleanUrl(address)
+    if (!url) return
+    setAddress('')
+    void put(now => show(now, { id: crypto.randomUUID(), kind: kindOf(url), url, design_id: null, title: null, seconds: null, live: false, active: true }), goesOn(url))
+  }
+  // A picture from this device: kept in the café's storage (Google Drive or OneDrive), then on the screen.
+  const showPicture = async (f: File) => {
+    const title = f.name.replace(/\.\w+$/, '').slice(0, 120) || null
+    setUploading(true)
+    try {
+      await put(async now => {
+        const { url } = await api.uploadMedia(await readyPhoto(f, false, 1920), 'Posts')
+        return show(now, pictureSlide(url, title))
+      }, goesOn(title ?? t('The picture')))
+    } finally { setUploading(false) }
+  }
+  const save = () => run(async () => {
+    const problem = screenProblem(s)
+    if (problem) throw new Error(t(problem))
+    await api.saveScreen({ ...draft, slides: screen.slides })
+  }, t('Saved. The screen shows the changes within a minute.'))
+
+  return (
+    <Stack spacing={2.5}>
+      <Card component="section" aria-label={t('The screen and its link')} sx={{ p: { xs: 2, sm: 2.75 }, containerType: 'inline-size' }}>
+        <Stack direction="row" sx={{ alignItems: 'flex-start', gap: 1.5, flexWrap: 'wrap', mb: 2.5 }}>
+          <Box sx={{ flex: 1, minWidth: 200 }}>
+            <Typography variant="overline" sx={{ color: tokens.roseDeep, display: 'block' }}>{t('Single display')}</Typography>
+            <Typography variant="h5" component="h2" sx={{ mb: 0.75 }}>{draft.name || screen.name}</Typography>
+            <Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+              <Status screen={screen} />
+              <Typography variant="caption" sx={{ color: 'text.secondary', overflowWrap: 'anywhere' }}>{showingText(slides, designs)}</Typography>
+            </Stack>
+          </Box>
+          <Button variant="outlined" startIcon={<OpenIcon />} component="a" href={shortLink(screen, business?.id, main)} target="_blank" rel="noopener">{t('Open the screen')}</Button>
+        </Stack>
+        <LinkPanel screen={screen} main={main} slug={draft.slug} onSlug={slug => set({ slug })}
+          preview={<Preview s={s} feed={feed} note={t('A silent preview of what the screen shows.')} />} />
+      </Card>
+
+      <InstagramPosts slides={slides} storage={storage} onPick={showPost} />
+
+      <Panel title={t('Or show something else')}>
         <Stack spacing={2}>
-          <TextField fullWidth label={t('Name')} value={s.name} onChange={e => set({ name: e.target.value })} slotProps={{ htmlInput: { maxLength: 80 } }} sx={{ maxWidth: 480 }} />
-          <FormControlLabel control={<Switch checked={s.active} onChange={e => set({ active: e.target.checked })} />}
-            label={s.active ? t('Playing') : t('Switched off: the screen shows your name and logo')} />
-          <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', alignItems: 'center', pt: 1, borderTop: `1px solid ${tokens.line}` }}>
-            {deleting ? <>
-              <Typography variant="body2" sx={{ mr: 1 }}>{t('Delete {name}? Its link stops working.', { name: screen.name })}</Typography>
-              <Button size="small" color="error" variant="contained" onClick={remove}>{t('Delete')}</Button>
-              <Button size="small" onClick={() => setDeleting(false)}>{t('Keep')}</Button>
-            </> : <Button size="small" color="error" startIcon={<DeleteIcon />} onClick={() => setDeleting(true)}>{slideshow ? t('Delete slideshow') : t('Delete screen')}</Button>}
-          </Stack>
+          {designs.length ? (
+            <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ gap: 1 }}>
+              <TextField select size="small" sx={{ flex: 1 }} label={t('A digital menu')} value={menu} onChange={e => setMenu(e.target.value)}>
+                {designs.map(d => <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>)}
+              </TextField>
+              <Button variant="outlined" startIcon={<MenuIcon />} disabled={!menu} onClick={showMenu} sx={{ alignSelf: { sm: 'flex-start' }, flexShrink: 0 }}>{t('Show the menu')}</Button>
+            </Stack>
+          ) : (
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              {t('Your digital menus can play here too.')} <Button size="small" component={RouterLink} to="/menu/design?format=digital">{t('Make one on Menu design')}</Button>
+            </Typography>
+          )}
+          <AddressBar address={address} onAddress={setAddress} onAdd={showAddress} label={t('Show it')} />
+          <Box>
+            <Button variant="outlined" size="small" startIcon={<UploadIcon />} disabled={uploading} onClick={() => file.current?.click()}>
+              {uploading ? t('Adding the picture…') : t('A picture from this device')}
+            </Button>
+          </Box>
+        </Stack>
+        <input ref={file} type="file" accept="image/*" hidden aria-label={t('Pictures from this device')}
+          onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void showPicture(f) }} />
+      </Panel>
+
+      <Panel title={t('Shown before')} intro={t('Everything this screen has shown, newest first. Switch one on to put it back on the screen: the one that was on goes off.')}>
+        {on.length > 1 && <Alert severity="info" sx={{ mb: 1.5 }}>{t('{n} are on, so they take turns. Choose “Show only this” on the one to keep.', { n: on.length })}</Alert>}
+        <Stack spacing={1}>
+          {slides.map(sl => (
+            <HistoryRow key={sl.id} slide={sl} name={nameOf(sl)} designs={designs} alone={on.length < 2}
+              onToggle={v => toggle(sl, v)} onOnly={() => toggle(sl, true)} onRemove={() => remove(sl)} />
+          ))}
+          {!slides.length && <Empty>{t('Nothing shown yet: tap one of your Instagram posts above.')}</Empty>}
         </Stack>
       </Panel>
 
-      {/* The changes stay on the page until saved: the bar follows down the page while there are some. */}
-      {dirty && (
-        <Card role="region" aria-label={t('Unsaved changes')} sx={{ position: 'sticky', bottom: { xs: 82, md: 20 }, zIndex: 2, px: 2, py: 1.5,
-          display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', borderColor: tokens.rose, boxShadow: `0 16px 40px -16px ${tokens.shadow}` }}>
-          <Typography variant="body2" sx={{ flex: 1, minWidth: 140, fontWeight: 500 }}>{t('Unsaved changes')}</Typography>
-          <Button onClick={() => setS(saved)}>{t('Undo changes')}</Button>
-          <Button variant="contained" onClick={save}>{t('Save changes')}</Button>
-        </Card>
-      )}
+      <OffersPanel screen={screen} offers={offers} />
+
+      <Panel title={t('How it shows')}>
+        <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' } }}>
+          <Box>
+            <Typography variant="subtitle2" component="h4" sx={{ mb: 1 }}>{t('The screen is')}</Typography>
+            <ToggleButtonGroup exclusive size="small" value={s.orientation} onChange={(_, v: ScreenInput['orientation'] | null) => v && set({ orientation: v })}
+              aria-label={t('Orientation')}>
+              <ToggleButton value="landscape" sx={{ px: 2 }}>{t('Landscape')}</ToggleButton>
+              <ToggleButton value="portrait" sx={{ px: 2 }}>{t('Portrait')}</ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
+          <Box>
+            <Typography variant="subtitle2" component="h4" sx={{ mb: 0.5 }}>{t('Pictures and videos')}</Typography>
+            <RadioGroup value={s.fit} onChange={e => set({ fit: e.target.value as ScreenInput['fit'] })}>
+              <FormControlLabel value="cover" control={<Radio size="small" />} label={t('Fill the screen (edges may be cut)')} />
+              <FormControlLabel value="contain" control={<Radio size="small" />} label={t('Show all of it (with borders)')} />
+            </RadioGroup>
+          </Box>
+        </Box>
+      </Panel>
+
+      <MusicExtras s={s} set={set} />
+
+      <NameOnOff s={s} set={set} screen={screen} />
+
+      {dirty && <UnsavedBar onUndo={() => setDraft(saved)} onSave={save} />}
     </Stack>
+  )
+}
+
+/**
+ * The business's latest posts on Instagram (its Facebook Page's while Instagram isn't connected),
+ * newest first: one tap puts one on the screen.
+ */
+function InstagramPosts({ slides, storage, onPick }: { slides: Slide[]; storage: boolean; onPick: (p: SourcePost) => Promise<void> }) {
+  const { api } = useApp()
+  const read = useAsync('latest-posts', () => api.latestPosts(12), [])
+  const [busy, setBusy] = useState<string | null>(null)
+  const posts = read.data?.posts ?? []
+  const pick = async (p: SourcePost) => {
+    setBusy(p.id)
+    try { await onPick(p) } finally { setBusy(null) }
+  }
+  return (
+    <Panel title={t('Show an Instagram post')}
+      intro={read.data?.source === 'facebook' ? t('Instagram isn’t connected, so these are your Facebook Page’s latest posts. Tap one to put it on the screen.')
+        : t('Your latest posts. Tap one to put it on the screen.')}>
+      {read.error && (
+        <Alert severity="info" action={<Button color="inherit" size="small" component={RouterLink} to="/connections">{t('Connections')}</Button>}>{read.error}</Alert>
+      )}
+      {!read.data && !read.error && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('Loading your latest posts…')}</Typography>}
+      {read.data && !posts.length && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('No posts yet.')}</Typography>}
+      {posts.length > 0 && (
+        <Box sx={{ display: 'grid', gap: 1.25, gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 112px), 1fr))' }}>
+          {posts.map(p => {
+            const on = !!fromPost(slides, p)?.active
+            const name = postTitle(p.caption) ?? t('Instagram post')
+            return (
+              <Box key={p.id} component="button" type="button" disabled={!!busy} onClick={() => void pick(p)} aria-pressed={on}
+                aria-label={t('Show {name} on the screen', { name })} title={p.caption ?? undefined}
+                sx={{ position: 'relative', aspectRatio: '1 / 1', p: 0, m: 0, borderRadius: 2.5, overflow: 'hidden', cursor: 'pointer', font: 'inherit',
+                  bgcolor: tokens.surfaceAlt, color: tokens.inkSoft, display: 'grid', placeItems: 'center',
+                  border: on ? `2px solid ${tokens.rose}` : `1px solid ${tokens.line}`, boxShadow: on ? `0 0 0 2px ${tokens.roseWash}` : 'none',
+                  '&:hover img': { transform: 'scale(1.04)' }, '&:focus-visible': { outline: `2px solid ${tokens.roseDeep}`, outlineOffset: 2 },
+                  '&:disabled': { cursor: busy === p.id ? 'progress' : 'default', opacity: busy === p.id ? 1 : 0.7 } }}>
+                {p.image_url
+                  ? <Box component="img" src={p.image_url} alt="" loading="lazy" sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transition: 'transform .2s' }} />
+                  : <InstagramIcon />}
+                {p.video && <PlayIcon aria-hidden sx={{ position: 'absolute', top: 6, right: 6, color: '#fff', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.6))' }} />}
+                <Box aria-hidden sx={{ position: 'absolute', left: 0, right: 0, bottom: 0, px: 1, pt: 2, pb: 0.6, textAlign: 'left', fontSize: '0.72rem', fontWeight: 600,
+                  color: '#fff', background: 'linear-gradient(transparent, rgba(0,0,0,.7))' }}>
+                  {busy === p.id ? t('Bringing it in…') : on ? t('On the screen') : formatLocal(p.posted_at, 'd MMM')}
+                </Box>
+              </Box>
+            )
+          })}
+        </Box>
+      )}
+      {posts.length > 0 && !storage && (
+        <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 1.5 }}>
+          {t('Until Google Drive or OneDrive is connected, the screen shows the post as it is on Instagram. Once one is, the photo fills the screen.')}{' '}
+          <Button size="small" component={RouterLink} to="/connections" sx={{ verticalAlign: 'baseline' }}>{t('Connections')}</Button>
+        </Typography>
+      )}
+    </Panel>
+  )
+}
+
+/** Something the single display has shown: its switch puts it back on the screen (the one that was on goes off). */
+function HistoryRow({ slide: sl, name, designs, alone, onToggle, onOnly, onRemove }: {
+  slide: Slide; name: string; designs: MenuDesign[]
+  /** It's the only one on, or none is: no need to ask for only this one. */
+  alone: boolean
+  onToggle: (on: boolean) => void; onOnly: () => void; onRemove: () => void
+}) {
+  const gone = sl.kind === 'menu' && !designs.some(d => d.id === sl.design_id)
+  return (
+    <Box component="article" aria-label={name} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: { xs: 'wrap', sm: 'nowrap' }, p: 1.25, pl: 1.5,
+      borderRadius: 3, border: `1px solid ${sl.active ? tokens.rose : tokens.line}`, bgcolor: sl.active ? tokens.roseWash : tokens.surface, transition: 'background-color .2s, border-color .2s' }}>
+      <Thumb slide={sl} width={80} height={46} />
+      <Box sx={{ flex: '1 1 160px', minWidth: 0 }}>
+        <Typography noWrap title={name} sx={{ fontWeight: 500, lineHeight: 1.4 }}>{sl.url?.startsWith('data:') && !sl.title ? t('A drawn picture') : name}</Typography>
+        <Stack direction="row" sx={{ gap: 0.75, alignItems: 'center', flexWrap: 'wrap', mt: 0.25 }}>
+          <Tag>{sl.post ? t('Instagram post') : tc('slide', kindLabel(sl.kind))}</Tag>
+          {sl.active && <Tag fg={tokens.goodFg} bg={tokens.goodBg}>{t('On the screen')}</Tag>}
+          {gone && <Tag fg={tokens.badFg} bg={tokens.badBg}>{t('That menu was deleted')}</Tag>}
+        </Stack>
+      </Box>
+      <Stack direction="row" sx={{ alignItems: 'center', gap: 0.25, flexShrink: 0, ml: { xs: 'auto', sm: 0 } }}>
+        {sl.active && !alone && <Button size="small" onClick={onOnly}>{t('Show only this')}</Button>}
+        <Switch checked={sl.active} onChange={e => onToggle(e.target.checked)} slotProps={{ input: { 'aria-label': t('Show {name}', { name }) } }} />
+        <Tooltip title={sl.active ? t('Switch it off first') : t('Remove {name}', { name })}>
+          <span><IconButton size="small" aria-label={t('Remove {name}', { name })} disabled={sl.active} onClick={onRemove}><DeleteIcon fontSize="small" /></IconButton></span>
+        </Tooltip>
+      </Stack>
+    </Box>
   )
 }
 
@@ -749,7 +1107,12 @@ const KINDS: { id: ScreenKind; title: string; body: string; icon: ReactNode }[] 
   { id: 'slideshow', title: msg('A picture slideshow'), body: msg('Your pictures and the live offers’ pictures, on a link of its own.'), icon: <SlideshowIcon /> },
 ]
 
-function NewScreenDialog({ kind: initial, onClose, onMade }: { kind: ScreenKind; onClose: () => void; onMade: (id: string) => void }) {
+function NewScreenDialog({ kind: initial, kinds, onClose, onMade }: {
+  kind: ScreenKind
+  /** Whether a picture slideshow can be picked (not while slideshows are switched off). */
+  kinds: boolean
+  onClose: () => void; onMade: (id: string) => void
+}) {
   const { api } = useApp()
   const run = useAction()
   const [kind, setKind] = useState<ScreenKind>(initial)
@@ -765,7 +1128,7 @@ function NewScreenDialog({ kind: initial, onClose, onMade }: { kind: ScreenKind;
       <DialogTitle>{kind === 'slideshow' ? t('New picture slideshow') : t('Add a screen')}</DialogTitle>
       <DialogContent>
         <Stack spacing={2.5} sx={{ pt: 1 }}>
-          <RadioGroup value={kind} onChange={e => setKind(e.target.value as ScreenKind)} aria-label={t('What it is')}
+          {kinds && <RadioGroup value={kind} onChange={e => setKind(e.target.value as ScreenKind)} aria-label={t('What it is')}
             sx={{ display: 'grid', gap: 1.25, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' } }}>
             {KINDS.map(k => (
               <FormControlLabel key={k.id} value={k.id} control={<Radio size="small" sx={{ mt: -0.5 }} />} sx={{ m: 0, p: 1.5, alignItems: 'flex-start', borderRadius: 3,
@@ -775,7 +1138,7 @@ function NewScreenDialog({ kind: initial, onClose, onMade }: { kind: ScreenKind;
                   <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>{t(k.body)}</Typography>
                 </Box>} />
             ))}
-          </RadioGroup>
+          </RadioGroup>}
           <TextField autoFocus label={t('Name')} placeholder={kind === 'slideshow' ? t('e.g. Window pictures') : t('e.g. Counter TV')} value={name} onChange={e => setName(e.target.value)}
             slotProps={{ htmlInput: { maxLength: 80 } }} onKeyDown={e => { if (e.key === 'Enter' && name.trim()) void make() }}
             helperText={name.trim() ? t('Its link: {link}', { link: `${LINK_PREFIX[kind]}/${linkName(name) || 'screen'}` }) : ' '} />
