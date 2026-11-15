@@ -10,6 +10,7 @@ import { REPORTS_A_MINUTE, clearOldUsage, forgetUsageReports, placeOf, usage } f
 import { businessDb, type Env } from './supabase'
 import { FakeSupabase, type Row } from './test/fakeSupabase'
 import { MAX_REPORT_BYTES } from '../shared/usage'
+import { forgetErrorReports } from './errors'
 
 const APP = 'https://app.test'
 const env = { SUPABASE_URL: 'https://db.test', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test', SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_test' } as unknown as Env
@@ -19,12 +20,16 @@ const VISIT = '6f1d3c2a-8b4e-4f7a-9c1d-2e3f4a5b6c7d'
 let db: FakeSupabase
 let kept: { args: Row; business: string | null }[]
 let clock = 0
+/** Supabase not answering at all (an outage), or only keeping reports failing. */
+let down: 'all' | 'record' | null = null
 
 beforeEach(() => {
   db = new FakeSupabase()
   kept = []
   clock = Date.now()
+  down = null
   forgetUsageReports(() => clock)
+  forgetErrorReports(() => clock)
   // Someone in another business, to show each is kept as their own.
   db.table('profiles').push({ id: 'dos-1', full_name: 'Pepe', email: 'pepe@dos.test', role: 'employee', active: true, business_id: 2 })
   db.people.set('dos-token', { id: 'dos-1', role: 'employee' })
@@ -32,6 +37,8 @@ beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
   vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    if (down === 'all' && !url.endsWith('/rest/v1/rpc/record_app_error')) return new Response('upstream connect error', { status: 503 })
+    if (down === 'record' && url.endsWith('/rest/v1/rpc/record_usage')) return Response.json({ message: 'canceling statement due to statement timeout' }, { status: 500 })
     if (url.endsWith('/rest/v1/rpc/record_usage')) {
       kept.push({ args: JSON.parse(String(init?.body)) as Row, business: new Headers(init?.headers).get('x-business-id') })
     }
@@ -87,6 +94,25 @@ describe('the app’s usage reports', () => {
     expect((await send(report, { origin: 'https://elsewhere.test' })).status).toBe(403)
     expect((await send(report, { origin: '', 'sec-fetch-site': 'cross-site' })).status).toBe(403)
     expect(kept).toEqual([])
+  })
+
+  it('says to try again when Supabase can’t say who it is (an outage), so the app keeps the report', async () => {
+    down = 'all'
+    const res = await send(report)
+    expect(res.status).toBe(503)
+    expect(res.headers.get('retry-after')).toBe('60')
+    expect(kept).toEqual([])
+    // Back up: the same report is kept.
+    down = null
+    expect((await send(report)).status).toBe(204)
+    expect(kept).toHaveLength(1)
+  })
+
+  it('tells HQ when a report can’t be kept, and says so to the app', async () => {
+    down = 'record'
+    expect((await send(report)).status).toBe(502)
+    await new Promise(r => setTimeout(r, 0))
+    expect(db.table('app_errors')).toEqual([expect.objectContaining({ source: 'usage: keeping a report', business_id: 1, user_id: 'staff-1', last_path: '/api/usage' })])
   })
 
   it(`takes ${REPORTS_A_MINUTE} a minute from one person`, async () => {

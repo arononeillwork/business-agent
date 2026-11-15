@@ -16,7 +16,7 @@ import { menuPage, navLabel } from '../app/AppShell'
 import { Empty, ErrorBox, Loading, PageHeader, PageToolbar, PersonAvatar, StatGrid, StatTile, Tag } from '../components/common'
 import {
   IDLE_MS, KEEP_DAYS, USAGE_PERIODS, isUsagePeriod, pageReaders, pagesUsage, peopleUsage, usageRange, usageTotals,
-  type PersonDevice, type PersonPlace, type UsageData, type UsageDevice, type UsagePeriod, type UsageVisit,
+  type PersonDevice, type PersonPlace, type PersonUsage, type UsageData, type UsageDevice, type UsagePeriod, type UsageSignIn, type UsageVisit,
 } from '../../shared/usage'
 import { addDays, formatLocal, localDate, today } from '../../shared/time'
 import { tokens } from '../theme'
@@ -60,6 +60,16 @@ function countryName(code: string) {
 const placeText = (p: { city: PersonPlace['city']; country: string | null }) =>
   p.country ? [p.city, countryName(p.country)].filter(Boolean).join(', ') : t('Not known')
 
+/** How someone signed in, as people say it: "Google", "Apple", "email". */
+function providerName(provider: string | null) {
+  const brands: Record<string, string> = { google: 'Google', apple: 'Apple', azure: 'Microsoft', facebook: 'Facebook' }
+  if (provider && brands[provider]) return brands[provider]
+  if (provider === 'phone') return t('their phone number')
+  return t('their email')
+}
+/** "Today 18:16 with Google". */
+const signInText = (s: UsageSignIn) => t('{when} with {how}', { when: when(s.last_sign_in_at), how: providerName(s.provider) })
+
 /** A page's name and icon, by the menu's key for it. */
 function pageName(key: string) {
   if (key === 'today') return t('Today')
@@ -71,6 +81,7 @@ const pageLink = (key: string) => (key === 'today' ? '/' : menuPage(key)?.to ?? 
 
 const num = { fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' } as const
 const wide = { display: { xs: 'none', md: 'table-cell' } } as const
+const fromSm = { display: { xs: 'none', sm: 'table-cell' } } as const
 const clickable = { cursor: 'pointer' } as const
 
 /**
@@ -93,6 +104,8 @@ export function UserAnalyticsPage() {
   const { from, to } = usageRange(period, opened)
   const report = useAsync('user-analytics', () => api.usageReport(from, to), [from, to])
   const data: UsageData | null = report.data
+  // Who has signed in, and how, from Supabase's own records: shown even before any visit is recorded.
+  const signIns = useAsync('user-analytics-sign-ins', () => api.usageSignIns(), []).data ?? []
   // Each change keeps the rest of the address (the period, the tab, what's open).
   const set = (patch: Record<string, string | null>) => setParams(prev => {
     const next = new URLSearchParams(prev)
@@ -101,12 +114,12 @@ export function UserAnalyticsPage() {
   }, { replace: true })
 
   // The team's names, and the report's own for partners (the app's list of the team leaves them out).
-  const known = (id: string) => profiles.find(p => p.id === id) ?? data?.names.find(n => n.profile_id === id)
+  const known = (id: string) => profiles.find(p => p.id === id) ?? data?.names.find(n => n.profile_id === id) ?? signIns.find(n => n.profile_id === id)
   const name = (id: string) => known(id)?.full_name ?? t('Someone no longer on the team')
   const colour = (id: string) => known(id)?.colour ?? tokens.inkSoft
   const team = profiles.filter(p => p.active && (p.role === 'admin' || p.role === 'employee'))
   const totals = data ? usageTotals(data) : null
-  const people = data ? peopleUsage(data) : []
+  const people = data ? peopleUsage(data, signIns, from) : []
   const pages = data ? pagesUsage(data) : []
   const unused = team.filter(p => !people.some(x => x.profile_id === p.id))
   const person = (id: string) => (
@@ -138,7 +151,7 @@ export function UserAnalyticsPage() {
       {!data || !totals ? <Loading /> : (
         <>
           <StatGrid>
-            <StatTile label={t('People who used it')} value={totals.people} note={team.length ? t('of {n} on the team', { n: team.length }) : undefined} />
+            <StatTile label={t('People who used it')} value={people.length} note={team.length ? t('of {n} on the team', { n: team.length }) : undefined} />
             <StatTile label={t('Visits')} value={totals.visits} />
             <StatTile label={t('Time in the app')} value={duration(totals.seconds)} />
             <StatTile label={t('Most time on')} value={totals.topPage ? pageName(totals.topPage) : '—'} />
@@ -158,6 +171,7 @@ export function UserAnalyticsPage() {
                   <TableRow>
                     <TableCell>{t('Name')}</TableCell>
                     <TableCell>{t('Last used')}</TableCell>
+                    <TableCell sx={fromSm}>{t('Last sign-in')}</TableCell>
                     <TableCell align="right">{t('Visits')}</TableCell>
                     <TableCell align="right">{t('Time')}</TableCell>
                     <TableCell sx={wide}>{t('Device')}</TableCell>
@@ -174,9 +188,11 @@ export function UserAnalyticsPage() {
                         </Button>
                       </TableCell>
                       <TableCell sx={{ whiteSpace: { sm: 'nowrap' } }}>{when(p.last_at)}</TableCell>
+                      <TableCell sx={{ ...fromSm, color: 'text.secondary' }}>{p.signIn ? signInText(p.signIn) : '—'}</TableCell>
                       <TableCell align="right" sx={num}>{p.visits}</TableCell>
-                      <TableCell align="right" sx={num}>{duration(p.seconds)}</TableCell>
+                      <TableCell align="right" sx={num}>{p.visits ? duration(p.seconds) : '—'}</TableCell>
                       <TableCell sx={wide}>
+                        {!p.visits && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('Signed in; no visits recorded yet')}</Typography>}
                         {p.devices[0] && (
                           <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', color: 'text.secondary' }}>
                             {DEVICE_ICON[p.devices[0].device]}
@@ -184,7 +200,7 @@ export function UserAnalyticsPage() {
                           </Stack>
                         )}
                       </TableCell>
-                      <TableCell sx={{ ...wide, color: 'text.secondary' }}>{p.places[0] ? placeText(p.places[0]) : t('Not known')}</TableCell>
+                      <TableCell sx={{ ...wide, color: 'text.secondary' }}>{p.places[0] ? placeText(p.places[0]) : p.visits ? t('Not known') : '—'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -254,7 +270,7 @@ export function UserAnalyticsPage() {
           onPerson={id => set({ page: null, person: id })} />
       )}
       {data && openPerson && (
-        <PersonDialog id={openPerson} data={data} name={name} onClose={() => set({ person: null })} onPage={key => set({ person: null, page: key })} />
+        <PersonDialog id={openPerson} data={data} p={people.find(x => x.profile_id === openPerson)} name={name} onClose={() => set({ person: null })} onPage={key => set({ person: null, page: key })} />
       )}
     </>
   )
@@ -367,11 +383,10 @@ function PageDialog({ page, data, team, name, colour, person, onClose, onPerson 
 }
 
 /** One person: their pages, devices, places and visits in the period. */
-function PersonDialog({ id, data, name, onClose, onPage }: {
-  id: string; data: UsageData; name: (id: string) => string; onClose: () => void; onPage: (key: string) => void
+function PersonDialog({ id, data, p, name, onClose, onPage }: {
+  id: string; data: UsageData; p: PersonUsage | undefined; name: (id: string) => string; onClose: () => void; onPage: (key: string) => void
 }) {
   const phone = useFullScreen()
-  const p = peopleUsage(data).find(x => x.profile_id === id)
   const visits = data.visits.filter(v => v.profile_id === id).slice(0, 30)
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="md" fullScreen={phone} aria-labelledby="usage-person-title">
@@ -379,9 +394,17 @@ function PersonDialog({ id, data, name, onClose, onPage }: {
       <DialogContent>
         {!p ? <Alert severity="info">{t('They didn’t use the app in this period.')}</Alert> : (
           <>
-            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-              {t('{visits} in this period, {time} in all. Last used: {when}.', { visits: tn(p.visits, '{n} visit', '{n} visits'), time: duration(p.seconds), when: when(p.last_at) })}
+            <Typography variant="body2" sx={{ color: 'text.secondary', mb: p.signIn ? 0.5 : 2 }}>
+              {p.visits
+                ? t('{visits} in this period, {time} in all. Last used: {when}.', { visits: tn(p.visits, '{n} visit', '{n} visits'), time: duration(p.seconds), when: when(p.last_at) })
+                : t('No visits recorded yet in this period.')}
             </Typography>
+            {p.signIn && (
+              <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
+                {t('Last signed in: {when}.', { when: signInText(p.signIn) })}
+              </Typography>
+            )}
+            {p.visits > 0 && <>
             <Typography variant="subtitle2" component="h3" sx={{ mb: 1 }}>{t('Pages')}</Typography>
             <Card variant="outlined" sx={{ overflowX: 'auto', mb: 2.5 }}>
               <Table size="small" aria-label={t('Their pages')}>
@@ -439,6 +462,7 @@ function PersonDialog({ id, data, name, onClose, onPage }: {
                 <Card variant="outlined" sx={{ overflowX: 'auto' }}><VisitsTable visits={visits} /></Card>
               </>
             )}
+            </>}
           </>
         )}
       </DialogContent>

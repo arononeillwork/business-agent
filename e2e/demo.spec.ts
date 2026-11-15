@@ -12147,6 +12147,8 @@ test.describe('User analytics', () => {
     // The gestoría's partner, whom the team's list leaves out, by name.
     await page.getByRole('tab', { name: 'People' }).click()
     await expect(page.getByRole('table', { name: 'People' }).getByRole('row', { name: /Laura Ruiz/ })).toContainText('Partner')
+    // Each person's last sign-in and how, from Supabase's own records.
+    await expect(page.getByRole('table', { name: 'People' }).getByRole('row', { name: /Aron O'Neill/ })).toContainText('with Google')
     await page.getByRole('tab', { name: 'Pages' }).click()
     await expect(page.getByRole('table', { name: 'Pages' })).toBeVisible()
 
@@ -12176,6 +12178,7 @@ test.describe('User analytics', () => {
     await expect(julio.getByRole('table', { name: 'Their pages' })).toContainText('Staff rules')
     await expect(julio.getByRole('region', { name: 'Devices' })).toContainText('Phone · iOS · installed app')
     await expect(julio.getByRole('region', { name: 'Places' })).toContainText('San Pedro de Alcántara, Spain')
+    await expect(julio).toContainText(/Last signed in: .+ with Apple\./)
     await expect(julio.getByRole('table', { name: 'Visits' })).toBeVisible()
     await julio.getByRole('table', { name: 'Their pages' }).getByRole('row', { name: /Staff rules/ }).click()
     await expect(page.getByRole('dialog', { name: 'Staff rules' })).toBeVisible()

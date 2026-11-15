@@ -3,7 +3,7 @@
 // the office PC in Marbella; Julio on his iPhone, the installed app; Maria on her Android phone from Estepona; Laura
 // at the gestoría on hers; the cleaner never. Staff rules: Julio read them properly (and went back to them), Maria
 // glanced at them, Mark checked them, Aron wrote them a month ago. The person using the demo adds their own visit.
-import type { StoredPage, UsageDevice, UsageVisit } from '../../shared/usage'
+import type { StoredPage, UsageDevice, UsageSignIn, UsageVisit } from '../../shared/usage'
 
 type Visit = Omit<UsageVisit, 'pages'>
 interface Habit {
@@ -94,4 +94,18 @@ export function demoUsage(P: { aron: string; mark: string; julio: string; maria:
   add(maria, at(20, 14), [{ page: 'today', seconds: 30 }, { page: 'rules', seconds: 45 }])
   add(mark, at(5, 11), [{ page: 'rules', seconds: 130 }, { page: 'values', seconds: 40 }])
   return { visits, pages }
+}
+
+/**
+ * When each of the demo's people last signed in, and how: Aron and Maria with Google, Mark and Laura with their
+ * email, Julio with Apple. The cleaner has no sign-in of their own.
+ */
+export function demoSignIns(people: { id: string; full_name: string; colour: string; role: string }[], now = Date.now()): UsageSignIn[] {
+  const ago = (days: number, hours = 0) => new Date(now - days * 86_400_000 - hours * 3_600_000).toISOString()
+  const how: Record<string, [string, string]> = {
+    'p-aron': [ago(0, 2), 'google'], 'p-mark': [ago(5), 'email'], 'p-julio': [ago(12), 'apple'], 'p-maria': [ago(3), 'google'], 'p-laura': [ago(9), 'email'],
+  }
+  return people.filter(p => how[p.id]).map(p => ({
+    profile_id: p.id, last_sign_in_at: how[p.id][0], provider: how[p.id][1], full_name: p.full_name, colour: p.colour, role: p.role,
+  }))
 }

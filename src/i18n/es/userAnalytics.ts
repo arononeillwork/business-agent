@@ -40,4 +40,10 @@ export default {
   '{visits} in this period, {time} in all. Last used: {when}.': '{visits} en este periodo, {time} en total. Último uso: {when}.',
   'Their pages': 'Sus páginas',
   'Latest visits': 'Últimas visitas',
+  'their phone number': 'su número de teléfono',
+  'their email': 'su correo',
+  '{when} with {how}': '{when} con {how}',
+  'Signed in; no visits recorded yet': 'Ha iniciado sesión; aún no hay visitas registradas',
+  'No visits recorded yet in this period.': 'Aún no hay visitas registradas en este periodo.',
+  'Last signed in: {when}.': 'Último inicio de sesión: {when}.',
 }

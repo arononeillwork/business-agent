@@ -2,7 +2,8 @@
 // how long they spend on each page. The app keeps the time (src/app/usage.ts) and sends it to the Worker
 // (POST /api/usage, worker/usage.ts), which adds the device and the town and keeps it (the user_analytics
 // migration); owners read it back through usage_report(). The rules both sides share, what's sent, and the
-// totals the page shows are here, so the app, the Worker, the demo and the tests agree.
+// totals the page shows are here, so the app, the Worker, the demo and the tests agree. Who has signed in, and
+// how, comes from Supabase's own records (usage_sign_ins()), so it shows before any visit is recorded.
 import { msg } from './i18n'
 
 /** Time on a page counts while it's on screen and someone touched, scrolled, typed or moved the mouse this recently. */
@@ -190,22 +191,43 @@ export function usageReportOf(visits: Omit<UsageVisit, 'pages'>[], pages: Stored
 
 // ---- the page's totals --------------------------------------------------------------------------------
 
-/** One person on the People tab: their visits and time, their devices and places (most used first), and their pages. */
+/**
+ * Someone's last sign-in, from Supabase's own records (public.usage_sign_ins()): when, and how ('google', 'email',
+ * 'apple', 'azure' for Microsoft…). A sign-in that's only renewed, the app kept open, doesn't change it.
+ */
+export interface UsageSignIn { profile_id: string; last_sign_in_at: string; provider: string | null; full_name: string; colour: string; role: string }
+
+/** One person on the People tab: their visits and time, their devices and places (most used first), their pages and last sign-in. */
 export interface PersonUsage extends PersonTotals {
   devices: PersonDevice[]
   places: PersonPlace[]
   /** Their pages, most time first. */
   pages: PersonPage[]
+  signIn: UsageSignIn | null
 }
 
-/** Everyone who used the app in the period, the latest first. */
-export function peopleUsage(data: UsageData): PersonUsage[] {
-  return data.people.map(p => ({
-    ...p,
-    devices: data.devices.filter(d => d.profile_id === p.profile_id).sort(byLast),
-    places: data.places.filter(d => d.profile_id === p.profile_id).sort(byLast),
-    pages: data.pages.filter(d => d.profile_id === p.profile_id).sort((a, b) => b.seconds - a.seconds || b.views - a.views),
-  })).sort((a, b) => b.last_at.localeCompare(a.last_at))
+/**
+ * Everyone who used the app in the period, the latest first: those with visits, and those who signed in from
+ * `from` on with none recorded yet (signing in is using it; their visits show as the app sends them).
+ */
+export function peopleUsage(data: UsageData, signIns: UsageSignIn[] = [], from = ''): PersonUsage[] {
+  const signInOf = (id: string) => signIns.find(s => s.profile_id === id) ?? null
+  const inPeriod = (s: UsageSignIn | null) => !!s && s.last_sign_in_at >= from
+  const withVisits: PersonUsage[] = data.people.map(p => {
+    const signIn = signInOf(p.profile_id)
+    return {
+      ...p,
+      last_at: inPeriod(signIn) ? later(p.last_at, signIn!.last_sign_in_at) : p.last_at,
+      devices: data.devices.filter(d => d.profile_id === p.profile_id).sort(byLast),
+      places: data.places.filter(d => d.profile_id === p.profile_id).sort(byLast),
+      pages: data.pages.filter(d => d.profile_id === p.profile_id).sort((a, b) => b.seconds - a.seconds || b.views - a.views),
+      signIn,
+    }
+  })
+  const signedInOnly: PersonUsage[] = signIns.filter(s => inPeriod(s) && !data.people.some(p => p.profile_id === s.profile_id)).map(s => ({
+    profile_id: s.profile_id, visits: 0, seconds: 0, first_at: s.last_sign_in_at, last_at: s.last_sign_in_at, devices: [], places: [], pages: [], signIn: s,
+  }))
+  return [...withVisits, ...signedInOnly].sort((a, b) => b.last_at.localeCompare(a.last_at))
 }
 
 /** One page on the Pages tab: how many people opened it, how often, and the time spent on it in all and on average. */
