@@ -1,7 +1,7 @@
 // Spanish for a screen's own address on the Screens page (a page on the business's own website that shows
 // the screen), and for the screen's own page turning upright on a TV hung on its side.
 export default {
-  'Your own address:': 'Tu propia dirección:',
+  'Your website shows it. It also opens at {link}.': 'Tu web la muestra. También se abre en {link}.',
   'Change your own address': 'Cambiar tu propia dirección',
   'Use your own website’s address': 'Usar la dirección de tu propia web',
   'Your own website’s address': 'La dirección de tu propia web',

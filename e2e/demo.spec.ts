@@ -6417,14 +6417,19 @@ test.describe('menu, menu design and screens', () => {
     await expect(dialog.getByLabel('The code for your page')).toContainText(/^<iframe src="[^"]+\/display-menu" title="Screen" allow="autoplay; fullscreen"/)
     await dialog.getByRole('button', { name: 'Save' }).click()
     await toast(page, 'Saved. Your page shows the screen once the code is on it.')
-    await expect(link.getByRole('link', { name: 'easybeanscoffee.com/display-menu' })).toHaveAttribute('href', 'https://easybeanscoffee.com/display-menu')
+    // That page is now the screen's link: in the box, its QR code and Open the screen; Business Agent's still works.
+    await expect(link.getByRole('textbox', { name: 'The screen’s link' })).toHaveValue('https://easybeanscoffee.com/display-menu')
+    await expect(link.getByRole('link', { name: 'Open the screen' })).toHaveAttribute('href', 'https://easybeanscoffee.com/display-menu')
+    await expect(link).toContainText(/Your website shows it\. It also opens at \S+\/display-menu\./)
     await expect(page.getByText('Unsaved changes')).toHaveCount(0)
 
-    // Taken off again.
+    // Taken off again: the link is Business Agent's once more.
     await link.getByRole('button', { name: 'Change your own address' }).click()
     await dialog.getByRole('button', { name: 'Take it off' }).click()
     await toast(page, 'Your own address is off this screen')
     await expect(link.getByRole('button', { name: 'Use your own website’s address' })).toBeVisible()
+    await expect(link.getByRole('textbox', { name: 'The screen’s link' })).toHaveValue(/\/display-menu$/)
+    await expect(link.getByRole('textbox', { name: 'The screen’s link' })).not.toHaveValue(/easybeanscoffee/)
   })
 
   test('a portrait screen stands upright on a TV that shows landscape, turned the other way with a tap or the remote', async ({ page }) => {
