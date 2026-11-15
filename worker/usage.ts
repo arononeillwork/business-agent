@@ -3,11 +3,13 @@
 // (src/app/usage.ts); this adds the device, from the browser's own description, and the town, from where
 // Cloudflare places the connection (the address itself isn't kept), and keeps it as the person who sent it, in
 // their business (public.record_usage(), the user_analytics migration). Visits go after a year (nightly).
-//   POST /api/usage   someone signed in: { visit, installed, touch, pages: [{ page, views, seconds }] } → 204
+//   POST /api/usage   someone signed in: { visit, installed, touch, pages: [{ page, views, seconds }] } → 204; 503 when
+//                     Supabase can't say who they are (the app sends it again), 401 when the sign-in isn't one
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { bearer, businessDb, type Env } from './supabase'
 import { signInCheck, signedInUser } from './signedIn'
+import { reportError } from './errors'
 import { KEEP_DAYS, MAX_REPORT_BYTES, cleanUsageReport, deviceOf } from '../shared/usage'
 
 /** Reports one person may send a minute, in this Worker instance (the app sends one a minute, a few more as it's hidden). */
@@ -67,19 +69,38 @@ usage.post('/api/usage', async c => {
   try { body = JSON.parse(text) } catch { body = null }
   const report = cleanUsageReport(body)
   if (!report) return c.json({ error: 'That isn’t a usage report' }, 400)
-  const [{ data: user }, { data: businessId }] = await Promise.all([signedInUser(c.env, token), signInCheck(c.env, token, 'current_business_id')])
-  if (!user.user) return c.json({ error: 'Not signed in' }, 401)
+  // Supabase not answering (an outage, a restart) isn't the sign-in being wrong: the app keeps the report and
+  // sends it again with the next one, rather than letting it go as it does when it's told it isn't signed in.
+  const busy = () => c.json({ error: 'Couldn’t check the sign-in. Try again in a minute.' }, 503, { 'retry-after': '60' })
+  let checks: [Awaited<ReturnType<typeof signedInUser>>, Awaited<ReturnType<typeof signInCheck<'current_business_id'>>>]
+  try {
+    checks = await Promise.all([signedInUser(c.env, token), signInCheck(c.env, token, 'current_business_id')])
+  } catch {
+    return busy()
+  }
+  const [{ data: who, error: whoError }, { data: businessId, error: businessError }] = checks
+  if (!who.user) return !whoError || turnedAway(whoError) ? c.json({ error: 'Not signed in' }, 401) : busy()
+  if (businessError) return busy()
   if (!businessId) return c.json({ error: 'You’re not in a business yet' }, 403)
-  if (!take(user.user.id)) return c.json({ error: 'Too many reports. Try again in a minute.' }, 429, { 'retry-after': '60' })
+  const user = who.user
+  if (!take(user.id)) return c.json({ error: 'Too many reports. Try again in a minute.' }, 429, { 'retry-after': '60' })
   const { device, os, browser } = deviceOf(c.req.header('user-agent') ?? '', report.touch)
   const place = placeOf(c.req.raw)
   const { error } = await businessDb(c.env, businessId as number).rpc('record_usage', {
-    p_profile: user.user.id, p_visit: report.visit, p_device: device, p_os: os, p_browser: browser, p_installed: report.installed,
+    p_profile: user.id, p_visit: report.visit, p_device: device, p_os: os, p_browser: browser, p_installed: report.installed,
     p_city: place.city, p_region: place.region, p_country: place.country, p_pages: report.pages,
   })
   if (error) {
-    console.error('keeping usage failed', error.message)
+    // Kept for HQ (Businesses → Errors), so a report that can't be kept doesn't go unnoticed.
+    const keep = reportError(c.env, 'usage: keeping a report', error.message, { business: businessId as number, user: user.id, path: '/api/usage' })
+    try { c.executionCtx.waitUntil(keep) } catch { /* no execution context (tests): it carries on by itself */ }
     return c.json({ error: 'Couldn’t keep it' }, 502)
   }
   return c.body(null, 204)
 })
+
+/** Supabase turned the sign-in away (expired, or not one), rather than not answering. */
+function turnedAway(error: unknown) {
+  const status = (error as { status?: unknown } | null)?.status
+  return typeof status === 'number' && status >= 400 && status < 500
+}

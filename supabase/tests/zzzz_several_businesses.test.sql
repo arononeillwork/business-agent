@@ -69,7 +69,9 @@ begin
                            -- and every business's support tickets, with who sent each (the support_tickets migration).
                            'hq_support_tickets',
                            -- and make one complimentary (the hq_actions migration), see which are closing and hear about it (close_account).
-                           'hq_set_complimentary', 'hq_end_complimentary', 'hq_closures', 'notify_hq');
+                           'hq_set_complimentary', 'hq_end_complimentary', 'hq_closures', 'notify_hq',
+                           -- User analytics: the last sign-ins of the caller's own business, from auth (the user_analytics_sign_ins migration).
+                           'usage_sign_ins');
   assert v is null, 'Security definer functions that would see every business. After creating one: alter function ... owner to app_definer; — ' || v;
 
   -- Unique within a business: a unique index takes in business_id, or a column that's unique by itself

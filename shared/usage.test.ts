@@ -106,6 +106,23 @@ describe('what owners see', () => {
     expect(people[0].pages.map(p => [p.page, p.seconds, p.views])).toEqual([['rules', 250, 2], ['rota', 50, 1]])
   })
 
+  it('adds who signed in in the period with no visits recorded yet, and each one’s last sign-in', () => {
+    const who = (id: string) => ({ full_name: id, colour: '#000000', role: 'employee' })
+    const signIns = [
+      { profile_id: 'julio', last_sign_in_at: at(14), provider: 'google', ...who('Julio') },
+      // Signed in, nothing recorded yet (Supabase was down, or the app was only just opened).
+      { profile_id: 'carl', last_sign_in_at: at(20), provider: 'google', ...who('Carl') },
+      // Before the period: not counted as using it in it.
+      { profile_id: 'dan', last_sign_in_at: at(-30), provider: 'email', ...who('Dan') },
+    ]
+    const people = peopleUsage(data, signIns, at(0))
+    expect(people.map(p => p.profile_id)).toEqual(['carl', 'julio', 'bea', 'ana'])
+    expect(people[0]).toMatchObject({ visits: 0, seconds: 0, last_at: at(20), pages: [], devices: [], signIn: { provider: 'google' } })
+    // Julio's sign-in came after his last visit: it's when he last used it.
+    expect(people[1]).toMatchObject({ visits: 2, last_at: at(14), signIn: { last_sign_in_at: at(14) } })
+    expect(people[2].signIn).toBeNull()
+  })
+
   it('ranks the pages by time, with how many opened each and the average', () => {
     expect(pagesUsage(data)).toEqual([
       { page: 'rota', people: 2, views: 2, seconds: 350, average: 175, last_at: at(10) },

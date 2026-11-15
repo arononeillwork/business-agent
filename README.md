@@ -36,6 +36,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
   app sends it about once a minute (`src/app/usage.ts`); the Worker adds the device from the browser and the town
   from Cloudflare, never the address (`POST /api/usage`, `worker/usage.ts`); visits are kept a year (the
   `user_analytics` migration). Only the page's name is recorded, never what's on it.
+  People also shows each person's last sign-in and how (Google, Apple, Microsoft, email), straight from Supabase's
+  own records (the `user_analytics_sign_ins` migration), so someone who signed in shows even before a visit is
+  recorded. When Supabase can't confirm a sign-in (an outage), the Worker answers 503 and the app sends the report
+  again with the next one instead of dropping it.
 - Sports: the next 3 weeks of football (Spanish, English, Scottish, Dutch and other leagues, cups,
   European nights, national teams), rugby (Six Nations, Premiership, Champions Cup and more), UFC and
   boxing, with "big nights" flagged. The Worker refreshes

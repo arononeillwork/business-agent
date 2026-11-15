@@ -13,7 +13,7 @@ import type { HqSupportTicket, SupportDraft, SupportStatus, SupportTicket } from
 import type { KindInfo } from '../../shared/social'
 import type { InstagramMention } from '../../shared/mentions'
 import type { IdeasCheck, InstagramIdea } from '../../shared/instagramIdeas'
-import type { UsageData, UsageReport } from '../../shared/usage'
+import type { UsageData, UsageReport, UsageSignIn } from '../../shared/usage'
 import type { FilingRecord, Quarter, TaxDocKind, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { InboxInvoice, InboxState as InvoiceInbox, Invoice, InvoiceInput } from '../../shared/invoices'
 import type { EmailQuery, EmailState } from '../../shared/email'
@@ -1158,6 +1158,8 @@ export interface Api {
   recordUsage(report: UsageReport): Promise<void>
   /** Owners (Settings → User analytics): the visits that started from `from` until `to` (public.usage_report()); anyone else gets none. */
   usageReport(from: string, to: string): Promise<UsageData>
+  /** Owners: each person's last sign-in and how (Google, email…), from Supabase's own records (public.usage_sign_ins()); anyone else gets none. */
+  usageSignIns(): Promise<UsageSignIn[]>
   /**
    * Help → Report a problem, or the error screen: a support ticket to The Business Agent (the support_tickets
    * migration). The same words sent in the last 24 hours are that one (`duplicate`), not a second.

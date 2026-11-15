@@ -24,7 +24,7 @@ import { CASHBACK_DEFAULTS, CASHBACK_MIN, cashbackDue, cashbackFor, cashbackRate
 import { demoSports } from './demoSports'
 import { demoInbox, demoMessenger, demoWhatsApp } from './demoMessages'
 import { DEMO_IDEA_CHAT, demoIdeas } from './demoIdeas'
-import { demoUsage } from './demoUsage'
+import { demoSignIns, demoUsage } from './demoUsage'
 import { NO_USAGE, deviceOf, usageReportOf } from '../../shared/usage'
 import { demoEmailPage, demoEmails } from './demoEmail'
 import { demoEmailFull, demoFileLines, demoPicture, demoReplies } from './demoEmail'
@@ -5306,6 +5306,9 @@ export function createDemoApi(): Api {
     },
     async usageReport(from, to) {
       return paysAdmin() ? clone(usageReportOf(usage.visits, usage.pages, from, to, profiles)) : clone(NO_USAGE)
+    },
+    async usageSignIns() {
+      return paysAdmin() ? demoSignIns(profiles) : []
     },
     async referrals() {
       requireAdmin()

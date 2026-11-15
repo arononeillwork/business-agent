@@ -13,6 +13,13 @@ create table auth.users (
   invited_at timestamptz,
   last_sign_in_at timestamptz
 );
+-- One row for each way someone signs in (email, Google, Apple…), with when they last did.
+create table auth.identities (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  provider text not null,
+  last_sign_in_at timestamptz
+);
 create function auth.uid() returns uuid language sql stable as $$
   select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
 $$;
