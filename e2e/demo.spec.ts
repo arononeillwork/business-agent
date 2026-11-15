@@ -392,7 +392,7 @@ test('@phone layout: bottom navigation and a full-width clock-in button', async 
   await page.getByRole('button', { name: 'More' }).click()
   const sheet = page.getByRole('list', { name: 'More pages' })
   for (const name of ['Opening hours', 'Brand', 'Finances', 'Sports', 'Team', 'Notifications', 'Connections', 'Analytics']) {
-    await expect(sheet.getByRole('link', { name })).toBeVisible()
+    await expect(sheet.getByRole('link', { name, exact: true })).toBeVisible()
   }
   await sheet.getByRole('link', { name: 'Finances' }).click()
   await expect(page.getByRole('heading', { name: 'Finances' })).toBeVisible()
@@ -2005,7 +2005,7 @@ test('pages can be dragged into a new order, but only within their own section',
   await page.mouse.up()
   await expect.poll(names).toEqual(['Time off', 'Staff benefits', 'Staff kitty', 'Leaderboard', 'Timecards', 'Team', 'Tips', 'Hiring', 'Roles & responsibilities', 'Staff rules', 'Outsourcing', 'Rota'])
   expect(await nav.locator('section', { has: page.getByRole('button', { name: 'Settings', exact: true }) }).getByRole('link').allTextContents())
-    .toEqual(['Connections', 'Notifications', 'Pages'])
+    .toEqual(['Connections', 'Notifications', 'Pages', 'User analytics'])
   // Saved to Aron's account: someone else gets the usual order, and Aron his own when he's back.
   await signInAs(page, 'mark@example.com')
   await expect.poll(names).toEqual(['Rota', 'Time off', 'Staff benefits', 'Staff kitty', 'Leaderboard', 'Timecards', 'Tips', 'Hiring', 'Team', 'Roles & responsibilities', 'Staff rules', 'Outsourcing'])
@@ -12122,5 +12122,77 @@ test.describe('Ideas from the Instagram Ideas chat', () => {
     await expect(page.getByText('Slow-motion pour for our next reel', { exact: false })).toBeVisible()
     await expect(page.getByRole('button', { name: /off the Ideas page/ })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Change' })).toHaveCount(0)
+  })
+})
+
+test.describe('User analytics', () => {
+  test('owners see who used the app, on what and from where, and how long each person read the staff rules', async ({ page }) => {
+    await open(page, '/rules')
+    // The app sends its visit a few seconds after it opens.
+    await page.clock.runFor(5_000)
+    // From Staff rules to the time spent reading them.
+    await page.getByRole('link', { name: 'Time spent reading' }).click()
+    await expect(page).toHaveURL(/\/user-analytics\?view=pages&page=rules/)
+    let rules = page.getByRole('dialog', { name: 'Staff rules' })
+    let readers = rules.getByRole('table', { name: 'Time on Staff rules' })
+    await expect(readers.getByRole('row', { name: /Julio/ })).toContainText('7 min 25 s')
+    await expect(readers.getByRole('row', { name: /Mark Murray/ })).toContainText('2 min 10 s')
+    await expect(readers.getByRole('row', { name: /Maria/ })).toContainText('45 s')
+    // The owner's own look at them, just now.
+    await expect(readers.getByRole('row', { name: /Aron O'Neill \(you\)/ })).toBeVisible()
+    await expect(rules.getByRole('region', { name: 'Didn’t open it in this period' })).toContainText('Cleaner')
+    await rules.getByRole('button', { name: 'Close' }).click()
+    await expect(page.getByRole('heading', { name: 'User analytics', level: 1 })).toBeVisible()
+    await expect(page.getByRole('list', { name: 'At a glance' })).toContainText('People who used it')
+    // The gestoría's partner, whom the team's list leaves out, by name.
+    await page.getByRole('tab', { name: 'People' }).click()
+    await expect(page.getByRole('table', { name: 'People' }).getByRole('row', { name: /Laura Ruiz/ })).toContainText('Partner')
+    await page.getByRole('tab', { name: 'Pages' }).click()
+    await expect(page.getByRole('table', { name: 'Pages' })).toBeVisible()
+
+    // The last 7 days: Maria read them before that.
+    await page.getByRole('button', { name: 'Last 7 days' }).click()
+    await expect(page).toHaveURL(/period=7/)
+    await expect(page.getByRole('table', { name: 'Pages' }).getByRole('row', { name: /Staff rules/ })).not.toContainText('10 min')
+    await page.getByRole('button', { name: 'Staff rules: who spent time on it' }).click()
+    rules = page.getByRole('dialog', { name: 'Staff rules' })
+    readers = rules.getByRole('table', { name: 'Time on Staff rules' })
+    await expect(readers.getByRole('row', { name: /Julio/ })).toContainText('1 min 5 s')
+    await expect(readers.getByRole('row', { name: /Maria/ })).toHaveCount(0)
+    await expect(rules.getByRole('region', { name: 'Didn’t open it in this period' })).toContainText('Maria')
+    await rules.getByRole('button', { name: 'Close' }).click()
+
+    // People: when each last used it, on what and from where.
+    await page.getByRole('tab', { name: 'People' }).click()
+    const people = page.getByRole('table', { name: 'People' })
+    await expect(people.getByRole('row', { name: /Julio/ })).toContainText('Phone · iOS · installed app')
+    await expect(people.getByRole('row', { name: /Mark Murray/ })).toContainText('Computer · Windows · Edge')
+    await expect(people.getByRole('row', { name: /Mark Murray/ })).toContainText('Marbella, Spain')
+    await expect(page.getByRole('region', { name: 'Didn’t use the app in this period' })).toContainText('Cleaner')
+
+    // One person: their pages, devices, places and visits; from a page of theirs to who else read it.
+    await people.getByRole('button', { name: 'Julio: their visits and pages' }).click()
+    const julio = page.getByRole('dialog', { name: 'Julio' })
+    await expect(julio.getByRole('table', { name: 'Their pages' })).toContainText('Staff rules')
+    await expect(julio.getByRole('region', { name: 'Devices' })).toContainText('Phone · iOS · installed app')
+    await expect(julio.getByRole('region', { name: 'Places' })).toContainText('San Pedro de Alcántara, Spain')
+    await expect(julio.getByRole('table', { name: 'Visits' })).toBeVisible()
+    await julio.getByRole('table', { name: 'Their pages' }).getByRole('row', { name: /Staff rules/ }).click()
+    await expect(page.getByRole('dialog', { name: 'Staff rules' })).toBeVisible()
+    await page.getByRole('dialog', { name: 'Staff rules' }).getByRole('button', { name: 'Close' }).click()
+
+    // Every visit, with its pages.
+    await page.getByRole('tab', { name: 'Visits' }).click()
+    await expect(page.getByRole('table', { name: 'Visits' }).getByRole('row').filter({ hasText: 'Staff rules (2 min 10 s)' })).toContainText('Mark Murray')
+  })
+
+  test('employees can’t open it, and don’t see it in the menu or on Staff rules', async ({ page }) => {
+    await open(page, '/user-analytics', 'julio@example.com')
+    await expect(page).not.toHaveURL(/user-analytics/)
+    const menu = page.getByRole('navigation', { name: 'Main' })
+    await expect(menu.getByRole('link', { name: 'User analytics' })).toHaveCount(0)
+    await menu.getByRole('link', { name: 'Staff rules' }).click()
+    await expect(page.getByRole('heading', { name: 'Staff rules', level: 1 })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Time spent reading' })).toHaveCount(0)
   })
 })

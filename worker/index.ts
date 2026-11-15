@@ -62,6 +62,7 @@ import { remindTownHolidays } from './holidays'
 import { hq } from './hq'
 import { account } from './account'
 import { answerError, errors, reportError } from './errors'
+import { clearOldUsage, usage } from './usage'
 
 const NIGHTLY = '15 1 * * *' // 03:15 Madrid in summer, 02:15 in winter
 // Every minute from 02:00 to 03:59 UTC: the night's connection checks, a few a run (checkDue), each
@@ -366,6 +367,9 @@ app.route('/', push)
 // Errors the app runs into, for HQ (worker/errors.ts): signed in or not.
 app.route('/', errors)
 
+// User analytics (Settings → User analytics): what the app is used for, from the app, signed in (worker/usage.ts).
+app.route('/', usage)
+
 // REST API for scripts, n8n, Zapier (same tools and rules as the AI connector).
 app.route('/api/v1', rest)
 
@@ -507,6 +511,8 @@ export default {
           await watchCompetitors(env, b).catch(failed('competitors', id))
           // Outside services' answers kept over two days (provider_cache).
           await clearOldCache(b).catch(failed('cache clear', id))
+          // User analytics: visits older than a year, with their pages.
+          await clearOldUsage(b).catch(failed('usage clear', id))
           // Its country's public holidays for this year and next, and in Spain its region's, where it has none of them yet.
           await addNationalHolidays(b).catch(failed('national holidays', id))
           // In Spain, its town's two local holidays: admins are told once when a year's aren't in yet.
