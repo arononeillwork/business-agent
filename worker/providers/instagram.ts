@@ -311,6 +311,18 @@ export async function chatMessages(cfg: InstagramConfig, me: Me, id: string): Pr
 }
 
 /**
+ * One message read on its own, as Meta's docs read a message's details: a chat read with its messages
+ * leaves out what's attached to them (a shared post comes back empty). `detailed`: ask for the parts of
+ * shares and attachments by name; otherwise Instagram's own choice of them.
+ */
+export function messageById(cfg: InstagramConfig, id: string, detailed = false) {
+  const fields = detailed
+    ? 'id,created_time,from,to,message,is_unsupported,story,shares{link,id,name,description},attachments{image_data,video_data,file_url,generic_template,mime_type,name}'
+    : 'id,created_time,from,to,message,is_unsupported,story,shares,attachments'
+  return graph<RawMessage & Record<string, unknown>>(cfg, `${encodeURIComponent(id)}?fields=${fields}`)
+}
+
+/**
  * Reply by text. Within 24 hours of the customer's last message it goes as a normal reply; up to 7
  * days, a person replying sends it with the HUMAN_AGENT tag (the Meta app needs the Human Agent feature).
  */

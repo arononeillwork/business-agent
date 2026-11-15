@@ -185,6 +185,8 @@ export class FakeProviders {
     people: { 'igsid-lucia': { name: 'Lucía García', username: 'lucia.marbella', profile_pic: 'https://cdn.instagram.test/lucia.jpg' } } as Record<string, Json>,
     /** Profile lookups that fail (the person blocked the café, or Instagram is busy). */
     profileFails: [] as string[],
+    /** A message read on its own (by its id), as Instagram gives it: by Instagram's own fields, or with them named. */
+    alone: {} as Record<string, { plain?: Json; named?: Json }>,
     profileLookups: 0,
     /** The Meta app doesn't have the Human Agent feature: replies after 24 hours are refused. */
     noHumanAgent: false,
@@ -775,6 +777,12 @@ export class FakeProviders {
         const p = this.instagram.people[who]
         if (!p || this.instagram.profileFails.includes(who)) return json({ error: { message: '(#100) The user can not be found', code: 100 } }, 400)
         return json({ id: who, ...p })
+      }
+      const alone = this.instagram.alone[decodeURIComponent(url.pathname.split('/').pop() ?? '')]
+      if (alone) {
+        const named = /shares\{/.test(url.searchParams.get('fields') ?? '')
+        const answer = named ? alone.named : alone.plain
+        return answer ? json(answer) : json({ error: { message: '(#100) Tried accessing nonexisting field (generic_template)', code: 100 } }, 400)
       }
       const chat = this.instagram.chats.find(c => url.pathname.endsWith(`/${c.id}`))
       if (chat) return this.instagram.noMessages ? noMessages() : json(chat)

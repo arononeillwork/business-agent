@@ -4701,6 +4701,9 @@ export function createDemoApi(): Api {
     async checkIdeasChat() {
       return { chat: 'read', added: 0, copied: 0 }
     },
+    async ideasChatStatus() {
+      return { checked_at: nowIso(), chat: 'read' }
+    },
     async sentAlerts() {
       requireAdmin()
       return clone(sent)

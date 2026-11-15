@@ -4,11 +4,15 @@
 //   1. the business's latest chats (one request; nobody looked up), to find the Ideas chat and its 5
 //      latest messages. Not among the latest 25: nothing new in it.
 //   2. Only when all 5 are new (there may be more): the chat itself, its 20 latest (all Instagram shares).
-//   3. Each post, reel, photo or video in it kept once.
-//   4. Pictures copied into the business's own storage, a couple a run (a scheduled run may make only 50
+//   3. Messages that came back empty (a chat read with its messages leaves out a shared post) read again
+//      on their own, a few a run; any still empty are noted by their shape (shared/instagramIdeas.ts) and
+//      not read again.
+//   4. Each post, reel, photo or video in it kept once.
+//   5. Pictures copied into the business's own storage, a couple a run (a scheduled run may make only 50
 //      outside requests, the database's included): Instagram's links to a chat's pictures stop working
 //      a few days after they're sent, so those not copied by then, or that failed 3 times, keep Instagram's link.
-//   POST /api/ideas/instagram/check   the team: read the Ideas chat now; { added, chat }
+//   POST /api/ideas/instagram/check    the team: read the Ideas chat now; { added, chat }
+//   GET  /api/ideas/instagram/status   the team: what the last read found (IdeasStatus)
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { bearer, businessDb, type Env } from './supabase'
@@ -16,7 +20,7 @@ import { signInCheck, signedInUser } from './signedIn'
 import * as instagram from './providers/instagram'
 import { instagramSession } from './connections'
 import { INSTAGRAM_IDEAS_FOLDER, MediaError, mediaStorage, storeMedia } from './media'
-import { ideaChatIn, ideasIn, type FoundIdea, type IdeasCheck } from '../shared/instagramIdeas'
+import { ideaChatIn, ideasIn, isEmptyMessage, mediaOf, shapeOf, type FoundIdea, type IdeasCheck, type IdeasStatus } from '../shared/instagramIdeas'
 import type { InboxMessage } from '../shared/messages'
 
 /** Pictures copied a run: a scheduled run's, and the page's Check now. */
@@ -27,6 +31,12 @@ export const COPY_FOR_MS = 3 * 86_400_000
 export const COPY_TRIES = 3
 /** The most copied at once: the file is held in memory (a Worker has 128 MB). Bigger videos keep Instagram's link. */
 export const COPY_MAX_BYTES = 30 * 1024 * 1024
+/** Empty messages read again on their own: a scheduled run's (up to two requests each), and Check now's. */
+export const ALONE_A_RUN = 4
+export const ALONE_ON_CHECK = 10
+/** Where the last read is noted (IdeasStatus), and how many still-empty messages are remembered. */
+const STATUS = 'instagram:ideas'
+const UNREAD_KEPT = 10
 
 
 /** Read the Ideas chat and keep what's new in it. `force`: read its 20 latest messages whatever the 5 latest say. */
@@ -40,13 +50,78 @@ export async function readIdeasChat(env: Env, db: SupabaseClient, origin: string
   const me: instagram.Me = { id: ext.user_id ?? '', username: ext.username }
   const chat = ideaChatIn(await instagram.conversations(cfg, me, () => false), set?.idea_chat as string | null | undefined, me)
   let added = 0
+  let unread: NonNullable<IdeasStatus['unread']> | undefined
   if (chat) {
-    const kept = await keptOf(db, chat.recent.map(m => m.id))
-    const messages = force || maybeMore(chat.recent, kept) ? await instagram.chatMessages(cfg, me, chat.id) : chat.recent
+    let kept = await keptOf(db, chat.recent.map(m => m.id))
+    let messages = chat.recent
+    if (force || maybeMore(chat.recent, kept)) {
+      messages = await instagram.chatMessages(cfg, me, chat.id)
+      kept = await keptOf(db, messages.map(m => m.id))
+    }
+    const alone = await readEmptyAlone(db, cfg, me, messages, kept, force ? ALONE_ON_CHECK : ALONE_A_RUN)
+    messages = alone.messages
+    unread = alone.unread
     added = await keepIdeas(db, ideasIn(chat, messages, ext.username ?? null), kept)
   }
   const copied = await copyPictures(env, db, origin, force ? COPIES_ON_CHECK : COPIES_A_RUN)
-  return { chat: chat ? 'read' : 'missing', added, copied }
+  const result: IdeasCheck = { chat: chat ? 'read' : 'missing', added, copied }
+  await db.from('provider_cache').upsert({ key: STATUS, fetched_at: new Date().toISOString(),
+    data: { checked_at: new Date().toISOString(), chat: result.chat, ...(unread ? { unread } : {}) } satisfies IdeasStatus }, { onConflict: 'business_id,key' })
+  return result
+}
+
+/** What the last read of the Ideas chat found (the page, and what was left empty before). */
+export async function ideasStatus(db: SupabaseClient): Promise<IdeasStatus> {
+  const { data } = await db.from('provider_cache').select('data').eq('key', STATUS).maybeSingle()
+  return (data?.data ?? {}) as IdeasStatus
+}
+
+/**
+ * The chat's messages with the empty ones (not kept, not tried before) read again on their own, the newest
+ * `max`. Returns them, and the ones still empty (with those from before), newest first.
+ */
+async function readEmptyAlone(db: SupabaseClient, cfg: instagram.InstagramConfig, me: instagram.Me, messages: InboxMessage[], kept: Set<string>, max: number) {
+  const empty = messages.filter(m => isEmptyMessage(m) && !kept.has(m.id))
+  if (!empty.length) return { messages, unread: undefined }
+  const before = (await ideasStatus(db)).unread ?? []
+  const tried = new Set(before.map(u => u.id))
+  const now = [...empty].filter(m => !tried.has(m.id)).sort((a, b) => b.at.localeCompare(a.at)).slice(0, max)
+  const read = new Map<string, InboxMessage>()
+  const still: NonNullable<IdeasStatus['unread']> = []
+  for (const m of now) {
+    const alone = await readAlone(cfg, me, m)
+    if (alone.message) read.set(m.id, alone.message)
+    else still.push({ id: m.id, at: m.at, shape: alone.shape })
+  }
+  const unread = [...still, ...before.filter(u => !read.has(u.id))].sort((a, b) => b.at.localeCompare(a.at)).slice(0, UNREAD_KEPT)
+  return { messages: messages.map(m => read.get(m.id) ?? m), unread }
+}
+
+/**
+ * One message read on its own: Instagram's own choice of fields, then the parts of shares and attachments by
+ * name. Its post's address and picture are looked for wherever Instagram put them. Still empty: null, and
+ * what came back by its shape (field names and hosts only).
+ */
+async function readAlone(cfg: instagram.InstagramConfig, me: instagram.Me, m: InboxMessage): Promise<{ message: InboxMessage | null; shape: string[] }> {
+  const shape: string[] = []
+  for (const named of [false, true]) {
+    const how = named ? 'named' : 'plain'
+    let raw: Awaited<ReturnType<typeof instagram.messageById>>
+    try {
+      raw = await instagram.messageById(cfg, m.id, named)
+    } catch (e) {
+      shape.push(`${how}: refused (${(e instanceof Error ? e.message : String(e)).replace(/\s+/g, ' ').slice(0, 160)})`)
+      continue
+    }
+    const read = instagram.toInboxMessage(raw, me)
+    if (!isEmptyMessage(read)) return { message: read, shape: [] }
+    const found = mediaOf(raw)
+    if (found.media || found.permalink) {
+      return { message: { ...read, kind: found.video ? 'video' : 'share', link: found.permalink ?? undefined, mediaUrl: found.media ?? undefined }, shape: [] }
+    }
+    shape.push(...shapeOf(raw).map(f => `${how}: ${f}`))
+  }
+  return { message: null, shape: shape.slice(0, 60) }
 }
 
 /** Which of these messages are kept as ideas already. */
@@ -128,13 +203,27 @@ async function copyOne(env: Env, db: SupabaseClient, origin: string, from: strin
 
 export const ideas = new Hono<{ Bindings: Env }>()
 
+/** The signed-in person's business, when they're on its team. */
+async function teamBusiness(env: Env, header: string | undefined): Promise<number | 'signed_out' | null> {
+  const token = bearer(header)
+  if (!token) return 'signed_out'
+  const [{ data: user }, { data: staff }, { data: businessId }] = await Promise.all([signedInUser(env, token), signInCheck(env, token, 'is_staff'), signInCheck(env, token, 'current_business_id')])
+  return user.user && staff && businessId ? businessId as number : null
+}
+
+ideas.get('/api/ideas/instagram/status', async c => {
+  const business = await teamBusiness(c.env, c.req.header('authorization'))
+  if (business === 'signed_out') return c.json({ error: 'Not signed in' }, 401)
+  if (!business) return c.json({ error: 'Only the team sees the Ideas chat' }, 403)
+  return c.json(await ideasStatus(businessDb(c.env, business)))
+})
+
 ideas.post('/api/ideas/instagram/check', async c => {
-  const token = bearer(c.req.header('authorization'))
-  if (!token) return c.json({ error: 'Not signed in' }, 401)
-  const [{ data: user }, { data: staff }, { data: businessId }] = await Promise.all([signedInUser(c.env, token), signInCheck(c.env, token, 'is_staff'), signInCheck(c.env, token, 'current_business_id')])
-  if (!user.user || !staff || !businessId) return c.json({ error: 'Only the team checks the Ideas chat' }, 403)
+  const business = await teamBusiness(c.env, c.req.header('authorization'))
+  if (business === 'signed_out') return c.json({ error: 'Not signed in' }, 401)
+  if (!business) return c.json({ error: 'Only the team checks the Ideas chat' }, 403)
   try {
-    return c.json(await readIdeasChat(c.env, businessDb(c.env, businessId as number), new URL(c.req.url).origin, true))
+    return c.json(await readIdeasChat(c.env, businessDb(c.env, business), new URL(c.req.url).origin, true))
   } catch (e) {
     return c.json({ error: e instanceof Error ? e.message : String(e) }, 502)
   }

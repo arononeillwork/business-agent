@@ -12,7 +12,7 @@ import type { ClientErrorReport } from '../../shared/appErrors'
 import type { HqSupportTicket, SupportDraft, SupportStatus, SupportTicket } from '../../shared/supportTickets'
 import type { KindInfo } from '../../shared/social'
 import type { InstagramMention } from '../../shared/mentions'
-import type { IdeasCheck, InstagramIdea } from '../../shared/instagramIdeas'
+import type { IdeasCheck, IdeasStatus, InstagramIdea } from '../../shared/instagramIdeas'
 import type { UsageData, UsageReport } from '../../shared/usage'
 import type { FilingRecord, Quarter, TaxDocKind, TaxDocument, TaxSettings } from '../../shared/tax'
 import type { InboxInvoice, InboxState as InvoiceInbox, Invoice, InvoiceInput } from '../../shared/invoices'
@@ -926,6 +926,8 @@ export interface Api {
   hideInstagramIdea(id: string): Promise<void>
   /** Read the Ideas chat now (the Worker also reads it every 15 minutes). */
   checkIdeasChat(): Promise<IdeasCheck>
+  /** What the last read of the Ideas chat found: when, and the messages Instagram left empty. */
+  ideasChatStatus(): Promise<IdeasStatus>
 
   // alerts log (admins)
   sentAlerts(limit?: number): Promise<OutboxItem[]>

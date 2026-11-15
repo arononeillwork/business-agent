@@ -105,3 +105,55 @@ export function ideaChatIn<C extends Pick<InboxConversation, 'with'>>(chats: C[]
   if (chosen) return chats.find(c => same(c.with.username, chosen))
   return chats.find(c => (!!self.id && c.with.id === self.id) || same(c.with.username, self.username))
 }
+
+// ---- Messages Instagram leaves empty --------------------------------------------------------------
+// A chat read with its messages gives a shared post with nothing in it: no link, no picture. Such a
+// message is read again on its own (worker/instagramIdeas.ts), and what comes back is searched for the
+// post's address and its picture wherever Instagram put them. What still has neither is noted by its
+// shape only (field names and the hosts of addresses, nothing written in it), so it can be seen what
+// Instagram shares.
+
+/** A message the chat's read gave nothing usable for: no words, and no picture or link. */
+export const isEmptyMessage = (m: InboxMessage) =>
+  !m.text.trim() && !m.mediaUrl && !m.link && m.kind !== 'story_mention' && m.kind !== 'story_reply'
+
+/** Every https address in what Instagram said, with where it was (`shares.data.0.link`); never the people's. */
+function addresses(raw: unknown, path = ''): { path: string; url: string }[] {
+  if (typeof raw === 'string') return /^https:\/\//i.test(raw) ? [{ path, url: raw }] : []
+  if (!raw || typeof raw !== 'object') return []
+  return Object.entries(raw as Record<string, unknown>)
+    .filter(([k]) => !(path === '' && (k === 'from' || k === 'to')))
+    .flatMap(([k, v]) => addresses(v, path ? `${path}.${k}` : k))
+}
+
+/** The post's own address and its picture (or video) in what Instagram said about a message, wherever they are. */
+export function mediaOf(raw: unknown): { permalink: string | null; media: string | null; video: boolean } {
+  const found = addresses(raw)
+  const permalink = found.map(a => permalinkOf(a.url)).find(Boolean) ?? null
+  const isVideo = (a: { path: string; url: string }) => /video/i.test(a.path) || /\.(mp4|mov)(\?|$)/i.test(a.url)
+  // A picture before a video (a reel's cover shows on the card), and never a page on instagram.com itself.
+  const page = (url: string) => { try { return /^(www\.)?instagram\.com$/i.test(new URL(url).host) } catch { return true } }
+  const media = found.filter(a => !page(a.url))
+  const pick = media.find(a => !isVideo(a)) ?? media[0]
+  return { permalink, media: pick?.url ?? null, video: !!pick && isVideo(pick) }
+}
+
+/** What Instagram said about a message, by its shape: each field's name, and for an address its host. Nothing written in it. */
+export function shapeOf(raw: unknown, path = ''): string[] {
+  if (raw === null || raw === undefined) return []
+  if (typeof raw !== 'object') {
+    const host = typeof raw === 'string' && /^https?:\/\//i.test(raw) ? ` → ${new URL(raw).host}` : ''
+    return [`${path}${host}`]
+  }
+  const entries = Object.entries(raw as Record<string, unknown>)
+  if (!entries.length) return [`${path} (empty)`]
+  return entries.flatMap(([k, v]) => shapeOf(v, path ? `${path}.${k}` : k)).slice(0, 40)
+}
+
+/** What the last read of the Ideas chat found, for the page: when, and the messages Instagram left empty. */
+export interface IdeasStatus {
+  checked_at?: string
+  chat?: IdeasCheck['chat']
+  /** Messages read on their own and still empty: when they were sent, and what Instagram gave (its shape). */
+  unread?: { id: string; at: string; shape: string[] }[]
+}

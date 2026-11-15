@@ -33,6 +33,9 @@ export function IdeasPage() {
   const notify = useNotify()
   const run = useAction()
   const list = useAsync('instagram-ideas', () => api.instagramIdeas(), [])
+  // Admins: messages in the Ideas chat that Instagram left empty, so they aren't here.
+  const status = useAsync('instagram-ideas-status', () => (isAdmin ? api.ideasChatStatus() : Promise.resolve(null)), [isAdmin])
+  const unread = status.data?.unread?.length ?? 0
   // Admins: whether Instagram is connected (and as whom), and where pictures are kept.
   const integ = useAsync('integrations', () => (isAdmin ? api.integrations() : Promise.resolve(null)), [isAdmin])
   const instagram = integ.data?.integrations.find(i => i.provider === 'instagram')
@@ -50,7 +53,7 @@ export function IdeasPage() {
     try {
       const r = await api.checkIdeasChat()
       notify(checked(r), r.chat === 'read' ? 'success' : 'info')
-      await list.reload()
+      await Promise.all([list.reload(), status.reload()])
     } catch (e) {
       notify(e instanceof Error ? e.message : String(e), 'error')
     } finally {
@@ -82,6 +85,11 @@ export function IdeasPage() {
             await run(async () => { await api.updateSettings({ idea_chat: username }); await refresh() }, t('Saved'))
             setEditing(false)
           }} />
+      )}
+      {isAdmin && unread > 0 && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          {tn(unread, 'Instagram didn’t share what was in {n} message of the Ideas chat, so it isn’t here.', 'Instagram didn’t share what was in {n} messages of the Ideas chat, so they aren’t here.')}
+        </Alert>
       )}
       {isAdmin && connected && notKept && integ.data?.media_storage === null && (
         <Alert severity="warning" sx={{ mb: 2 }} action={<Button component={Link} to="/connections" color="inherit" size="small">{t('Connections')}</Button>}>

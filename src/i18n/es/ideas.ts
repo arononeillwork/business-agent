@@ -39,4 +39,8 @@ export default {
   'Or a chat with another account of yours': 'O un chat con otra cuenta tuya',
   'From that account, send {business} a message, then type its username here.':
     'Desde esa cuenta, envía un mensaje a {business} y escribe aquí su usuario.',
+  'Instagram didn’t share what was in {n} message of the Ideas chat, so it isn’t here.':
+    'Instagram no compartió el contenido de {n} mensaje del chat de Ideas, así que no aparece aquí.',
+  'Instagram didn’t share what was in {n} messages of the Ideas chat, so they aren’t here.':
+    'Instagram no compartió el contenido de {n} mensajes del chat de Ideas, así que no aparecen aquí.',
 }

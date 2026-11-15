@@ -13,6 +13,7 @@ import { businessDb, type Env } from './supabase'
 import { FakeSupabase, type Row } from './test/fakeSupabase'
 import { FakeProviders } from './test/fakeProviders'
 import type { InboxMessage } from '../shared/messages'
+import type { IdeasStatus } from '../shared/instagramIdeas'
 
 const APP = 'https://app.test'
 const stored: { key: string; type?: string }[] = []
@@ -94,6 +95,34 @@ describe('the Instagram Ideas chat', () => {
     chooseChat('aron.oneill')
     expect((await read()).added).toBe(1)
     expect(kept().map(i => i.message_id)).toEqual(['m1', 's1'])
+  })
+
+  it('a post the chat gives empty is read on its own; one still empty is noted by its shape, and not read again', async () => {
+    await connectInstagram()
+    cdn = { 'https://lookaside.fbsbx.test/reel.jpg': { type: 'image/jpeg' } }
+    // As the live chat gives them: shared posts with nothing in them.
+    apis.instagram.chats = [selfChat([msg('s3', 7, ME, { message: 'for the menu' }), msg('s2', 6, ME), msg('s1', 5, ME)])]
+    apis.instagram.alone = {
+      // On its own, with its parts named: the reel's address and its picture.
+      s2: { plain: { id: 's2', created_time: '2026-11-15T09:06:00+0000', from: ME },
+        named: { id: 's2', created_time: '2026-11-15T09:06:00+0000', from: ME,
+          attachments: { data: [{ generic_template: { url: 'https://www.instagram.com/reel/DfSelf01/', media_url: 'https://lookaside.fbsbx.test/reel.jpg' } }] } } },
+      // Empty however it's asked for.
+      s1: { plain: { id: 's1', created_time: '2026-11-15T09:05:00+0000', from: ME, shares: { data: [{ id: 'x1' }] } } },
+    }
+    expect(await read()).toMatchObject({ chat: 'read', added: 1 })
+    expect(kept().map(i => [i.message_id, i.kind, i.permalink, i.note, i.media_kept])).toEqual([['s2', 'reel', 'https://www.instagram.com/reel/DfSelf01/', 'for the menu', true]])
+    const status = await (await ideas.request(`${APP}/api/ideas/instagram/status`, { headers: as('staff') }, env, ctx())).json() as IdeasStatus
+    expect(status.chat).toBe('read')
+    expect(status.unread?.map(u => u.id)).toEqual(['s1'])
+    // Its shape only: field names and hosts, nothing written in it.
+    expect(status.unread?.[0].shape).toEqual(expect.arrayContaining(['plain: id', 'plain: shares.data.0.id', 'plain: from.username']))
+    expect(status.unread?.[0].shape.some(f => f.startsWith('named: refused'))).toBe(true)
+
+    // The next read doesn't ask for it again.
+    asked.length = 0
+    await read()
+    expect(asked.some(u => /\/s1\?/.test(u))).toBe(false)
   })
 
   it('asks nothing of Instagram when it’s connected without messages allowed', async () => {
