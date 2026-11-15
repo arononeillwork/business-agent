@@ -1,10 +1,12 @@
 name: CI
 # Every push and pull request: typecheck, unit tests, database rules on a real Postgres, and the
 # browser tests against the demo. A red run means don't deploy.
-# The browser tests run on 3 machines at once (Playwright shards) in Playwright's own image, so
-# no browser install. Branch pushes and pull requests run the tests for what changed plus the core
-# ones (sign-in, permissions, privacy: scripts/ci/select-e2e.ts); deploys and the merge queue run
-# all of them.
+# The browser tests run on several machines at once in Playwright's own image, so no browser
+# install: every test on 8, a branch's selected ones on as many as their time needs. Each machine
+# gets neighbouring tests that add up to the same time, from the last full run's times
+# (scripts/ci/e2e-shards.ts). Branch pushes and pull requests run the tests for what changed plus
+# the core ones (sign-in, permissions, privacy: scripts/ci/select-e2e.ts); deploys and the merge
+# queue run all of them.
 on:
   push:
     # main is tested in deploy.yml before deploying, the merge-queue branch by the merge queue.
@@ -56,13 +58,16 @@ jobs:
           PGUSER: postgres
           PGPASSWORD: postgres
 
-  # Which browser tests this change needs ("all", or a --grep pattern).
+  # Which browser tests this change needs ("all", or a --grep pattern), and on how many machines.
   plan:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       grep: ${{ steps.pick.outputs.grep }}
+      total: ${{ steps.pick.outputs.total }}
+      shards: ${{ steps.pick.outputs.shards }}
+      timings: ${{ steps.pick.outputs.timings }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -71,6 +76,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # Each browser test's time in the merge queue's last full run (saved by merge-queue.yml). With
+      # none yet, the machines split the tests by count.
+      - uses: actions/cache/restore@v4
+        with:
+          path: e2e-timings.json
+          key: e2e-timings-${{ github.run_id }}
+          restore-keys: e2e-timings-
       - id: pick
         env:
           FULL: ${{ inputs.full }}
@@ -78,14 +90,17 @@ jobs:
         run: |
           if [ "$FULL" = "true" ]; then grep=all; else grep=$(node --experimental-strip-types scripts/ci/select-e2e.ts "$BASE" HEAD); fi
           echo "grep=$grep" >> "$GITHUB_OUTPUT"
-          if [ "$grep" = "all" ]; then echo "Browser tests: all" >> "$GITHUB_STEP_SUMMARY"
-          else echo "Browser tests: the core ones plus the areas this change touches" >> "$GITHUB_STEP_SUMMARY"; fi
+          node --experimental-strip-types scripts/ci/e2e-shards.ts plan "$grep" e2e-timings.json > "$RUNNER_TEMP/shards"
+          cat "$RUNNER_TEMP/shards" >> "$GITHUB_OUTPUT"
+          total=$(sed -n 's/^total=//p' "$RUNNER_TEMP/shards")
+          if [ "$grep" = "all" ]; then echo "Browser tests: all, on $total machines" >> "$GITHUB_STEP_SUMMARY"
+          else echo "Browser tests: the core ones plus the areas this change touches, on $total machines" >> "$GITHUB_STEP_SUMMARY"; fi
 
   browser:
     needs: plan
     runs-on: ubuntu-latest
-    # A branch's first push runs every browser test (nothing to compare it with); a third of them
-    # takes 14 to 15 minutes on a slower runner, so 15 cut runs off after every test had passed.
+    # A machine's share is about 4 minutes, but until times are saved a branch's selected tests go on
+    # 3 machines, and a third of every test took 14 to 15 minutes on a slower runner.
     timeout-minutes: 20
     # Keep the version the same as @playwright/test in package-lock.json (the install step below
     # downloads the right browser if they ever differ, it's just slower).
@@ -93,8 +108,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
-    name: browser (${{ matrix.shard }}/3)
+        shard: ${{ fromJSON(needs.plan.outputs.shards) }}
+    # Without the total: the merge queue reads each check by its name, and a re-run on fewer
+    # machines would leave an old "3/3" standing.
+    name: browser (${{ matrix.shard }})
     steps:
       - uses: actions/checkout@v4
         with:
@@ -111,12 +128,17 @@ jobs:
           CI: true
           HOME: /root
           GREP: ${{ needs.plan.outputs.grep }}
-        run: |
-          if [ "$GREP" = "all" ]; then
-            npx playwright test e2e/demo.spec.ts --shard=${{ matrix.shard }}/3
-          else
-            npx playwright test e2e/demo.spec.ts --shard=${{ matrix.shard }}/3 --grep "$GREP" --pass-with-no-tests
-          fi
+          E2E_TIMINGS: ${{ needs.plan.outputs.timings }}
+        run: node --experimental-strip-types scripts/ci/e2e-shards.ts run ${{ matrix.shard }} ${{ needs.plan.outputs.total }} "$GREP"
+      # This machine's test times, for merge-queue.yml to save for the next runs.
+      - uses: actions/upload-artifact@v4
+        if: success() && needs.plan.outputs.grep == 'all' && github.ref == 'refs/heads/main'
+        with:
+          name: e2e-timings-${{ matrix.shard }}
+          path: playwright-report/timings.json
+          retention-days: 1
+          if-no-files-found: ignore
+          overwrite: true
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

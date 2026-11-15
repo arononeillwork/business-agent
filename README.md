@@ -729,12 +729,18 @@ The live suite creates `@business-agent.test` accounts and deletes them and thei
 end. Run it against the dev project, not production. First-time Playwright setup:
 `npx playwright install chromium`.
 
-In CI the browser tests run on 3 machines at once (Playwright shards, in Playwright's own image).
+In CI the browser tests run on several machines at once, in Playwright's own image: every test on 8.
 Branch pushes (and pull requests from forks) run only the browser tests for the areas a change touches, plus the
 core ones that always run (sign-in, landing page, permissions, privacy, café tablet PIN, partners):
 see `scripts/ci/select-e2e.ts`, where each area lists its files and test titles. Shared code (app
 shell, data layer, theme, config, the tests themselves) or an unknown file runs everything, and
 deploys and the merge queue always run everything.
+
+The machines split the browser tests by time, not by count (`scripts/ci/e2e-shards.ts`): each gets a
+run of neighbouring tests that adds up to the same time, and a branch's selected tests go on as many
+machines as their time needs. The times are each test's in the merge queue's last round, which saves
+them in the Actions cache (`e2e-timings-…`); a new test counts as a typical one until then.
+`MAX_SHARDS` and `SHARD_SECONDS` at the top of that file set how many machines a run takes.
 
 Uptime: `.github/workflows/ci.yml` runs all of the above on every push;
 `.github/workflows/monitor.yml` smoke-tests the live site every 15 minutes (`e2e/smoke.spec.ts`:

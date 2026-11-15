@@ -77,6 +77,31 @@ jobs:
       full: true
       ref: ${{ needs.prepare.outputs.sha }}
 
+  # Each browser test's time in this round, for the next runs to split the tests by
+  # (scripts/ci/e2e-shards.ts). Beside finish, so main doesn't wait for it.
+  timings:
+    needs: test
+    if: ${{ !cancelled() && needs.test.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: e2e-timings-*
+          path: timings
+      - run: |
+          shopt -s nullglob
+          files=(timings/*/timings.json)
+          if [ ${#files[@]} -eq 0 ]; then echo "No browser test times in this round."; exit 0; fi
+          jq -s 'add' "${files[@]}" > e2e-timings.json
+          echo "Saved the times of $(jq length e2e-timings.json) browser tests." >> "$GITHUB_STEP_SUMMARY"
+      - if: hashFiles('e2e-timings.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: e2e-timings.json
+          key: e2e-timings-${{ github.run_id }}-${{ github.run_attempt }}
+
   finish:
     needs: [prepare, test]
     if: ${{ !cancelled() && needs.prepare.outputs.sha != '' }}
