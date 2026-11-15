@@ -10,7 +10,7 @@ import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader, Tag } from '../components/common'
-import { IDEA_KINDS, type IdeasCheck, type InstagramIdea } from '../../shared/instagramIdeas'
+import { EMBED_HEADER_PX, IDEA_KINDS, embedOf, type IdeasCheck, type InstagramIdea } from '../../shared/instagramIdeas'
 import { cleanInstagram } from '../../shared/reps'
 import { formatLocal } from '../../shared/time'
 import { tokens } from '../theme'
@@ -24,7 +24,7 @@ function checked(r: IdeasCheck) {
 }
 
 /**
- * To Do List → Ideas: posts and reels the team wants to remember, sent to the Instagram Ideas chat: the
+ * Ideas: posts and reels the team wants to remember, sent to the Instagram Ideas chat: the
  * business's chat with itself, or with another account an admin chose. Instagram doesn't let apps read saved
  * posts or group chats; this chat is how a post is kept here. The Worker reads it every 15 minutes (worker/instagramIdeas.ts).
  */
@@ -63,7 +63,7 @@ export function IdeasPage() {
 
   return (
     <Box>
-      <PageHeader eyebrow={t('To Do List')} title={t('Ideas')} actions={
+      <PageHeader title={t('Ideas')} actions={
         <Button variant="outlined" startIcon={<RefreshIcon />} onClick={check} disabled={checking}>{checking ? t('Checking…') : t('Check now')}</Button>
       } />
       <Typography sx={{ color: 'text.secondary', mb: 2.5, maxWidth: 720 }}>
@@ -166,18 +166,25 @@ function SetUp({ business, chat, onSave, onCancel }: { business: string; chat: s
 function IdeaCard({ idea: i, onHide }: { idea: InstagramIdea; onHide?: () => void }) {
   const [broken, setBroken] = useState(false)
   const who = `@${i.username}`
+  // No picture from Instagram (a shared reel comes with its address only), or it stopped working: Instagram's
+  // own embed of the post, its header (who posted it) cut off so the post fills the card as a picture would.
+  const embed = !i.media_url || broken ? embedOf(i.permalink) : null
   return (
     <Card variant="outlined" sx={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-      <Box sx={{ position: 'relative', aspectRatio: '4 / 5', bgcolor: tokens.surfaceAlt, borderBottom: `1px solid ${tokens.line}` }}>
-        {i.media_url && !broken && (i.media_type === 'video'
+      <Box sx={{ position: 'relative', aspectRatio: '4 / 5', overflow: 'hidden', bgcolor: tokens.surfaceAlt, borderBottom: `1px solid ${tokens.line}` }}>
+        {embed && (
+          <Box component="iframe" src={embed} title={t('{kind} from {who}', { kind: t(IDEA_KINDS[i.kind]), who })} loading="lazy" scrolling="no"
+            sx={{ position: 'absolute', left: 0, top: -EMBED_HEADER_PX, width: '100%', height: `calc(100% + ${EMBED_HEADER_PX}px)`, border: 0, display: 'block', bgcolor: tokens.surfaceAlt }} />
+        )}
+        {!embed && i.media_url && !broken && (i.media_type === 'video'
           ? <Box component="video" src={i.media_url} controls muted playsInline preload="metadata" aria-label={t('{kind} from {who}', { kind: t(IDEA_KINDS[i.kind]), who })}
               onError={() => setBroken(true)} sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           : <Box component="img" src={i.media_url} alt={t('{kind} from {who}', { kind: t(IDEA_KINDS[i.kind]), who })} loading="lazy"
               onError={() => setBroken(true)} sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />)}
-        {(!i.media_url || broken) && (
+        {!embed && (!i.media_url || broken) && (
           <Stack sx={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', gap: 1, p: 2, color: 'text.secondary', textAlign: 'center' }}>
             <BrokenIcon />
-            <Typography variant="caption">{t('The picture is no longer on Instagram')}</Typography>
+            <Typography variant="caption">{t('Instagram didn’t share a picture of this one')}</Typography>
           </Stack>
         )}
         {i.kind === 'reel' && i.media_type !== 'video' && !broken && i.media_url && (

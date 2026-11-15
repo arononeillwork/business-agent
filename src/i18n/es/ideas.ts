@@ -1,4 +1,4 @@
-// Spanish for Ideas (To Do List → Ideas: the posts sent to the Instagram Ideas chat).
+// Spanish for Ideas (the Ideas page: the posts sent to the Instagram Ideas chat).
 export default {
   'Instagram isn’t connected': 'Instagram no está conectado',
   'The Ideas chat isn’t among the business’s latest chats. Send a message in it, then check again.':
@@ -19,7 +19,7 @@ export default {
   'Type an Instagram username, like @maria.ideas': 'Escribe un usuario de Instagram, como @maria.ideas',
   'Their Instagram username': 'Su usuario de Instagram',
   '{kind} from {who}': '{kind} de {who}',
-  'The picture is no longer on Instagram': 'La imagen ya no está en Instagram',
+  'Instagram didn’t share a picture of this one': 'Instagram no compartió una imagen de esta',
   'Take off the Ideas page': 'Quitar de la página de Ideas',
   'Take {who}’s {kind} off the Ideas page': 'Quitar {kind} de {who} de la página de Ideas',
   'Posts and reels {business} sends to itself on Instagram, in its chat with itself. New ones show here within 15 minutes.':

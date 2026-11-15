@@ -1341,7 +1341,7 @@ export function createDemoApi(): Api {
       source: 'instagram_paste', rank: i < 4 ? i + 1 : null }, `2026-03-${String(25 + (i % 7)).padStart(2, '0')}T12:00:00.000Z`)),
   ]
   let adminNotes: string | null = 'Demo: alarm code holder, wifi for the kiosk, landlord and gestor contacts.'
-  // To Do List → Ideas: what the owner sent to the Instagram Ideas chat.
+  // the Ideas page: what the owner sent to the Instagram Ideas chat.
   const ideas = demoIdeas()
   const settings: Settings = {
     early_clock_in_minutes: 10, unscheduled_clock_in: 'flag', auto_clock_out_minutes: 60,

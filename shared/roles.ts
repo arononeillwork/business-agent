@@ -110,7 +110,7 @@ export const ROLE_AREAS: RoleAreaInfo[] = [
     read: msg('Sees the business’s details') },
   { id: 'company', label: msg('Company details'), pages: [], levels: ['none', 'read'],
     read: msg('Sees the Business page’s Company details: its CIF/NIF, currency and where team alerts go') },
-  { id: 'todo', label: msg('To Do List'), pages: ['todo', 'ideas'], levels: ['none', 'own', 'read', 'update'],
+  { id: 'todo', label: msg('To Do List'), pages: ['todo'], levels: ['none', 'own', 'read', 'update'],
     own: msg('Sees and ticks off only the tasks given to them'), read: msg('Sees the tasks and ticks them off'),
     update: msg('Sets up the lists and their categories') },
   { id: 'hours', label: msg('Opening hours'), pages: ['hours'], levels: ['none', 'read'],

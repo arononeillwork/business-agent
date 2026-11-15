@@ -558,7 +558,7 @@ export default {
         await pushGoogleMenu(env, b).catch(failed('google menu', id))
         // Every 15 minutes (or as the business chose): new Instagram tags and story mentions, for admins to repost or ignore.
         if (now.has('mentions')) await checkMentions(env, b).catch(failed('instagram mentions', id))
-        // Every 15 minutes, in a minute of its own: posts sent to the Instagram Ideas chat, onto To Do List → Ideas.
+        // Every 15 minutes, in a minute of its own: posts sent to the Instagram Ideas chat, onto the Ideas page.
         if (now.has('ideas')) await readIdeasChat(env, b, new URL(businessConfig.appUrl).origin).catch(failed('instagram ideas', id))
         // Every hour (or as the business chose): Square customers added or changed since the last look, into Customers.
         if (now.has('customers')) await syncSquareCustomers(env, b).catch(failed('square customers', id))

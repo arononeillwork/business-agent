@@ -1,4 +1,4 @@
-// Ideas (To Do List → Ideas): reading the Ideas chat, the business's Instagram chat with itself, or with the
+// The Ideas page: reading the Ideas chat, the business's Instagram chat with itself, or with the
 // one account the admins name (shared/instagramIdeas.ts says which, what counts as an idea and its note).
 // Every 15 minutes, in a minute of its own (worker/schedule.ts), and when someone presses Check now on the page:
 //   1. the business's latest chats (one request; nobody looked up), to find the Ideas chat and its 5
