@@ -74,7 +74,11 @@ export function DisplayPage() {
   // with it): the slides are turned a quarter to fill it upright. A tap, or OK or an arrow on the
   // remote, turns them the other way, and this TV keeps that.
   const [wide, setWide] = useState(landscape)
-  const [other, setOther] = useState(() => { try { return localStorage.getItem(TURN) === '1' } catch { return false } })
+  const [other, setOther] = useState(() => {
+    try { const kept = localStorage.getItem(TURN); if (kept !== null) return kept === '1' } catch { /* storage off */ }
+    // A page that shows this one inside it (the café's own website) can say which way its TV turns: ?turn=left.
+    return new URLSearchParams(location.search).get('turn') === 'left'
+  })
   useEffect(() => {
     if (typeof matchMedia !== 'function') return
     const m = matchMedia('(orientation: landscape)')

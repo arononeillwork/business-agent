@@ -6440,6 +6440,10 @@ test.describe('menu, menu design and screens', () => {
     await expect(page.locator('[data-turned]')).toHaveAttribute('data-turned', 'left')
     await page.mouse.click(20, 20)
     await expect(page.locator('[data-turned]')).toHaveAttribute('data-turned', 'right')
+    // A TV that hasn't chosen yet starts the way the page around it says (the café's own website, ?turn=left).
+    await page.evaluate(() => localStorage.removeItem('eb-display-turn'))
+    await page.goto('/slideshow/window?demo&turn=left')
+    await expect(page.locator('[data-turned]')).toHaveAttribute('data-turned', 'left')
     // A landscape screen isn't turned.
     await page.goto('/display-menu?demo')
     await expect(page.getByText('Butter croissants')).toBeVisible()
