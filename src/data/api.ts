@@ -41,6 +41,7 @@ import type { CompanyValue, CompanyValueInput } from '../../shared/companyValues
 import type { PostIdea, PostIdeaInput } from '../../shared/postIdeas'
 import type { ListRow, NewsletterEvent, NewsletterSettings } from '../../shared/newsletter'
 import type { Contact, ContactInput } from '../../shared/contacts'
+import type { CustomerSuggestion, SuggestionGroup, SuggestionInput } from '../../shared/suggestions'
 import type { ContentAlbum, ContentChange, ContentItem, GooglePhotosImport, GooglePhotosPick } from '../../shared/content'
 import type { ContentFolder, FolderListing, FolderProvider, FolderSync } from '../../shared/contentFolders'
 import type { InstagramHighlight } from '../../shared/highlights'
@@ -416,6 +417,19 @@ export interface Api {
   /** Add one (no id) or change one; returns its id. */
   saveContact(c: ContactInput): Promise<string>
   deleteContact(id: string): Promise<void>
+
+  // Customer suggestions (Sales): ideas customers give the business, sorted into sections of the same idea. The team
+  // reads, adds and sorts them and names and removes sections; only admins delete an idea.
+  customerSuggestions(): Promise<{ ideas: CustomerSuggestion[]; groups: SuggestionGroup[] }>
+  /** Add an idea (no id) or change one; returns its id. */
+  saveSuggestion(s: SuggestionInput): Promise<string>
+  deleteSuggestion(id: string): Promise<void>
+  /** Put these ideas in a section, or back to not sorted yet (null). */
+  moveSuggestions(ids: string[], groupId: string | null): Promise<void>
+  /** Start a section (no id) or rename one; returns its id. */
+  saveSuggestionGroup(g: { id?: string; name: string }): Promise<string>
+  /** Its ideas go back to not sorted yet. */
+  deleteSuggestionGroup(id: string): Promise<void>
 
   // Content (Marketing, admins): the business's photos and videos, picked in Google Photos or uploaded,
   // kept in the café's Drive or OneDrive (The Business Agent/Content).

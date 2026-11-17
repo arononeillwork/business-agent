@@ -39,6 +39,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'daily checklists', files: [/ChecklistsPage/, /shared\/checklists/, /components\/TwoLanguageList/], tests: String.raw`daily checklists|company values` },
   { name: 'company values', files: [/CompanyValuesPage/, /shared\/companyValues/], tests: String.raw`company values` },
   { name: 'contacts', files: [/ContactsPage/, /shared\/contacts/], tests: String.raw`contacts` },
+  { name: 'customer suggestions', files: [/SuggestionsPage/, /shared\/suggestions/, /demoSuggestions/, /i18n\/es\/suggestions/], tests: String.raw`customer suggestions` },
   { name: 'leaderboard', files: [/LeaderboardPage/, /SquareLogins/, /shared\/(leaderboard|squareTeam)/], tests: String.raw`leaderboard|Square login` },
   { name: 'square pins', files: [/components\/SquarePins/, /shared\/squarePins/, /demoSquarePins/], tests: String.raw`Square PIN` },
   { name: 'content', files: [/ContentPage/, /shared\/content\b/, /demoContent/, /ContentGallery/, /photoLayout/, /ContentHighlights/, /shared\/highlights/, /demoHighlights/, /ContentFolders/, /contentFolders/, /ContentAlbums/, /contentDownload/, /lib\/zip/], tests: String.raw`content` },
