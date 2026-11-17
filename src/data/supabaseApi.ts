@@ -34,6 +34,7 @@ import type { CompanyValue } from '../../shared/companyValues'
 import type { PostIdea } from '../../shared/postIdeas'
 import { NEWSLETTER_OFF, type NewsletterEvent, type NewsletterSettings } from '../../shared/newsletter'
 import type { Contact } from '../../shared/contacts'
+import type { CustomerSuggestion, SuggestionGroup } from '../../shared/suggestions'
 import type { ClockStats } from '../../shared/leaderboard'
 import { FOLDER_COLUMNS, type ContentFolder, type FolderListing, type FolderSync } from '../../shared/contentFolders'
 import { CONTENT_COLUMNS, tidyAlbumName, type ContentAlbum, type ContentItem, type GooglePhotosImport, type GooglePhotosPick } from '../../shared/content'
@@ -680,6 +681,27 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
       return (check(await sb.from('business_contacts').insert(c).select('id').single()) as { id: string }).id
     },
     async deleteContact(id) { check(await sb.from('business_contacts').delete().eq('id', id)) },
+
+    async customerSuggestions() {
+      const [ideas, groups] = await Promise.all([
+        sb.from('customer_suggestions').select('id, text, customer, source, heard_on, group_id, created_at').order('created_at', { ascending: false }),
+        sb.from('suggestion_groups').select('id, name, created_at').order('name'),
+      ])
+      return { ideas: check(ideas) as CustomerSuggestion[], groups: check(groups) as SuggestionGroup[] }
+    },
+    async saveSuggestion({ id, ...s }) {
+      if (id) { check(await sb.from('customer_suggestions').update(s).eq('id', id)); return id }
+      return (check(await sb.from('customer_suggestions').insert(s).select('id').single()) as { id: string }).id
+    },
+    async deleteSuggestion(id) { check(await sb.from('customer_suggestions').delete().eq('id', id)) },
+    async moveSuggestions(ids, groupId) {
+      if (ids.length) check(await sb.from('customer_suggestions').update({ group_id: groupId }).in('id', ids))
+    },
+    async saveSuggestionGroup({ id, name }) {
+      if (id) { check(await sb.from('suggestion_groups').update({ name }).eq('id', id)); return id }
+      return (check(await sb.from('suggestion_groups').insert({ name }).select('id').single()) as { id: string }).id
+    },
+    async deleteSuggestionGroup(id) { check(await sb.from('suggestion_groups').delete().eq('id', id)) },
 
     async contentItems() {
       // A thousand at a time (a synced folder can hold thousands); the hidden ones (taken off a synced folder's) aren't shown.

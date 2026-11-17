@@ -280,6 +280,13 @@ built-in **AI connector** so owners can run it by talking to Claude.
   add, change and delete contacts; shop managers, employees, partners and the café tablet see none. Easy Beans
   starts with its lawyer, its BBVA bank advisor and its plumber & electrician, on WhatsApp
   (`shared/contacts.ts`, the `business_contacts` migration).
+- Customer suggestions (Sales section, after Leads & enquiries): the ideas customers give the business, kept
+  for the team and never shown to customers, mostly added through the business's AI assistant. Ideas that say
+  the same thing are dragged into one section, whose counter shows how many times customers asked; sections
+  show the most asked for first, and new ideas wait in "Not sorted yet". Dropping one idea on another that's
+  not sorted yet starts a section with both; on a phone or from the keyboard, an idea's menu moves it. The
+  whole team reads, adds and sorts them and names and removes sections (its ideas go back to not sorted yet);
+  only admins delete an idea (`shared/suggestions.ts`, the `customer_suggestions` migration).
 - Today: a top row of small cards (your clock, who's on today with faces and start times, the café music),
   then today's takings against the day's breakeven for admins with pay access and a till: the figure, a
   bar that fills to the breakeven mark and goes green past it, and the day so far as a line against the
@@ -951,6 +958,12 @@ special in my last Instagram post on the café TV."*
 Contacts from the AI, for the owners: `list_contacts` (the people the business calls on, found by name, what
 they do, company or a number) and `save_contact` (add someone or change them). Try: *"What's the plumber's
 number?"*
+
+Customer suggestions from the AI, for the whole team: `list_customer_suggestions` (the sections of the same
+idea with their counters, the most asked for first, and the ideas not sorted yet), `add_customer_suggestion`
+(an idea, who suggested it and where, filed in the section that already says the same thing so its counter
+goes up, a new section, or not sorted yet) and `sort_customer_suggestions` (move ideas into a section or back,
+rename it, merge two). Try: *"A customer asked again if we could do oat milk for free."*
 
 The **AI assistants** page (account menu → AI assistants, `/ai-assistants`) shows the connector address
 with a copy button, the steps for Claude, ChatGPT, Claude Code and other AIs, things to ask, and the

@@ -57,6 +57,7 @@ import ContentIcon from '@mui/icons-material/PhotoLibraryOutlined'
 import CompetitionsIcon from '@mui/icons-material/EmojiEventsOutlined'
 import CampaignsIcon from '@mui/icons-material/ForwardToInboxOutlined'
 import LeadsIcon from '@mui/icons-material/ContactMailOutlined'
+import SuggestionsIcon from '@mui/icons-material/TipsAndUpdatesOutlined'
 import ClaimsIcon from '@mui/icons-material/ReceiptOutlined'
 import HiringIcon from '@mui/icons-material/BadgeOutlined'
 import FoodSafetyIcon from '@mui/icons-material/ThermostatOutlined'
@@ -164,6 +165,8 @@ export const SECTIONS: NavSection[] = [
     { key: 'sales', to: '/sales', label: msg('Sales'), icon: <SalesIcon />, who: 'pay' },
     { key: 'customers', to: '/customers', label: msg('Customers'), icon: <CustomersIcon />, who: 'admin' },
     { key: 'leads', to: '/leads', label: msg('Leads & enquiries'), short: msg('Leads'), icon: <LeadsIcon />, who: 'admin' },
+    // Ideas customers give, sorted into sections of the same idea with a counter each; mostly added through the AI (worker/suggestionTools.ts).
+    { key: 'suggestions', to: '/suggestions', label: msg('Customer suggestions'), short: msg('Suggestions'), icon: <SuggestionsIcon /> },
     { key: 'loyalty', to: '/loyalty', label: msg('Loyalty & gift cards'), short: msg('Loyalty'), icon: <LoyaltyIcon />, who: 'admin', needs: 'square' },
     { key: 'reps', to: '/sales-reps', label: msg('Reps & rewards'), short: msg('Reps'), icon: <RepsIcon /> },
   ] },

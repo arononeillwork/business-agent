@@ -47,6 +47,7 @@ const StaffRulesPage = page(() => import('./pages/StaffRulesPage'), 'StaffRulesP
 const ChecklistsPage = page(() => import('./pages/ChecklistsPage'), 'ChecklistsPage')
 const CompanyValuesPage = page(() => import('./pages/CompanyValuesPage'), 'CompanyValuesPage')
 const ContactsPage = page(() => import('./pages/ContactsPage'), 'ContactsPage')
+const SuggestionsPage = page(() => import('./pages/SuggestionsPage'), 'SuggestionsPage')
 const OutsourcingPage = page(() => import('./pages/OutsourcingPage'), 'OutsourcingPage')
 const FinancesPage = page(() => import('./pages/FinancesPage'), 'FinancesPage')
 const GrantsPage = page(() => import('./pages/GrantsPage'), 'GrantsPage')
@@ -237,6 +238,7 @@ function Routed() {
         <Route path="business" element={<BusinessPage />} />
         <Route path="customers" element={isAdmin ? <CustomersPage /> : <Navigate to="/" />} />
         <Route path="leads" element={isAdmin ? <LeadsPage /> : <Navigate to="/" />} />
+        <Route path="suggestions" element={<SuggestionsPage />} />
         {/* Only while Square is the till: the page itself goes to Connections otherwise. */}
         <Route path="loyalty" element={isAdmin ? <LoyaltyPage /> : <Navigate to="/" />} />
         <Route path="sales-reps" element={<SalesRepsPage />} />

@@ -8002,6 +8002,85 @@ test.describe('contacts', () => {
   })
 })
 
+test.describe('customer suggestions', () => {
+  test('customer suggestions: sections of the same idea with a counter, ideas dragged in, a section started by dropping one idea on another', async ({ page }) => {
+    // An employee has it in the menu: three sections, the most asked for first, and three ideas not sorted yet.
+    await open(page, '/', 'maria@example.com')
+    const nav = page.getByRole('navigation', { name: 'Main' })
+    await nav.getByRole('region', { name: 'Sales' }).getByRole('link', { name: 'Customer suggestions' }).click()
+    await expect(page.getByRole('heading', { name: 'Customer suggestions', level: 1 })).toBeVisible()
+    const sections = page.getByRole('list', { name: 'Sections' })
+    const section = (name: string) => sections.getByRole('listitem', { name })
+    const counter = (name: string) => section(name).getByTestId('counter')
+    const unsorted = page.getByRole('region', { name: 'Not sorted yet' })
+    await expect(sections.getByRole('listitem')).toHaveText([/Oat milk at no extra cost/, /Open earlier on weekdays/, /More seats in the shade/])
+    await expect(counter('Oat milk at no extra cost')).toHaveText('4')
+    await expect(counter('Oat milk at no extra cost')).toHaveAttribute('aria-label', 'Asked 4 times')
+    await expect(counter('Open earlier on weekdays')).toHaveText('2')
+    await expect(unsorted.getByRole('article')).toHaveCount(3)
+
+    const drag = async (text: string, to: import('@playwright/test').Locator) => {
+      await to.scrollIntoViewIfNeeded()
+      const from = (await page.getByRole('article', { name: text }).boundingBox())!
+      await page.mouse.move(from.x + 30, from.y + 12)
+      await page.mouse.down()
+      await page.mouse.move(from.x + 50, from.y + 30, { steps: 5 })
+      const box = (await to.boundingBox())!
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 15 })
+      await page.mouse.up()
+    }
+
+    // Dragged into a section: its counter goes up.
+    await drag('Start opening earlier, like 7am', section('Open earlier on weekdays'))
+    await expect(counter('Open earlier on weekdays')).toHaveText('3')
+    await expect(section('Open earlier on weekdays').getByRole('article', { name: 'Start opening earlier, like 7am' })).toBeVisible()
+    await expect(unsorted.getByRole('article')).toHaveCount(2)
+
+    // Dropped on another idea not sorted yet: a section with both, named after it.
+    await drag('Water bowl for dogs by the door', unsorted.getByRole('article', { name: 'Sunday brunch with eggs' }))
+    await toast(page, 'New section: Sunday brunch with eggs')
+    await expect(counter('Sunday brunch with eggs')).toHaveText('2')
+    await expect(unsorted).toContainText('Every idea is sorted.')
+
+    // From an idea's menu (a phone, the keyboard): back to not sorted yet, and into another section.
+    await section('More seats in the shade').getByRole('button', { name: 'More for A parasol over the corner tables' }).click()
+    await page.getByRole('menuitem', { name: 'Move to Not sorted yet' }).click()
+    await expect(counter('More seats in the shade')).toHaveText('0')
+    await unsorted.getByRole('button', { name: 'More for A parasol over the corner tables' }).click()
+    await page.getByRole('menuitem', { name: 'Move to More seats in the shade' }).click()
+    await expect(counter('More seats in the shade')).toHaveText('1')
+    // An employee doesn't delete an idea.
+    await section('More seats in the shade').getByRole('button', { name: 'More for A parasol over the corner tables' }).click()
+    await expect(page.getByRole('menuitem', { name: 'Delete' })).toHaveCount(0)
+    await page.keyboard.press('Escape')
+
+    // Added on the page, straight into a section.
+    await page.getByRole('button', { name: 'Add a suggestion' }).click()
+    const add = page.getByRole('dialog', { name: 'Add a suggestion' })
+    await add.getByRole('textbox', { name: 'The idea' }).fill('Oat milk for free, like in Málaga')
+    await add.getByRole('textbox', { name: 'Who suggested it' }).fill('Carmen')
+    await add.getByRole('combobox', { name: 'Section' }).selectOption({ label: 'Oat milk at no extra cost' })
+    await add.getByRole('button', { name: 'Add', exact: true }).click()
+    await toast(page, /^Added$/)
+    await expect(counter('Oat milk at no extra cost')).toHaveText('5')
+    await expect(section('Oat milk at no extra cost').getByRole('article', { name: 'Oat milk for free, like in Málaga' })).toContainText('Carmen')
+
+    // A section removed: its ideas go back to not sorted yet.
+    await section('Sunday brunch with eggs').getByRole('button', { name: 'Options for the Sunday brunch with eggs section' }).click()
+    await page.getByRole('menuitem', { name: 'Remove the section' }).click()
+    await expect(section('Sunday brunch with eggs')).toHaveCount(0)
+    await expect(unsorted.getByRole('article')).toHaveCount(2)
+
+    // An owner deletes an idea.
+    await signInAs(page, 'aron@example.com')
+    await nav.getByRole('region', { name: 'Sales' }).getByRole('link', { name: 'Customer suggestions' }).click()
+    await unsorted.getByRole('button', { name: 'More for Water bowl for dogs by the door' }).click()
+    await page.getByRole('menuitem', { name: 'Delete' }).click()
+    await toast(page, /^Deleted$/)
+    await expect(page.getByRole('article', { name: 'Water bowl for dogs by the door' })).toHaveCount(0)
+  })
+})
+
 test.describe('company values', () => {
   test('company values: the team reads the values and the words we don’t say, in their language; an admin changes them', async ({ page }) => {
     await open(page, '/', 'maria@example.com')

@@ -35,6 +35,7 @@ import { MusicError, makeAiMusic, renderMusic } from './socialMusic'
 import { LICENCE_TOOLS } from './licenceTools'
 import { OFFER_TOOLS } from './offerTools'
 import { CONTACT_TOOLS } from './contactTools'
+import { SUGGESTION_TOOLS } from './suggestionTools'
 import { PAGE_TOOLS } from './pageTools'
 import type { Env } from './supabase'
 import { inTimeZone, zoneOf } from './zone'
@@ -1740,6 +1741,8 @@ export const ALL_TOOLS: ToolDef[] = [
   ...OFFER_TOOLS,
   // Contacts: the people the business calls on (worker/contactTools.ts).
   ...CONTACT_TOOLS,
+  // Customer suggestions: ideas customers give, in sections of the same idea (worker/suggestionTools.ts).
+  ...SUGGESTION_TOOLS,
   // Every page in the menu, worked out from the app's code (worker/pageTools.ts).
   ...PAGE_TOOLS,
 ]
