@@ -109,4 +109,7 @@ export default {
   'Cleans the windows, the doors and the terrace': 'Limpia los cristales, las puertas y la terraza',
   'Deep cleans the fridges, the shelves and behind the machines': 'Limpia a fondo las neveras, las estanterías y detrás de las máquinas',
   'Tells the shift lead when cleaning products are running low': 'Avisa al encargado/a cuando se acaban los productos de limpieza',
+  // A role on A4, to print (RolePrintPage)
+  'That role has gone.': 'Ese puesto ya no está.',
+  'Updated {date}': 'Actualizado el {date}',
 }

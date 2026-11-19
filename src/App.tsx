@@ -102,6 +102,7 @@ const AppearancePage = page(() => import('./pages/AppearancePage'), 'AppearanceP
 const BrandPage = page(() => import('./pages/BrandPage'), 'BrandPage')
 const QrCodesPage = page(() => import('./pages/QrCodesPage'), 'QrCodesPage')
 const QrCodesPrintPage = page(() => import('./pages/QrCodesPrintPage'), 'QrCodesPrintPage')
+const RolePrintPage = page(() => import('./pages/RolePrintPage'), 'RolePrintPage')
 const PrivacyPage = page(() => import('./pages/PrivacyPage'), 'PrivacyPage')
 const TermsPage = page(() => import('./pages/TermsPage'), 'TermsPage')
 const DataDeletionPage = page(() => import('./pages/DataDeletionPage'), 'DataDeletionPage')
@@ -212,6 +213,8 @@ function Routed() {
       <Route path="/sales-reps/cards" element={isAdmin ? <RepCardsPage /> : <Navigate to="/sales-reps" />} />
       {/* A QR code on A4, to print (no menu around it): the whole team can. */}
       <Route path="/qr-codes/print/:id" element={<QrCodesPrintPage />} />
+      {/* A role on A4, to print for its staff (no menu around it): admins any role, the team their own. */}
+      <Route path="/roles/print/:id" element={<RolePrintPage />} />
       {/* The set-up guide for a new business: its own full page; app sign-ins come back here (?connected=…). */}
       <Route path="/setup" element={isAdmin ? <SetupPage /> : <Navigate to="/" replace />} />
       <Route element={<AppShell />}>

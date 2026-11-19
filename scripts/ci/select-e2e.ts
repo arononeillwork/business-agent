@@ -45,6 +45,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'content', files: [/ContentPage/, /shared\/content\b/, /demoContent/, /ContentGallery/, /photoLayout/, /ContentHighlights/, /shared\/highlights/, /demoHighlights/, /ContentFolders/, /contentFolders/, /ContentAlbums/, /contentDownload/, /lib\/zip/], tests: String.raw`content` },
   { name: 'post ideas', files: [/pages\/PostIdeas/, /shared\/postIdeas/, /demoPostIdeas/, /i18n\/es\/postIdeas/], tests: String.raw`ideas for posts|social planner|post` },
   { name: 'role permissions', files: [/shared\/roleTemplates/, /RolesPage/], tests: String.raw`role permissions|roles and rules` },
+  { name: 'role print', files: [/RolePrintPage/], tests: String.raw`roles and rules` },
   { name: 'business', files: [/(Business|Brand|OpeningHours)Page/, /shared\/(taxId|brand)/, /lib\/googleFont/], tests: String.raw`business|brand|opening hours|currency|colour|logo` },
   { name: 'switching business', files: [/BusinessSwitcher/, /AddBusinessPage/, /i18n\/es\/businessSwitcher/], tests: String.raw`another business|two businesses` },
   { name: 'team', files: [/TeamPage/, /TempPassword/, /ContactMethod/, /ShareDialog/, /shared\/teamRoles/], tests: String.raw`team|invite|contact|account` },

@@ -8280,6 +8280,61 @@ test.describe('roles and rules', () => {
     await expect(chef).toHaveAttribute('aria-expanded', 'false')
   })
 
+  test('what a role can do in the app stays closed until it’s opened; each role prints on A4, the team’s own too', async ({ page }) => {
+    await open(page, '/roles')
+    // The owners' changes: the Square system is the Laptop Guy's, the Accountant does Credit & debit.
+    await page.getByRole('button', { name: 'Laptop Guy', exact: true }).click()
+    await expect(page.getByRole('list', { name: 'Laptop Guy: Core responsibilities' })).toContainText('Square system — setup and admin')
+    await page.getByRole('button', { name: 'Business Manager', exact: true }).click()
+    const manager = page.getByRole('region', { name: 'Business Manager', exact: true })
+    await expect(manager).toContainText('Supplier relationships and pricing')
+    await expect(manager).not.toContainText('Square system')
+    await expect(manager).not.toContainText('Marketing and brand direction')
+    await page.getByRole('button', { name: 'Accountant', exact: true }).click()
+    const accountant = page.getByRole('region', { name: 'Accountant', exact: true })
+    await expect(accountant.getByRole('list', { name: 'Accountant: Core responsibilities' })).toContainText('Credit & debit')
+
+    // What it lets them do in the app: closed, one press opens it.
+    const access = accountant.getByRole('button', { name: 'What they can do in the app' })
+    await expect(access).toHaveAttribute('aria-expanded', 'false')
+    await expect(accountant.getByRole('list', { name: 'Accountant: what they can do' })).toHaveCount(0)
+    await access.click()
+    await expect(access).toHaveAttribute('aria-expanded', 'true')
+    await expect(accountant.getByRole('list', { name: 'Accountant: what they can do' })).toContainText('Rota')
+
+    // Print, at the top right of a role, open or closed: the role on its own page, to print or save as a PDF.
+    const chef = page.getByRole('button', { name: 'Chef', exact: true })
+    await expect(chef).toHaveAttribute('aria-expanded', 'false')
+    await page.getByRole('link', { name: 'Print Chef' }).click()
+    await expect(page).toHaveURL(/\/roles\/print\//)
+    const sheet = page.getByRole('article', { name: 'Chef' })
+    await expect(sheet.getByRole('heading', { name: 'Chef', level: 1 })).toBeVisible()
+    await expect(sheet).toContainText('Kitchen')
+    await expect(sheet.getByRole('list', { name: 'Chef: Core responsibilities' }).getByRole('listitem'))
+      .toHaveText(['Food quality standards', 'Presentation and plating', 'Recipe consistency'])
+    await expect(sheet.getByRole('list', { name: 'Chef: Also part of the role' })).toContainText('Food hygiene and safety (HACCP)')
+    await expect(page.getByRole('button', { name: 'Print or save as PDF' })).toBeVisible()
+    await expect(page.getByRole('navigation')).toHaveCount(0)
+    const chefSheet = new URL(page.url()).pathname
+    await page.getByRole('link', { name: 'Back' }).click()
+    await expect(page.getByRole('heading', { name: 'Roles & responsibilities', level: 1 })).toBeVisible()
+
+    // The Data protection rules went.
+    await page.goto('/rules')
+    await expect(page.getByRole('button', { name: 'Suggestions', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Data protection', exact: true })).toHaveCount(0)
+
+    // Someone on the team prints their own role, and only theirs.
+    await signInAs(page, 'julio@example.com')
+    await page.goto('/roles')
+    await page.getByRole('region', { name: 'Barista / Bartender', exact: true }).getByRole('link', { name: 'Print Barista / Bartender' }).click()
+    await expect(page.getByRole('article', { name: 'Barista / Bartender' }).getByRole('list', { name: 'Barista / Bartender: Core responsibilities' }))
+      .toContainText('Making coffee and all drinks')
+    await page.goto(chefSheet)
+    await expect(page.getByText('That role has gone.')).toBeVisible()
+    await expect(page.getByRole('article')).toHaveCount(0)
+  })
+
   test('admin adds a role, orders it, and can’t make roles answer to each other in a circle', async ({ page }) => {
     await open(page, '/roles')
     await page.getByRole('button', { name: 'Add a role' }).click()
@@ -10037,8 +10092,9 @@ test.describe('role permissions', () => {
 
     await page.getByRole('tab', { name: 'Active (9)' }).click()
     await page.getByRole('button', { name: 'Owner', exact: true }).click()
-    await expect(page.getByRole('region', { name: 'Owner', exact: true }).getByRole('list', { name: 'Owner: what they can do' }))
-      .toContainText('RotaUpdateAdds, changes and publishes shifts')
+    const owner = page.getByRole('region', { name: 'Owner', exact: true })
+    await owner.getByRole('button', { name: 'What they can do in the app' }).click()
+    await expect(owner.getByRole('list', { name: 'Owner: what they can do' })).toContainText('RotaUpdateAdds, changes and publishes shifts')
   })
 
   test('Inactive: the Investor and Head Barista are kept there; a role moves to Inactive and back; the buttons sit on the tabs’ row', async ({ page }) => {
