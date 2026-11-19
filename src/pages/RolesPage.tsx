@@ -1,5 +1,5 @@
 import {
-  Autocomplete, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, MenuItem, Stack,
+  Autocomplete, Box, Button, Card, CardContent, Chip, Collapse, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, MenuItem, Stack,
   Switch, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
@@ -9,8 +9,10 @@ import UpIcon from '@mui/icons-material/ArrowUpward'
 import DownIcon from '@mui/icons-material/ArrowDownward'
 import DoneIcon from '@mui/icons-material/CheckCircleOutlineRounded'
 import ToggleIcon from '@mui/icons-material/ToggleOnOutlined'
-import { useState, type ReactNode } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import PrintIcon from '@mui/icons-material/PrintOutlined'
+import ExpandIcon from '@mui/icons-material/ExpandMore'
+import { useId, useState, type ReactNode } from 'react'
+import { Link as RouterLink, useSearchParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
@@ -123,7 +125,8 @@ export function RolesPage() {
         {own.map(r => {
           const position = positionOf(r.position_id)
           return (
-            <Card key={r.id} component="section" aria-label={r.name} sx={{ mb: 3 }}>
+            <Card key={r.id} component="section" aria-label={r.name} sx={{ mb: 3, position: 'relative' }}>
+              <Box sx={{ position: 'absolute', top: 12, right: 12 }}><PrintRole role={r} /></Box>
               <CardContent>
                 <Typography variant="overline" sx={{ color: 'text.secondary' }}>{t('Your role')}</Typography>
                 <Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap', mb: 0.5 }}>
@@ -176,7 +179,7 @@ export function RolesPage() {
           {inactive.map(r => {
             const people = r.people.map(id => profiles.find(p => p.id === id)).filter((p): p is Profile => !!p)
             return (
-              <ExpandableCard key={r.id} id={r.id} label={r.name} expanded={expanded} summary={
+              <ExpandableCard key={r.id} id={r.id} label={r.name} expanded={expanded} action={<PrintRole role={r} />} summary={
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
                     <Typography sx={{ fontWeight: 600, color: 'text.secondary' }}>{r.name}</Typography>
@@ -229,7 +232,7 @@ export function RolesPage() {
             const people = r.people.map(id => profiles.find(p => p.id === id)).filter((p): p is Profile => !!p)
             const open = expanded.isOpen(r.id)
             return (
-              <ExpandableCard key={r.id} id={r.id} label={r.name} expanded={expanded} summary={
+              <ExpandableCard key={r.id} id={r.id} label={r.name} expanded={expanded} action={<PrintRole role={r} />} summary={
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
                     <Typography sx={{ fontWeight: 600 }}>{r.name}</Typography>
@@ -320,11 +323,41 @@ function RoleDetails({ role: r, roles, people, position, you }: { role: JobRole;
         </Box>
       ))}
       {!r.duties.length && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('No duties written yet.')}</Typography>}
-      {!you && <>
-        <Typography variant="subtitle2" component="h3" sx={{ mt: 2, mb: 0.75 }}>{t('What they can do in the app')}</Typography>
-        <PermissionList permissions={r.permissions} label={t('{role}: what they can do', { role: r.name })} />
-      </>}
+      {!you && <AppAccess role={r} />}
     </>
+  )
+}
+
+/** What a role lets its people do in the app (admins): closed until it's opened, so the duties come first. */
+function AppAccess({ role: r }: { role: JobRole }) {
+  const [open, setOpen] = useState(false)
+  const id = useId()
+  return (
+    <Box sx={{ mt: 1.5 }}>
+      <Typography variant="subtitle2" component="h3">
+        <Button onClick={() => setOpen(o => !o)} aria-expanded={open} aria-controls={id} color="inherit"
+          endIcon={<ExpandIcon sx={{ transition: 'transform 150ms', transform: open ? 'rotate(180deg)' : 'none' }} />}
+          sx={{ ml: -1, px: 1, font: 'inherit', textTransform: 'none' }}>
+          {t('What they can do in the app')}
+        </Button>
+      </Typography>
+      <Collapse in={open} unmountOnExit>
+        <Box id={id} sx={{ pt: 0.5 }}>
+          <PermissionList permissions={r.permissions} label={t('{role}: what they can do', { role: r.name })} />
+        </Box>
+      </Collapse>
+    </Box>
+  )
+}
+
+/** Opens the role on an A4 page (RolePrintPage), to print or save as a PDF for the staff in it. */
+function PrintRole({ role: r }: { role: JobRole }) {
+  return (
+    <Tooltip title={t('Print or save as PDF')}>
+      <IconButton size="small" component={RouterLink} to={`/roles/print/${r.id}`} aria-label={t('Print {name}', { name: r.name })}>
+        <PrintIcon fontSize="small" />
+      </IconButton>
+    </Tooltip>
   )
 }
 

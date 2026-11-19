@@ -1,4 +1,4 @@
-import { Accordion, AccordionDetails, AccordionSummary, Button } from '@mui/material'
+import { Accordion, AccordionDetails, AccordionSummary, Box, Button } from '@mui/material'
 import ExpandIcon from '@mui/icons-material/ExpandMore'
 import ExpandAllIcon from '@mui/icons-material/UnfoldMore'
 import CollapseAllIcon from '@mui/icons-material/UnfoldLess'
@@ -31,18 +31,30 @@ export function ExpandAllButton({ expanded, disabled }: { expanded: Expanded; di
   )
 }
 
-/** One item: `summary` always shows, `children` when it's open. `label` names it (its title). */
-export function ExpandableCard({ id, label, expanded, summary, children }: {
-  id: string; label: string; expanded: Expanded; summary: ReactNode; children: ReactNode
+/**
+ * One item: `summary` always shows, `children` when it's open. `label` names it (its title). `action`: a
+ * small icon button at its top right, open or closed (Print, on Roles & responsibilities), kept outside the
+ * summary so it isn't a button inside the button that opens it.
+ */
+export function ExpandableCard({ id, label, expanded, summary, children, action }: {
+  id: string; label: string; expanded: Expanded; summary: ReactNode; children: ReactNode; action?: ReactNode
 }) {
   // The open part is a region named after the item (MUI labels it by the summary's id).
   const uid = useId()
-  return (
+  const card = (
     <Accordion disableGutters variant="outlined" expanded={expanded.isOpen(id)} onChange={(_, open) => expanded.toggle(id, open)}
-      sx={{ mb: 1, borderRadius: '12px !important', '&::before': { display: 'none' } }}
+      sx={{ mb: action ? 0 : 1, borderRadius: '12px !important', '&::before': { display: 'none' } }}
       slotProps={{ heading: { component: 'h2' }, transition: { unmountOnExit: true } }}>
-      <AccordionSummary expandIcon={<ExpandIcon />} aria-label={label} id={`${uid}-summary`} aria-controls={`${uid}-details`}>{summary}</AccordionSummary>
+      <AccordionSummary expandIcon={<ExpandIcon />} aria-label={label} id={`${uid}-summary`} aria-controls={`${uid}-details`}
+        sx={action ? { '& .MuiAccordionSummary-content': { mr: 5 } } : undefined}>{summary}</AccordionSummary>
       <AccordionDetails sx={{ pt: 0 }}>{children}</AccordionDetails>
     </Accordion>
+  )
+  if (!action) return card
+  return (
+    <Box sx={{ position: 'relative', mb: 1 }}>
+      {card}
+      <Box sx={{ position: 'absolute', top: 8, right: 44 }}>{action}</Box>
+    </Box>
   )
 }

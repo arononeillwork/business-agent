@@ -223,6 +223,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
   duties by when they're done (all the time, opening, during service, closing, every week). Everyone reads it,
   with their own roles open and marked; admins add a café's usual roles in one press (in the language they use
   the app in), change them, put them in order, and see who has no role yet.
+- Printing a role (Roles & responsibilities): the print button at the top right of each role opens it on an A4
+  page (`/roles/print/:id`, no menu around it), to print or save as a PDF for the staff in it: its name, what
+  it's for, who it answers to, who's in it and its duties. Admins print any role, the team their own. What a
+  role can do in the app stays closed on its card until it's opened, so the duties come first.
 - Role permissions (Roles & responsibilities, three tabs): Active is the business's roles; Category is
   ready-made roles for a café, a restaurant & bar, a salon & beauty business or any business, each with its
   duties and what it can do, to add in one press; Permissions is every role against each area of the app

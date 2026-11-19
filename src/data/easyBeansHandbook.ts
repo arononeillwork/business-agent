@@ -3,6 +3,9 @@
 // staff-facing parts of "EasyBeans Manual EN" (Operations Manual v1.0, August 2026: 3.7, 4.1, 4.3–4.5,
 // 5.1–5.3, 6.1–6.2, 7.1–7.5, 7.7, 8.5–8.6 and the wet floor and accident rules in 1.1 and 1.5), with
 // clocking in and out added by the owners now the app does it (7.6 said "coming soon").
+// Changed since by the owners (the `easy_beans_roles_and_rules_changes` migration did the same to the café's
+// own): the Square system moved from the Business Manager to the Laptop Guy, the Accountant does Credit &
+// debit, marketing and brand direction is no longer the Business Manager's, and the Data protection rules went.
 // The demo shows them, and supabase/seed/easy_beans.sql puts the same into the café's database
 // (shared/handbookSeed.test.ts checks the two agree). Business data, not translated: the manual is in
 // English, with a Spanish edition to come.
@@ -19,11 +22,10 @@ export const EASY_BEANS_ROLES: HandbookRole[] = [
       'Training', 'Uniform and appearance standards', 'Holiday and sick cover planning', 'Tips policy'] },
   { name: 'Business Manager',
     core: [
-      'Square system — setup and admin: staff schedule, pay, payment system items upkeep, discounts, customer experience, loyalty, sales analytics and reporting',
       'Licences, permits & compliance: opening licence (apertura), terraza / outdoor seating, music licence (SGAE / AGEDI), GDPR & CCTV compliance, insurance renewals',
       'Premises & utilities: water, electric, gas — bills & safety certificates; pest control (cockroaches, rodents, etc.); waste & recycling contract; physical jobs & repairs (cameras, leaks); plant upkeep',
       'Supplier relationships and pricing', 'Staff contracts', 'Legal issues', 'Outsourcing jobs (e.g. social media)'],
-    also: ['Marketing and brand direction', 'Delivery platforms (Glovo / Uber Eats)', 'Community events & local partnerships', 'Big purchases and equipment decisions'] },
+    also: ['Delivery platforms (Glovo / Uber Eats)', 'Community events & local partnerships', 'Big purchases and equipment decisions'] },
   { name: 'Investor',
     summary: 'Funding roadmap\nPhase 1 · Launch — Initial capital for fit-out, equipment, and opening stock.\nPhase 2 · Stabilise — Cover running costs and build a reserve until break-even.\nPhase 3 · Grow — Reinvest profits — new equipment, menu, and marketing.\nPhase 4 · Scale — Fund a major upgrade or a second Easy Beans site.',
     core: ['Generating funds to keep the café progressing', 'Selling old or unused equipment (e.g. the old coffee machine)', 'Working to bring in additional income',
@@ -37,12 +39,14 @@ export const EASY_BEANS_ROLES: HandbookRole[] = [
       'Hygiene and safety compliance', 'First aid stock', 'Fridge / freezer temperature logs', 'Packaging / delivery presentation',
       'Customer complaints and refunds', 'Cash control (notes & coins in stock)'] },
   { name: 'Accountant',
-    core: ['Purchases', 'Running payroll and social security', 'VAT (IVA) and tax filings', 'Reconciling Square payouts vs bank'],
+    core: ['Purchases', 'Running payroll and social security', 'VAT (IVA) and tax filings', 'Reconciling Square payouts vs bank',
+      'Credit & debit: money the café still has to pay (loans, finance) and money still to come in'],
     also: ['Bookkeeping and expense records', 'Gestoría and admin paperwork', 'Supplier invoices and payments', 'Pricing and menu changes',
       'Monthly profit and loss report', 'Outsourcing management', 'Cash flow monitoring', 'Competitor insights', 'Budgets and cost targets',
       'Grants and government funding opportunities'] },
   { name: 'Laptop Guy',
-    core: ['Website', 'Email management', 'WiFi and internet connection', 'Google Business Profile & reviews', 'Social media management'],
+    core: ['Website', 'Email management', 'WiFi and internet connection', 'Google Business Profile & reviews', 'Social media management',
+      'Square system — setup and admin: staff schedule, pay, payment system items upkeep, discounts, customer experience, loyalty, sales analytics and reporting'],
     also: ['Menu, display & screen presentations', 'Document management', 'Tech accounts and software subscriptions', 'POS and hardware troubleshooting',
       'Online listings and directories'] },
   { name: 'Head Barista', position: 'Barista',
@@ -152,10 +156,6 @@ export const EASY_BEANS_RULES: HandbookSection[] = [
   { title: 'Stock & deliveries', rules: [
     'Anything running low goes on the list when you notice it, not at close.',
     'Never sign for a delivery you have not checked. Once it is signed, it is yours.',
-  ] },
-  { title: 'Data protection', rules: [
-    'Customer data (loyalty, bookings, marketing lists) falls under GDPR/LOPD. Do not share it, do not take it home.',
-    'Card terminal receipts — never write down full card numbers.',
   ] },
   { title: 'Suggestions', intro: 'We are always open to suggestions. We listen to our staff and to our customers — if you think something could work better, say so.', rules: [
     'Bring ideas to Mark or Aron. Nothing is too small.',
