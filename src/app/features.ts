@@ -29,8 +29,9 @@ export const FEATURES = {
    */
   driveFolders: false,
   /**
-   * Slideshows on the Screens page: menus, pictures, videos and pages taking turns, and picture slideshows. Off for now:
-   * each screen is a single display, one thing at a time (its link /display-menu/…). Slideshows' links keep playing.
+   * The full slide editor on the Screens page (each slide's own time, videos and pages, Spanish versions, music) for a
+   * screen that's a slideshow, and picture slideshows on links of their own. Off for now: a screen is a single display,
+   * or a slideshow of what's picked on it, on its link /display-menu/… either way. Picture slideshows' links keep playing.
    */
   screenSlideshows: false,
 }

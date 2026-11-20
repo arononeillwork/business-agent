@@ -447,15 +447,23 @@ built-in **AI connector** so owners can run it by talking to Claude.
   now and takes it off when the offer ends (it can go on any screen too). The slides fold up to one line
   each, and a bar to save follows down the page while there are changes (`shared/screens.ts`,
   `worker/screens.ts`, the `screen_links` migration).
-- Single display (Screens, admins): for now each screen is a single display, one thing at a time, full
-  screen, on its `/display-menu` link; **Slideshow** (things taking turns, and picture slideshows) shows as
-  coming soon, switched off in `src/app/features.ts` (`screenSlideshows`; slideshows' links keep playing).
+- Single display (Screens, admins): a screen is a single display, one thing at a time, full screen, on its
+  `/display-menu` link, unless it's a slideshow (below). The full slide editor and picture slideshows are
+  switched off in `src/app/features.ts` (`screenSlideshows`; picture slideshows' links keep playing).
   The latest Instagram posts (the Facebook Page's while Instagram isn't connected) are a tap away: the post's
   photo, kept in Google Drive or OneDrive, fills the screen, or without either the post itself plays from
   Instagram (a reel too). A digital menu, a picture from the device or an address go on the same way.
   Everything the screen has shown stays under **Shown before**, newest first, each with its switch: switched
   on, it's back on the screen and the one that was on goes off. Those save straight away; the screen's own
   settings wait for Save (`shared/singleDisplay.ts`).
+- A screen's slideshow (Screens, admins): each screen chooses **Single display** or **Slideshow**, at the top of
+  the screen, on the same link either way, so nothing changes on the TV: it plays whatever is switched on and
+  picks up the change within a minute. In a slideshow, a tap on an Instagram post (or a menu, an address, or
+  several pictures from the device at once) adds it, last to take its turn, and a tap on a post that's in it
+  takes it out. **In the slideshow** lists them in their order, each moved a turn earlier or later or switched
+  off to wait under **Shown before**, whose switches put one back in. How long each shows, the change between
+  them and shuffling wait for Save. Going back to a single display keeps the first on and the rest in the list
+  (`shared/singleDisplay.ts`, the `screen_slideshow` migration).
 - A screen's own address (Screens, admins): **Use your own website's address** keeps a page on the café's own
   website as the screen's address (Easy Beans' TV opens `easybeanscoffee.com/display-menu`), and gives the
   one line of code for that page: it shows the screen's link filling the page, so what's picked on the

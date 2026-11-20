@@ -49,10 +49,10 @@ import type { Brand } from '../../shared/types'
 import { tokens } from '../theme'
 import { SlideVersions } from './ScreenSlideVersions'
 import { currentCountry } from '../../shared/country'
-import { fromPost, onNow, postSlide, postTitle, show, showOnly } from '../../shared/singleDisplay'
+import { addToSlideshow, firstOnly, fromPost, moveInSlideshow, onNow, postSlide, postTitle, setInSlideshow, show, showOnly } from '../../shared/singleDisplay'
 import type { SourcePost } from '../../shared/offerFromPost'
 import { formatLocal } from '../../shared/time'
-import { msg, t, tc, tn } from '../i18n'
+import { msg, t, tc, tn, tr } from '../i18n'
 
 const inputOf = ({ id, token: _token, last_seen_at: _seen, updated_at: _updated, ...s }: Screen): ScreenInput => ({ ...s, own_url: s.own_url ?? null, id })
 const ICON: Record<SlideKind, ReactNode> = {
@@ -84,7 +84,7 @@ const offerPicturesFor = (screenId: string, offers: Offer[]): OfferPicture[] => 
  * private one; changes reach it within a minute.
  */
 export function ScreensPage() {
-  const { api, business } = useApp()
+  const { api } = useApp()
   const run = useAction()
   const screens = useAsync('screens', () => api.screens(), [], { refetchInterval: 60_000 })
   const designs = useAsync('menu-designs', () => api.menuDesigns(), [])
@@ -97,20 +97,20 @@ export function ScreensPage() {
   const [params, setParams] = useSearchParams()
   const [selected, setSelected] = useState<string | null>(null)
   const [creating, setCreating] = useState<ScreenKind | null>(null)
-  // A single display (one thing at a time), or a slideshow (things taking turns): switched off for now.
-  const [mode, setMode] = useState<ScreenMode>('single')
-  const single = !FEATURES.screenSlideshows || mode === 'single'
+  // Each screen is a single display (one thing at a time) or a slideshow of what's picked, its own choice.
+  // The full slide editor and picture slideshows on links of their own: switched off for now.
+  const full = FEATURES.screenSlideshows
   useTick(30_000)
   const all = screens.data ?? []
   const tvs = all.filter(s => s.kind !== 'slideshow')
-  const slideshows = single ? [] : all.filter(s => s.kind === 'slideshow')
+  const slideshows = full ? all.filter(s => s.kind === 'slideshow') : []
   const list = [...tvs, ...slideshows]
   const current = list.find(s => s.id === selected) ?? list[0] ?? null
   const digital = (designs.data ?? []).filter(d => d.format === 'digital')
-  // From Menu design → "Show on a screen": put that menu on one (on a single display, on its own).
+  // From Menu design → "Show on a screen": put that menu on one (on a single display, on its own; in a slideshow, last to take its turn).
   const adding = digital.find(d => d.id === params.get('menu')) ?? null
   const addTo = (s: Screen) => run(async () => {
-    await api.saveScreen({ ...inputOf(s), slides: single ? show(s.slides, menuSlide(adding!.id)) : [...s.slides, menuSlide(adding!.id)] })
+    await api.saveScreen({ ...inputOf(s), slides: s.slideshow ? addToSlideshow(s.slides, menuSlide(adding!.id)) : show(s.slides, menuSlide(adding!.id)) })
     setParams({})
     setSelected(s.id)
   }, t('{menu} is on {screen}', { menu: adding!.name, screen: s.name }))
@@ -121,7 +121,7 @@ export function ScreensPage() {
   }, t('Added {name}', { name: t('Menu screen') }))
   const buttons = (
     <>
-      {!single && <Button variant="outlined" startIcon={<SlideshowIcon />} onClick={() => setCreating('slideshow')}>{t('New picture slideshow')}</Button>}
+      {full && <Button variant="outlined" startIcon={<SlideshowIcon />} onClick={() => setCreating('slideshow')}>{t('New picture slideshow')}</Button>}
       <Button variant="contained" startIcon={<AddIcon />} onClick={() => setCreating('screen')}>{t('Add screen')}</Button>
     </>
   )
@@ -131,14 +131,13 @@ export function ScreensPage() {
   return (
     <>
       <PageHeader eyebrow={t('Menu')} title={t('Screens')} actions={buttons} />
-      <ScreenModes mode={single ? 'single' : 'slideshow'} onMode={setMode} link={shortLinkPath({ kind: 'screen', slug: '' }, business?.id, true)} />
       <ErrorBox error={screens.error} />
       {adding && (
         <Alert severity="info" sx={{ mb: 2.5 }} onClose={() => setParams({})}>
           <Typography variant="body2" sx={{ mb: 1 }}>{t('Put “{name}” on a screen:', { name: adding.name })}</Typography>
           <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
             {tvs.map(s => <Button key={s.id} size="small" variant="outlined" onClick={() => addTo(s)}>
-              {single ? t('Show on {screen}', { screen: s.name }) : t('Add to {screen}', { screen: s.name })}
+              {s.slideshow ? t('Add to {screen}', { screen: s.name }) : t('Show on {screen}', { screen: s.name })}
             </Button>)}
             <Button size="small" variant="contained" onClick={newWith}>{t('A new screen with it')}</Button>
           </Stack>
@@ -156,7 +155,7 @@ export function ScreensPage() {
             {tvs.length > 0 && (
               <ScreenGroup title={t('Screens')}>
                 {tvs.map((s, i) => <ScreenCard key={s.id} screen={s} main={i === 0} selected={s.id === current?.id} onClick={() => setSelected(s.id)}
-                  showing={single ? showingText(s.slides, digital) : undefined} />)}
+                  showing={full && s.slideshow ? undefined : showingText(s.slides, digital, s.slideshow)} />)}
               </ScreenGroup>
             )}
             {slideshows.length > 0 && (
@@ -166,48 +165,51 @@ export function ScreensPage() {
             )}
           </Stack>
           <Box sx={{ flex: 1, minWidth: 0, width: '100%' }}>
-            {current && (single
-              ? <SingleDisplayEditor key={current.id} {...editorProps(current)} storage={!!integ.data?.media_storage} />
-              : <ScreenEditor key={current.id} {...editorProps(current)} />)}
+            {current && (current.kind === 'slideshow' || (full && current.slideshow)
+              ? <ScreenEditor key={current.id} {...editorProps(current)} />
+              : <SingleDisplayEditor key={current.id} {...editorProps(current)} storage={!!integ.data?.media_storage} />)}
           </Box>
         </Stack>
       )}
-      {creating && <NewScreenDialog kind={creating} kinds={!single} onClose={() => setCreating(null)} onMade={setSelected} />}
+      {creating && <NewScreenDialog kind={creating} kinds={full} onClose={() => setCreating(null)} onMade={setSelected} />}
     </>
   )
 }
 
-type ScreenMode = 'single' | 'slideshow'
-
 /**
- * How the screens show things: one thing at a time, full screen, on the screen's /display-menu link
- * (a single display); or things taking turns (a slideshow), switched off for now.
+ * How a screen shows things: one thing at a time, full screen (a single display); or what's picked
+ * taking turns (a slideshow). Its link stays the same either way, so nothing changes on the TV itself.
  */
-function ScreenModes({ mode, onMode, link }: { mode: ScreenMode; onMode: (m: ScreenMode) => void; link: string }) {
-  const options: { id: ScreenMode; title: string; body: string; icon: ReactNode; note?: string; soon?: boolean }[] = [
-    { id: 'single', title: t('Single display'), icon: <TvIcon />, note: link,
+function ScreenModes({ slideshow, onMode, link }: { slideshow: boolean; onMode: (slideshow: boolean) => void; link: string }) {
+  const options: { id: 'single' | 'slideshow'; title: string; body: string; icon: ReactNode }[] = [
+    { id: 'single', title: t('Single display'), icon: <TvIcon />,
       body: t('One thing on the screen at a time, full screen: an Instagram post, a picture or your digital menu.') },
-    { id: 'slideshow', title: t('Slideshow'), icon: <SlideshowIcon />, soon: !FEATURES.screenSlideshows,
-      body: t('Menus, pictures, videos and pages taking turns, with music.') },
+    { id: 'slideshow', title: t('Slideshow'), icon: <SlideshowIcon />,
+      body: t('What you pick takes turns on the screen: posts, pictures and menus, each for the time you choose.') },
   ]
+  const mode = slideshow ? 'slideshow' : 'single'
   return (
-    <RadioGroup value={mode} onChange={e => onMode(e.target.value as ScreenMode)} aria-label={t('What the screens show')}
-      sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, mb: 3 }}>
-      {options.map(o => (
-        <FormControlLabel key={o.id} value={o.id} disabled={o.soon} control={<Radio size="small" sx={{ mt: -0.5 }} />}
-          sx={{ m: 0, p: 1.75, alignItems: 'flex-start', borderRadius: 3, bgcolor: mode === o.id ? tokens.roseWash : 'transparent',
-            border: `1px solid ${mode === o.id ? tokens.rose : tokens.line}`, borderStyle: o.soon ? 'dashed' : 'solid' }}
-          label={<Box sx={{ pl: 0.5 }}>
-            <Stack direction="row" sx={{ gap: 0.75, alignItems: 'center', flexWrap: 'wrap', color: o.soon ? 'text.disabled' : tokens.roseDeep }}>
-              {o.icon}
-              <Typography sx={{ fontWeight: 600, color: o.soon ? 'text.secondary' : 'text.primary' }}>{o.title}</Typography>
-              {o.soon && <Tag>{t('Coming soon')}</Tag>}
-            </Stack>
-            <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>{o.body}</Typography>
-            {o.note && <Typography variant="caption" sx={{ display: 'block', color: tokens.roseDeep, fontFamily: 'monospace', mt: 0.5 }}>{o.note}</Typography>}
-          </Box>} />
-      ))}
-    </RadioGroup>
+    <Box sx={{ mb: 2.5 }}>
+      <RadioGroup value={mode} onChange={e => onMode(e.target.value === 'slideshow')} aria-label={t('What the screen shows')}
+        sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' } }}>
+        {options.map(o => (
+          <FormControlLabel key={o.id} value={o.id} control={<Radio size="small" sx={{ mt: -0.5 }} />}
+            sx={{ m: 0, p: 1.75, alignItems: 'flex-start', borderRadius: 3, bgcolor: mode === o.id ? tokens.roseWash : 'transparent',
+              border: `1px solid ${mode === o.id ? tokens.rose : tokens.line}` }}
+            label={<Box sx={{ pl: 0.5 }}>
+              <Stack direction="row" sx={{ gap: 0.75, alignItems: 'center', flexWrap: 'wrap', color: tokens.roseDeep }}>
+                {o.icon}
+                <Typography sx={{ fontWeight: 600, color: 'text.primary' }}>{o.title}</Typography>
+              </Stack>
+              <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>{o.body}</Typography>
+            </Box>} />
+        ))}
+      </RadioGroup>
+      <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 1 }}>
+        {tr('Either way it plays on the same link, {link}: the screen changes within a minute, with nothing to do on it.',
+          { link: <Box component="span" sx={{ color: tokens.roseDeep, fontFamily: 'monospace' }}>{link}</Box> })}
+      </Typography>
+    </Box>
   )
 }
 
@@ -226,9 +228,13 @@ function Status({ screen }: { screen: Screen }) {
   return <Tag fg={tokens.warnFg} bg={tokens.warnBg}>{screen.last_seen_at ? t('Last seen {when}', { when: ago(screen.last_seen_at) }) : t('Not opened on a screen yet')}</Tag>
 }
 
-/** What a single display shows now, in a line: the one that's on, how many take turns, or nothing. */
-const showingText = (slides: Slide[], designs: MenuDesign[]) => {
+/** What a single display shows now, in a line: the one that's on, how many take turns, or nothing; a slideshow, what's in it. */
+const showingText = (slides: Slide[], designs: MenuDesign[], slideshow = false) => {
   const on = onNow(slides)
+  if (slideshow) {
+    if (!on.length) return t('Slideshow: nothing in it yet')
+    return on.length === 1 ? t('Slideshow: {name} so far', { name: slideName(on[0], designs) }) : t('Slideshow: {n} taking turns', { n: on.length })
+  }
   if (!on.length) return t('Nothing on it')
   return on.length === 1 ? t('Showing {name}', { name: slideName(on[0], designs) }) : t('{n} taking turns', { n: on.length })
 }
@@ -369,6 +375,9 @@ function ScreenEditor({ screen, main, designs, items, allergens, brand, offers, 
             {slideshow ? t('Open the slideshow') : t('Open the screen')}
           </Button>
         </Stack>
+        {!slideshow && <ScreenModes slideshow link={shortLinkPath(screen, business?.id, main)} onMode={to => {
+          if (!to) void run(() => api.saveScreen({ ...saved, slides: firstOnly(screen.slides), slideshow: false }), t('{screen} shows one thing at a time now', { screen: screen.name }), { fresh: true })
+        }} />}
         <LinkPanel screen={screen} main={main} slug={s.slug} onSlug={slug => set({ slug })} own={s.own_url ?? null} onOwn={own_url => set({ own_url })}
           preview={<Preview s={s} feed={feed} note={t('A silent preview of the changes below, as the screen will play them.')} />} />
       </Card>
@@ -601,6 +610,10 @@ function Preview({ s, feed, note }: { s: Pick<ScreenInput, 'orientation'>; feed:
  * tap; a digital menu, a picture or an address; and everything it has shown, each with its switch:
  * switched on, it's back on the screen and the one that was on goes off. Those are saved straight
  * away; the screen's settings below them wait for Save.
+ *
+ * Or the screen's slideshow (its choice at the top, saved straight away too): what's picked takes
+ * turns instead, each for the screen's time. A tap adds it, last to take its turn, and a tap on a post
+ * that's in it takes it out; the ones taking turns are listed in their order, the rest under them.
  */
 function SingleDisplayEditor({ screen, main, designs, items, allergens, brand, offers, allOffers, storage }: EditorProps & {
   /** The café's storage is connected: a post's photo is kept there, and fills the screen. */
@@ -609,73 +622,99 @@ function SingleDisplayEditor({ screen, main, designs, items, allergens, brand, o
   const { api, business } = useApp()
   const run = useAction()
   const saved = inputOf(screen)
-  // The settings until they're saved. What it shows is saved as it's picked, and shown straight
-  // away (`pending`) until the save is back.
+  // The settings until they're saved. What it shows, and whether it's a slideshow, are saved as they're
+  // picked, and shown straight away (`pending`) until the save is back.
   const [draft, setDraft] = useState<ScreenInput>(saved)
-  const [pending, setPending] = useState<Slide[] | null>(null)
+  const [pending, setPending] = useState<{ slides: Slide[]; slideshow: boolean } | null>(null)
   const turn = useRef(0)
   const [menu, setMenu] = useState('')
   const [address, setAddress] = useState('')
   const [uploading, setUploading] = useState(false)
   const file = useRef<HTMLInputElement>(null)
-  const slides = pending ?? screen.slides
-  const s: ScreenInput = { ...draft, slides }
+  const slides = pending?.slides ?? screen.slides
+  const slideshow = pending?.slideshow ?? screen.slideshow
+  const s: ScreenInput = { ...draft, slides, slideshow }
   const set: SetScreen = patch => setDraft(x => ({ ...x, ...patch }))
-  const dirty = JSON.stringify({ ...draft, slides: null }) !== JSON.stringify({ ...saved, slides: null })
+  const settings = ({ slides: _slides, slideshow: _slideshow, ...rest }: ScreenInput) => JSON.stringify(rest)
+  const dirty = settings(draft) !== settings(saved)
   const pictures = useMemo(() => offerPicturesFor(screen.id, allOffers), [screen.id, allOffers])
   const feed = useScreenFeed(s, screen, { designs, items, allergens, brand, offers, pictures })
   const on = onNow(slides)
+  const waiting = slides.filter(x => !x.active)
   const nameOf = (sl: Slide) => slideName(sl, designs)
   const goesOn = (name: string) => t('{name} goes on {screen} within a minute', { name, screen: screen.name })
+  const joins = (name: string) => t('{name} joins the slideshow on {screen} within a minute', { name, screen: screen.name })
+  const leaves = (name: string) => t('{name} is out of the slideshow', { name })
+  /** Something picked: on its own on a single display; last to take its turn in a slideshow. */
+  const pick = (now: Slide[], slide: Slide) => (slideshow ? addToSlideshow(now, slide) : show(now, slide))
+  const picked = (name: string) => (slideshow ? joins(name) : goesOn(name))
 
-  /** What it shows, saved straight away, with the screen's saved settings (not the ones still being changed). */
-  const put = async (change: (now: Slide[]) => Slide[] | Promise<Slide[]>, success: string) => {
+  /** What it shows (and whether it's a slideshow), saved straight away, with the screen's saved settings (not the ones still being changed). */
+  const put = async (change: (now: Slide[]) => Slide[] | Promise<Slide[]>, success: string, mode = slideshow) => {
     const n = ++turn.current
     await run(async () => {
       const next = await change(slides)
       const problem = screenProblem({ ...saved, slides: next })
       if (problem) throw new Error(t(problem))
-      setPending(next)
-      await api.saveScreen({ ...saved, slides: next })
+      setPending({ slides: next, slideshow: mode })
+      await api.saveScreen({ ...saved, slides: next, slideshow: mode })
     }, success, { fresh: true })
     if (turn.current === n) setPending(null)
   }
-  const toggle = (sl: Slide, turnOn: boolean) => void put(now => (turnOn ? showOnly(now, sl.id) : now.map(x => (x.id === sl.id ? { ...x, active: false } : x))),
-    turnOn ? goesOn(nameOf(sl)) : t('Saved. The screen shows the changes within a minute.'))
+  const toggle = (sl: Slide, turnOn: boolean) => void put(now => (slideshow ? setInSlideshow(now, sl.id, turnOn)
+    : turnOn ? showOnly(now, sl.id) : now.map(x => (x.id === sl.id ? { ...x, active: false } : x))),
+  turnOn ? picked(nameOf(sl)) : slideshow ? leaves(nameOf(sl)) : t('Saved. The screen shows the changes within a minute.'))
+  const move = (sl: Slide, by: -1 | 1) => void put(now => moveInSlideshow(now, sl.id, by), t('Saved. The screen shows the changes within a minute.'))
   const remove = (sl: Slide) => void put(now => now.filter(x => x.id !== sl.id), t('{name}: off the list', { name: nameOf(sl) }))
+  // A slideshow, or back to one thing at a time: the first in the slideshow stays on, the rest wait in the list.
+  const setMode = (to: boolean) => {
+    if (to === slideshow) return
+    void put(now => (to ? now : firstOnly(now)), to ? t('{screen} is a slideshow now: what you pick takes turns', { screen: screen.name })
+      : on.length ? t('{screen} shows {name} on its own now', { screen: screen.name, name: nameOf(on[0]) }) : t('{screen} shows one thing at a time now', { screen: screen.name }), to)
+  }
   // A post's photo is kept in the café's storage (Instagram's own link runs out), else the post itself shows.
-  const showPost = (p: SourcePost) => put(async now => {
-    const slide = fromPost(now, p) ?? postSlide(p, storage && p.image_url && !p.video ? await api.keepPostPhoto(p.image_url) : null)
-    if (!slide) throw new Error(t('This post can’t go on a screen'))
-    return show(now, slide)
-  }, goesOn(postTitle(p.caption) ?? t('Instagram post')))
+  // In a slideshow, a post that's taking its turn comes out with a tap.
+  const showPost = (p: SourcePost) => {
+    const name = postTitle(p.caption) ?? t('Instagram post')
+    const there = fromPost(slides, p)
+    if (slideshow && there?.active) return put(now => setInSlideshow(now, there.id, false), leaves(name))
+    return put(async now => {
+      const slide = fromPost(now, p) ?? postSlide(p, storage && p.image_url && !p.video ? await api.keepPostPhoto(p.image_url) : null)
+      if (!slide) throw new Error(t('This post can’t go on a screen'))
+      return pick(now, slide)
+    }, picked(name))
+  }
   const showMenu = () => {
     const d = designs.find(x => x.id === menu)
     if (!d) return
     setMenu('')
-    void put(now => show(now, menuSlide(d.id)), goesOn(d.name))
+    void put(now => pick(now, menuSlide(d.id)), picked(d.name))
   }
   const showAddress = () => {
     const url = cleanUrl(address)
     if (!url) return
     setAddress('')
-    void put(now => show(now, { id: crypto.randomUUID(), kind: kindOf(url), url, design_id: null, title: null, seconds: null, live: false, active: true }), goesOn(url))
+    void put(now => pick(now, { id: crypto.randomUUID(), kind: kindOf(url), url, design_id: null, title: null, seconds: null, live: false, active: true }), picked(url))
   }
-  // A picture from this device: kept in the café's storage (Google Drive or OneDrive), then on the screen.
-  const showPicture = async (f: File) => {
-    const title = f.name.replace(/\.\w+$/, '').slice(0, 120) || null
+  // Pictures from this device (one on a single display): kept in the café's storage (Google Drive or OneDrive), then on the screen.
+  const showPictures = async (files: File[]) => {
+    const title = (f: File) => f.name.replace(/\.\w+$/, '').slice(0, 120) || null
     setUploading(true)
     try {
       await put(async now => {
-        const { url } = await api.uploadMedia(await readyPhoto(f, false, 1920), 'Posts')
-        return show(now, pictureSlide(url, title))
-      }, goesOn(title ?? t('The picture')))
+        let next = now
+        for (const f of files) {
+          const { url } = await api.uploadMedia(await readyPhoto(f, false, 1920), 'Posts')
+          next = pick(next, pictureSlide(url, title(f)))
+        }
+        return next
+      }, files.length === 1 ? picked(title(files[0]) ?? t('The picture')) : t('{n} pictures join the slideshow on {screen} within a minute', { n: files.length, screen: screen.name }))
     } finally { setUploading(false) }
   }
   const save = () => run(async () => {
     const problem = screenProblem(s)
     if (problem) throw new Error(t(problem))
-    await api.saveScreen({ ...draft, slides: screen.slides })
+    await api.saveScreen(s)
   }, t('Saved. The screen shows the changes within a minute.'))
 
   return (
@@ -683,60 +722,95 @@ function SingleDisplayEditor({ screen, main, designs, items, allergens, brand, o
       <Card component="section" aria-label={t('The screen and its link')} sx={{ p: { xs: 2, sm: 2.75 }, containerType: 'inline-size' }}>
         <Stack direction="row" sx={{ alignItems: 'flex-start', gap: 1.5, flexWrap: 'wrap', mb: 2.5 }}>
           <Box sx={{ flex: 1, minWidth: 200 }}>
-            <Typography variant="overline" sx={{ color: tokens.roseDeep, display: 'block' }}>{t('Single display')}</Typography>
+            <Typography variant="overline" sx={{ color: tokens.roseDeep, display: 'block' }}>{slideshow ? t('Slideshow') : t('Single display')}</Typography>
             <Typography variant="h5" component="h2" sx={{ mb: 0.75 }}>{draft.name || screen.name}</Typography>
             <Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
               <Status screen={screen} />
-              <Typography variant="caption" sx={{ color: 'text.secondary', overflowWrap: 'anywhere' }}>{showingText(slides, designs)}</Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary', overflowWrap: 'anywhere' }}>
+                {showingText(slides, designs, slideshow)}{slideshow && on.length > 1 ? ` · ${t('Once round: {time}', { time: duration(loopSeconds(s)) })}` : ''}
+              </Typography>
             </Stack>
           </Box>
           <Button variant="outlined" startIcon={<OpenIcon />} component="a" href={draft.own_url || shortLink(screen, business?.id, main)} target="_blank" rel="noopener">{t('Open the screen')}</Button>
         </Stack>
+        <ScreenModes slideshow={slideshow} onMode={setMode} link={shortLinkPath(screen, business?.id, main)} />
         <LinkPanel screen={screen} main={main} slug={draft.slug} onSlug={slug => set({ slug })} own={draft.own_url ?? null} onOwn={own_url => set({ own_url })}
           preview={<Preview s={s} feed={feed} note={t('A silent preview of what the screen shows.')} />} />
       </Card>
 
-      <InstagramPosts slides={slides} storage={storage} onPick={showPost} />
+      <InstagramPosts slides={slides} storage={storage} slideshow={slideshow} onPick={showPost} />
 
-      <Panel title={t('Or show something else')}>
+      <Panel title={slideshow ? t('Or add something else') : t('Or show something else')}>
         <Stack spacing={2}>
           {designs.length ? (
             <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ gap: 1 }}>
               <TextField select size="small" sx={{ flex: 1 }} label={t('A digital menu')} value={menu} onChange={e => setMenu(e.target.value)}>
                 {designs.map(d => <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>)}
               </TextField>
-              <Button variant="outlined" startIcon={<MenuIcon />} disabled={!menu} onClick={showMenu} sx={{ alignSelf: { sm: 'flex-start' }, flexShrink: 0 }}>{t('Show the menu')}</Button>
+              <Button variant="outlined" startIcon={<MenuIcon />} disabled={!menu} onClick={showMenu} sx={{ alignSelf: { sm: 'flex-start' }, flexShrink: 0 }}>{slideshow ? t('Add the menu') : t('Show the menu')}</Button>
             </Stack>
           ) : (
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
               {t('Your digital menus can play here too.')} <Button size="small" component={RouterLink} to="/menu/design?format=digital">{t('Make one on Menu design')}</Button>
             </Typography>
           )}
-          <AddressBar address={address} onAddress={setAddress} onAdd={showAddress} label={t('Show it')} />
+          <AddressBar address={address} onAddress={setAddress} onAdd={showAddress} label={slideshow ? t('Add it') : t('Show it')} />
           <Box>
             <Button variant="outlined" size="small" startIcon={<UploadIcon />} disabled={uploading} onClick={() => file.current?.click()}>
-              {uploading ? t('Adding the picture…') : t('A picture from this device')}
+              {uploading ? t('Adding the picture…') : slideshow ? t('Pictures from this device') : t('A picture from this device')}
             </Button>
           </Box>
         </Stack>
-        <input ref={file} type="file" accept="image/*" hidden aria-label={t('Pictures from this device')}
-          onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void showPicture(f) }} />
+        <input ref={file} type="file" accept="image/*" multiple={slideshow} hidden aria-label={t('Pictures from this device')}
+          onChange={e => { const files = [...(e.target.files ?? [])]; e.target.value = ''; if (files.length) void showPictures(slideshow ? files : files.slice(0, 1)) }} />
       </Panel>
 
-      <Panel title={t('Shown before')} intro={t('Everything this screen has shown, newest first. Switch one on to put it back on the screen: the one that was on goes off.')}>
-        {on.length > 1 && <Alert severity="info" sx={{ mb: 1.5 }}>{t('{n} are on, so they take turns. Choose “Show only this” on the one to keep.', { n: on.length })}</Alert>}
-        <Stack spacing={1}>
-          {slides.map(sl => (
-            <HistoryRow key={sl.id} slide={sl} name={nameOf(sl)} designs={designs} alone={on.length < 2}
-              onToggle={v => toggle(sl, v)} onOnly={() => toggle(sl, true)} onRemove={() => remove(sl)} />
-          ))}
-          {!slides.length && <Empty>{t('Nothing shown yet: tap one of your Instagram posts above.')}</Empty>}
-        </Stack>
-      </Panel>
+      {slideshow ? <>
+        <Panel title={t('In the slideshow')} intro={t('They take turns in this order, each for {time}. Switch one off to take it out: it waits under Shown before.', { time: secondsText(s.seconds) })}>
+          <Stack spacing={1}>
+            {on.map((sl, i) => (
+              <HistoryRow key={sl.id} slide={sl} name={nameOf(sl)} designs={designs} alone turn={{ index: i, count: on.length, onMove: by => move(sl, by) }}
+                onToggle={v => toggle(sl, v)} onOnly={() => toggle(sl, true)} onRemove={() => remove(sl)} />
+            ))}
+            {!on.length && <Empty>{t('Nothing in it yet: tap your Instagram posts above, or switch on what the screen has shown before.')}</Empty>}
+          </Stack>
+        </Panel>
+        {waiting.length > 0 && (
+          <Panel title={t('Shown before')} intro={t('Everything else this screen has shown. Switch one on to add it to the slideshow, last to take its turn.')}>
+            <Stack spacing={1}>
+              {waiting.map(sl => (
+                <HistoryRow key={sl.id} slide={sl} name={nameOf(sl)} designs={designs} alone onToggle={v => toggle(sl, v)} onOnly={() => toggle(sl, true)} onRemove={() => remove(sl)} />
+              ))}
+            </Stack>
+          </Panel>
+        )}
+      </> : (
+        <Panel title={t('Shown before')} intro={t('Everything this screen has shown, newest first. Switch one on to put it back on the screen: the one that was on goes off.')}>
+          {on.length > 1 && <Alert severity="info" sx={{ mb: 1.5 }}>{t('{n} are on, so they take turns. Choose “Show only this” on the one to keep.', { n: on.length })}</Alert>}
+          <Stack spacing={1}>
+            {slides.map(sl => (
+              <HistoryRow key={sl.id} slide={sl} name={nameOf(sl)} designs={designs} alone={on.length < 2}
+                onToggle={v => toggle(sl, v)} onOnly={() => toggle(sl, true)} onRemove={() => remove(sl)} />
+            ))}
+            {!slides.length && <Empty>{t('Nothing shown yet: tap one of your Instagram posts above.')}</Empty>}
+          </Stack>
+        </Panel>
+      )}
 
       <OffersPanel screen={screen} offers={offers} />
 
       <Panel title={t('How it shows')}>
+        {slideshow && (
+          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, mb: 2.5 }}>
+            <TextField select label={t('Each one shows for')} value={s.seconds} onChange={e => set({ seconds: Number(e.target.value) })}>
+              {[...new Set([...SECONDS_CHOICES, s.seconds])].sort((a, b) => a - b).map(n => <MenuItem key={n} value={n}>{secondsText(n)}</MenuItem>)}
+            </TextField>
+            <TextField select label={t('Change effect')} value={s.transition} onChange={e => set({ transition: e.target.value as ScreenInput['transition'] })}>
+              {TRANSITIONS.map(x => <MenuItem key={x.id} value={x.id}>{t(x.label)}</MenuItem>)}
+            </TextField>
+            <FormControlLabel control={<Switch checked={s.shuffle} onChange={e => set({ shuffle: e.target.checked })} />} label={t('Shuffle the order')} />
+          </Box>
+        )}
         <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' } }}>
           <Box>
             <Typography variant="subtitle2" component="h4" sx={{ mb: 1 }}>{t('The screen is')}</Typography>
@@ -769,7 +843,7 @@ function SingleDisplayEditor({ screen, main, designs, items, allergens, brand, o
  * The business's latest posts on Instagram (its Facebook Page's while Instagram isn't connected),
  * newest first: one tap puts one on the screen.
  */
-function InstagramPosts({ slides, storage, onPick }: { slides: Slide[]; storage: boolean; onPick: (p: SourcePost) => Promise<void> }) {
+function InstagramPosts({ slides, storage, slideshow, onPick }: { slides: Slide[]; storage: boolean; slideshow: boolean; onPick: (p: SourcePost) => Promise<void> }) {
   const { api } = useApp()
   const read = useAsync('latest-posts', () => api.latestPosts(12), [])
   const [busy, setBusy] = useState<string | null>(null)
@@ -780,8 +854,9 @@ function InstagramPosts({ slides, storage, onPick }: { slides: Slide[]; storage:
   }
   return (
     <Panel title={t('Show an Instagram post')}
-      intro={read.data?.source === 'facebook' ? t('Instagram isn’t connected, so these are your Facebook Page’s latest posts. Tap one to put it on the screen.')
-        : t('Your latest posts. Tap one to put it on the screen.')}>
+      intro={slideshow ? t('Your latest posts. Tap one to add it to the slideshow, and again to take it out.')
+        : read.data?.source === 'facebook' ? t('Instagram isn’t connected, so these are your Facebook Page’s latest posts. Tap one to put it on the screen.')
+          : t('Your latest posts. Tap one to put it on the screen.')}>
       {read.error && (
         <Alert severity="info" action={<Button color="inherit" size="small" component={RouterLink} to="/connections">{t('Connections')}</Button>}>{read.error}</Alert>
       )}
@@ -794,7 +869,7 @@ function InstagramPosts({ slides, storage, onPick }: { slides: Slide[]; storage:
             const name = postTitle(p.caption) ?? t('Instagram post')
             return (
               <Box key={p.id} component="button" type="button" disabled={!!busy} onClick={() => void pick(p)} aria-pressed={on}
-                aria-label={t('Show {name} on the screen', { name })} title={p.caption ?? undefined}
+                aria-label={slideshow ? t('{name} in the slideshow', { name }) : t('Show {name} on the screen', { name })} title={p.caption ?? undefined}
                 sx={{ position: 'relative', aspectRatio: '1 / 1', p: 0, m: 0, borderRadius: 2.5, overflow: 'hidden', cursor: 'pointer', font: 'inherit',
                   bgcolor: tokens.surfaceAlt, color: tokens.inkSoft, display: 'grid', placeItems: 'center',
                   border: on ? `2px solid ${tokens.rose}` : `1px solid ${tokens.line}`, boxShadow: on ? `0 0 0 2px ${tokens.roseWash}` : 'none',
@@ -806,7 +881,7 @@ function InstagramPosts({ slides, storage, onPick }: { slides: Slide[]; storage:
                 {p.video && <PlayIcon aria-hidden sx={{ position: 'absolute', top: 6, right: 6, color: '#fff', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.6))' }} />}
                 <Box aria-hidden sx={{ position: 'absolute', left: 0, right: 0, bottom: 0, px: 1, pt: 2, pb: 0.6, textAlign: 'left', fontSize: '0.72rem', fontWeight: 600,
                   color: '#fff', background: 'linear-gradient(transparent, rgba(0,0,0,.7))' }}>
-                  {busy === p.id ? t('Bringing it in…') : on ? t('On the screen') : formatLocal(p.posted_at, 'd MMM')}
+                  {busy === p.id ? t('Bringing it in…') : on ? (slideshow ? t('In the slideshow') : t('On the screen')) : formatLocal(p.posted_at, 'd MMM')}
                 </Box>
               </Box>
             )
@@ -823,28 +898,38 @@ function InstagramPosts({ slides, storage, onPick }: { slides: Slide[]; storage:
   )
 }
 
-/** Something the single display has shown: its switch puts it back on the screen (the one that was on goes off). */
-function HistoryRow({ slide: sl, name, designs, alone, onToggle, onOnly, onRemove }: {
+/** Something the single display has shown: its switch puts it back on the screen (the one that was on goes off). In a slideshow, its turn and moving it along. */
+function HistoryRow({ slide: sl, name, designs, alone, turn, onToggle, onOnly, onRemove }: {
   slide: Slide; name: string; designs: MenuDesign[]
   /** It's the only one on, or none is: no need to ask for only this one. */
   alone: boolean
+  /** Taking its turn in a slideshow: which, of how many, and moving it a turn earlier or later. */
+  turn?: { index: number; count: number; onMove: (by: -1 | 1) => void }
   onToggle: (on: boolean) => void; onOnly: () => void; onRemove: () => void
 }) {
   const gone = sl.kind === 'menu' && !designs.some(d => d.id === sl.design_id)
   return (
     <Box component="article" aria-label={name} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: { xs: 'wrap', sm: 'nowrap' }, p: 1.25, pl: 1.5,
       borderRadius: 3, border: `1px solid ${sl.active ? tokens.rose : tokens.line}`, bgcolor: sl.active ? tokens.roseWash : tokens.surface, transition: 'background-color .2s, border-color .2s' }}>
+      {turn && (
+        <Box aria-hidden sx={{ minWidth: 24, height: 24, px: 0.75, borderRadius: 99, bgcolor: tokens.rose, color: '#fff', flexShrink: 0,
+          display: 'grid', placeItems: 'center', fontSize: '0.75rem', fontWeight: 600 }}>{turn.index + 1}</Box>
+      )}
       <Thumb slide={sl} width={80} height={46} />
       <Box sx={{ flex: '1 1 160px', minWidth: 0 }}>
         <Typography noWrap title={name} sx={{ fontWeight: 500, lineHeight: 1.4 }}>{sl.url?.startsWith('data:') && !sl.title ? t('A drawn picture') : name}</Typography>
         <Stack direction="row" sx={{ gap: 0.75, alignItems: 'center', flexWrap: 'wrap', mt: 0.25 }}>
           <Tag>{sl.post ? t('Instagram post') : tc('slide', kindLabel(sl.kind))}</Tag>
-          {sl.active && <Tag fg={tokens.goodFg} bg={tokens.goodBg}>{t('On the screen')}</Tag>}
+          {sl.active && !turn && <Tag fg={tokens.goodFg} bg={tokens.goodBg}>{t('On the screen')}</Tag>}
           {gone && <Tag fg={tokens.badFg} bg={tokens.badBg}>{t('That menu was deleted')}</Tag>}
         </Stack>
       </Box>
       <Stack direction="row" sx={{ alignItems: 'center', gap: 0.25, flexShrink: 0, ml: { xs: 'auto', sm: 0 } }}>
         {sl.active && !alone && <Button size="small" onClick={onOnly}>{t('Show only this')}</Button>}
+        {turn && <>
+          <IconButton size="small" aria-label={t('Move {name} up', { name })} disabled={turn.index === 0} onClick={() => turn.onMove(-1)}><UpIcon fontSize="small" /></IconButton>
+          <IconButton size="small" aria-label={t('Move {name} down', { name })} disabled={turn.index === turn.count - 1} onClick={() => turn.onMove(1)}><DownIcon fontSize="small" /></IconButton>
+        </>}
         <Switch checked={sl.active} onChange={e => onToggle(e.target.checked)} slotProps={{ input: { 'aria-label': t('Show {name}', { name }) } }} />
         <Tooltip title={sl.active ? t('Switch it off first') : t('Remove {name}', { name })}>
           <span><IconButton size="small" aria-label={t('Remove {name}', { name })} disabled={sl.active} onClick={onRemove}><DeleteIcon fontSize="small" /></IconButton></span>

@@ -29,6 +29,47 @@ export function show(slides: Slide[], slide: Slide): Slide[] {
 /** What's on the screen now: the switched-on ones (more than one take turns). */
 export const onNow = (slides: Slide[]) => slides.filter(s => s.active)
 
+// A screen's slideshow: the switched-on ones take turns in the list's order, kept first in the list;
+// the rest wait under them, ready to go back in with their switch. The same link as a single display.
+
+/** The ones taking turns and the rest, without that one. */
+const parts = (slides: Slide[], id?: string) => [slides.filter(s => s.active && s.id !== id), slides.filter(s => !s.active && s.id !== id)] as const
+
+/** Into the slideshow (last to take its turn), or out of it (first of the rest, easy to find again). */
+export function setInSlideshow(slides: Slide[], id: string, on: boolean): Slide[] {
+  const it = slides.find(s => s.id === id)
+  if (!it) return slides
+  const [turns, rest] = parts(slides, id)
+  return [...turns, { ...it, active: on }, ...rest]
+}
+
+/**
+ * That into the slideshow, last to take its turn: the one in the list that shows the same thing goes
+ * back in, or else it's new. A full list loses its oldest that's off to make room.
+ */
+export function addToSlideshow(slides: Slide[], slide: Slide): Slide[] {
+  const same = sameAs(slides, slide)
+  if (same) return setInSlideshow(slides, same.id, true)
+  const [turns, rest] = parts(slides)
+  return [...turns, { ...slide, active: true }, ...rest.slice(0, Math.max(0, MAX_SLIDES - turns.length - 1))]
+}
+
+/** One in the slideshow a turn earlier (-1) or later (1). */
+export function moveInSlideshow(slides: Slide[], id: string, by: -1 | 1): Slide[] {
+  const [turns, rest] = parts(slides)
+  const i = turns.findIndex(s => s.id === id), j = i + by
+  if (i < 0 || j < 0 || j >= turns.length) return slides
+  const moved = [...turns]
+  ;[moved[i], moved[j]] = [moved[j], moved[i]]
+  return [...moved, ...rest]
+}
+
+/** Back to one thing at a time: the first in the slideshow stays on, the rest go off (still in the list). */
+export function firstOnly(slides: Slide[]): Slide[] {
+  const first = slides.find(s => s.active)
+  return first ? showOnly(slides, first.id) : slides
+}
+
 /** A post's name in the list: its caption's first line, without hashtags, kept short. */
 export function postTitle(caption: string | null): string | null {
   const line = (caption ?? '').split('\n').map(l => l.replace(/#[\p{L}\p{N}_]+/gu, '').replace(/\s+/g, ' ').trim()).find(Boolean)

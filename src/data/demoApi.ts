@@ -1104,7 +1104,7 @@ export function createDemoApi(): Api {
   const screenList: Screen[] = [{
     id: 's-counter', name: 'Counter TV', kind: 'screen', slug: 'counter-tv', token: 'c0ffee00beef00c0ffee00beef00cafe', orientation: 'landscape', seconds: 10,
     transition: 'fade', transition_ms: 800, shuffle: false, fit: 'cover', music_url: null, music_volume: 40, video_sound: false, show_clock: true,
-    ticker: 'Today’s special: pumpkin spice latte · Free Wi-Fi: EasyBeans', active: true, last_seen_at: new Date(Date.now() - 40_000).toISOString(), updated_at: daysAgo(1),
+    ticker: 'Today’s special: pumpkin spice latte · Free Wi-Fi: EasyBeans', active: true, slideshow: false, last_seen_at: new Date(Date.now() - 40_000).toISOString(), updated_at: daysAgo(1),
     slides: [
       { id: 'sl-menu', kind: 'menu', url: null, design_id: 'd-tv', title: null, seconds: 20, live: false, active: true },
       // The demo's own drawing (a data address: the database takes https only).
@@ -1116,7 +1116,7 @@ export function createDemoApi(): Api {
     // The window's picture slideshow: the live offers' pictures, then two photos.
     id: 's-window', name: 'Window slideshow', kind: 'slideshow', slug: 'window', token: 'feed00c0ffee00feed00c0ffee00feed', orientation: 'portrait', seconds: 8,
     transition: 'fade', transition_ms: 800, shuffle: false, fit: 'contain', music_url: null, music_volume: 40, video_sound: false, show_clock: false,
-    ticker: null, active: true, last_seen_at: null, updated_at: daysAgo(2),
+    ticker: null, active: true, slideshow: true, last_seen_at: null, updated_at: daysAgo(2),
     slides: [
       { id: 'sl-offers', kind: 'offers', url: null, design_id: null, title: null, seconds: null, live: false, active: true },
       { id: 'sl-latte', kind: 'image', url: demoPhoto('Iced oat latte', true), design_id: null, title: 'Iced oat latte', seconds: null, live: false, active: true },

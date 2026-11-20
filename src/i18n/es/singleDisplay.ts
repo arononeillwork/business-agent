@@ -5,8 +5,6 @@ export default {
   'One thing on the screen at a time, full screen: an Instagram post, a picture or your digital menu.':
     'Una sola cosa en la pantalla, a pantalla completa: una publicación de Instagram, una imagen o tu carta digital.',
   'Slideshow': 'Presentación',
-  'Menus, pictures, videos and pages taking turns, with music.': 'Cartas, imágenes, vídeos y páginas por turnos, con música.',
-  'What the screens show': 'Qué muestran las pantallas',
   'Show on {screen}': 'Mostrar en {screen}',
   'Nothing on it': 'No muestra nada',
   'Showing {name}': 'Muestra {name}',
