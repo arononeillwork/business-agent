@@ -4,6 +4,7 @@ import { APP_FOLDER, OLD_APP_FOLDER } from '../../shared/appFolder'
 import type { CalendarEvent, OpeningHours } from '../../shared/types'
 import { DAY_KEYS } from '../../shared/types'
 import { closingEvents } from '../../shared/closures'
+import { fromPeriods, hoursKey, periodsOf, type Period } from '../../shared/openingHours'
 
 export const GOOGLE_SCOPES = ['https://www.googleapis.com/auth/business.manage', 'openid', 'email']
 
@@ -24,31 +25,30 @@ const toDate = (d: string): GDate => {
   return { year, month, day }
 }
 
-/** App opening hours → Google regularHours. */
+/** App opening hours → Google regularHours: a day that closes for a break is two periods. */
 export function toGoogleHours(hours: OpeningHours): { periods: GPeriod[] } {
   const periods: GPeriod[] = []
   DAY_KEYS.forEach((k, i) => {
-    const h = hours[k]
-    if (h) periods.push({ openDay: DAY_NAMES[i], openTime: toTime(h.open), closeDay: DAY_NAMES[i], closeTime: toTime(h.close) })
+    for (const p of periodsOf(hours[k])) {
+      periods.push({ openDay: DAY_NAMES[i], openTime: toTime(p.open), closeDay: DAY_NAMES[i], closeTime: toTime(p.close) })
+    }
   })
   return { periods }
 }
 
-/** Google regularHours → app opening hours (first period per day). */
+/** Google regularHours → app opening hours: a day's periods become its hours and the break between them. */
 export function fromGoogleHours(regular: { periods?: GPeriod[] } | undefined): OpeningHours {
-  const out: OpeningHours = {}
-  DAY_KEYS.forEach(k => { out[k] = null })
+  const byDay: Period[][] = DAY_KEYS.map(() => [])
   for (const p of regular?.periods ?? []) {
     const i = DAY_NAMES.indexOf(p.openDay as typeof DAY_NAMES[number])
-    if (i >= 0 && !out[DAY_KEYS[i]]) out[DAY_KEYS[i]] = { open: fromTime(p.openTime), close: fromTime(p.closeTime) }
+    if (i >= 0) byDay[i].push({ open: fromTime(p.openTime), close: fromTime(p.closeTime) })
   }
-  return out
+  return Object.fromEntries(DAY_KEYS.map((k, i) => [k, fromPeriods(byDay[i])])) as OpeningHours
 }
 
-/** Same opening hours every day ("8:00" and "08:00" match; a missing day is closed). */
+/** Same opening hours every day, breaks included ("8:00" and "08:00" match; a missing day is closed). */
 export function sameHours(a: OpeningHours, b: OpeningHours) {
-  const day = (h: { open: string; close: string } | null | undefined) => (h ? `${h.open.padStart(5, '0')}-${h.close.padStart(5, '0')}` : 'closed')
-  return DAY_KEYS.every(k => day(a[k]) === day(b[k]))
+  return DAY_KEYS.every(k => hoursKey(a[k]) === hoursKey(b[k]))
 }
 
 /**

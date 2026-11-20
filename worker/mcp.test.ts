@@ -97,6 +97,21 @@ describe('AI connector tools', () => {
     expect(toolsFor(julio).map(x => x.name)).not.toContain('set_team_role')
   })
 
+  it('changes only the days given, a break included, and refuses a break outside the day', async () => {
+    const t = TOOLS.find(x => x.name === 'update_business_details')!
+    const updates: unknown[] = []
+    const b: Record<string, unknown> = {}
+    for (const m of ['select', 'eq', 'single', 'maybeSingle']) b[m] = () => b
+    b.update = (patch: unknown) => { updates.push(patch); return b }
+    b.then = (resolve: (v: unknown) => void) => resolve({ data: { opening_hours: { mon: { open: '09:00', close: '15:00' }, sun: null } }, error: null })
+    const ctx = { sb: { from: () => b } as unknown as SupabaseClient, me: { ...person('admin'), business_id: 1 }, timeZone: 'Europe/Madrid' }
+    const thu = { open: '09:00', close: '20:00', break: { from: '14:00', to: '17:00' } }
+    await expect(runTool(t, ctx, { opening_hours: { thu } })).resolves.toMatchObject({ ok: true, updated: ['opening_hours'] })
+    expect(updates).toEqual([{ opening_hours: { mon: { open: '09:00', close: '15:00' }, sun: null, thu } }])
+    await expect(runTool(t, ctx, { opening_hours: { thu: { ...thu, break: { from: '21:00', to: '22:00' } } } })).rejects.toThrow('break')
+    expect(updates).toHaveLength(1)
+  })
+
   it('validates input and requires confirmation for deletes', async () => {
     const t = TOOLS.find(x => x.name === 'delete_shift')!
     await expect(runTool(t, { sb: fakeSb(null), me: person('admin') },

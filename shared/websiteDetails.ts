@@ -8,9 +8,11 @@
 import { closingEvents } from './closures'
 import { addDays, dayKey } from './time'
 import { DAY_KEYS, type Business, type CalendarEvent, type DayKey } from './types'
+import { breakOf } from './openingHours'
 
-/** Hours as "HH:MM", in the business's time zone. */
-export interface SiteHours { open: string; close: string }
+/** Hours as "HH:MM", in the business's time zone; `break` only on a day it closes in between ("14:00" to "17:00"). */
+export interface SiteHours { open: string; close: string; break?: SiteBreak }
+export interface SiteBreak { from: string; to: string }
 
 export interface SiteDetailsFeed {
   version: 1
@@ -49,6 +51,8 @@ export interface SiteDay {
   /** Null when it's closed that day. */
   open: string | null
   close: string | null
+  /** Only when it closes in between that day: closed from `from` to `to`. */
+  break?: SiteBreak
   /** Why it's closed when its week says it's open (a closure); null otherwise. */
   closed_reason: string | null
 }
@@ -105,7 +109,9 @@ export function siteDetails(input: DetailsInput): SiteDetailsFeed {
   const hours = Object.fromEntries(DAY_KEYS.map(k => {
     const h = b.opening_hours?.[k]
     const open = hhmm(h?.open), close = hhmm(h?.close)
-    return [k, open && close ? { open, close } : null]
+    const gap = breakOf(h)
+    const from = hhmm(gap?.from), to = hhmm(gap?.to)
+    return [k, open && close ? { open, close, ...(from && to ? { break: { from, to } } : {}) } : null]
   })) as Record<DayKey, SiteHours | null>
 
   const until = addDays(input.today, CLOSURES_AHEAD)
@@ -123,6 +129,7 @@ export function siteDetails(input: DetailsInput): SiteDetailsFeed {
       date, day,
       open: usual && !closure ? usual.open : null,
       close: usual && !closure ? usual.close : null,
+      ...(usual?.break && !closure ? { break: usual.break } : {}),
       closed_reason: closure ? closure.reason : null,
     }
   })

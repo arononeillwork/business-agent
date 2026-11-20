@@ -11,6 +11,7 @@ import { dutiesByWhen, sortRoles, type JobRole } from '../shared/roles'
 import { readState, rulesChangedAt, sortSections, type RuleSection, type RulesRead } from '../shared/staffRules'
 import { TEAM_ROLE_IDS, roleBlock, roleChange, teamRole, teamRoleOf } from '../shared/teamRoles'
 import { cleanPhone, matchesSearch } from '../shared/customers'
+import { breakOf } from '../shared/openingHours'
 import { COUNTRIES, type Country } from '../shared/country'
 import { cleanWebsite } from '../shared/connections'
 import { moneyLines, statusOf, totals, type MoneyItem } from '../shared/creditDebit'
@@ -305,13 +306,15 @@ export const ALL_TOOLS: ToolDef[] = [
       towns_followed: z.array(z.string()).optional(),
       notes: z.string().optional(),
       admin_notes: z.string().optional().describe('Admin-only notes (alarm code holder, wifi, landlord…)'),
-      opening_hours: z.record(z.enum(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']),
-        z.object({ open: time, close: time }).nullable()).optional()
-        .describe('Days to change, e.g. {"mon": {"open": "08:00", "close": "15:00"}, "sun": null} (null = closed)'),
+      opening_hours: z.partialRecord(z.enum(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']),
+        z.object({ open: time, close: time, break: z.object({ from: time, to: time }).nullable().optional() }).nullable()).optional()
+        .describe('Days to change, e.g. {"mon": {"open": "08:00", "close": "15:00"}, "sun": null} (null = closed). A day that closes in between: {"open": "09:00", "close": "20:00", "break": {"from": "14:00", "to": "17:00"}}'),
     }),
     async run({ sb, me }, { admin_notes, opening_hours, ...patch }) {
       if (patch.website !== undefined) patch.website = cleanWebsite(patch.website)
       if (opening_hours) {
+        const wrong = Object.entries(opening_hours).find(([, h]) => h?.break && !breakOf(h))
+        if (wrong) throw new Error(`${wrong[0]}: the break must start after opening and end before closing`)
         const cur = check(await sb.from('business').select('opening_hours').single())
         Object.assign(patch, { opening_hours: { ...cur.opening_hours, ...opening_hours } })
       }

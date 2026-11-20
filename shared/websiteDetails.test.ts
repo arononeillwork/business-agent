@@ -73,6 +73,16 @@ describe('the business’s details for its website', () => {
     expect(hours.tue).toBeNull()
   })
 
+  it('gives the break of a day that closes in between, in the week and on the days ahead', () => {
+    const split = { open: '9:00', close: '20:00', break: { from: '14:00', to: '17:00' } }
+    const d = siteDetails(input({ business: { ...input().business, opening_hours: { ...input().business.opening_hours, thu: split } } }))
+    expect(d.hours.thu).toEqual({ open: '09:00', close: '20:00', break: { from: '14:00', to: '17:00' } })
+    expect(d.hours.wed).toEqual({ open: '08:00', close: '15:00' })
+    const thursday = d.days.find(x => x.day === 'thu')!
+    expect(thursday).toMatchObject({ open: '09:00', close: '20:00', break: { from: '14:00', to: '17:00' } })
+    expect(d.days.find(x => x.day === 'wed')).not.toHaveProperty('break')
+  })
+
   it('lists the closures Google Maps is sent: the Calendar’s, and holidays only when it closes on them', () => {
     const events = [
       event('2026-12-24', 'Closed for Christmas', 'business', { ends_on: '2026-12-26' }),

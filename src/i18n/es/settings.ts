@@ -225,6 +225,11 @@ export default {
   'Save hours': 'Guardar horario',
   'Undo changes': 'Deshacer cambios',
   'Closing time must be after opening time.': 'La hora de cierre debe ser posterior a la de apertura.',
+  'Closes for a break': 'Cierra a mediodía',
+  'Closes for a break on {day}': 'Cierra a mediodía: {day}',
+  'Closed from': 'Cerrado de',
+  'Reopens': 'Reabre',
+  'The break must start after opening and end before closing.': 'El cierre debe empezar después de abrir y acabar antes de cerrar.',
   'Google Maps is kept in step: changes here, and closures you add in the {calendar}, reach your listing within a minute.': 'Google Maps se mantiene al día: los cambios de aquí, y los cierres que añadas en el {calendar}, llegan a tu ficha en menos de un minuto.',
   'Calendar': 'Calendario',
 

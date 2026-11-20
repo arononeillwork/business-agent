@@ -312,6 +312,8 @@ What comes back (`SiteDetailsFeed` in `shared/websiteDetails.ts`):
 - `closures` are the Calendar's business events that close it ("Closed…", "Cerrado…"), and public holidays when
   the Opening hours page says it closes on them: what Google Maps gets (`shared/closures.ts`).
 - WhatsApp and TikTok are on the Business page (Contact), next to the phone and Instagram.
+- A day that closes in between (09:00–14:00 and 17:00–20:00) has `"break": { "from": "14:00", "to": "17:00" }` in
+  `hours` and in `days`, with `open` and `close` still the first opening and last closing; no `break` otherwise.
 - Easy Beans' details were filled in from what its website showed before, where the app had none.
 
 ## The Google rating and reviews

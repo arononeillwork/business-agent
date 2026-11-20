@@ -26,6 +26,18 @@ describe('Google opening hours', () => {
     expect(g.periods[5]).toEqual({ openDay: 'SATURDAY', openTime: { hours: 9 }, closeDay: 'SATURDAY', closeTime: { hours: 18, minutes: 30 } })
     expect(fromGoogleHours(g)).toEqual(hours)
   })
+  it('sends a day that closes for a break as two periods, and reads them back as that day', () => {
+    const split: OpeningHours = { ...hours, thu: { open: '09:00', close: '20:00', break: { from: '14:00', to: '17:00' } } }
+    const g = toGoogleHours(split)
+    expect(g.periods.filter(p => p.openDay === 'THURSDAY')).toEqual([
+      { openDay: 'THURSDAY', openTime: { hours: 9 }, closeDay: 'THURSDAY', closeTime: { hours: 14 } },
+      { openDay: 'THURSDAY', openTime: { hours: 17 }, closeDay: 'THURSDAY', closeTime: { hours: 20 } },
+    ])
+    expect(fromGoogleHours(g)).toEqual(split)
+    // In whatever order Google lists them; a break outside the day is left out.
+    expect(fromGoogleHours({ periods: [...g.periods].reverse() }).thu).toEqual(split.thu)
+    expect(toGoogleHours({ mon: { open: '09:00', close: '14:00', break: { from: '15:00', to: '16:00' } } }).periods).toHaveLength(1)
+  })
   it('marks closures, and public holidays only when the café closes on them', () => {
     const events = [
       ev('2026-10-12', 'Fiesta Nacional', 'national'),

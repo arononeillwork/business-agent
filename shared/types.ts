@@ -16,7 +16,12 @@ export const PARTNER_AREAS: { key: PartnerArea; label: string; detail: string }[
 export type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
 export const DAY_KEYS: DayKey[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 
-export type OpeningHours = Partial<Record<DayKey, { open: string; close: string } | null>>
+/**
+ * A day's hours: when it first opens and last closes, and the break it closes for in between, if any
+ * ("09:00"–"20:00", closed "14:00"–"17:00"). Anything that only needs the day's span reads open and close.
+ */
+export interface DayHours { open: string; close: string; break?: { from: string; to: string } | null }
+export type OpeningHours = Partial<Record<DayKey, DayHours | null>>
 
 export interface Business {
   /** Its number: 1 is Easy Beans, the first business (the several_businesses migration). */

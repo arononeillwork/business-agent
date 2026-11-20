@@ -33,6 +33,7 @@ export default {
   "Who's on today": 'Quién trabaja hoy',
   'Rota': 'Cuadrante',
   'The café is open {open}–{close}': 'El café abre de {open} a {close}',
+  'The café is open {hours}': 'El café abre {hours}',
   'The café is closed today': 'Hoy el café está cerrado',
   'Nobody is scheduled today.': 'Hoy no hay nadie en el cuadrante.',
   'Open shift': 'Turno libre',

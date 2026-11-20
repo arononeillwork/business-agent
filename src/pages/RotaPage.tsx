@@ -18,6 +18,7 @@ import {
   addDays, formatDuration, formatLocal, formatMoney, localDate, localTime, today, weekDates, weekStart, zonedIso,
 } from '../../shared/time'
 import type { Shift } from '../../shared/types'
+import { hoursLabel } from '../../shared/openingHours'
 import { t, tn, tr, tc } from '../i18n'
 
 const OPEN = '__open__'
@@ -185,7 +186,7 @@ export function RotaPage() {
           </Typography>
         </Stack>
         <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', lineHeight: 1.35, mt: 0.5 }}>
-          {open ? `${open.open}–${open.close}` : t('Closed')}
+          {open ? hoursLabel(open) : t('Closed')}
           <br />{formatDuration(mins(dayShifts.filter(s => s.profile_id)))}{canSeePay && !showCosts ? ` · ${formatMoney(cost(dayShifts))}` : ''}
         </Typography>
         {showCosts && (
