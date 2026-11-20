@@ -9,7 +9,7 @@ import { TIME_OFF_KINDS, type Business, type CalendarEvent, type Customer, type 
 import { COUNTRY_NAME, ENTITLEMENTS, LAW_CHECKED, PAYER_LABEL, leaveYear, type Benefit, type LeaveAllowance } from '../shared/benefits'
 import { dutiesByWhen, sortRoles, type JobRole } from '../shared/roles'
 import { readState, rulesChangedAt, sortSections, type RuleSection, type RulesRead } from '../shared/staffRules'
-import { TEAM_ROLE_IDS, roleBlock, roleChange, teamRole, teamRoleOf } from '../shared/teamRoles'
+import { TEAM_ROLE_IDS, roleBlock, roleChange, teamRole, teamRoleOf, type TeamRole } from '../shared/teamRoles'
 import { cleanPhone, matchesSearch } from '../shared/customers'
 import { COUNTRIES, type Country } from '../shared/country'
 import { cleanWebsite } from '../shared/connections'
@@ -37,6 +37,7 @@ import { OFFER_TOOLS } from './offerTools'
 import { CONTACT_TOOLS } from './contactTools'
 import { SUGGESTION_TOOLS } from './suggestionTools'
 import { PAGE_TOOLS } from './pageTools'
+import { getAppFetch } from './appFetch'
 import type { Env } from './supabase'
 import { inTimeZone, zoneOf } from './zone'
 import { shows, type FEATURES as APP_PARTS } from '../src/app/features'
@@ -207,6 +208,21 @@ async function resolvePosition(sb: SupabaseClient, name: string | undefined): Pr
   return p.id
 }
 
+/**
+ * What only the Worker may do (it needs the service key), asked of the Worker's own app in-process,
+ * as this person, so its checks are the same as from the app.
+ */
+async function postAsMe<T>(ctx: ToolContext, path: string, body: unknown): Promise<T> {
+  const appFetch = getAppFetch()
+  if (!appFetch || !ctx.env || !ctx.accessToken) throw new Error('Not available here: do it in the app')
+  const res = await appFetch(new Request(`${ctx.origin ?? 'https://app.local'}${path}`, {
+    method: 'POST', headers: { authorization: `Bearer ${ctx.accessToken}`, 'content-type': 'application/json' }, body: JSON.stringify(body),
+  }), ctx.env, { waitUntil: () => {}, passThroughOnException: () => {}, props: {} })
+  const out = await res.json().catch(() => null) as (T & { error?: string }) | null
+  if (!res.ok) throw new Error(out?.error ?? `Failed (${res.status})`)
+  return (out ?? {}) as T
+}
+
 function endIso(day: string, start: string, end: string) {
   return end <= start ? zonedIso(addDays(day, 1), end) : zonedIso(day, end)
 }
@@ -357,6 +373,30 @@ export const ALL_TOOLS: ToolDef[] = [
       const patch = roleChange(p, to)
       if (Object.keys(patch).length) check(await sb.from('profiles').update(patch).eq('id', p.id))
       return { ok: true, name: p.full_name, team_role: to }
+    },
+  }),
+  tool({
+    name: 'add_team_member',
+    title: 'Add someone to the team',
+    description: 'Admins: add a team member, as Invite on the Team page does, so they can be put on the rota. With temporary_password (8+ characters) the account is made straight away and no email is sent: they sign in with that email and password and can change both on My account (an admin can change their email on the Team page later, so a placeholder email works until they give theirs). Without it, an invite email goes to them. role: employee (the default), manager (shop manager) or owner; only an owner adds an owner. Someone who already has an account in no business joins as they are.',
+    admin: true,
+    input: z.object({
+      name: z.string().trim().min(1).describe('Their name as the rota shows it'),
+      email: z.string().trim().min(1).describe('The email they sign in with'),
+      role: z.enum(TEAM_ROLE_IDS as [TeamRole, ...TeamRole[]]).default('employee'),
+      temporary_password: z.string().min(8, 'The temporary password needs at least 8 characters').optional()
+        .describe('Make the account now with this password; no email is sent'),
+      phone: z.string().trim().optional().describe('For shift messages (WhatsApp or SMS)'),
+    }),
+    async run(ctx, a) {
+      // Inviting needs the service key, so the Worker's own invite does it, as this person: the same
+      // checks as the Team page (admins only, only an owner adds an owner, the plan's team size).
+      const res = await postAsMe<{ created?: boolean; joined?: boolean }>(ctx, '/api/admin/invite',
+        { email: a.email, full_name: a.name, role: a.role, password: a.temporary_password, phone: a.phone })
+      const how = res.joined ? 'joined with the account they already had'
+        : res.created ? 'account made: they sign in with this email and the temporary password'
+        : 'invite email sent: they join when they accept it'
+      return { ok: true, name: a.name, email: a.email.toLowerCase(), team_role: a.role, how }
     },
   }),
 
