@@ -208,7 +208,7 @@
       "name": "Screen slideshows",
       "area": "Menu",
       "page": "/screens",
-      "does": "Menus, pictures and videos taking turns on a screen; until then each is a single display",
+      "does": "The full slide editor and picture slideshows on links of their own; until then a screen is a single display or a slideshow of what's picked on it",
       "switch": "screenSlideshows",
       "needs": []
     },

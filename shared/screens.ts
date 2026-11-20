@@ -127,6 +127,11 @@ export interface Screen {
   slides: Slide[]
   /** Off: the screen shows a quiet holding page. */
   active: boolean
+  /**
+   * A slideshow: what's switched on takes turns, and picking something on the Screens page adds it to
+   * them; else a single display, where picking something puts it on alone. The same link either way.
+   */
+  slideshow: boolean
   /** When the screen last asked for its slides (it does every minute while it's on). */
   last_seen_at: string | null
   updated_at: string
@@ -140,7 +145,7 @@ export const newScreen = (name: string, kind: ScreenKind = 'screen'): ScreenInpu
   name, kind, slug: '', own_url: null, orientation: 'landscape', seconds: kind === 'slideshow' ? 8 : 10, transition: 'fade', transition_ms: 800, shuffle: false,
   fit: kind === 'slideshow' ? 'contain' : 'cover', music_url: null, music_volume: 40, video_sound: false, show_clock: false, ticker: null,
   // A picture slideshow starts with the live offers' pictures, so it has something to show straight away.
-  slides: kind === 'slideshow' ? [offersSlide()] : [], active: true,
+  slides: kind === 'slideshow' ? [offersSlide()] : [], active: true, slideshow: false,
 })
 
 /** The slide that plays the picture of each offer that's on now (Offers & specials). */
