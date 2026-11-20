@@ -7,6 +7,7 @@ import DeleteIcon from '@mui/icons-material/DeleteOutlined'
 import UpIcon from '@mui/icons-material/ArrowUpward'
 import DownIcon from '@mui/icons-material/ArrowDownward'
 import ReadingTimeIcon from '@mui/icons-material/QueryStatsOutlined'
+import PrintIcon from '@mui/icons-material/PrintOutlined'
 import { Link as RouterLink } from 'react-router-dom'
 import { useState } from 'react'
 import { useApp } from '../app/AppContext'
@@ -84,6 +85,8 @@ export function StaffRulesPage() {
     <>
       <PageHeader eyebrow={t('Team')} title={t('Staff rules')} actions={<>
         <ExpandAllButton expanded={expanded} disabled={!sections.length} />
+        {/* Every section on A4 (StaffRulesPrintPage), to print or save as a PDF: the whole team can. */}
+        <Button variant="outlined" startIcon={<PrintIcon />} component={RouterLink} to="/rules/print" disabled={!sections.length}>{t('Print')}</Button>
         {isAdmin && <ExportButton table={table} disabled={!sections.length} folder="Team" />}
         {isAdmin && canSeePay && <Button variant="outlined" startIcon={<ReadingTimeIcon />} component={RouterLink} to="/user-analytics?view=pages&page=rules">{t('Time spent reading')}</Button>}
         {isAdmin && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setEditing({ title: '', rules: [], sort: nextSort })}>{t('Add a section')}</Button>}

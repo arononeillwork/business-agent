@@ -265,6 +265,9 @@ built-in **AI connector** so owners can run it by talking to Claude.
   is open and marked; moving a section asks nobody); admins see who has read them since the last change.
   Starts from the usual rules for a café in Spain (free tap water, the hoja de quejas y reclamaciones, the
   14 allergens), to change to how the business works.
+- Printing the staff rules (Staff rules): Print opens every section on an A4 page (`/rules/print`, no menu
+  around it), numbered as on the page, with when they last changed, to print or save as a PDF for the team.
+  The whole team can. It shares its look with a printed role (`src/components/PrintSheet.tsx`).
 - Daily checklists (Business section, after the To Do List): what to do to open the shop at the start of the day and to close it at the
   end, each thing in English and Spanish, read in the language each person uses the app in (the other one
   when it has none yet), some with steps under them. It opens on the start of the day until halfway through
