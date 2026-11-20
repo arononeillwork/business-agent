@@ -145,7 +145,7 @@ assistant.post('/api/assistant', async c => {
   const numbers = numberFormatOf(me.preferences?.numberFormat, biz?.country)
   const claude = new Anthropic({ apiKey: c.env.ANTHROPIC_API_KEY }).beta.messages
   try {
-    const reply = await answer(claude, { sb, me, env: c.env, origin: new URL(c.req.url).origin, numbers, timeZone: biz?.timezone ?? undefined }, toolsFor(me), history,
+    const reply = await answer(claude, { sb, me, env: c.env, origin: new URL(c.req.url).origin, accessToken: token, numbers, timeZone: biz?.timezone ?? undefined }, toolsFor(me), history,
       biz?.name ?? businessConfig.name, biz?.country === 'IE' ? 'IE' : 'ES')
     return c.json({ reply })
   } catch (e) {

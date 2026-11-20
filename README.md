@@ -28,6 +28,9 @@ built-in **AI connector** so owners can run it by talking to Claude.
 - Sign-in emails: an owner or shop manager changes the email someone signs in with on the Team page (their
   panel → Change email), for a typo or a new address; they sign in with it straight away, with the same
   password. Only an owner changes an owner's (`emailBlock()` in `shared/teamRoles.ts`, `/api/admin/set-email`).
+- Adding people by asking Claude: `add_team_member` does what Invite on the Team page does, through the
+  Worker's own `/api/admin/invite` as the person asking (same checks): with a temporary password the
+  account is made at once and no email goes out, so a placeholder email works until they give theirs.
 - User analytics (Settings, owners): who uses the app, on which devices and from where, and how long they spend on
   each page, over the last 7, 30 or 90 days or 12 months. People (each person's visits, time, devices and towns),
   Pages (time per page; open one, Staff rules say, for how long each person spent on it and who never opened it) and
@@ -265,6 +268,9 @@ built-in **AI connector** so owners can run it by talking to Claude.
   is open and marked; moving a section asks nobody); admins see who has read them since the last change.
   Starts from the usual rules for a café in Spain (free tap water, the hoja de quejas y reclamaciones, the
   14 allergens), to change to how the business works.
+- Printing the staff rules (Staff rules): Print opens every section on an A4 page (`/rules/print`, no menu
+  around it), numbered as on the page, with when they last changed, to print or save as a PDF for the team.
+  The whole team can. It shares its look with a printed role (`src/components/PrintSheet.tsx`).
 - Daily checklists (Business section, after the To Do List): what to do to open the shop at the start of the day and to close it at the
   end, each thing in English and Spanish, read in the language each person uses the app in (the other one
   when it has none yet), some with steps under them. It opens on the start of the day until halfway through

@@ -323,13 +323,16 @@ function RoleDetails({ role: r, roles, people, position, you }: { role: JobRole;
         </Box>
       ))}
       {!r.duties.length && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('No duties written yet.')}</Typography>}
-      {!you && <AppAccess role={r} />}
+      {!you && <AppAccess name={r.name} permissions={r.permissions} />}
     </>
   )
 }
 
-/** What a role lets its people do in the app (admins): closed until it's opened, so the duties come first. */
-function AppAccess({ role: r }: { role: JobRole }) {
+/**
+ * What a role (or a Category template) lets its people do in the app, for admins: closed until it's opened,
+ * so the duties come first.
+ */
+function AppAccess({ name, permissions }: { name: string; permissions: RolePermissions | undefined }) {
   const [open, setOpen] = useState(false)
   const id = useId()
   return (
@@ -343,7 +346,7 @@ function AppAccess({ role: r }: { role: JobRole }) {
       </Typography>
       <Collapse in={open} unmountOnExit>
         <Box id={id} sx={{ pt: 0.5 }}>
-          <PermissionList permissions={r.permissions} label={t('{role}: what they can do', { role: r.name })} />
+          <PermissionList permissions={permissions} label={t('{role}: what they can do', { role: name })} />
         </Box>
       </Collapse>
     </Box>
@@ -594,7 +597,8 @@ function CategoryTab({ roles, category, addPresets }: { roles: JobRole[]; catego
           {left.length ? tn(left.length, 'Add the one not in use', 'Add the {n} not in use') : t('All in use')}
         </Button>
       </Stack>
-      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' } }}>
+      {/* Each card its own height, so opening one doesn't stretch the one beside it. */}
+      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, alignItems: 'start' }}>
         {templates.map(p => {
           const used = usedAs(p)
           return (
@@ -608,10 +612,10 @@ function CategoryTab({ roles, category, addPresets }: { roles: JobRole[]; catego
                         aria-label={t('Add {name}', { name: t(p.name) })}>{t('Add')}</Button>}
                 </Stack>
                 <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>{t(p.summary)}</Typography>
-                <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mb: 1.5 }}>
+                <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
                   {p.reportsTo ? `${t('Answers to')} ${t(p.reportsTo)} · ` : ''}{tn(p.duties.length, '{n} duty', '{n} duties')}
                 </Typography>
-                <PermissionList permissions={p.permissions} label={t('{role}: what they can do', { role: t(p.name) })} />
+                <AppAccess name={t(p.name)} permissions={p.permissions} />
               </CardContent>
             </Card>
           )
