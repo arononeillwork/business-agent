@@ -3,6 +3,7 @@ import { createMcpHandler } from '@modelcontextprotocol/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { buildMcpServer } from './mcp'
 import { TOOLS, runTool, toolsFor } from './tools'
+import { setAppFetch } from './appFetch'
 import type { Profile } from '../shared/types'
 
 const person = (role: Profile['role']): Profile => ({
@@ -110,6 +111,32 @@ describe('AI connector tools', () => {
     expect(updates).toEqual([{ opening_hours: { mon: { open: '09:00', close: '15:00' }, sun: null, thu } }])
     await expect(runTool(t, ctx, { opening_hours: { thu: { ...thu, break: { from: '21:00', to: '22:00' } } } })).rejects.toThrow('break')
     expect(updates).toHaveLength(1)
+  })
+
+  it('adds a team member through the Worker’s own invite, as the person asking', async () => {
+    const t = TOOLS.find(x => x.name === 'add_team_member')!
+    const sent: { url: string; auth: string | null; body: Record<string, unknown> }[] = []
+    let answer: { status: number; body: unknown } = { status: 200, body: { ok: true, created: true } }
+    setAppFetch(async req => {
+      sent.push({ url: req.url, auth: req.headers.get('authorization'), body: await req.json() })
+      return new Response(JSON.stringify(answer.body), { status: answer.status })
+    })
+    const ctx = { sb: fakeSb([]), me: person('admin'), env: {} as never, origin: 'https://app.test', accessToken: 'tok' }
+    await expect(runTool(t, ctx, { name: 'Karen', email: 'Karen@Example.com', temporary_password: 'Beans2026!' }))
+      .resolves.toMatchObject({ ok: true, name: 'Karen', email: 'karen@example.com', team_role: 'employee', how: expect.stringContaining('temporary password') })
+    expect(sent[0]).toEqual({ url: 'https://app.test/api/admin/invite', auth: 'Bearer tok',
+      body: { email: 'Karen@Example.com', full_name: 'Karen', role: 'employee', password: 'Beans2026!' } })
+    // Without a password it's an invite email; the Worker's refusals come back as they are.
+    answer = { status: 200, body: { ok: true } }
+    await expect(runTool(t, ctx, { name: 'Tati', email: 'tati@example.com', role: 'manager' })).resolves.toMatchObject({ team_role: 'manager', how: expect.stringContaining('invite email') })
+    expect(sent[1].body).toEqual({ email: 'tati@example.com', full_name: 'Tati', role: 'manager' })
+    answer = { status: 403, body: { error: 'Only an owner can invite another owner' } }
+    await expect(runTool(t, ctx, { name: 'Pat', email: 'pat@example.com', role: 'owner' })).rejects.toThrow('Only an owner')
+    await expect(runTool(t, ctx, { name: 'Pat', email: 'pat@example.com', temporary_password: 'short' })).rejects.toThrow('8 characters')
+    await expect(runTool(t, ctx, { name: 'Pat', email: 'pat@example.com', role: 'ceo' })).rejects.toThrow('role')
+    await expect(runTool(t, { ...ctx, me: person('employee') }, { name: 'Pat', email: 'pat@example.com' })).rejects.toThrow('Only admins')
+    expect(toolsFor(person('employee')).map(x => x.name)).not.toContain('add_team_member')
+    expect(sent).toHaveLength(3)
   })
 
   it('validates input and requires confirmation for deletes', async () => {
