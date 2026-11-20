@@ -83,6 +83,7 @@ describe('sales reps and rewards', () => {
     expect(cleanInstagram(' @Lucia.MBL ')).toBe('lucia.mbl')
     expect(cleanInstagram('not a handle')).toBeNull()
     expect(cleanInstagram('https://www.instagram.com/Ortega.MMA/?hl=es')).toBe('ortega.mma')
+    expect(cleanInstagram('instagram.com/itselmus/')).toBe('itselmus') // pasted without https://, not "instagram.com"
     expect(cleanInstagram('https://www.tiktok.com/@laroca.ruiz')).toBe('laroca.ruiz')
     expect(cleanYoutube('https://www.youtube.com/@Ortega-MMA')).toBe('ortega-mma')
     expect(cleanYoutube('@no spaces')).toBeNull()

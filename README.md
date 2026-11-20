@@ -583,6 +583,16 @@ built-in **AI connector** so owners can run it by talking to Claude.
   a role or to who can start now, and **Add to a job** puts someone on a job's board at Applied, CV and
   all. They're applicants with no job (`applicants.opening_id` null), kept a year as everyone who
   applied. Any applicant's CV can be uploaded the same way.
+- Hiring from Instagram, and the CV pool's lane: **Add from Instagram** (the page's header, or the CV
+  pool's lane) takes someone's profile link or their @ (`instagram.com/itselmus`, `@itselmus`), kept as
+  the name alone (`applicants.instagram`, the `applicants_instagram` migration, which tidies a link written
+  straight to the database too); with no name they go by their @ until it's known, and they came from
+  Instagram. Their @ opens their profile from their card and the lists, and finds them in a search. Any
+  applicant can have one. The board now has a lane for the CV pool under the jobs' (there even with no
+  jobs, when it's the board's only lane), with the same columns: people with no job move through the
+  stages (Under consideration, as Shortlisted is now called; an interview, which goes on the calendar)
+  and are dragged onto a job's lane, or back to the pool. **Add to a job** keeps the stage they reached
+  (not Applied any more).
 - Off the rota (Team): an admin switches someone off the rota on their Team panel (an owner, the
   business's own login). They still sign in; the rota gives them no row and doesn't offer them for a
   shift, unless they already have one that week.

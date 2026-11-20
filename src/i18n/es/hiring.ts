@@ -60,7 +60,7 @@ export default {
   'Remove the details of {name}': 'Quitar los datos de {name}',
   'Seasonal (fijo discontinuo)': 'De temporada (fijo discontinuo)',
   'Send the invite': 'Enviar la invitación',
-  'Shortlisted': 'Preseleccionado',
+  'Under consideration': 'En consideración',
   'Sign in the window': 'Cartel en el escaparate',
   'Stage of {name}': 'Fase de {name}',
   'Temporary': 'Temporal',
@@ -118,7 +118,7 @@ export default {
   'Or a link to it': 'O un enlace a él',
   '{name} is on the board for {job}': '{name} está en el tablero de {job}',
   'Which job': 'Qué puesto',
-  'They go on its board at Applied, with their CV and notes.': 'Pasa a su tablero en «Ha solicitado», con su CV y sus notas.',
+  'They go on its board at {stage}, with their CV and notes.': 'Pasa a su tablero en «{stage}», con su CV y sus notas.',
   'Add to the job': 'Añadir al puesto',
   // A CV uploaded (a PDF, a Word document or a picture).
   'View the CV of {name}': 'Ver el CV de {name}',
@@ -132,4 +132,18 @@ export default {
   'A PDF, a Word document or a picture, up to 10 MB': 'Un PDF, un documento de Word o una imagen, hasta 10 MB',
   'A CV can be up to 10 MB': 'Un CV puede ocupar hasta 10 MB',
   'A CV is a PDF, a Word document or a picture': 'Un CV es un PDF, un documento de Word o una imagen',
+  // The CV pool's lane on the board, and someone found on Instagram (added by their profile's link or @).
+  'No job yet: drag them onto a job’s lane once there’s one for them': 'Sin puesto aún: arrástralos a la fila de un puesto cuando haya uno para ellos',
+  'No jobs posted yet: everyone is in the CV pool’s lane, moving along as you get to know them. Add a vacancy and drag them onto it.':
+    'Aún no hay puestos publicados: todos están en la fila de la bolsa de CV y avanzan a medida que los conoces. Añade una vacante y arrástralos a ella.',
+  'Moved to {stage}, in the CV pool': 'Movido a {stage}, en la bolsa de CV',
+  'added {date}': 'añadido el {date}',
+  'Add from Instagram': 'Añadir desde Instagram',
+  'Someone you found on Instagram. They go in the CV pool’s lane on the board, to move along as you get to know them, until there’s a job for them.':
+    'Alguien que has encontrado en Instagram. Va a la fila de la bolsa de CV del tablero, para ir avanzando a medida que lo conoces, hasta que haya un puesto para él.',
+  '@name, or a link to their profile': '@nombre, o un enlace a su perfil',
+  'Paste the link to their profile, or type their @': 'Pega el enlace a su perfil o escribe su @',
+  'That isn’t an Instagram name or a link to a profile': 'Eso no es un nombre de Instagram ni un enlace a un perfil',
+  'Open @{handle} on Instagram': 'Abrir @{handle} en Instagram',
+  'Empty: they go by @{handle} until you know it': 'Vacío: aparece como @{handle} hasta que sepas su nombre',
 }

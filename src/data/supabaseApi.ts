@@ -1370,7 +1370,8 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
       return (check(await sb.from('applicants').insert({ ...row, opening_id: null }).select('id').single()) as { id: string }).id
     },
     async addToJob(applicantId, openingId) {
-      check(await sb.from('applicants').update({ opening_id: openingId, stage: 'applied' }).eq('id', applicantId).is('opening_id', null))
+      // On its lane at the stage they'd reached in the pool's.
+      check(await sb.from('applicants').update({ opening_id: openingId }).eq('id', applicantId).is('opening_id', null))
     },
     async applicantCvs() {
       return (check(await sb.from('applicant_cvs').select(CV_COLUMNS)) as unknown as ApplicantCv[]).map(c => ({ ...c, size: Number(c.size) }))

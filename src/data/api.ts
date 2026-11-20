@@ -812,13 +812,13 @@ export interface Api {
   /** The job and everyone who applied for it. */
   deleteOpening(id: string): Promise<void>
   applicants(): Promise<Applicant[]>
-  /** Add an applicant (no id) or change one; returns their id. */
+  /** Add an applicant (no id) or change one; returns their id. With no job (opening_id null) they're in the CV pool. */
   saveApplicant(a: ApplicantInput): Promise<string>
   deleteApplicant(id: string): Promise<void>
   // The CV pool: applicants() includes them, with no job (opening_id null). Removed with deleteApplicant.
   /** Add someone to the CV pool (no id) or change them there; returns their id. */
   savePoolCandidate(c: PoolInput): Promise<string>
-  /** Someone from the CV pool onto a job: on its board at Applied, with their CV. */
+  /** Someone from the CV pool onto a job: on its lane at the stage they'd reached, with their CV. */
   addToJob(applicantId: string, openingId: string): Promise<void>
   /** The applicants' uploaded CVs, without the files. */
   applicantCvs(): Promise<ApplicantCv[]>

@@ -8927,9 +8927,9 @@ test.describe('hiring', () => {
 
     // Moved from the card's menu.
     await stage('Applied').getByRole('button', { name: 'More for Tom Baker' }).click()
-    await page.getByRole('menuitem', { name: 'Move to Shortlisted' }).click()
-    await toast(page, 'Moved to Shortlisted')
-    await expect(stage('Shortlisted').getByRole('article', { name: 'Tom Baker' })).toBeVisible()
+    await page.getByRole('menuitem', { name: 'Move to Under consideration' }).click()
+    await toast(page, 'Moved to Under consideration')
+    await expect(stage('Under consideration').getByRole('article', { name: 'Tom Baker' })).toBeVisible()
 
     // Dragged to the next stage.
     // In the middle of the screen, away from the edges where the board scrolls by itself.
@@ -8976,13 +8976,21 @@ test.describe('hiring', () => {
     }
     const jobs = page.getByRole('region', { name: 'Jobs' })
     await expect(jobs).toContainText('No jobs yet.')
+    // The board still shows the CV pool's lane, its people at their stages.
+    await page.getByRole('tab', { name: 'Board' }).click()
+    await expect(page.getByText('No jobs posted yet: everyone is in the CV pool’s lane')).toBeVisible()
+    const poolLane = page.getByRole('main').getByRole('region', { name: 'CV pool' })
+    await expect(poolLane.getByRole('group', { name: 'Applied', exact: true }).getByRole('article', { name: 'Marta Jiménez' })).toBeVisible()
+    await expect(poolLane.getByRole('group', { name: 'Under consideration' }).getByRole('article', { name: 'Chloé Martin' })).toBeVisible()
+
+    await page.getByRole('tab', { name: 'CV pool (3)' }).click()
     const pool = page.getByRole('region', { name: 'CV pool' })
     const rows = pool.getByRole('table', { name: 'CV pool' }).getByRole('row')
     await expect(rows).toHaveCount(4) // the header and the three kept in the demo, newest first
     await expect(rows.nth(1)).toContainText('Chloé Martin')
 
     // A CV handed in at the counter, with no job for it.
-    await jobs.getByRole('button', { name: 'Add a CV' }).click()
+    await pool.getByRole('button', { name: 'Add a CV' }).click()
     const dialog = page.getByRole('dialog', { name: 'Add a CV' })
     await dialog.getByRole('textbox', { name: 'Name' }).fill('Pablo Ruiz')
     await dialog.getByRole('textbox', { name: 'Email' }).fill('pablo.ruiz@example.es')
@@ -9011,7 +9019,7 @@ test.describe('hiring', () => {
     await expect(pablo.getByRole('button', { name: 'Download the CV of Pablo Ruiz' })).toBeVisible()
 
     // A job is posted: from the pool onto its board, at Applied, with the CV.
-    await jobs.getByRole('button', { name: 'Add a vacancy' }).click()
+    await page.getByRole('main').getByRole('button', { name: 'Add a vacancy' }).click()
     const vacancy = page.getByRole('dialog', { name: 'Add a vacancy' })
     await vacancy.getByRole('textbox', { name: 'Job title' }).fill('Summer barista')
     await vacancy.getByRole('button', { name: 'Save' }).click()
@@ -9027,6 +9035,52 @@ test.describe('hiring', () => {
     const applied = page.getByRole('main').getByRole('region', { name: 'Summer barista' }).getByRole('group', { name: 'Applied', exact: true })
     await applied.getByRole('button', { name: 'More for Pablo Ruiz' }).click()
     await expect(page.getByRole('menuitem', { name: 'View the CV of Pablo Ruiz' })).toBeVisible()
+  })
+
+  test('someone found on Instagram: added by their profile’s link, moved along in the CV pool’s lane, and onto a job at the stage they reached', async ({ page }) => {
+    await open(page, '/hiring')
+    await page.getByRole('button', { name: 'Add from Instagram' }).first().click()
+    const dialog = page.getByRole('dialog', { name: 'Add from Instagram' })
+    await dialog.getByRole('textbox', { name: 'Instagram' }).fill('https://www.instagram.com/Demo.Elmus/?hl=en')
+    await expect(dialog.getByRole('link', { name: 'Open @demo.elmus on Instagram' })).toHaveAttribute('href', 'https://www.instagram.com/demo.elmus/')
+    await expect(dialog).toContainText('Empty: they go by @demo.elmus until you know it')
+    await expect(dialog.getByRole('combobox', { name: 'Came from' })).toHaveText('Instagram')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, '@demo.elmus is in the CV pool')
+
+    // On the board, in the CV pool's lane at Applied, their @ opening their profile.
+    const lane = page.getByRole('main').getByRole('region', { name: 'CV pool' })
+    const stage = (name: string) => lane.getByRole('group', { name, exact: true })
+    const card = stage('Applied').getByRole('article', { name: '@demo.elmus' })
+    await expect(card.getByRole('link', { name: 'Open @demo.elmus on Instagram' })).toHaveAttribute('href', 'https://www.instagram.com/demo.elmus/')
+    await card.getByRole('button', { name: 'More for @demo.elmus' }).click()
+    await page.getByRole('menuitem', { name: 'Move to Under consideration' }).click()
+    await toast(page, 'Moved to Under consideration')
+
+    // Their name once known, and on to an interview.
+    await stage('Under consideration').getByRole('button', { name: 'More for @demo.elmus' }).click()
+    await page.getByRole('menuitem', { name: 'Edit @demo.elmus' }).click()
+    const edit = page.getByRole('dialog', { name: '@demo.elmus' })
+    await edit.getByRole('textbox', { name: 'Name' }).fill('Elmus Demo')
+    await edit.getByRole('combobox', { name: 'Stage' }).click()
+    await page.getByRole('option', { name: 'Interview' }).click()
+    await edit.getByRole('button', { name: 'Save' }).click()
+    await toast(page, /^Saved$/)
+    await expect(stage('Interview').getByRole('article', { name: 'Elmus Demo' })).toContainText('@demo.elmus')
+
+    // Found by their @ in the CV pool, and put on a job at the stage they'd reached.
+    await page.getByRole('tab', { name: /^CV pool/ }).click()
+    const pool = page.getByRole('region', { name: 'CV pool' })
+    await pool.getByRole('textbox', { name: 'Search the CV pool' }).fill('@demo.el')
+    await expect(pool.getByRole('table', { name: 'CV pool' }).getByRole('row')).toHaveCount(2)
+    await pool.getByRole('button', { name: 'Add Elmus Demo to a job' }).click()
+    const placing = page.getByRole('dialog', { name: 'Add Elmus Demo to a job' })
+    await expect(placing).toContainText('They go on its board at Interview')
+    await placing.getByRole('button', { name: 'Add to the job' }).click()
+    await toast(page, 'Elmus Demo is on the board for Weekend barista')
+    await page.getByRole('tab', { name: 'Board' }).click()
+    await expect(page.getByRole('main').getByRole('region', { name: 'Weekend barista' }).getByRole('group', { name: 'Interview', exact: true })
+      .getByRole('article', { name: 'Elmus Demo' })).toBeVisible()
   })
 })
 
