@@ -10082,8 +10082,11 @@ test.describe('role permissions', () => {
     await expect(page.getByRole('button', { name: 'Café', exact: true })).toHaveAttribute('aria-pressed', 'true')
     const templates = page.getByRole('region', { name: 'Templates' })
     await expect(templates.getByRole('region', { name: 'Barista', exact: true })).toContainText('In use as Barista / Bartender')
-    await expect(templates.getByRole('region', { name: 'Cleaner', exact: true }).getByRole('list', { name: 'Cleaner: what they can do' }))
-      .toContainText('StockHiddenNot in their menu')
+    // What a template can do in the app is closed, as on the roles; one press opens it.
+    const cleaner = templates.getByRole('region', { name: 'Cleaner', exact: true })
+    await expect(cleaner.getByRole('list', { name: 'Cleaner: what they can do' })).toHaveCount(0)
+    await cleaner.getByRole('button', { name: 'What they can do in the app' }).click()
+    await expect(cleaner.getByRole('list', { name: 'Cleaner: what they can do' })).toContainText('StockHiddenNot in their menu')
     await templates.getByRole('button', { name: 'Add Owner' }).click()
     await toast(page, 'Role added')
     await expect(templates.getByRole('region', { name: 'Owner', exact: true })).toContainText('In use')
