@@ -1839,7 +1839,7 @@ export function createDemoApi(): Api {
   const demoInstagram = (raw: string | null | undefined) => {
     if (!raw?.trim()) return null
     const handle = applicantInstagram(raw)
-    if (!handle) throw new Error('That isn’t an Instagram name or a link to a profile')
+    if (!handle) throw new Error('That isn’t an Instagram username')
     return handle
   }
   const cvFiles = new Map<string, ApplicantCv & { blob: Blob }>()

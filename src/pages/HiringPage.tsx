@@ -14,13 +14,13 @@ import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader, SectionTitle, StatGrid, StatTile, Tag } from '../components/common'
 import { HiringBoard, InstagramLink, OPENING_TONE, STAGE_TONE } from '../components/HiringBoard'
-import { AddToJobDialog, CvActions, CvFileField, CvPool, PoolDialog, applyCvChange, useCvFiles, type CvChange, type CvFiles } from '../components/CvPool'
+import { AddToJobDialog, CvActions, CvFileField, CvPool, InstagramField, NameField, PoolDialog, applyCvChange, useCvFiles, type CvChange, type CvFiles } from '../components/CvPool'
 import { addDays, formatLocal, localDate, today, zonedIso } from '../../shared/time'
 import { cleanPhone } from '../../shared/customers'
 import { currentCountry } from '../../shared/country'
 import {
   APPLICANT_STAGES, OPENING_STATUSES, STILL_IN, applicantStageLabel, boardLabel, boardMove, contractLabel, finishedJob, hiringContracts, hiringLanes, applicantInstagram,
-  instagramUrl, jobBoards, keepUntil, matchesCandidate, nameOrHandle, onAJob, openingStatusLabel, overdue, poolOrder,
+  jobBoards, keepUntil, matchesCandidate, nameOrHandle, onAJob, openingStatusLabel, overdue, poolOrder, typedName,
   type Applicant, type ApplicantInput, type ApplicantStage, type JobApplicant, type JobOpening, type OpeningInput, type OpeningStatus,
 } from '../../shared/hiring'
 import { tokens } from '../theme'
@@ -386,16 +386,17 @@ function OpeningDialog({ opening, onClose }: { opening: OpeningInput; onClose: (
 function ApplicantDialog({ applicant, openings, files, onClose }: { applicant: ApplicantInput; openings: JobOpening[]; files: CvFiles; onClose: () => void }) {
   const { api } = useApp()
   const run = useAction()
-  const [a, setA] = useState<ApplicantInput>(applicant)
+  // Their name as typed: empty while they only go by their @.
+  const [a, setA] = useState<ApplicantInput>(() => ({ ...applicant, full_name: typedName(applicant) }))
   const [file, setFile] = useState<CvChange>(null)
   const set = (p: Partial<ApplicantInput>) => setA(x => ({ ...x, ...p }))
   const cv = a.id ? files.cvOf(a.id) : undefined
-  // Their Instagram as typed (a link or an @): with no name, they go by it.
+  // Their Instagram as typed (a username, or a link): with no name, they're kept as their @.
   const typed = a.instagram?.trim() ?? ''
   const handle = typed ? applicantInstagram(typed) : null
   const save = async () => {
     const ok = await run(async () => {
-      if (typed && !handle) throw new Error(t('That isn’t an Instagram name or a link to a profile'))
+      if (typed && !handle) throw new Error(t('That isn’t an Instagram username'))
       const name = nameOrHandle(a.full_name, handle)
       if (!name) throw new Error(t('Add their name'))
       const phone = a.phone?.trim() ? cleanPhone(a.phone) : null
@@ -410,23 +411,19 @@ function ApplicantDialog({ applicant, openings, files, onClose }: { applicant: A
   const remove = async () => { if (a.id && await run(() => api.deleteApplicant(a.id!), t('Applicant removed'))) onClose() }
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm" aria-labelledby="applicant-title">
-      <DialogTitle id="applicant-title">{a.id ? a.full_name : t('Add an applicant')}</DialogTitle>
+      <DialogTitle id="applicant-title">{a.id ? applicant.full_name : t('Add an applicant')}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
           <TextField select label={t('Applied for')} value={a.opening_id ?? ''} onChange={e => set({ opening_id: e.target.value })}>
             {openings.map(o => <MenuItem key={o.id} value={o.id}>{o.title}</MenuItem>)}
           </TextField>
-          <TextField label={t('Name')} value={a.full_name} onChange={e => set({ full_name: e.target.value })} required={!handle}
-            helperText={handle && !a.full_name.trim() ? t('Empty: they go by @{handle} until you know it', { handle }) : undefined} />
+          <NameField value={a.full_name} handle={handle} onChange={v => set({ full_name: v })} />
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField label={t('Email')} type="email" value={a.email ?? ''} onChange={e => set({ email: e.target.value })} sx={{ flex: 1 }} />
             <TextField label={t('Phone')} value={a.phone ?? ''} onChange={e => set({ phone: e.target.value })} sx={{ flex: 1 }} />
           </Stack>
-          <TextField label={t('Instagram')} value={a.instagram ?? ''} placeholder={t('@name, or a link to their profile')} error={!!typed && !handle}
-            onChange={e => set({ instagram: e.target.value, ...(a.source === 'other' && applicantInstagram(e.target.value) ? { source: 'instagram' as const } : {}) })}
-            helperText={handle
-              ? <Link href={instagramUrl(handle)} target="_blank" rel="noopener">{t('Open @{handle} on Instagram', { handle })}</Link>
-              : typed ? t('That isn’t an Instagram name or a link to a profile') : t('Paste the link to their profile, or type their @')} />
+          <InstagramField value={a.instagram ?? ''}
+            onChange={v => set({ instagram: v, ...(a.source === 'other' && applicantInstagram(v) ? { source: 'instagram' as const } : {}) })} />
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField select label={t('Came from')} value={a.source ?? 'other'} onChange={e => set({ source: e.target.value as Applicant['source'] })} sx={{ flex: 1 }}>
               {jobBoards(currentCountry(), a.source ? [a.source] : []).map(b => <MenuItem key={b.id} value={b.id}>{t(b.label)}</MenuItem>)}

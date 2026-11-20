@@ -602,10 +602,11 @@ built-in **AI connector** so owners can run it by talking to Claude.
   all. They're applicants with no job (`applicants.opening_id` null), kept a year as everyone who
   applied. Any applicant's CV can be uploaded the same way.
 - Hiring from Instagram, and the CV pool's lane: **Add from Instagram** (the page's header, or the CV
-  pool's lane) takes someone's profile link or their @ (`instagram.com/itselmus`, `@itselmus`), kept as
-  the name alone (`applicants.instagram`, the `applicants_instagram` migration, which tidies a link written
-  straight to the database too); with no name they go by their @ until it's known, and they came from
-  Instagram. Their @ opens their profile from their card and the lists, and finds them in a search. Any
+  pool's lane) takes someone's Instagram username, typed after the @ (a link to their profile pasted in
+  works too), kept as the username alone (`applicants.instagram`, the `applicants_instagram` migration,
+  which tidies a link written straight to the database too), and they came from Instagram. Their name is
+  left for you to type once you know it: until then they're shown as their @, and the Name field stays
+  empty when you open them. Their @ opens their profile from their card and the lists, and finds them in a search. Any
   applicant can have one. The board now has a lane for the CV pool under the jobs' (there even with no
   jobs, when it's the board's only lane), with the same columns: people with no job move through the
   stages (Under consideration, as Shortlisted is now called; an interview, which goes on the calendar)

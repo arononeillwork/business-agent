@@ -141,9 +141,9 @@ export default {
   'Add from Instagram': 'Añadir desde Instagram',
   'Someone you found on Instagram. They go in the CV pool’s lane on the board, to move along as you get to know them, until there’s a job for them.':
     'Alguien que has encontrado en Instagram. Va a la fila de la bolsa de CV del tablero, para ir avanzando a medida que lo conoces, hasta que haya un puesto para él.',
-  '@name, or a link to their profile': '@nombre, o un enlace a su perfil',
-  'Paste the link to their profile, or type their @': 'Pega el enlace a su perfil o escribe su @',
-  'That isn’t an Instagram name or a link to a profile': 'Eso no es un nombre de Instagram ni un enlace a un perfil',
+  'Instagram username': 'Usuario de Instagram',
+  'Their username, as on their Instagram profile': 'Su usuario, tal como aparece en su perfil de Instagram',
+  'That isn’t an Instagram username': 'Eso no es un usuario de Instagram',
   'Open @{handle} on Instagram': 'Abrir @{handle} en Instagram',
-  'Empty: they go by @{handle} until you know it': 'Vacío: aparece como @{handle} hasta que sepas su nombre',
+  'Type their name when you know it. Until then they show as @{handle}.': 'Escribe su nombre cuando lo sepas. Hasta entonces aparece como @{handle}.',
 }
