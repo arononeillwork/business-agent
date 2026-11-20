@@ -178,8 +178,9 @@ export function matchesCandidate(a: Pick<Applicant, 'full_name' | 'email' | 'pho
     || (digits.length >= 3 && (a.phone ?? '').replace(/\D/g, '').includes(digits))
 }
 
-// Someone found on Instagram: added by their profile's link (instagram.com/itselmus) or their @. With no
-// name yet, they go by their @ until you know it; they came from Instagram unless said otherwise.
+// Someone found on Instagram: added by their username (a link to their profile works too). Their name is
+// left for you to type once you know it; until then they're kept, and shown, as their @. They came from
+// Instagram unless said otherwise.
 
 /** An Instagram name from what was typed or pasted (a profile's link or an @), without the @; null when it isn't one (a TikTok link included). */
 export const applicantInstagram = (raw: string | null | undefined) => (/tiktok\.com/i.test(raw ?? '') ? null : cleanInstagram(raw))
@@ -189,6 +190,9 @@ export const instagramUrl = (handle: string) => `https://www.instagram.com/${han
 
 /** The name kept for someone: the one typed, or their @ when only their Instagram is known. */
 export const nameOrHandle = (name: string, instagram: string | null) => name.trim() || (instagram ? `@${instagram}` : '')
+
+/** Their name as typed, for the Name field: empty while they only go by their @ (nobody has typed one yet). */
+export const typedName = (a: { full_name: string; instagram?: string | null }) => (a.instagram && a.full_name === `@${a.instagram}` ? '' : a.full_name)
 
 // The CV pool: people kept for a job to come when there's no job for them yet (a CV handed in at the
 // counter, sent by email, passed on, someone found on Instagram). They're applicants with no job until

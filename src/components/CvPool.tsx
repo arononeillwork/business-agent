@@ -23,7 +23,7 @@ import { currentCountry } from '../../shared/country'
 import { formatLocal, localDate, today as todayIs, zonedIso } from '../../shared/time'
 import {
   APPLICANT_STAGES, CV_ACCEPT, applicantStageLabel, availableBy, boardLabel, cleanRoles, cvPreview, cvProblem, cvSize, applicantInstagram, instagramUrl, jobBoards, keepUntil,
-  matchesPoolCandidate, nameOrHandle, openingStatusLabel, overdue, poolRoles, suits, type Applicant, type ApplicantCv, type ApplicantStage, type JobOpening, type PoolInput,
+  matchesPoolCandidate, nameOrHandle, openingStatusLabel, overdue, poolRoles, suits, typedName, type Applicant, type ApplicantCv, type ApplicantStage, type JobOpening, type PoolInput,
 } from '../../shared/hiring'
 import { tokens } from '../theme'
 import { t } from '../i18n'
@@ -210,10 +210,32 @@ export function CvPool({ pool, openings, today, files, onAdd, onEdit, onAddToJob
   )
 }
 
+/** Their Instagram username, typed after the @ (a link to their profile pasted in works too), with a link to check it's them. */
+export function InstagramField({ value, onChange, autoFocus = false }: { value: string; onChange: (v: string) => void; autoFocus?: boolean }) {
+  const typed = value.trim()
+  const handle = typed ? applicantInstagram(typed) : null
+  return (
+    <TextField label={t('Instagram username')} value={value} autoFocus={autoFocus} error={!!typed && !handle}
+      onChange={e => onChange(e.target.value.replace(/^\s*@/, ''))}
+      slotProps={{ input: { startAdornment: <InputAdornment position="start">@</InputAdornment> } }}
+      helperText={handle
+        ? <Link href={instagramUrl(handle)} target="_blank" rel="noopener">{t('Open @{handle} on Instagram', { handle })}</Link>
+        : typed ? t('That isn’t an Instagram username') : t('Their username, as on their Instagram profile')} />
+  )
+}
+
+/** The Name field, left for you to type: with only their Instagram known, they're shown as their @ until then. */
+export function NameField({ value, handle, onChange }: { value: string; handle: string | null; onChange: (v: string) => void }) {
+  return (
+    <TextField label={t('Name')} value={value} onChange={e => onChange(e.target.value)} required={!handle}
+      helperText={handle && !value.trim() ? t('Type their name when you know it. Until then they show as @{handle}.', { handle }) : undefined} />
+  )
+}
+
 /**
  * Someone for the CV pool: how to reach them (their Instagram too), the roles they'd suit, when they can
  * start, their CV and notes, and how far they've got (the pool's lane on the board). `fromInstagram`:
- * someone found there, added by their profile's link or their @, going by it until their name is known.
+ * someone found there, added by their username; their name is typed in once it's known.
  */
 export function PoolDialog({ person, pool, files, fromInstagram = false, onClose }: {
   person: Applicant | null; pool: Applicant[]; files: CvFiles; fromInstagram?: boolean; onClose: () => void
@@ -221,7 +243,7 @@ export function PoolDialog({ person, pool, files, fromInstagram = false, onClose
   const { api, positions, jobRoles } = useApp()
   const run = useAction()
   const [c, setC] = useState<PoolInput>(() => person
-    ? { id: person.id, full_name: person.full_name, email: person.email, phone: person.phone, source: person.source, roles: person.roles, available_from: person.available_from,
+    ? { id: person.id, full_name: typedName(person), email: person.email, phone: person.phone, source: person.source, roles: person.roles, available_from: person.available_from,
         availability: person.availability, cv_link: person.cv_link, notes: person.notes, applied_on: person.applied_on, instagram: person.instagram, stage: person.stage,
         interview_at: person.interview_at, rating: person.rating }
     : { full_name: '', source: fromInstagram ? 'instagram' : 'other', roles: [], applied_on: todayIs(), stage: 'applied' })
@@ -230,13 +252,13 @@ export function PoolDialog({ person, pool, files, fromInstagram = false, onClose
   const cv = c.id ? files.cvOf(c.id) : undefined
   // The business's positions and roles, and the roles already typed for the pool.
   const options = poolRoles([{ roles: positions.filter(p => p.active).map(p => p.name) }, { roles: jobRoles.map(r => r.name) }, ...pool])
-  // Their Instagram as typed (a link or an @), and the name it gives.
+  // Their Instagram as typed (a username, or a link), and the name kept: the one typed, or their @ until then.
   const typed = c.instagram?.trim() ?? ''
   const handle = typed ? applicantInstagram(typed) : null
   const name = nameOrHandle(c.full_name, handle)
   const save = async () => {
     const ok = await run(async () => {
-      if (typed && !handle) throw new Error(t('That isn’t an Instagram name or a link to a profile'))
+      if (typed && !handle) throw new Error(t('That isn’t an Instagram username'))
       if (!name) throw new Error(t('Add their name'))
       const phone = c.phone?.trim() ? cleanPhone(c.phone) : null
       if (c.phone?.trim() && !phone) throw new Error(t('That phone number doesn’t look right'))
@@ -252,12 +274,8 @@ export function PoolDialog({ person, pool, files, fromInstagram = false, onClose
     if (c.id && await run(() => api.deleteApplicant(c.id!), t('{name}’s details removed', { name: c.full_name }))) onClose()
   }
   const instagramField = (
-    <TextField label={t('Instagram')} value={c.instagram ?? ''} autoFocus={fromInstagram && !person} placeholder={t('@name, or a link to their profile')}
-      onChange={e => set({ instagram: e.target.value, ...(c.source === 'other' && applicantInstagram(e.target.value) ? { source: 'instagram' as const } : {}) })}
-      error={!!typed && !handle}
-      helperText={handle
-        ? <Link href={instagramUrl(handle)} target="_blank" rel="noopener">{t('Open @{handle} on Instagram', { handle })}</Link>
-        : typed ? t('That isn’t an Instagram name or a link to a profile') : t('Paste the link to their profile, or type their @')} />
+    <InstagramField value={c.instagram ?? ''} autoFocus={fromInstagram && !person}
+      onChange={v => set({ instagram: v, ...(c.source === 'other' && applicantInstagram(v) ? { source: 'instagram' as const } : {}) })} />
   )
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm" aria-labelledby="pool-title">
@@ -270,8 +288,7 @@ export function PoolDialog({ person, pool, files, fromInstagram = false, onClose
               : t('Kept in the CV pool for a job to come: no job needed.')}
           </Typography>
           {fromInstagram && !person && instagramField}
-          <TextField label={t('Name')} value={c.full_name} onChange={e => set({ full_name: e.target.value })} required={!handle}
-            helperText={handle && !c.full_name.trim() ? t('Empty: they go by @{handle} until you know it', { handle }) : undefined} />
+          <NameField value={c.full_name} handle={handle} onChange={v => set({ full_name: v })} />
           {!(fromInstagram && !person) && instagramField}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField label={t('Email')} type="email" value={c.email ?? ''} onChange={e => set({ email: e.target.value })} sx={{ flex: 1 }} />

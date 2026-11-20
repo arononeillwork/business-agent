@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   applicantInstagram, availableBy, boardMove, cleanRoles, cvKind, cvPreview, cvProblem, cvSize, hiringLanes, instagramUrl, keepUntil, matchesCandidate,
-  matchesPoolCandidate, nameOrHandle, onAJob, overdue, poolOrder, poolRoles, stageCounts, suits, MAX_CV_SIZE, type Applicant, type JobOpening,
+  matchesPoolCandidate, nameOrHandle, onAJob, overdue, poolOrder, poolRoles, stageCounts, suits, typedName, MAX_CV_SIZE, type Applicant, type JobOpening,
 } from './hiring'
 
 describe('hiring', () => {
@@ -76,6 +76,11 @@ describe('hiring', () => {
     expect(nameOrHandle('  ', 'itselmus')).toBe('@itselmus')
     expect(nameOrHandle(' Elmus ', 'itselmus')).toBe('Elmus')
     expect(nameOrHandle('', null)).toBe('')
+    // The Name field is left empty while they only go by their @, for their name to be typed in.
+    expect(typedName({ full_name: '@itselmus', instagram: 'itselmus' })).toBe('')
+    expect(typedName({ full_name: 'Elmus', instagram: 'itselmus' })).toBe('Elmus')
+    expect(typedName({ full_name: '@someone.else', instagram: 'itselmus' })).toBe('@someone.else')
+    expect(typedName({ full_name: 'Marta', instagram: null })).toBe('Marta')
     const elmus = { full_name: '@itselmus', email: null, phone: null, instagram: 'itselmus' }
     expect(matchesCandidate(elmus, 'elmus')).toBe(true)
     expect(matchesCandidate({ ...elmus, full_name: 'Elmus' }, '@itsel')).toBe(true)

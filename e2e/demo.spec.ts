@@ -8992,7 +8992,7 @@ test.describe('hiring', () => {
     // A CV handed in at the counter, with no job for it.
     await pool.getByRole('button', { name: 'Add a CV' }).click()
     const dialog = page.getByRole('dialog', { name: 'Add a CV' })
-    await dialog.getByRole('textbox', { name: 'Name' }).fill('Pablo Ruiz')
+    await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill('Pablo Ruiz')
     await dialog.getByRole('textbox', { name: 'Email' }).fill('pablo.ruiz@example.es')
     await dialog.getByRole('textbox', { name: 'Phone' }).fill('612 345 678')
     await dialog.getByRole('combobox', { name: 'Roles they’d suit' }).fill('Barista')
@@ -9037,13 +9037,18 @@ test.describe('hiring', () => {
     await expect(page.getByRole('menuitem', { name: 'View the CV of Pablo Ruiz' })).toBeVisible()
   })
 
-  test('someone found on Instagram: added by their profile’s link, moved along in the CV pool’s lane, and onto a job at the stage they reached', async ({ page }) => {
+  test('someone found on Instagram: added by their username, their name typed in later, moved along in the CV pool’s lane, and onto a job at the stage they reached', async ({ page }) => {
     await open(page, '/hiring')
     await page.getByRole('button', { name: 'Add from Instagram' }).first().click()
     const dialog = page.getByRole('dialog', { name: 'Add from Instagram' })
-    await dialog.getByRole('textbox', { name: 'Instagram' }).fill('https://www.instagram.com/Demo.Elmus/?hl=en')
+    const username = dialog.getByRole('textbox', { name: 'Instagram username' })
+    // A link pasted in is taken as the username too.
+    await username.fill('https://www.instagram.com/Demo.Elmus/?hl=en')
     await expect(dialog.getByRole('link', { name: 'Open @demo.elmus on Instagram' })).toHaveAttribute('href', 'https://www.instagram.com/demo.elmus/')
-    await expect(dialog).toContainText('Empty: they go by @demo.elmus until you know it')
+    await username.fill('demo.elmus')
+    await expect(dialog.getByRole('link', { name: 'Open @demo.elmus on Instagram' })).toHaveAttribute('href', 'https://www.instagram.com/demo.elmus/')
+    await expect(dialog.getByRole('textbox', { name: 'Name', exact: true })).toHaveValue('')
+    await expect(dialog).toContainText('Type their name when you know it. Until then they show as @demo.elmus.')
     await expect(dialog.getByRole('combobox', { name: 'Came from' })).toHaveText('Instagram')
     await dialog.getByRole('button', { name: 'Save' }).click()
     await toast(page, '@demo.elmus is in the CV pool')
@@ -9061,7 +9066,10 @@ test.describe('hiring', () => {
     await stage('Under consideration').getByRole('button', { name: 'More for @demo.elmus' }).click()
     await page.getByRole('menuitem', { name: 'Edit @demo.elmus' }).click()
     const edit = page.getByRole('dialog', { name: '@demo.elmus' })
-    await edit.getByRole('textbox', { name: 'Name' }).fill('Elmus Demo')
+    // Their name is left for you to type: the field is empty, not their @.
+    await expect(edit.getByRole('textbox', { name: 'Name', exact: true })).toHaveValue('')
+    await expect(edit.getByRole('textbox', { name: 'Instagram username' })).toHaveValue('demo.elmus')
+    await edit.getByRole('textbox', { name: 'Name', exact: true }).fill('Elmus Demo')
     await edit.getByRole('combobox', { name: 'Stage' }).click()
     await page.getByRole('option', { name: 'Interview' }).click()
     await edit.getByRole('button', { name: 'Save' }).click()
