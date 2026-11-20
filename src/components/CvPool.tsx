@@ -10,19 +10,20 @@ import SearchIcon from '@mui/icons-material/Search'
 import UploadIcon from '@mui/icons-material/UploadFileOutlined'
 import ViewIcon from '@mui/icons-material/VisibilityOutlined'
 import WorkIcon from '@mui/icons-material/WorkOutlined'
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
 import { Empty, SectionTitle, Tag } from './common'
+import { InstagramLink } from './HiringBoard'
 import { FileViewer } from '../pages/LegalDocumentsPage'
 import type { Api } from '../data/api'
 import { cleanPhone } from '../../shared/customers'
 import { currentCountry } from '../../shared/country'
-import { formatLocal, today as todayIs } from '../../shared/time'
+import { formatLocal, localDate, today as todayIs, zonedIso } from '../../shared/time'
 import {
-  CV_ACCEPT, availableBy, boardLabel, cleanRoles, cvPreview, cvProblem, cvSize, jobBoards, keepUntil, matchesPoolCandidate, openingStatusLabel, overdue, poolRoles,
-  suits, type Applicant, type ApplicantCv, type JobOpening, type PoolInput,
+  APPLICANT_STAGES, CV_ACCEPT, applicantStageLabel, availableBy, boardLabel, cleanRoles, cvPreview, cvProblem, cvSize, applicantInstagram, instagramUrl, jobBoards, keepUntil,
+  matchesPoolCandidate, nameOrHandle, openingStatusLabel, overdue, poolRoles, suits, type Applicant, type ApplicantCv, type ApplicantStage, type JobOpening, type PoolInput,
 } from '../../shared/hiring'
 import { tokens } from '../theme'
 import { t } from '../i18n'
@@ -123,11 +124,13 @@ export function CvFileField({ cv, change, onChange, onView }: { cv: ApplicantCv 
  * they'd suit, when they can start and their CV. Searched and narrowed to a role or to who can start
  * now; each is added to a job once there's one for them (they go on its board at Applied).
  */
-export function CvPool({ pool, openings, today, files, onAdd, onEdit, onAddToJob, onForget }: {
+export function CvPool({ pool, openings, today, files, onAdd, onEdit, onAddToJob, onForget, stageSelect }: {
   pool: Applicant[]; openings: JobOpening[]; today: string; files: CvFiles
   /** Add someone (none when the page offers it already). */
   onAdd?: () => void
   onEdit: (a: Applicant) => void; onAddToJob: (a: Applicant) => void; onForget: (a: Applicant) => void
+  /** How far they've got (the pool's lane on the board), changed in place. */
+  stageSelect: (a: Applicant) => ReactNode
 }) {
   const [query, setQuery] = useState('')
   const [role, setRole] = useState('all')
@@ -164,7 +167,7 @@ export function CvPool({ pool, openings, today, files, onAdd, onEdit, onAddToJob
           : <Box sx={{ overflowX: 'auto' }}>
               <Table size="small" aria-label={t('CV pool')}>
                 <TableHead><TableRow>
-                  <TableCell>{t('Candidate')}</TableCell><TableCell>{t('Suits')}</TableCell><TableCell>{t('Can start')}</TableCell>
+                  <TableCell>{t('Candidate')}</TableCell><TableCell>{t('Stage')}</TableCell><TableCell>{t('Suits')}</TableCell><TableCell>{t('Can start')}</TableCell>
                   <TableCell>{t('Added on')}</TableCell><TableCell />
                 </TableRow></TableHead>
                 <TableBody>
@@ -173,9 +176,11 @@ export function CvPool({ pool, openings, today, files, onAdd, onEdit, onAddToJob
                       <TableCell sx={{ minWidth: 200 }}>
                         <Typography variant="body2" sx={{ fontWeight: 500 }}>{a.full_name}</Typography>
                         <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', overflowWrap: 'anywhere' }}>{[a.email, a.phone].filter(Boolean).join(' · ')}</Typography>
+                        {a.instagram && <InstagramLink handle={a.instagram} />}
                         {a.notes && <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', maxWidth: 360 }}>{a.notes}</Typography>}
                         {overdue(a, today) && <Box><Tag fg={tokens.warnFg} bg={tokens.warnBg}>{t('Kept until {date}', { date: day(a.keep_until) })}</Tag></Box>}
                       </TableCell>
+                      <TableCell>{stageSelect(a)}</TableCell>
                       <TableCell sx={{ minWidth: 140 }}>
                         <Stack direction="row" spacing={0.5} useFlexGap sx={{ flexWrap: 'wrap' }}>{a.roles.map(r => <Tag key={r}>{r}</Tag>)}</Stack>
                       </TableCell>
@@ -205,26 +210,37 @@ export function CvPool({ pool, openings, today, files, onAdd, onEdit, onAddToJob
   )
 }
 
-/** Someone for the CV pool: how to reach them, the roles they'd suit, when they can start, their CV and notes. */
-export function PoolDialog({ person, pool, files, onClose }: { person: Applicant | null; pool: Applicant[]; files: CvFiles; onClose: () => void }) {
+/**
+ * Someone for the CV pool: how to reach them (their Instagram too), the roles they'd suit, when they can
+ * start, their CV and notes, and how far they've got (the pool's lane on the board). `fromInstagram`:
+ * someone found there, added by their profile's link or their @, going by it until their name is known.
+ */
+export function PoolDialog({ person, pool, files, fromInstagram = false, onClose }: {
+  person: Applicant | null; pool: Applicant[]; files: CvFiles; fromInstagram?: boolean; onClose: () => void
+}) {
   const { api, positions, jobRoles } = useApp()
   const run = useAction()
   const [c, setC] = useState<PoolInput>(() => person
     ? { id: person.id, full_name: person.full_name, email: person.email, phone: person.phone, source: person.source, roles: person.roles, available_from: person.available_from,
-        availability: person.availability, cv_link: person.cv_link, notes: person.notes, applied_on: person.applied_on }
-    : { full_name: '', source: 'other', roles: [], applied_on: todayIs() })
+        availability: person.availability, cv_link: person.cv_link, notes: person.notes, applied_on: person.applied_on, instagram: person.instagram, stage: person.stage,
+        interview_at: person.interview_at, rating: person.rating }
+    : { full_name: '', source: fromInstagram ? 'instagram' : 'other', roles: [], applied_on: todayIs(), stage: 'applied' })
   const [file, setFile] = useState<CvChange>(null)
   const set = (p: Partial<PoolInput>) => setC(x => ({ ...x, ...p }))
   const cv = c.id ? files.cvOf(c.id) : undefined
   // The business's positions and roles, and the roles already typed for the pool.
   const options = poolRoles([{ roles: positions.filter(p => p.active).map(p => p.name) }, { roles: jobRoles.map(r => r.name) }, ...pool])
+  // Their Instagram as typed (a link or an @), and the name it gives.
+  const typed = c.instagram?.trim() ?? ''
+  const handle = typed ? applicantInstagram(typed) : null
+  const name = nameOrHandle(c.full_name, handle)
   const save = async () => {
-    const name = c.full_name.trim()
     const ok = await run(async () => {
+      if (typed && !handle) throw new Error(t('That isn’t an Instagram name or a link to a profile'))
       if (!name) throw new Error(t('Add their name'))
       const phone = c.phone?.trim() ? cleanPhone(c.phone) : null
       if (c.phone?.trim() && !phone) throw new Error(t('That phone number doesn’t look right'))
-      const id = await api.savePoolCandidate({ ...c, full_name: name, phone, email: c.email?.trim() || null, roles: cleanRoles(c.roles ?? []),
+      const id = await api.savePoolCandidate({ ...c, full_name: name, phone, email: c.email?.trim() || null, roles: cleanRoles(c.roles ?? []), instagram: handle,
         availability: c.availability?.trim() || null, cv_link: c.cv_link?.trim() || null, notes: c.notes?.trim() || null, available_from: c.available_from || null })
       // Saved: a second try (the CV didn't upload) changes them rather than adding them again.
       setC(x => ({ ...x, id }))
@@ -235,16 +251,39 @@ export function PoolDialog({ person, pool, files, onClose }: { person: Applicant
   const remove = async () => {
     if (c.id && await run(() => api.deleteApplicant(c.id!), t('{name}’s details removed', { name: c.full_name }))) onClose()
   }
+  const instagramField = (
+    <TextField label={t('Instagram')} value={c.instagram ?? ''} autoFocus={fromInstagram && !person} placeholder={t('@name, or a link to their profile')}
+      onChange={e => set({ instagram: e.target.value, ...(c.source === 'other' && applicantInstagram(e.target.value) ? { source: 'instagram' as const } : {}) })}
+      error={!!typed && !handle}
+      helperText={handle
+        ? <Link href={instagramUrl(handle)} target="_blank" rel="noopener">{t('Open @{handle} on Instagram', { handle })}</Link>
+        : typed ? t('That isn’t an Instagram name or a link to a profile') : t('Paste the link to their profile, or type their @')} />
+  )
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm" aria-labelledby="pool-title">
-      <DialogTitle id="pool-title">{person ? person.full_name : t('Add a CV')}</DialogTitle>
+      <DialogTitle id="pool-title">{person ? person.full_name : fromInstagram ? t('Add from Instagram') : t('Add a CV')}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
-          <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('Kept in the CV pool for a job to come: no job needed.')}</Typography>
-          <TextField label={t('Name')} value={c.full_name} onChange={e => set({ full_name: e.target.value })} required />
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+            {fromInstagram && !person
+              ? t('Someone you found on Instagram. They go in the CV pool’s lane on the board, to move along as you get to know them, until there’s a job for them.')
+              : t('Kept in the CV pool for a job to come: no job needed.')}
+          </Typography>
+          {fromInstagram && !person && instagramField}
+          <TextField label={t('Name')} value={c.full_name} onChange={e => set({ full_name: e.target.value })} required={!handle}
+            helperText={handle && !c.full_name.trim() ? t('Empty: they go by @{handle} until you know it', { handle }) : undefined} />
+          {!(fromInstagram && !person) && instagramField}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField label={t('Email')} type="email" value={c.email ?? ''} onChange={e => set({ email: e.target.value })} sx={{ flex: 1 }} />
             <TextField label={t('Phone')} value={c.phone ?? ''} onChange={e => set({ phone: e.target.value })} sx={{ flex: 1 }} />
+          </Stack>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <TextField select label={t('Stage')} value={c.stage ?? 'applied'} onChange={e => set({ stage: e.target.value as ApplicantStage })} sx={{ flex: 1 }}>
+              {APPLICANT_STAGES.map(s => <MenuItem key={s.id} value={s.id}>{t(s.label)}</MenuItem>)}
+            </TextField>
+            <TextField label={t('Interview')} type="datetime-local" sx={{ flex: 1 }} slotProps={{ inputLabel: { shrink: true } }}
+              value={c.interview_at ? `${localDate(c.interview_at)}T${formatLocal(c.interview_at, 'HH:mm')}` : ''}
+              onChange={e => set({ interview_at: e.target.value ? zonedIso(e.target.value.slice(0, 10), e.target.value.slice(11, 16)) : null })} helperText={t('Goes on the calendar, for admins')} />
           </Stack>
           <Autocomplete multiple freeSolo autoSelect options={options} value={c.roles ?? []} filterSelectedOptions
             onChange={(_, v) => set({ roles: cleanRoles(v) })}
@@ -256,10 +295,17 @@ export function PoolDialog({ person, pool, files, onClose }: { person: Applicant
             <TextField label={t('When they can work')} value={c.availability ?? ''} onChange={e => set({ availability: e.target.value })}
               placeholder={t('Weekends, mornings until June…')} slotProps={{ htmlInput: { maxLength: 200 } }} sx={{ flex: 1 }} />
           </Stack>
-          <TextField select label={t('Came from')} value={c.source ?? 'other'} onChange={e => set({ source: e.target.value as Applicant['source'] })}>
-            {jobBoards(currentCountry(), c.source ? [c.source] : []).map(b => <MenuItem key={b.id} value={b.id}>{t(b.label)}</MenuItem>)}
-          </TextField>
-          <CvFileField cv={cv} change={file} onChange={setFile} onView={cv ? () => files.view(cv, c.full_name) : undefined} />
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <TextField select label={t('Came from')} value={c.source ?? 'other'} onChange={e => set({ source: e.target.value as Applicant['source'] })} sx={{ flex: 1 }}>
+              {jobBoards(currentCountry(), c.source ? [c.source] : []).map(b => <MenuItem key={b.id} value={b.id}>{t(b.label)}</MenuItem>)}
+            </TextField>
+            <TextField select label={t('Rating')} value={c.rating ?? ''} onChange={e => set({ rating: e.target.value === '' ? null : Number(e.target.value) })} sx={{ flex: 1 }}
+              slotProps={{ select: { displayEmpty: true }, inputLabel: { shrink: true } }}>
+              <MenuItem value="">{t('Not yet')}</MenuItem>
+              {[5, 4, 3, 2, 1].map(n => <MenuItem key={n} value={n}>{t('{n} out of 5', { n })}</MenuItem>)}
+            </TextField>
+          </Stack>
+          <CvFileField cv={cv} change={file} onChange={setFile} onView={cv ? () => files.view(cv, name) : undefined} />
           <TextField label={t('Or a link to it')} value={c.cv_link ?? ''} onChange={e => set({ cv_link: e.target.value || null })} placeholder={'https://'}
             helperText={t('A link to it: the job board, Drive or OneDrive')} />
           <TextField label={t('Notes')} value={c.notes ?? ''} multiline minRows={2} onChange={e => set({ notes: e.target.value })} slotProps={{ htmlInput: { maxLength: 2000 } }} />
@@ -297,7 +343,7 @@ export function AddToJobDialog({ person, openings, onClose }: { person: Applican
           <TextField select label={t('Which job')} value={job} onChange={e => setJob(e.target.value)}>
             {openings.map(o => <MenuItem key={o.id} value={o.id}>{o.status === 'open' ? o.title : `${o.title} (${t(openingStatusLabel(o.status))})`}</MenuItem>)}
           </TextField>
-          <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('They go on its board at Applied, with their CV and notes.')}</Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('They go on its board at {stage}, with their CV and notes.', { stage: t(applicantStageLabel(person.stage)) })}</Typography>
         </Stack>
       </DialogContent>
       <DialogActions>

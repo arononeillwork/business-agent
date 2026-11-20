@@ -1,5 +1,6 @@
-import { Box, Button, IconButton, ListItemIcon, Menu, MenuItem, Stack, Typography } from '@mui/material'
+import { Box, Button, IconButton, Link, ListItemIcon, Menu, MenuItem, Stack, Typography } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
+import InstagramIcon from '@mui/icons-material/Instagram'
 import EditIcon from '@mui/icons-material/EditOutlined'
 import MoreIcon from '@mui/icons-material/MoreHoriz'
 import MoveIcon from '@mui/icons-material/ArrowForward'
@@ -11,8 +12,8 @@ import { useState, type ReactNode } from 'react'
 import { Tag } from './common'
 import { formatLocal } from '../../shared/time'
 import {
-  APPLICANT_STAGES, applicantStageLabel, boardLabel, contractLabel, cvPreview, openingStatusLabel, overdue,
-  type ApplicantCv, type ApplicantStage, type HiringLane, type JobApplicant, type JobOpening, type OpeningStatus,
+  APPLICANT_STAGES, applicantStageLabel, boardLabel, contractLabel, cvPreview, instagramUrl, openingStatusLabel, overdue,
+  type Applicant, type ApplicantCv, type ApplicantStage, type HiringLane, type JobOpening, type OpeningStatus,
 } from '../../shared/hiring'
 import { tokens } from '../theme'
 import { t } from '../i18n'
@@ -27,34 +28,55 @@ export const STAGE_TONE: Record<ApplicantStage, { fg: string; bg: string }> = {
   rejected: { fg: tokens.neutralFg, bg: tokens.neutralBg },
 }
 const day = (d: string) => formatLocal(`${d}T12:00:00Z`, 'd MMM')
+
+/**
+ * Someone's Instagram: their @ on one line (cut short when it doesn't fit), opening their profile on
+ * Instagram. `plain`: just "Instagram", for a card whose name is already their @.
+ */
+export function InstagramLink({ handle, plain = false }: { handle: string; plain?: boolean }) {
+  return (
+    <Link href={instagramUrl(handle)} target="_blank" rel="noopener" variant="caption" aria-label={t('Open @{handle} on Instagram', { handle })} title={`@${handle}`}
+      sx={{ display: 'flex', alignItems: 'center', gap: 0.25, maxWidth: '100%', width: 'fit-content', fontWeight: 500 }}>
+      <InstagramIcon sx={{ fontSize: 14, flexShrink: 0 }} />
+      <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{plain ? t('Instagram') : `@${handle}`}</Box>
+    </Link>
+  )
+}
 const COLUMN = 136
 const grid = { display: 'grid', gridTemplateColumns: `repeat(${APPLICANT_STAGES.length}, minmax(0, 1fr))`, gap: 1 }
 
+/** Where a card is dropped: a job's lane (or the CV pool's: null) and a stage. */
+type Spot = { opening_id: string | null; stage: ApplicantStage }
+
 /**
- * Hiring as a board with swimlanes: a lane per job, a column per stage (Applied to Hired, and Not this
- * time), a card per applicant. Cards are dragged to another stage, or to another job's lane, or moved
- * from their menu.
+ * Hiring as a board with swimlanes: a lane per job and last the CV pool's (people with no job yet: a CV
+ * kept for later, someone found on Instagram), a column per stage (Applied to Hired, and Not this time),
+ * a card per person. Cards are dragged to another stage, or to another lane (onto a job, or back to the
+ * pool), or moved from their menu.
  */
-export function HiringBoard({ lanes, today, positionName, onMove, onEdit, onAdd, onHire, cvOf, onCv }: {
+export function HiringBoard({ lanes, today, positionName, onMove, onEdit, onAdd, onAddFromInstagram, onHire, cvOf, onCv }: {
   lanes: HiringLane[]; today: string; positionName: (id: number | null) => string | undefined
-  onMove: (a: JobApplicant, to: { opening_id: string; stage: ApplicantStage }) => void
-  onEdit: (a: JobApplicant) => void
-  onAdd: (opening: JobOpening) => void
-  onHire: (a: JobApplicant) => void
+  onMove: (a: Applicant, to: Spot) => void
+  onEdit: (a: Applicant) => void
+  /** Someone for a job's lane, or for the CV pool's (null). */
+  onAdd: (opening: JobOpening | null) => void
+  /** Someone found on Instagram, into the CV pool's lane. */
+  onAddFromInstagram: () => void
+  onHire: (a: Applicant) => void
   /** Their uploaded CV, shown (or downloaded) from the card's menu. */
   cvOf: (id: string) => ApplicantCv | undefined
-  onCv: (cv: ApplicantCv, a: JobApplicant) => void
+  onCv: (cv: ApplicantCv, a: Applicant) => void
 }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
-  const [dragging, setDragging] = useState<JobApplicant | null>(null)
+  const [dragging, setDragging] = useState<Applicant | null>(null)
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     setDragging(null)
-    const a = active.data.current?.applicant as JobApplicant | undefined
-    const to = over?.data.current as { opening_id: string; stage: ApplicantStage } | undefined
+    const a = active.data.current?.applicant as Applicant | undefined
+    const to = over?.data.current as Spot | undefined
     if (a && to) onMove(a, to)
   }
   const totals = Object.fromEntries(APPLICANT_STAGES.map(s => [s.id, lanes.reduce((n, l) => n + l.byStage[s.id].length, 0)])) as Record<ApplicantStage, number>
-  const card = (a: JobApplicant) => {
+  const card = (a: Applicant) => {
     const cv = cvOf(a.id)
     return { a, today, onMove: (stage: ApplicantStage) => onMove(a, { opening_id: a.opening_id, stage }), onEdit: () => onEdit(a), onHire: () => onHire(a),
       cv, onCv: cv ? () => onCv(cv, a) : undefined }
@@ -74,14 +96,22 @@ export function HiringBoard({ lanes, today, positionName, onMove, onEdit, onAdd,
             ))}
           </Box>
           {lanes.map(({ opening: o, byStage, total }) => (
-            <Box key={o.id} component="section" aria-label={o.title} sx={{ mb: 2, p: 1.25, borderRadius: '14px', border: 1, borderColor: 'divider', bgcolor: tokens.surfaceAlt }}>
+            <Box key={o?.id ?? 'pool'} component="section" aria-label={o ? o.title : t('CV pool')}
+              sx={{ mb: 2, p: 1.25, borderRadius: '14px', border: 1, borderColor: 'divider', bgcolor: tokens.surfaceAlt, borderStyle: o ? 'solid' : 'dashed' }}>
               <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap', mb: 1, px: 0.5, position: 'sticky', left: 0, maxWidth: 'calc(100vw - 48px)' }}>
-                <Typography variant="subtitle1" component="h3" sx={{ fontWeight: 600 }}>{o.title}</Typography>
-                <Tag {...OPENING_TONE[o.status]}>{t(openingStatusLabel(o.status))}</Tag>
-                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                  {[positionName(o.position_id), t(contractLabel(o.contract)), t('{n} applied', { n: total })].filter(Boolean).join(' · ')}
-                </Typography>
-                <Button size="small" startIcon={<AddIcon />} onClick={() => onAdd(o)} aria-label={t('Add an applicant for {name}', { name: o.title })}>{t('Applicant')}</Button>
+                {o ? <>
+                  <Typography variant="subtitle1" component="h3" sx={{ fontWeight: 600 }}>{o.title}</Typography>
+                  <Tag {...OPENING_TONE[o.status]}>{t(openingStatusLabel(o.status))}</Tag>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                    {[positionName(o.position_id), t(contractLabel(o.contract)), t('{n} applied', { n: total })].filter(Boolean).join(' · ')}
+                  </Typography>
+                  <Button size="small" startIcon={<AddIcon />} onClick={() => onAdd(o)} aria-label={t('Add an applicant for {name}', { name: o.title })}>{t('Applicant')}</Button>
+                </> : <>
+                  <Typography variant="subtitle1" component="h3" sx={{ fontWeight: 600 }}>{t('CV pool')}</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t('No job yet: drag them onto a job’s lane once there’s one for them')}</Typography>
+                  <Button size="small" startIcon={<AddIcon />} onClick={() => onAdd(null)}>{t('Add a CV')}</Button>
+                  <Button size="small" startIcon={<InstagramIcon />} onClick={onAddFromInstagram}>{t('Add from Instagram')}</Button>
+                </>}
               </Stack>
               <Box sx={grid}>
                 {APPLICANT_STAGES.map(s => (
@@ -99,9 +129,9 @@ export function HiringBoard({ lanes, today, positionName, onMove, onEdit, onAdd,
   )
 }
 
-/** A stage in a job's lane: where cards are dropped. */
-function Cell({ opening, stage, children }: { opening: JobOpening; stage: ApplicantStage; children: ReactNode }) {
-  const { setNodeRef, isOver } = useDroppable({ id: `${opening.id}:${stage}`, data: { opening_id: opening.id, stage } })
+/** A stage in a job's lane (or the CV pool's): where cards are dropped. */
+function Cell({ opening, stage, children }: { opening: JobOpening | null; stage: ApplicantStage; children: ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `${opening?.id ?? 'pool'}:${stage}`, data: { opening_id: opening?.id ?? null, stage } satisfies Spot })
   return (
     <Stack ref={setNodeRef} role="group" aria-label={t(applicantStageLabel(stage))} spacing={1}
       sx={{ minHeight: 72, p: 0.75, borderRadius: '10px', transition: 'background-color 120ms',
@@ -112,7 +142,7 @@ function Cell({ opening, stage, children }: { opening: JobOpening; stage: Applic
 }
 
 interface CardProps {
-  a: JobApplicant; today: string; onMove?: (stage: ApplicantStage) => void; onEdit?: () => void; onHire?: () => void; lifted?: boolean
+  a: Applicant; today: string; onMove?: (stage: ApplicantStage) => void; onEdit?: () => void; onHire?: () => void; lifted?: boolean
   cv?: ApplicantCv; onCv?: () => void
 }
 
@@ -125,7 +155,7 @@ function DraggableCard(props: CardProps) {
   )
 }
 
-/** An applicant's card: who, where they came from, the interview, how they were rated; moved, edited or hired from its menu. */
+/** Someone's card: who, where they came from (their Instagram), the interview, how they were rated; moved, edited or hired from its menu. */
 function CardFace({ a, today, onMove, onEdit, onHire, cv, onCv, handle, lifted }: CardProps & { handle?: Record<string, unknown> }) {
   const [more, setMore] = useState<HTMLElement | null>(null)
   const stillIn = a.stage !== 'hired' && a.stage !== 'rejected'
@@ -139,8 +169,9 @@ function CardFace({ a, today, onMove, onEdit, onHire, cv, onCv, handle, lifted }
         {a.rating && <Typography variant="caption" sx={{ color: tokens.warnFg }} aria-label={t('{n} out of 5', { n: a.rating })}>{'★'.repeat(a.rating) + '☆'.repeat(5 - a.rating)}</Typography>}
       </Box>
       <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', lineHeight: 1.4 }}>
-        {[t(boardLabel(a.source)), t('applied {date}', { date: day(a.applied_on) })].join(' · ')}
+        {[t(boardLabel(a.source)), a.opening_id ? t('applied {date}', { date: day(a.applied_on) }) : t('added {date}', { date: day(a.applied_on) })].join(' · ')}
       </Typography>
+      {a.instagram && <InstagramLink handle={a.instagram} plain={a.full_name === `@${a.instagram}`} />}
       {stillIn && a.interview_at && (
         <Typography variant="caption" sx={{ display: 'block', color: tokens.ubeDeep, fontWeight: 500 }}>
           {t('Interview {when}', { when: formatLocal(a.interview_at, 'EEE d MMM, HH:mm') })}

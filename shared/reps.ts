@@ -302,7 +302,7 @@ export function outstanding(reps: SalesRep[], rewards: RepReward[]) {
 
 /** An Instagram (or TikTok) handle as kept: no @, lower case. Null when it isn't one. */
 export function cleanInstagram(raw: string | null | undefined): string | null {
-  const v = (raw ?? '').trim().replace(/^https?:\/\/(www\.)?(instagram|tiktok)\.com\/@?/i, '').replace(/[/?].*$/, '').replace(/^@/, '').toLowerCase()
+  const v = (raw ?? '').trim().replace(/^(https?:\/\/)?(www\.)?(instagram|tiktok)\.com\/@?/i, '').replace(/[/?].*$/, '').replace(/^@/, '').toLowerCase()
   return /^[a-z0-9._]{1,30}$/.test(v) ? v : null
 }
 /** A YouTube handle as kept: no @, lower case (hyphens allowed). Null when it isn't one. */

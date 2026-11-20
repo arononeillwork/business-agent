@@ -3,6 +3,7 @@
 // kept only while they're needed; a year after applying, people not hired should be removed.
 import { msg } from './i18n'
 import { currentCountry, type Country } from './country'
+import { cleanInstagram } from './reps'
 
 export type OpeningStatus = 'open' | 'paused' | 'filled' | 'closed'
 export const OPENING_STATUSES: { id: OpeningStatus; label: string }[] = [
@@ -49,7 +50,7 @@ const order = (ids: JobBoard[], id: JobBoard) => (ids.includes(id) ? ids.indexOf
 
 export type ApplicantStage = 'applied' | 'screening' | 'interview' | 'trial' | 'offer' | 'hired' | 'rejected'
 export const APPLICANT_STAGES: { id: ApplicantStage; label: string }[] = [
-  { id: 'applied', label: msg('Applied') }, { id: 'screening', label: msg('Shortlisted') }, { id: 'interview', label: msg('Interview') },
+  { id: 'applied', label: msg('Applied') }, { id: 'screening', label: msg('Under consideration') }, { id: 'interview', label: msg('Interview') },
   { id: 'trial', label: msg('Trial shift') }, { id: 'offer', label: msg('Offer') }, { id: 'hired', label: msg('Hired') },
   { id: 'rejected', label: msg('Not this time') },
 ]
@@ -100,11 +101,14 @@ export interface Applicant {
   available_from: string | null
   /** When they can work, in words ("Weekends", "Mornings until June"). */
   availability: string | null
+  /** Their Instagram, without the @: someone found there, or who applied there (the `applicants_instagram` migration). */
+  instagram: string | null
 }
 /** Someone who applied for a job (everyone but the CV pool). */
 export type JobApplicant = Applicant & { opening_id: string }
 export const onAJob = (a: Applicant): a is JobApplicant => a.opening_id !== null
-export type ApplicantInput = Partial<Omit<Applicant, 'id'>> & { id?: string; opening_id: string; full_name: string }
+/** Someone added or changed: on a job, or in the CV pool (opening_id null). */
+export type ApplicantInput = Partial<Omit<Applicant, 'id'>> & { id?: string; opening_id: string | null; full_name: string }
 
 /** Months an applicant who wasn't hired is kept (then they should be removed). */
 export const KEEP_MONTHS = 12
@@ -127,50 +131,73 @@ export function stageCounts(list: Pick<Applicant, 'stage'>[]): Record<ApplicantS
   return out
 }
 
-/** A job's lane on the hiring board: its applicants by stage, the newest first in each. */
-export interface HiringLane { opening: JobOpening; byStage: Record<ApplicantStage, JobApplicant[]>; total: number }
+/** A lane on the hiring board: a job's applicants (or the CV pool's people: opening null) by stage, the newest first in each. */
+export interface HiringLane { opening: JobOpening | null; byStage: Record<ApplicantStage, Applicant[]>; total: number }
 
 /** Filled and closed jobs with nobody left in the running: off the board unless asked for. */
 export const finishedJob = (o: Pick<JobOpening, 'id' | 'status'>, applicants: Pick<Applicant, 'opening_id' | 'stage'>[]) =>
   (o.status === 'filled' || o.status === 'closed') && !applicants.some(a => a.opening_id === o.id && STILL_IN.includes(a.stage))
 
+/** A lane's people by stage, the newest first in each. */
+function byStageOf(theirs: Applicant[]) {
+  return Object.fromEntries(APPLICANT_STAGES.map(s => [s.id,
+    theirs.filter(a => a.stage === s.id).sort((x, y) => y.applied_on.localeCompare(x.applied_on) || x.full_name.localeCompare(y.full_name))])) as Record<ApplicantStage, Applicant[]>
+}
+
 /**
- * The hiring board's swimlanes: a lane per job (open ones first, then the newest), a column per stage.
+ * The hiring board's swimlanes: a lane per job (open ones first, then the newest), a column per stage,
+ * and last the CV pool's lane: people with no job, who move through the stages too (someone found on
+ * Instagram, under consideration and interviewed before there's a job posted). It's there with no jobs.
  * Finished jobs (filled or closed, nobody left in the running) only when `withFinished`.
  */
 export function hiringLanes(openings: JobOpening[], applicants: Applicant[], withFinished = false): HiringLane[] {
-  return openings
+  const jobs = openings
     .filter(o => withFinished || !finishedJob(o, applicants))
     .sort((a, b) => Number(a.status !== 'open') - Number(b.status !== 'open') || b.opened_on.localeCompare(a.opened_on))
     .map(opening => {
-      const theirs = applicants.filter((a): a is JobApplicant => a.opening_id === opening.id)
-      const byStage = Object.fromEntries(APPLICANT_STAGES.map(s => [s.id,
-        theirs.filter(a => a.stage === s.id).sort((x, y) => y.applied_on.localeCompare(x.applied_on) || x.full_name.localeCompare(y.full_name))])) as Record<ApplicantStage, JobApplicant[]>
-      return { opening, byStage, total: theirs.length }
+      const theirs = applicants.filter(a => a.opening_id === opening.id)
+      return { opening, byStage: byStageOf(theirs), total: theirs.length }
     })
+  const pool = applicants.filter(a => a.opening_id === null)
+  return [...jobs, { opening: null, byStage: byStageOf(pool), total: pool.length }]
 }
 
-/** Where a card was dropped on the board: a job's lane and a stage. What changes, or null if nothing does. */
-export function boardMove(a: Pick<Applicant, 'opening_id' | 'stage'>, to: { opening_id: string; stage: ApplicantStage }) {
+/** Where a card was dropped on the board: a job's lane (or the CV pool's: null) and a stage. What changes, or null if nothing does. */
+export function boardMove(a: Pick<Applicant, 'opening_id' | 'stage'>, to: { opening_id: string | null; stage: ApplicantStage }) {
   if (a.opening_id === to.opening_id && a.stage === to.stage) return null
   return a.opening_id === to.opening_id ? { stage: to.stage } : { opening_id: to.opening_id, stage: to.stage }
 }
 
-/** The candidates list's search: a name, an email or a phone number (digits only, spaces ignored). */
-export function matchesCandidate(a: Pick<Applicant, 'full_name' | 'email' | 'phone'>, query: string) {
+/** The candidates list's search: a name, an email, an Instagram (with or without the @) or a phone number (digits only, spaces ignored). */
+export function matchesCandidate(a: Pick<Applicant, 'full_name' | 'email' | 'phone'> & { instagram?: string | null }, query: string) {
   const q = query.trim().toLowerCase()
   if (!q) return true
   const digits = q.replace(/\D/g, '')
   return a.full_name.toLowerCase().includes(q) || (a.email ?? '').toLowerCase().includes(q)
+    || (!!a.instagram && a.instagram.includes(q.replace(/^@/, '')))
     || (digits.length >= 3 && (a.phone ?? '').replace(/\D/g, '').includes(digits))
 }
 
-// The CV pool: people kept for a job to come when there's no job for them yet (a CV handed in at the
-// counter, sent by email, passed on). They're applicants with no job until they're added to one, when
-// they go on its board at Applied, CV and all. Kept a year from being added, as everyone who applied.
+// Someone found on Instagram: added by their profile's link (instagram.com/itselmus) or their @. With no
+// name yet, they go by their @ until you know it; they came from Instagram unless said otherwise.
 
-/** Someone added to the CV pool (no id) or changed there. */
-export type PoolInput = Partial<Pick<Applicant, 'email' | 'phone' | 'source' | 'roles' | 'available_from' | 'availability' | 'cv_link' | 'notes' | 'applied_on'>>
+/** An Instagram name from what was typed or pasted (a profile's link or an @), without the @; null when it isn't one (a TikTok link included). */
+export const applicantInstagram = (raw: string | null | undefined) => (/tiktok\.com/i.test(raw ?? '') ? null : cleanInstagram(raw))
+
+/** Their Instagram profile's address. */
+export const instagramUrl = (handle: string) => `https://www.instagram.com/${handle}/`
+
+/** The name kept for someone: the one typed, or their @ when only their Instagram is known. */
+export const nameOrHandle = (name: string, instagram: string | null) => name.trim() || (instagram ? `@${instagram}` : '')
+
+// The CV pool: people kept for a job to come when there's no job for them yet (a CV handed in at the
+// counter, sent by email, passed on, someone found on Instagram). They're applicants with no job until
+// they're added to one, when they go on its lane at the stage they'd reached, CV and all; until then they
+// move through the stages in the pool's own lane on the board. Kept a year from being added, as everyone who applied.
+
+/** Someone added to the CV pool (no id) or changed there: who they are, and how far they've got (the pool's lane on the board). */
+export type PoolInput = Partial<Pick<Applicant, 'email' | 'phone' | 'source' | 'roles' | 'available_from' | 'availability' | 'cv_link' | 'notes' | 'applied_on'
+  | 'instagram' | 'stage' | 'interview_at' | 'rating'>>
   & { id?: string; full_name: string }
 
 /** The roles typed for someone: trimmed, each once whatever its capitals (the first spelling), up to 10 of up to 60 characters. */
@@ -199,8 +226,8 @@ export const suits = (a: Pick<Applicant, 'roles'>, role: string) => a.roles.some
 /** They can start by this day: no day said, or that day or before. */
 export const availableBy = (a: Pick<Applicant, 'available_from'>, day: string) => !a.available_from || a.available_from <= day
 
-/** The CV pool's search: a name, an email or a phone number, as for candidates, and the roles they'd suit, when they can work and the notes. */
-export function matchesPoolCandidate(a: Pick<Applicant, 'full_name' | 'email' | 'phone' | 'roles' | 'availability' | 'notes'>, query: string) {
+/** The CV pool's search: a name, an email, an Instagram or a phone number, as for candidates, and the roles they'd suit, when they can work and the notes. */
+export function matchesPoolCandidate(a: Pick<Applicant, 'full_name' | 'email' | 'phone' | 'roles' | 'availability' | 'notes'> & { instagram?: string | null }, query: string) {
   const q = query.trim().toLowerCase()
   return matchesCandidate(a, query) || [...a.roles, a.availability ?? '', a.notes ?? ''].some(x => x.toLowerCase().includes(q))
 }

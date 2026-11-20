@@ -107,6 +107,7 @@ import { DEFAULT_MILEAGE_RATE, IRISH_MILEAGE, mileageAmount, type ExpenseClaim }
 import { EVERYONE, type Campaign } from '../../shared/campaigns'
 import { keepUntil, type Applicant, type JobOpening } from '../../shared/hiring'
 import { cleanRoles, cvProblem, type ApplicantCv } from '../../shared/hiring'
+import { applicantInstagram } from '../../shared/hiring'
 import { CAFE_POINTS, inRange as inLimits, type SafetyCheck, type SafetyPoint } from '../../shared/foodSafety'
 import { dietsFor, type Allergen, type MenuAllergens } from '../../shared/allergens'
 import { minutesWorked, splitTips, type TipPool } from '../../shared/tips'
@@ -1808,7 +1809,7 @@ export function createDemoApi(): Api {
   ]
   const applicant = (a: Partial<Applicant> & { opening_id: string; full_name: string }): Applicant => {
     const made: Applicant = { id: uid(), email: null, phone: null, source: 'other', stage: 'applied', interview_at: null, rating: null, cv_link: null, notes: null,
-      roles: [], available_from: null, availability: null,
+      roles: [], available_from: null, availability: null, instagram: null,
       applied_on: today(), keep_until: today(), profile_id: null, ...a }
     return { ...made, keep_until: keepUntil(made.applied_on) }
   }
@@ -1834,6 +1835,13 @@ export function createDemoApi(): Api {
   applicantList.forEach(a => interviewEvent(a, a.id))
   // The CV pool: people kept for a job to come, with no job; two with their CV uploaded (database: the cv_pool migration).
   const pooled = (a: Partial<Omit<Applicant, 'opening_id'>> & { full_name: string }): Applicant => ({ ...applicant({ ...a, opening_id: '' }), opening_id: null })
+  /** Mirrors the `applicants_instagram` migration: a link or an @ kept as the name alone; anything else refused. */
+  const demoInstagram = (raw: string | null | undefined) => {
+    if (!raw?.trim()) return null
+    const handle = applicantInstagram(raw)
+    if (!handle) throw new Error('That isn’t an Instagram name or a link to a profile')
+    return handle
+  }
   const cvFiles = new Map<string, ApplicantCv & { blob: Blob }>()
   const keepCv = (a: Applicant, file_name: string, blob: Blob, added_at: string) =>
     cvFiles.set(a.id, { applicant_id: a.id, file_name, mime_type: blob.type || null, size: blob.size, added_at, blob })
@@ -1844,7 +1852,8 @@ export function createDemoApi(): Api {
     const daniel = pooled({ full_name: 'Daniel Ortega', email: 'daniel.ortega@example.es', source: 'referral', roles: ['Kitchen'], availability: 'Weekday mornings',
       applied_on: addDays(today(), -30), notes: 'Maria’s neighbour: two years as a line cook, food handler certificate.' })
     const chloe = pooled({ full_name: 'Chloé Martin', phone: '+33 6 12 34 56 78', source: 'instagram', roles: ['Barista'], available_from: '2027-06-01',
-      availability: 'The summer', applied_on: addDays(today(), -5), cv_link: 'https://www.linkedin.com/in/demo-chloe-martin', notes: 'Asked on Instagram about summer work.' })
+      availability: 'The summer', applied_on: addDays(today(), -5), cv_link: 'https://www.linkedin.com/in/demo-chloe-martin', notes: 'Asked on Instagram about summer work.',
+      instagram: 'demo.chloe.martin', stage: 'screening' })
     applicantList.push(marta, daniel, chloe)
     keepCv(marta, 'Marta_Jimenez_CV.pdf', demoPdf('Marta Jimenez', ['Barista, front of house', 'marta.jimenez@example.es  +34 633 120 554', '',
       'Experience', '2023-2025 (summers): barista, Chiringuito La Rada, Estepona', '2022: waitress, Cafe Central, Marbella', '',
@@ -4548,12 +4557,13 @@ export function createDemoApi(): Api {
     async saveApplicant({ id, ...a }) {
       requireAdmin()
       if (!a.full_name?.trim()) throw new Error('Add their name')
-      if (!openings.some(o => o.id === a.opening_id)) throw new Error('Pick the job they applied for')
+      // On a job, or in the CV pool (no job: moved there on the board).
+      if (a.opening_id !== null && !openings.some(o => o.id === a.opening_id)) throw new Error('Pick the job they applied for')
       const existing = id ? applicantList.find(x => x.id === id) : undefined
       if (id && !existing) throw new Error('That applicant has gone')
       // A change of stage alone keeps what's already there (the email, phone, CV link and notes), as the database does.
-      const merged: Applicant = { ...(existing ?? applicant({ opening_id: a.opening_id, full_name: '' })), ...a }
-      const next: Applicant = { ...merged, full_name: a.full_name.trim(),
+      const merged: Applicant = { ...(existing ?? applicant({ opening_id: a.opening_id ?? '', full_name: '' })), ...a }
+      const next: Applicant = { ...merged, full_name: a.full_name.trim(), instagram: demoInstagram(merged.instagram),
         email: merged.email?.trim().toLowerCase() || null, phone: merged.phone?.trim().replace(/\s+/g, ' ') || null, cv_link: merged.cv_link?.trim() || null, notes: merged.notes?.trim() || null }
       if (next.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(next.email)) throw new Error('That email doesn’t look right')
       if (next.phone && !/^\+\d[\d ]{4,24}$/.test(next.phone)) throw new Error('That phone number doesn’t look right')
@@ -4578,13 +4588,16 @@ export function createDemoApi(): Api {
       const merged: Applicant = { ...(existing ?? pooled({ full_name: '' })), ...c }
       const next: Applicant = { ...merged, full_name: merged.full_name.trim(), email: merged.email?.trim().toLowerCase() || null,
         phone: merged.phone?.trim().replace(/\s+/g, ' ') || null, cv_link: merged.cv_link?.trim() || null, notes: merged.notes?.trim() || null,
-        roles: cleanRoles(merged.roles), availability: merged.availability?.trim() || null, available_from: merged.available_from || null }
+        roles: cleanRoles(merged.roles), availability: merged.availability?.trim() || null, available_from: merged.available_from || null,
+        instagram: demoInstagram(merged.instagram) }
       if (next.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(next.email)) throw new Error('That email doesn’t look right')
       if (next.phone && !/^\+\d[\d ]{4,24}$/.test(next.phone)) throw new Error('That phone number doesn’t look right')
       if (next.cv_link && !/^https?:\/\/\S+$/i.test(next.cv_link)) throw new Error('The CV link starts with https://')
       next.keep_until = keepUntil(next.applied_on)
       if (existing) Object.assign(existing, next)
       else applicantList.push(next)
+      // In the pool's lane they can have an interview too.
+      interviewEvent(next, next.id)
       return next.id
     },
     async addToJob(applicantId, openingId) {
@@ -4592,7 +4605,8 @@ export function createDemoApi(): Api {
       const a = applicantList.find(x => x.id === applicantId && x.opening_id === null)
       if (!a) throw new Error('They’re not in the CV pool any more')
       if (!openings.some(o => o.id === openingId)) throw new Error('Pick the job they applied for')
-      Object.assign(a, { opening_id: openingId, stage: 'applied' })
+      // On its lane at the stage they'd reached in the pool's.
+      Object.assign(a, { opening_id: openingId })
       interviewEvent(a, a.id)
     },
     async applicantCvs() {

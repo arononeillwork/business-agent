@@ -265,8 +265,9 @@ end $$;
 
 -- 8. Erase, with no ledger lines: gone, with a rep row that had nothing on it ------------------------------------------------------
 select pg_temp.as_editor(1);
+-- A code new_rep_code() never makes (it makes LUCIA and two or three digits): an earlier test's Lucía may hold any of those.
 insert into public.sales_reps (business_id, name, kind, code, customer_id)
-select 1, 'Lucía', 'customer', 'LUCIA77', id from public.customers where business_id = 1 and square_id = 'SQ-LUCIA';
+select 1, 'Lucía', 'customer', 'LUCIASITE', id from public.customers where business_id = 1 and square_id = 'SQ-LUCIA';
 insert into public.newsletter_events (business_id, customer_id, action, email, via)
 select 1, id, 'signup', 'lucia@site-accounts.test', 'form' from public.customers where business_id = 1 and square_id = 'SQ-LUCIA';
 select set_config('test.lucia', (select id::text from public.customers where business_id = 1 and square_id = 'SQ-LUCIA'), false);
@@ -274,7 +275,7 @@ select pg_temp.as_worker(1);
 do $$ begin
   assert public.site_account_erase(1, 'lucia@site-accounts.test') = '{"found": true, "kept": null, "square_ids": ["SQ-LUCIA"]}'::jsonb, 'nothing to keep';
   assert not exists (select 1 from public.customers where id = current_setting('test.lucia')::uuid), 'deleted';
-  assert not exists (select 1 from public.sales_reps where business_id = 1 and code = 'LUCIA77'), 'her empty rep row too';
+  assert not exists (select 1 from public.sales_reps where business_id = 1 and code = 'LUCIASITE'), 'her empty rep row too';
   assert not exists (select 1 from public.newsletter_events where customer_id = current_setting('test.lucia')::uuid), 'and her newsletter record';
   assert exists (select 1 from public.audit_log where business_id = 1 and row_id = current_setting('test.lucia') and action = 'erase' and via = 'website'), 'logged';
   assert not exists (select 1 from public.audit_log where business_id = 1 and row_id = current_setting('test.lucia')
