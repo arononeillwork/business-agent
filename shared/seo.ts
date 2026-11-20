@@ -3,6 +3,7 @@
 // heavy parser: the tags that matter are simple to find) and say what passes, what to look at and
 // what to fix, in plain words. The name, address, phone and hours are checked against the app.
 import { DAY_KEYS, type DayKey, type OpeningHours } from './types'
+import { fromPeriods, hoursKey, hoursLabel, type Period } from './openingHours'
 import { msg } from './i18n'
 
 export type CheckLevel = 'pass' | 'warn' | 'fail'
@@ -85,14 +86,15 @@ const DAYS: Record<string, DayKey> = {
 }
 const hm = (s: unknown) => (typeof s === 'string' && /^\d{1,2}:\d{2}/.test(s) ? s.slice(0, 5).padStart(5, '0') : null)
 
-/** Opening hours from structured data: openingHoursSpecification objects, or "Mo-Fr 08:00-18:00" text. */
+/** Opening hours from structured data: openingHoursSpecification objects, or "Mo-Fr 08:00-18:00" text. Two for a day: it closes for a break. */
 export function hoursOf(b: Record<string, unknown>): OpeningHours | null {
-  const out: OpeningHours = {}
+  const periods = new Map<DayKey, Period[]>()
+  const add = (d: DayKey, p: Period | null) => periods.set(d, [...(periods.get(d) ?? []), ...(p ? [p] : [])])
   const spec = b.openingHoursSpecification
   for (const s of (Array.isArray(spec) ? spec : spec ? [spec] : []) as Record<string, unknown>[]) {
     const days = (Array.isArray(s.dayOfWeek) ? s.dayOfWeek : [s.dayOfWeek]).map(d => DAYS[String(d ?? '').split('/').pop()!.toLowerCase()]).filter(Boolean)
     const open = hm(s.opens), close = hm(s.closes)
-    for (const d of days) out[d] = open && close && !(open === '00:00' && close === '00:00') ? { open, close } : null
+    for (const d of days) add(d, open && close && !(open === '00:00' && close === '00:00') ? { open, close } : null)
   }
   const text = b.openingHours
   for (const line of (Array.isArray(text) ? text : text ? [text] : []) as string[]) {
@@ -100,9 +102,9 @@ export function hoursOf(b: Record<string, unknown>): OpeningHours | null {
     if (!m) continue
     const from = DAY_KEYS.indexOf(DAYS[m[1].toLowerCase()]), to = m[2] ? DAY_KEYS.indexOf(DAYS[m[2].toLowerCase()]) : from
     if (from < 0 || to < 0) continue
-    for (let i = from; i <= to; i++) out[DAY_KEYS[i]] = { open: hm(m[4])!, close: hm(m[5])! }
+    for (let i = from; i <= to; i++) add(DAY_KEYS[i], { open: hm(m[4])!, close: hm(m[5])! })
   }
-  return Object.keys(out).length ? out : null
+  return periods.size ? Object.fromEntries([...periods].map(([d, ps]) => [d, fromPeriods(ps)])) as OpeningHours : null
 }
 
 const BUSINESS_TYPES = /^(LocalBusiness|FoodEstablishment|CafeOrCoffeeShop|Restaurant|Bakery|BarOrPub|Store|Organization)$/
@@ -223,7 +225,7 @@ export function hoursDiffer(a: OpeningHours, b: OpeningHours): DayKey[] {
   return DAY_KEYS.filter(d => {
     const x = a[d] ?? null, y = b[d] ?? null
     if (!x && !y) return false
-    return !x || !y || x.open !== y.open || x.close !== y.close
+    return hoursKey(x) !== hoursKey(y)
   })
 }
 
@@ -335,7 +337,7 @@ export interface ListingFacts { name: string | null; phone: string | null; addre
 export type ConsistencyField = 'name' | 'phone' | 'address' | 'hours'
 export interface ConsistencyRow { field: ConsistencyField; app: string | null; website: string | null; google: string | null; matches: boolean | null }
 
-const hoursText = (h: OpeningHours | null) => (h ? DAY_KEYS.map(d => `${d} ${h[d] ? `${h[d]!.open}–${h[d]!.close}` : '–'}`).join(', ') : null)
+const hoursText = (h: OpeningHours | null) => (h ? DAY_KEYS.map(d => `${d} ${h[d] ? hoursLabel(h[d]!, ' & ') : '–'}`).join(', ') : null)
 const sameName = (a: string, b: string) => a.trim().toLowerCase().replace(/\s+/g, ' ') === b.trim().toLowerCase().replace(/\s+/g, ' ')
 
 /** Each detail as the app, the website and Google have it; matches is null when there's nothing to compare. */

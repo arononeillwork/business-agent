@@ -23,6 +23,7 @@ import { SetupPrompt } from '../components/SetupPrompt'
 import { TownHolidaysPrompt } from '../components/TownHolidays'
 import { AgentFocus } from '../components/AgentFocus'
 import { CATEGORY_META, type TimeEntry } from '../../shared/types'
+import { breakOf, hoursLabel } from '../../shared/openingHours'
 import { t, tn } from '../i18n'
 import { TodayThemeCard } from '../components/Routine'
 
@@ -331,7 +332,8 @@ export function TodayPage() {
           <CardContent sx={{ py: '12px !important' }}>
             <SmallTitle to="/rota" label={t('Open the rota')}>{t("Who's on today")}</SmallTitle>
             <Typography variant="caption" component="p" sx={{ color: 'text.secondary', mt: -0.75, mb: 1 }}>
-              {hours ? t('The café is open {open}–{close}', { open: hours.open, close: hours.close }) : t('The café is closed today')}
+              {hours ? (breakOf(hours) ? t('The café is open {hours}', { hours: hoursLabel(hours, ' & ') })
+                : t('The café is open {open}–{close}', { open: hours.open, close: hours.close })) : t('The café is closed today')}
             </Typography>
             {!data.data && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('Loading…')}</Typography>}
             {data.data && todays.length === 0 && <Typography variant="body2" sx={{ color: 'text.secondary' }}>{t('Nobody is scheduled today.')}</Typography>}

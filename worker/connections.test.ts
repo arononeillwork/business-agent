@@ -429,6 +429,21 @@ describe('Google Maps opening hours: kept the same both ways', () => {
     expect(apis.google.edits).toHaveLength(2)
   })
 
+  it('a day that closes for a break goes to Google as two periods and stays as it is, both ways', async () => {
+    const split = (to: string): OpeningHours => ({ ...week('18:00'), thu: { open: '09:00', close: '20:00', break: { from: '14:00', to } } })
+    await sync(); await sync()
+    setInApp(split('17:00'))
+    expect(await sync()).toBe('pushed')
+    expect(onGoogle().thu).toEqual({ open: '09:00', close: '20:00', break: { from: '14:00', to: '17:00' } })
+    // Read back from Google, the evening isn't lost.
+    expect(await sync()).toBe('same')
+    expect(inApp().thu).toEqual({ open: '09:00', close: '20:00', break: { from: '14:00', to: '17:00' } })
+    // A break changed on Google Maps comes in.
+    setOnGoogle(split('16:30'))
+    expect(await sync()).toBe('pulled')
+    expect(inApp().thu).toEqual({ open: '09:00', close: '20:00', break: { from: '14:00', to: '16:30' } })
+  })
+
   it('hours removed from the Google listing don’t empty the app’s week', async () => {
     await sync(); await sync()
     apis.google.hours = { periods: [] } as never

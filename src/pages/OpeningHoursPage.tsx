@@ -7,7 +7,8 @@ import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { PageHeader, SectionTitle } from '../components/common'
-import { DAY_KEYS, type DayKey, type OpeningHours } from '../../shared/types'
+import { DAY_KEYS, type DayHours, type DayKey, type OpeningHours } from '../../shared/types'
+import { breakOf, hoursLabel, hoursProblem } from '../../shared/openingHours'
 import { dayKey, formatLocal, hmToMinutes, today } from '../../shared/time'
 import { tokens } from '../theme'
 import { msg, t, tc, tn, tr } from '../i18n'
@@ -15,6 +16,9 @@ import { msg, t, tc, tn, tr } from '../i18n'
 const DAY_LABELS: Record<DayKey, string> = {
   mon: msg('Monday'), tue: msg('Tuesday'), wed: msg('Wednesday'), thu: msg('Thursday'), fri: msg('Friday'), sat: msg('Saturday'), sun: msg('Sunday'),
 }
+
+/** The day without its break. */
+const withoutBreak = ({ open, close }: DayHours): DayHours => ({ open, close })
 
 /** When the café is open, week by week (closures live in the Calendar). */
 export function OpeningHoursPage() {
@@ -28,7 +32,7 @@ export function OpeningHoursPage() {
   if (!b || !hours) return null
 
   const changed = JSON.stringify(hours) !== JSON.stringify(b.opening_hours)
-  const invalid = DAY_KEYS.some(d => hours[d] && hmToMinutes(hours[d]!.close) <= hmToMinutes(hours[d]!.open))
+  const problem = DAY_KEYS.map(d => hoursProblem(hours[d])).find(Boolean) ?? null
   const g = google.data?.integrations.find(i => i.provider === 'google_business')
   const waiting = google.data?.queue.filter(q => q.status === 'pending').length ?? 0
   const failing = google.data?.queue.filter(q => q.status !== 'pending').length ?? 0
@@ -48,6 +52,7 @@ export function OpeningHoursPage() {
                   const h = hours[d]
                   const isToday = d === dayKey(today())
                   const bad = h && hmToMinutes(h.close) <= hmToMinutes(h.open)
+                  const badBreak = !!h?.break && !breakOf(h)
                   return (
                     <Stack key={d} direction="row" sx={{ alignItems: 'center', gap: 1.5, py: 1.1, flexWrap: 'wrap' }}>
                       <Box sx={{ width: 130, flexShrink: 0 }}>
@@ -69,20 +74,39 @@ export function OpeningHoursPage() {
                             <TextField type="time" size="small" label={t('Closes')} value={h.close} onChange={e => setDay(d, { ...h, close: e.target.value })}
                               error={!!bad} slotProps={{ inputLabel: { shrink: true } }} sx={{ maxWidth: 150 }} />
                           </Stack>
-                        ) : <Typography sx={{ fontVariantNumeric: 'tabular-nums' }}>{h.open} – {h.close}</Typography>
+                        ) : <Typography sx={{ fontVariantNumeric: 'tabular-nums' }}>{hoursLabel(h)}</Typography>
                       ) : <Typography sx={{ color: 'text.secondary' }}>{t('Closed')}</Typography>}
+                      {h && isAdmin && (
+                        // Closed in between (09:00–14:00 and 17:00–20:00): Google Maps and the website show both parts.
+                        <Stack direction="row" sx={{ alignItems: 'center', flexWrap: 'wrap', columnGap: 1.5, rowGap: 1, width: '100%', mt: -0.5, pl: { xs: 0, sm: '142px' } }}>
+                          <FormControlLabel label={t('Closes for a break')} sx={{ mr: 0 }}
+                            control={<Checkbox checked={!!h.break} slotProps={{ input: { 'aria-label': t('Closes for a break on {day}', { day: t(DAY_LABELS[d]) }) } }}
+                              onChange={e => setDay(d, e.target.checked ? { ...h, break: b.opening_hours[d]?.break ?? { from: '14:00', to: '17:00' } } : withoutBreak(h))} />} />
+                          {h.break && (
+                            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flex: { xs: 1, sm: 'none' }, minWidth: 220 }}>
+                              <TextField type="time" size="small" label={t('Closed from')} value={h.break.from} error={badBreak}
+                                onChange={e => setDay(d, { ...h, break: { ...h.break!, from: e.target.value } })}
+                                slotProps={{ inputLabel: { shrink: true } }} sx={{ maxWidth: 150 }} />
+                              <Typography sx={{ color: 'text.secondary' }}>{t('to')}</Typography>
+                              <TextField type="time" size="small" label={t('Reopens')} value={h.break.to} error={badBreak}
+                                onChange={e => setDay(d, { ...h, break: { ...h.break!, to: e.target.value } })}
+                                slotProps={{ inputLabel: { shrink: true } }} sx={{ maxWidth: 150 }} />
+                            </Stack>
+                          )}
+                        </Stack>
+                      )}
                     </Stack>
                   )
                 })}
               </Stack>
               {isAdmin && (
                 <Stack direction="row" spacing={1} sx={{ mt: 2, alignItems: 'center' }}>
-                  <Button variant="contained" disabled={saving || !changed || invalid} onClick={() => {
+                  <Button variant="contained" disabled={saving || !changed || !!problem} onClick={() => {
                     setSaving(true)
                     void run(() => api.updateBusiness({ opening_hours: hours }), t('Opening hours saved'), { fresh: true }).finally(() => setSaving(false))
                   }}>{t('Save hours')}</Button>
                   {changed && <Button disabled={saving} onClick={() => setHours(b.opening_hours)}>{t('Undo changes')}</Button>}
-                  {invalid && <Typography variant="body2" sx={{ color: 'error.main' }}>{t('Closing time must be after opening time.')}</Typography>}
+                  {problem && <Typography variant="body2" sx={{ color: 'error.main' }}>{t(problem)}</Typography>}
                 </Stack>
               )}
             </CardContent>

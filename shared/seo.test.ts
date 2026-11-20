@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  blocksEverything, businessIn, checkSite, consistency, hoursOf, pageSpeedOf, parsePage, sameAddress, samePhone, scoreOf, sitemapUrls, vitalLevel, type Expected,
+  blocksEverything, businessIn, checkSite, consistency, hoursDiffer, hoursOf, pageSpeedOf, parsePage, sameAddress, samePhone, scoreOf, sitemapUrls, vitalLevel, type Expected,
 } from './seo'
 
 const GOOD = `<!doctype html><html lang="es"><head>
@@ -39,6 +39,12 @@ describe('reading a page', () => {
     expect(b).toMatchObject({ type: 'CafeOrCoffeeShop', name: 'Easy Beans Coffee', phone: '+34 695 415 335', address: 'C. Pizarro, 8, 29670, San Pedro de Alcántara' })
     expect(b.hours).toEqual(expected.opening_hours)
     expect(hoursOf({ openingHours: ['Mo-Fr 08:00-18:00', 'Sa 09:00-14:00'] })).toMatchObject({ mon: { open: '08:00', close: '18:00' }, sat: { open: '09:00', close: '14:00' } })
+    // Two stretches on a day: it closes for a break, and that's what's compared with the app.
+    const split = hoursOf({ openingHoursSpecification: [
+      { dayOfWeek: 'Thursday', opens: '17:00', closes: '20:00' }, { dayOfWeek: ['Thursday', 'Friday'], opens: '09:00', closes: '14:00' }] })
+    expect(split).toEqual({ thu: { open: '09:00', close: '20:00', break: { from: '14:00', to: '17:00' } }, fri: { open: '09:00', close: '14:00' } })
+    expect(hoursDiffer(split!, { thu: { open: '09:00', close: '20:00' }, fri: { open: '09:00', close: '14:00' } })).toEqual(['thu'])
+    expect(hoursDiffer(split!, { thu: { open: '9:00', close: '20:00', break: { from: '14:00', to: '17:00' } }, fri: { open: '09:00', close: '14:00' } })).toEqual([])
     expect(businessIn('<script type="application/ld+json">{ broken</script>')).toBeNull()
   })
 

@@ -1463,6 +1463,12 @@ test.describe('opening hours', () => {
     await expect(page.getByRole('region', { name: 'Busiest hours' })).toHaveCount(0)
     const week = page.getByRole('region', { name: 'Weekly hours' })
     await week.getByLabel('Open on Sunday').uncheck()
+    // Thursday closes for a break: a break outside the day can't be saved.
+    await week.getByLabel('Closes for a break on Thursday').check()
+    await week.getByLabel('Reopens').fill('19:00')
+    await expect(page.getByText('The break must start after opening and end before closing.')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Save hours' })).toBeDisabled()
+    await week.getByLabel('Reopens').fill('16:30')
     await page.getByRole('button', { name: 'Save hours' }).click()
     await toast(page, 'Opening hours saved')
     // Holidays and closures moved to the calendar's list view.
@@ -1477,6 +1483,7 @@ test.describe('opening hours', () => {
     await signInAs(page, 'maria@example.com')
     await page.getByRole('link', { name: 'Opening hours' }).first().click()
     await expect(page.getByRole('region', { name: 'Weekly hours' }).getByText('Closed').last()).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Weekly hours' }).getByText('08:00–14:00, 16:30–18:00')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Save hours' })).toHaveCount(0)
     await expect(page.getByRole('region', { name: 'Google Maps' })).toHaveCount(0)
   })

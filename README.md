@@ -80,6 +80,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
   the shop's stock (or one of your own), writes the bases legales in Spanish with Meta's line and the
   tax note when they apply, warns about what the platforms ban (a review to enter), and runs the
   entries (pasted Instagram comments, customers who said yes, a CSV) and a one-time random draw.
+- Opening hours that close in between: a day on the Opening hours page can close for a break (09:00–14:00 and
+  17:00–20:00). It keeps its first opening and last closing time, so the rota, costs and offers read the day as
+  before; Google Maps gets two periods that day (and a break set on Google comes back), the website feed gets
+  `break`, and the Today and Rota pages show both parts (`shared/openingHours.ts`).
 - Competitors (Marketing, admins): the cafés around the business, followed over time. What each
   charges for the same basket (the usual for a café in Spain, café con leche to matcha latte, or
   your own items; yours from Menu costing), every price kept with the day it was seen so rises
