@@ -34,6 +34,8 @@ interface Draft {
   note: string
 }
 
+const VIEW_KEY = 'rota-view'
+
 export function RotaPage() {
   const { api, profiles, positions, business, can, isPartner, canSeePay, me, settings } = useApp()
   const rates = usePayRates()
@@ -50,7 +52,11 @@ export function RotaPage() {
   const days = weekDates(monday)
   const theme = useTheme()
   const phone = useMediaQuery(theme.breakpoints.down('md'))
-  const [viewChoice, setView] = useState<'week' | 'day' | null>(null)
+  // The view picked on this device is kept (a phone can stay on the week); before that, a phone opens on the day.
+  const [viewChoice, setViewChoice] = useState<'week' | 'day' | null>(() => {
+    try { const v = localStorage.getItem(VIEW_KEY); return v === 'week' || v === 'day' ? v : null } catch { return null }
+  })
+  const setView = (v: 'week' | 'day') => { setViewChoice(v); try { localStorage.setItem(VIEW_KEY, v) } catch { /* private mode: not kept */ } }
   const view = viewChoice ?? (phone ? 'day' : 'week')
   const [day, setDay] = useState(today())
 
@@ -114,7 +120,7 @@ export function RotaPage() {
     note: d.note || null,
   })
 
-  const ShiftBlock = ({ s }: { s: Shift }) => {
+  const ShiftBlock = ({ s, who }: { s: Shift; who?: string }) => {
     const warnings = shiftWarnings(s, ctx)
     const pos = position(s.position_id)
     const colour = pos?.colour ?? '#B5ADA6'
@@ -136,6 +142,7 @@ export function RotaPage() {
           ...(mine ? { boxShadow: `0 0 0 1.5px ${tokens.matcha}` } : {}),
         }}>
         <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', gap: 0.5, pl: 0.5 }}>
+          {who && <Typography variant="body2" sx={{ fontWeight: 600, flex: 1, minWidth: 0 }} noWrap>{who}</Typography>}
           <Typography variant="body2" sx={{ fontWeight: 500, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', fontSize: '0.82rem' }}>
             {localTime(s.starts_at)}–{localTime(s.ends_at)}
           </Typography>
@@ -270,6 +277,56 @@ export function RotaPage() {
     )
   }
 
+  // On a phone the week is a list, day under day, each shift with who's on it: nothing to scroll sideways.
+  const WeekList = () => {
+    const team = people.map(p => ({ p, shifts: visible.filter(s => s.profile_id === p.id), week: weeklyCheck(weekShifts.filter(s => s.profile_id === p.id), ctx.limits) }))
+      .filter(x => x.shifts.length > 0 || x.week.notes.length > 0)
+    return (
+      <Stack spacing={1.5}>
+        {team.length > 0 && (
+          <Card component="section" aria-label={t('Hours this week')} sx={{ px: 1.5, py: 1.25 }}>
+            <Stack spacing={0.75}>
+              {team.map(({ p, shifts, week }) => (
+                <Box key={p.id}>
+                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                    <PersonAvatar name={p.full_name} colour={p.colour} size={24} />
+                    <Typography variant="body2" sx={{ fontWeight: 500, flex: 1, minWidth: 0 }} noWrap>{p.full_name}</Typography>
+                    <Typography variant="body2" sx={{ color: 'text.secondary', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                      {formatDuration(mins(shifts))}{canSeePay ? ` · ${formatMoney(cost(shifts))}` : ''}
+                    </Typography>
+                  </Stack>
+                  {week.notes.map(w => (
+                    <Typography key={w.text} variant="caption" component="div" sx={{ color: tokens.warning, pl: 4, lineHeight: 1.3 }}>⚠ {t(w.text, w.vars)}</Typography>
+                  ))}
+                </Box>
+              ))}
+            </Stack>
+          </Card>
+        )}
+        {days.map(date => {
+          const dayShifts = visible.filter(s => localDate(s.starts_at) === date).sort((x, y) => x.starts_at.localeCompare(y.starts_at))
+          const away = people.filter(p => onLeave(p.id, date))
+          return (
+            <Card key={date} component="section" aria-label={formatLocal(`${date}T12:00:00Z`, 'EEEE d')}
+              sx={{ px: 1.5, pt: 1.25, pb: 1, bgcolor: date === today() ? tokens.today : undefined }}>
+              <DayHead date={date} compact />
+              {dayShifts.length === 0 && <Typography variant="body2" sx={{ color: 'text.secondary', pb: 0.5 }}>{t('Nobody on the rota this day.')}</Typography>}
+              {dayShifts.map(s => <ShiftBlock key={s.id} s={s} who={profiles.find(p => p.id === s.profile_id)?.full_name ?? t('Open shift')} />)}
+              {away.length > 0 && (
+                <Typography variant="caption" component="div" sx={{ color: 'text.secondary' }}>{t('Time off: {names}', { names: away.map(p => p.full_name).join(', ') })}</Typography>
+              )}
+              {canEdit && (
+                <Button size="small" startIcon={<AddIcon />} sx={{ mt: 0.25 }} onClick={() => openDraft(null, date)}>
+                  {t('Add a shift on {day}', { day: formatLocal(`${date}T12:00:00Z`, 'EEEE') })}
+                </Button>
+              )}
+            </Card>
+          )
+        })}
+      </Stack>
+    )
+  }
+
   return (
     <>
       <PageHeader eyebrow={t('Team')} title={t('Rota')}
@@ -324,7 +381,9 @@ export function RotaPage() {
         </Stack>
       </Card>
 
-      {view === 'week' ? (
+      {view === 'week' && phone ? (
+        <WeekList />
+      ) : view === 'week' ? (
         <Card sx={{ overflow: 'hidden' }}>
           <Box sx={{ overflowX: 'auto' }}>
             <Box sx={{ display: 'grid', gridTemplateColumns: `${NAME_W}px repeat(7, minmax(132px, 1fr))`, minWidth: NAME_W + 7 * 132 }}>

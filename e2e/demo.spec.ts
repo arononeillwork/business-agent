@@ -419,6 +419,28 @@ test('@phone the top row is the logo on its own, and fits the screen without the
   }
 })
 
+test('@phone the rota’s week is a list, day under day, each shift with who’s on it, and stays the view picked', async ({ page }) => {
+  await open(page, '/rota')
+  // A phone opens on the day; the week is a tap away.
+  await expect(page.getByRole('button', { name: 'Day', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('button', { name: 'Week', exact: true }).click()
+  const monday = page.getByRole('region', { name: 'Monday 28' })
+  const maria = monday.getByRole('button').filter({ hasText: 'Maria' }).first()
+  await expect(maria).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Sunday 4' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Hours this week' })).toContainText('Maria')
+  // Nothing wider than the screen: no scrolling sideways to find a day.
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width)
+  // A shift opens to change it, as on the grid.
+  await maria.click()
+  await expect(page.getByRole('dialog', { name: 'Edit shift' })).toBeVisible()
+  await page.getByRole('button', { name: 'Cancel' }).click()
+  // Next time, it opens on the week.
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Week', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('region', { name: 'Monday 28' })).toBeVisible()
+})
+
 test('@phone a message never covers the sign-in buttons', async ({ page }) => {
   await page.goto('/?demo')
   const google = (await page.getByRole('button', { name: 'Google' }).boundingBox())!
