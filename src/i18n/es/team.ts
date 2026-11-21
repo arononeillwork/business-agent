@@ -183,6 +183,7 @@ export default {
   'Coverage': 'Cobertura',
   'today': 'hoy',
   'Nobody on the rota this day.': 'Nadie en el cuadrante este día.',
+  'Hours this week': 'Horas esta semana',
   'Open shift': 'Turno libre',
   'Time off: {names}': 'Ausencias: {names}',
   'Add a shift on {day}': 'Añadir un turno el {day}',
