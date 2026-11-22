@@ -10,6 +10,8 @@ import { WasteVideo } from './waste/WasteVideo'
 import { WASTE_TOTAL } from './waste/timeline'
 import { ListingVideo } from './listing/ListingVideo'
 import { LISTING_TOTAL } from './listing/timeline'
+import { CompetitorsVideo } from './competitors/CompetitorsVideo'
+import { COMPETITORS_TOTAL } from './competitors/timeline'
 import { FPS, TOTAL } from './timeline'
 
 export const Root = () => (
@@ -20,5 +22,6 @@ export const Root = () => (
     <Composition id="SayVideo" component={SayVideo} durationInFrames={SAY_TOTAL} fps={FPS} width={1920} height={1080} />
     <Composition id="WasteVideo" component={WasteVideo} durationInFrames={WASTE_TOTAL} fps={FPS} width={1920} height={1080} />
     <Composition id="ListingVideo" component={ListingVideo} durationInFrames={LISTING_TOTAL} fps={FPS} width={1920} height={1080} />
+    <Composition id="CompetitorsVideo" component={CompetitorsVideo} durationInFrames={COMPETITORS_TOTAL} fps={FPS} width={1920} height={1080} />
   </>
 )

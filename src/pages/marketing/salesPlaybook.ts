@@ -80,6 +80,15 @@ const CAFES: PainPoint[] = [
     video: msg('What does a flat white really cost?'),
   },
   {
+    id: 'competitors', wins: ['money'], pages: [msg('Competitors')],
+    title: msg('Not knowing the competition'),
+    says: msg('“A new café opened round the corner. I’ve no idea what they charge, or whether we’re cheap or dear.”'),
+    fix: msg('Follow the cafés around you, found on Google: their rating, hours and what they offer, checked every week. Note their prices as you see them and they sit next to yours, item by item, with what it all means in plain words. Each week it looks around again and tells you about any new café nearby.'),
+    result: msg('Prices, hours and what’s on offer decided knowing what’s round the corner, and a new café nearby is never a surprise.'),
+    video: msg('Competitor insights: know your competition, every week'),
+    film: { src: '/video/competitors.mp4', poster: '/video/competitors.jpg' },
+  },
+  {
     id: 'reviews', wins: ['money'], pages: [msg('Reviews'), msg('Opening hours'), msg('Website & SEO')],
     title: msg('Google reviews & opening hours'),
     says: msg('“Reviews pile up and I never answer them. Google still has the wrong opening hours.”'),
