@@ -1,12 +1,13 @@
 import {
-  Alert, Box, Button, Card, CardContent, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, MenuItem, Stack,
-  Table, TableBody, TableCell, TableHead, TableRow, TextField, ToggleButton, ToggleButtonGroup, Typography,
+  Alert, Box, Button, Card, CardContent, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, MenuItem, Stack,
+  Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/EditOutlined'
 import { useMemo, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
+import { useDailyCosts } from '../app/dailyCost'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { usePlan } from '../app/plan'
@@ -17,7 +18,7 @@ import { SquareLoginsDialog } from '../components/SquareLogins'
 import type { ExportTable } from '../lib/export'
 import { addDays, formatDuration, formatLocal, formatMoney, today, weekStart, zonedIso } from '../../shared/time'
 import {
-  POOL_STATUSES, TIP_SPLITS, minutesWorked, myTips, poolStatusLabel, splitLabel, splitTips,
+  POOL_STATUSES, TIP_SPLITS, minutesWorked, myTips, poolStatusLabel, splitLabel, splitTips, tipsAboveBreakeven,
   type PoolStatus, type TipPool, type TipPoolInput, type TipSplit,
 } from '../../shared/tips'
 import { LEADER_PERIODS, periodRange, type LeaderPeriod } from '../../shared/leaderboard'
@@ -40,8 +41,11 @@ const round2 = (n: number) => Math.round(n * 100) / 100
  * With Square connected, the tips left at the till come in too, by who took each payment.
  */
 export function TipsPage() {
-  const { api, me, profiles, canSeePay, isPartner } = useApp()
+  const { api, me, profiles, canSeePay, isPartner, settings } = useApp()
+  const run = useAction()
   const pools = useAsync('tip-pools', () => api.tipPools(), [])
+  // Tips after breakeven (settings.tips_after_breakeven): only the days the café took more than it costs to run count.
+  const afterBreakeven = settings?.tips_after_breakeven === true
   const [editing, setEditing] = useState<TipPool | 'new' | null>(null)
   const manages = canSeePay && !isPartner
   const seesAll = canSeePay
@@ -78,6 +82,26 @@ export function TipsPage() {
           <StatTile label={t('Your tips')} value={pools.data ? formatMoney(mine.total) : '–'} note={tn(mine.list.length, 'From {n} pool', 'From {n} pools')} />
           <StatTile label={t('Still to be paid')} value={formatMoney(mine.unpaid)} />
         </StatGrid>
+      )}
+
+      {manages ? (
+        <Card component="section" aria-label={t('How tips are shared out')} sx={{ mb: 3 }}>
+          <CardContent>
+            <FormControlLabel sx={{ ml: 0, alignItems: 'flex-start' }} control={<Switch checked={afterBreakeven} sx={{ mt: -0.75 }}
+              onChange={e => void run(() => api.updateSettings({ tips_after_breakeven: e.target.checked }),
+                e.target.checked ? t('Tips now come from the days above breakeven') : t('Tips now come from every day'), { fresh: true })} />}
+              label={<Box>
+                <Typography sx={{ fontWeight: 500 }}>{t('Only tips from days above breakeven')}</Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  {afterBreakeven
+                    ? t('On: the card tips from a day the café took more than its breakeven are shared out; on the other days they stay with the business.')
+                    : t('Off: every day’s tips are shared out.')}
+                </Typography>
+              </Box>} />
+          </CardContent>
+        </Card>
+      ) : afterBreakeven && !isPartner && (
+        <Alert severity="info" sx={{ mb: 3 }}>{t('Tips are shared out from the days the café takes more than its breakeven, what it costs to run it that day.')}</Alert>
       )}
 
       {!isPartner && <TillTipsCard />}
@@ -278,9 +302,10 @@ function PaidButton({ pool }: { pool: TipPool }) {
  * how it's split and among whom. The hours come from the timecards; the shares always add up.
  */
 function PoolDialog({ pool, onClose }: { pool: TipPool | null; onClose: () => void }) {
-  const { api, profiles } = useApp()
+  const { api, profiles, settings } = useApp()
   const { allows } = usePlan()
   const run = useAction()
+  const afterBreakeven = settings?.tips_after_breakeven === true
   const lastMonday = addDays(weekStart(today()), -7)
   const [p, setP] = useState<TipPoolInput>(pool ?? { starts_on: lastMonday, ends_on: addDays(lastMonday, 6), cash: 0, card: 0, split: 'hours', status: 'draft', notes: '' })
   const set = (x: Partial<TipPoolInput>) => setP(y => ({ ...y, ...x }))
@@ -289,7 +314,10 @@ function PoolDialog({ pool, onClose }: { pool: TipPool | null; onClose: () => vo
   const [sharing, setSharing] = useState<string[]>(pool ? pool.shares.map(s => s.profile_id) : team.filter(x => x.role === 'employee').map(x => x.id))
   const entries = useAsync('tip-hours', () => api.timeEntries(zonedIso(p.starts_on, '00:00'), zonedIso(addDays(p.ends_on, 1), '00:00')), [p.starts_on, p.ends_on])
   const till = useAsync('tip-till', () => (allows('takings') ? api.sales(p.starts_on, p.ends_on).catch(() => null) : Promise.resolve(null)), [p.starts_on, p.ends_on])
-  const cardTips = till.data ? round2(till.data.days.reduce((s, d) => s + d.tips, 0)) : null
+  // Tips after breakeven: only the card tips from the days the takings passed that day's breakeven.
+  const { costs } = useDailyCosts(p.starts_on, p.ends_on, afterBreakeven && !!till.data && p.starts_on <= p.ends_on)
+  const above = afterBreakeven && till.data && costs ? tipsAboveBreakeven(till.data.days, costs) : null
+  const cardTips = till.data ? (above ? above.counted : round2(till.data.days.reduce((s, d) => s + d.tips, 0))) : null
   const worked = useMemo(() => minutesWorked(entries.data ?? [], p.starts_on, p.ends_on), [entries.data, p.starts_on, p.ends_on])
   const total = round2((p.cash || 0) + (p.card || 0))
   const shares = splitTips(total, team.filter(x => sharing.includes(x.id)).map(x => ({ profile_id: x.id, minutes: worked.get(x.id) ?? 0 })), p.split)
@@ -315,10 +343,14 @@ function PoolDialog({ pool, onClose }: { pool: TipPool | null; onClose: () => vo
             <TextField label={t('Last day')} type="date" value={p.ends_on} onChange={e => set({ ends_on: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} sx={{ flex: 1 }} />
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'flex-start' } }}>
-            <TextField label={t('Cash')} type="number" value={p.cash || ''} onChange={e => set({ cash: Number(e.target.value) || 0 })} helperText={t('Counted from the jar')} sx={{ flex: 1 }} />
+            <TextField label={t('Cash')} type="number" value={p.cash || ''} onChange={e => set({ cash: Number(e.target.value) || 0 })} sx={{ flex: 1 }}
+              helperText={afterBreakeven ? t('Counted from the jar, on the days above breakeven') : t('Counted from the jar')} />
             <TextField label={t('Card')} type="number" value={p.card || ''} onChange={e => set({ card: Number(e.target.value) || 0 })} sx={{ flex: 1 }}
-              helperText={cardTips !== null ? t('The till says {amount}', { amount: formatMoney(cardTips) }) : t('Left on card payments')} />
+              helperText={cardTips === null ? t('Left on card payments')
+                : above ? t('The till says {amount} on the days above breakeven', { amount: formatMoney(cardTips) })
+                : t('The till says {amount}', { amount: formatMoney(cardTips) })} />
           </Stack>
+          {above && <TipsByDay above={above} />}
           {cardTips !== null && cardTips !== p.card && (
             <Box><Button size="small" onClick={() => set({ card: cardTips })}>{t('Use the till’s card tips: {amount}', { amount: formatMoney(cardTips) })}</Button></Box>
           )}
@@ -360,5 +392,40 @@ function PoolDialog({ pool, onClose }: { pool: TipPool | null; onClose: () => vo
         <Button variant="contained" onClick={() => void save()}>{t('Save')}</Button>
       </DialogActions>
     </Dialog>
+  )
+}
+
+/** The days with card tips in a pool: each day's takings against its breakeven, and whether its tips are shared out. */
+function TipsByDay({ above }: { above: ReturnType<typeof tipsAboveBreakeven> }) {
+  if (!above.days.length) return null
+  const over = above.days.filter(d => d.counts)
+  return (
+    <Box component="section" aria-label={t('Tips by day')} sx={{ border: `1px solid ${tokens.line}`, borderRadius: '12px', p: 1.5 }}>
+      <Typography variant="body2" sx={{ mb: 1 }}>
+        {above.known
+          ? t('{counted} from {n} of {days} days above breakeven is shared out; {kept} from the days below it stays with the business.',
+            { counted: formatMoney(above.counted), n: over.length, days: above.days.length, kept: formatMoney(above.kept) })
+          : t('Breakeven isn’t known for these days (no running costs on Finances or rota), so every day’s tips count.')}
+      </Typography>
+      <Table size="small" aria-label={t('Tips by day')}>
+        <TableHead><TableRow>
+          <TableCell>{t('Day')}</TableCell><TableCell align="right">{t('Took')}</TableCell><TableCell align="right">{t('Breakeven')}</TableCell>
+          <TableCell align="right">{t('Tips')}</TableCell><TableCell>{t('Shared out')}</TableCell>
+        </TableRow></TableHead>
+        <TableBody>
+          {above.days.map(d => (
+            <TableRow key={d.date}>
+              <TableCell sx={{ whiteSpace: 'nowrap', textTransform: 'capitalize' }}>{formatLocal(`${d.date}T12:00:00Z`, 'EEE d MMM')}</TableCell>
+              <TableCell align="right" sx={num}>{formatMoney(d.takings)}</TableCell>
+              <TableCell align="right" sx={num}>{d.breakeven === null ? '–' : formatMoney(d.breakeven)}</TableCell>
+              <TableCell align="right" sx={num}>{formatMoney(d.tips)}</TableCell>
+              <TableCell>{d.counts
+                ? <Tag fg={tokens.goodFg} bg={tokens.goodBg}>{t('Yes')}</Tag>
+                : <Tag fg={tokens.neutralFg} bg={tokens.neutralBg}>{t('Stays with the business')}</Tag>}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </Box>
   )
 }

@@ -113,3 +113,32 @@ export function tipsByPerson(byMember: Record<string, MemberTips>, links: { prof
   const others = Object.entries(byMember).filter(([member]) => !linked.has(member)).map(([, m]) => m)
   return { status: 'ok', people, unlinked: { tips: round2(others.reduce((s, m) => s + m.tips, 0)), tipped: others.reduce((s, m) => s + m.tipped, 0) } }
 }
+
+/** A day with tips at the till: what it took against its breakeven, and whether its tips are shared out. */
+export interface TipDay {
+  date: string
+  /** Takings less refunds, without the tips. */
+  takings: number
+  /** What it cost to run the business that day; null when that isn't known (no running costs or team for it). */
+  breakeven: number | null
+  tips: number
+  counts: boolean
+}
+
+/**
+ * Tips after breakeven (settings.tips_after_breakeven): the card tips from the days the takings passed that
+ * day's breakeven are shared out (`counted`); the rest stay with the business (`kept`). A day whose breakeven
+ * isn't known counts, so nothing is held back on a guess. `days`: each day with tips, oldest first.
+ */
+export function tipsAboveBreakeven(days: { date: string; gross: number; refunds: number; tips: number }[], costs: { date: string; total: number }[]) {
+  const round2 = (n: number) => Math.round(n * 100) / 100
+  const cost = new Map(costs.map(c => [c.date, c.total]))
+  const list: TipDay[] = days.filter(d => d.tips > 0).sort((a, b) => a.date.localeCompare(b.date)).map(d => {
+    const total = cost.get(d.date)
+    const breakeven = total && total > 0 ? round2(total) : null
+    const takings = round2(d.gross - d.refunds)
+    return { date: d.date, takings, breakeven, tips: round2(d.tips), counts: breakeven === null || takings > breakeven }
+  })
+  const sum = (xs: TipDay[]) => round2(xs.reduce((s, d) => s + d.tips, 0))
+  return { days: list, counted: sum(list.filter(d => d.counts)), kept: sum(list.filter(d => !d.counts)), known: list.some(d => d.breakeven !== null) }
+}

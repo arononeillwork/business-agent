@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { minutesWorked, myTips, splitTips, tipsByPerson, type MemberTips, type TipPool } from './tips'
+import { minutesWorked, myTips, splitTips, tipsAboveBreakeven, tipsByPerson, type MemberTips, type TipPool } from './tips'
 
 describe('tips', () => {
   it('by hours worked, to the cent, always adding up to the total', () => {
@@ -50,5 +50,39 @@ describe('tips', () => {
     expect(julio.people.map(p => p.profile_id)).toEqual(['julio'])
     expect(julio.unlinked).toBeNull()
     expect(tipsByPerson(byMember, links, { me: 'aron', everyone: false })).toEqual({ status: 'not_linked', people: [], unlinked: null })
+  })
+})
+
+describe('tips after breakeven', () => {
+  const days = [
+    { date: '2026-11-18', gross: 900, refunds: 0, tips: 12.4 },
+    { date: '2026-11-16', gross: 400, refunds: 0, tips: 6.1 },
+    // Above breakeven before the refund, below it after.
+    { date: '2026-11-17', gross: 620, refunds: 40, tips: 5 },
+    { date: '2026-11-19', gross: 300, refunds: 0, tips: 0 },
+    // No breakeven known for that day: its tips count.
+    { date: '2026-11-20', gross: 100, refunds: 0, tips: 3.333 },
+  ]
+  const costs = [
+    { date: '2026-11-16', total: 600 }, { date: '2026-11-17', total: 600 }, { date: '2026-11-18', total: 600 }, { date: '2026-11-19', total: 600 },
+  ]
+
+  it('shares out only the tips from days the takings passed that day’s breakeven; the rest stay with the business', () => {
+    const r = tipsAboveBreakeven(days, costs)
+    expect(r.counted).toBe(15.73)
+    expect(r.kept).toBe(11.1)
+    expect(r.known).toBe(true)
+    // Each day with tips, oldest first; a day without tips isn't listed.
+    expect(r.days).toEqual([
+      { date: '2026-11-16', takings: 400, breakeven: 600, tips: 6.1, counts: false },
+      { date: '2026-11-17', takings: 580, breakeven: 600, tips: 5, counts: false },
+      { date: '2026-11-18', takings: 900, breakeven: 600, tips: 12.4, counts: true },
+      { date: '2026-11-20', takings: 100, breakeven: null, tips: 3.33, counts: true },
+    ])
+  })
+
+  it('counts every day when no breakeven is known', () => {
+    const r = tipsAboveBreakeven(days, [])
+    expect(r).toMatchObject({ counted: 26.83, kept: 0, known: false })
   })
 })

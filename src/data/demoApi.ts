@@ -1350,6 +1350,8 @@ export function createDemoApi(): Api {
     forgot_clock_out_grace_minutes: 30, phone_clock_in: 'anywhere', min_break_minutes: 15,
     break_after_hours: 6, max_daily_hours: 9, max_weekly_hours: 40, min_rest_hours: 12,
     approval_weekday: 1, employer_cost_multiplier: 1.3, auto_timecards_from_rota: true, vacation_days_per_year: 30, languages: [],
+    // Easy Beans shares tips out only from the days past breakeven (the `tips_after_breakeven` migration).
+    tips_after_breakeven: true,
     alert_shift_reminders: true, alert_missed_clock_in: true, alert_rota: true, alert_time_off: true,
     holiday_reminders: true, holiday_reminder_days: 7, holiday_reminder_day_before: true, holiday_reminder_kinds: ['national', 'regional', 'local'],
     whatsapp_retention_days: DEFAULT_WHATSAPP_RETENTION, hidden_pages: [], mileage_rate: DEFAULT_MILEAGE_RATE,
@@ -2597,6 +2599,7 @@ export function createDemoApi(): Api {
     async updateSettings(patch) {
       requireAdmin()
       if ('owner_pay' in patch && !paysAdmin()) throw new Error('Only an owner turns owner pay on or off')
+      if ('tips_after_breakeven' in patch && !paysAdmin()) throw new Error('Only an owner changes how tips are shared out')
       Object.assign(settings, patch)
     },
     async updateProfile(id, patch) {

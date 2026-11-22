@@ -9342,6 +9342,40 @@ test.describe('tips', () => {
     await expect(square.getByRole('combobox', { name: 'Person' })).toHaveCount(0)
     await expect(square).not.toContainText('Julio')
   })
+
+  test('tips after breakeven: only the card tips from days the café took more than its breakeven are shared out', async ({ page }) => {
+    await open(page, '/connections')
+    const payments = page.getByRole('region', { name: 'Payments and sales' })
+    await payments.getByRole('button', { name: 'Connect Square' }).click()
+    await expect(payments.getByRole('article', { name: 'Square' })).toContainText('Connected')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Tips' }).first().click()
+    // Easy Beans has it on: each day with card tips against its breakeven.
+    const how = page.getByRole('region', { name: 'How tips are shared out' })
+    await expect(how.getByLabel('Only tips from days above breakeven')).toBeChecked()
+    await page.getByRole('button', { name: 'Share out tips' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Share out tips' })
+    const byDay = dialog.getByRole('region', { name: 'Tips by day' })
+    await expect(byDay).toContainText('€168,84 from 7 of 7 days above breakeven is shared out')
+    await expect(byDay.getByRole('row').filter({ hasText: 'Mon 21 Sep' })).toContainText('€420,00€276,78€16,80Yes')
+    await expect(dialog).toContainText('The till says €168,84 on the days above breakeven')
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+
+    // The team is told how tips are shared out, and can't change it.
+    await signInAs(page, 'maria@example.com')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Tips' }).first().click()
+    await expect(page.getByText('Tips are shared out from the days the café takes more than its breakeven')).toBeVisible()
+    await expect(page.getByLabel('Only tips from days above breakeven')).toHaveCount(0)
+
+    // Off: every day's tips, as the till has them.
+    await signInAs(page, 'aron@example.com')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Tips' }).first().click()
+    await how.getByLabel('Only tips from days above breakeven').click()
+    await toast(page, 'Tips now come from every day')
+    await page.getByRole('button', { name: 'Share out tips' }).click()
+    await expect(dialog).toContainText('The till says €168,84')
+    await expect(dialog).not.toContainText('on the days above breakeven')
+    await expect(dialog.getByRole('region', { name: 'Tips by day' })).toHaveCount(0)
+  })
 })
 
 test.describe('UI round: business page, header, to do list, stock and suppliers', () => {

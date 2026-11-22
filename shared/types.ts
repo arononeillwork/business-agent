@@ -93,6 +93,8 @@ export interface Settings {
   employer_cost_multiplier: number
   /** Owners' hours on the rota are paid as wages (Rota, Staff wages, Profit & loss). Breakeven counts them either way. */
   owner_pay?: boolean
+  /** Tips are shared out only from the days the takings passed the day's breakeven (shared/tips.ts tipsAboveBreakeven). Owners change it. */
+  tips_after_breakeven?: boolean
   auto_timecards_from_rota: boolean
   vacation_days_per_year: number
   /** The languages the team uses (an admin picks them on My account): with two, everyone gets the flags to switch. */
