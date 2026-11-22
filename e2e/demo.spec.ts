@@ -2809,6 +2809,28 @@ test.describe('connections for email, files and music', () => {
     await expect(page.getByRole('region', { name: 'Team calendar' }).getByLabel('Calendar link')).toContainText('.ics')
   })
 
+  test('Spotify: a business switches to its own Spotify app by pasting its Client ID, with the steps and addresses to make it', async ({ page }) => {
+    await open(page, '/connections')
+    await page.getByRole('region', { name: 'Café music' }).getByRole('button', { name: 'Manage Spotify' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Spotify' })
+    const app = dialog.getByRole('region', { name: 'Spotify app' })
+    await expect(app).toContainText('Through The Business Agent’s Spotify app')
+    await app.getByRole('button', { name: 'Use your own Spotify app' }).click()
+    await expect(app.getByRole('link', { name: /Open Spotify’s developer dashboard/ })).toHaveAttribute('href', 'https://developer.spotify.com/dashboard')
+    await expect(app.getByLabel('Redirect URI').first()).toHaveText('https://businesssagent.com/api/integrations/spotify/callback')
+    const field = app.getByLabel('Client ID')
+    await field.fill('not-an-id')
+    await expect(app).toContainText('A Client ID is 32 letters and numbers.')
+    await expect(app.getByRole('button', { name: 'Save' })).toBeDisabled()
+    await field.fill('0123456789ABCDEF0123456789ABCDEF')
+    await app.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Your Spotify app is saved. Connect Spotify now.')
+    await expect(app).toContainText('Through your own Spotify app (Client ID 0123…cdef)')
+    await app.getByRole('button', { name: 'Use The Business Agent’s app instead' }).click()
+    await toast(page, 'Spotify now connects through The Business Agent’s app')
+    await expect(app).toContainText('Through The Business Agent’s Spotify app')
+  })
+
   test('café music: YouTube Music and Spotify both connected, each with its own playlist; the Music page switches between them', async ({ page }) => {
     await open(page, '/connections')
     const music = page.getByRole('region', { name: 'Café music' })

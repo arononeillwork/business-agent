@@ -457,7 +457,7 @@ function PlaylistRow({ playlist: p, index, approved, playing, onPlay }: { playli
 
 /** Each person's own Spotify / YouTube Music: optional, only they see it. */
 function PersonalMusic({ tab, setTab }: { tab: MusicProvider | null; setTab: (p: MusicProvider) => void }) {
-  const { api } = useApp()
+  const { api, isAdmin } = useApp()
   const run = useAction()
   const mine = useAsync('my-music', () => api.myMusic(), [])
   const connected = PROVIDERS.filter(p => mine.data?.accounts.some(a => a.provider === p))
@@ -474,11 +474,17 @@ function PersonalMusic({ tab, setTab }: { tab: MusicProvider | null; setTab: (p:
           <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
             {PROVIDERS.map(p => <ConnectButton key={p} provider={p} disabled={!mine.data!.configured[p]} onClick={() => run(() => api.connectMyMusic(p))} />)}
           </Stack>
-          {/* A button that can't be pressed yet says why, instead of just being grey. */}
-          {PROVIDERS.filter(p => !mine.data!.configured[p]).map(p => (
+          {/* A button that can't be pressed yet says why, instead of just being grey. Spotify: the business can use its own Spotify app. */}
+          {PROVIDERS.filter(p => !mine.data!.configured[p]).map(p => p === 'spotify' ? (
+            <Alert key={p} severity="info" sx={{ mt: 1.5 }}
+              action={isAdmin && <Button component={RouterLink} to="/connections" size="small" color="inherit">{t('Set up')}</Button>}>
+              {isAdmin ? t('Spotify isn’t set up for this business yet. Set it up on Connections → Spotify: about 10 minutes, once, and then everyone can connect.')
+                : t('Spotify isn’t set up for this business yet. An admin sets it up on Connections → Spotify.')}
+            </Alert>
+          ) : (
             <Alert key={p} severity="info" sx={{ mt: 1.5 }}>
               {t('Not set up yet: The Business Agent needs {keys} before anyone can connect {app}. They’re added once, for every business; after that, connecting is one click.',
-                { keys: t(KEYS_NEEDED[p === 'youtube' ? 'youtube_music' : 'spotify'] ?? ''), app: BRAND[p].name })}
+                { keys: t(KEYS_NEEDED.youtube_music ?? ''), app: BRAND[p].name })}
             </Alert>
           ))}
         </Card>

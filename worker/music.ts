@@ -1,6 +1,7 @@
 // The Music page: each person connects their own Spotify or YouTube Music account (one click,
 // OAuth), then sees and plays their playlists. Uses the same OAuth apps and redirect URLs as the
-// admin connections, told apart by the signed state ({ kind: 'music' }), so no extra setup.
+// admin connections, told apart by the signed state ({ kind: 'music' }), so no extra setup. Spotify
+// goes through the business's own Spotify app when it has one (worker/spotifyApp.ts).
 import { Hono, type MiddlewareHandler } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { bearer, businessDb, businessOf, requestDb, type Env } from './supabase'
@@ -8,18 +9,15 @@ import { seal, signState, unseal } from './crypto'
 import * as google from './providers/google'
 import * as spotify from './providers/spotify'
 import * as youtube from './providers/youtube'
+import { sealGrant, spotifyFinish, spotifyReady, spotifyRefresh, spotifyStart, unsealGrant, type SpotifyStateApp } from './spotifyApp'
 import type { MusicProvider } from '../shared/types'
 import { signInCheck, signedInUser } from './signedIn'
 
-export interface MusicState { uid: string; kind: 'music'; provider: MusicProvider }
+export interface MusicState extends SpotifyStateApp { uid: string; kind: 'music'; provider: MusicProvider }
 
 const googleCfg = (env: Env, origin: string): google.GoogleOAuthConfig | null =>
   env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.INTEGRATION_KEY
     ? { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET, redirectUri: `${origin}/api/integrations/google/callback` }
-    : null
-const spotifyCfg = (env: Env, origin: string): spotify.SpotifyOAuthConfig | null =>
-  env.SPOTIFY_CLIENT_ID && env.SPOTIFY_CLIENT_SECRET && env.INTEGRATION_KEY
-    ? { clientId: env.SPOTIFY_CLIENT_ID, clientSecret: env.SPOTIFY_CLIENT_SECRET, redirectUri: `${origin}/api/integrations/spotify/callback` }
     : null
 
 const PROVIDERS: MusicProvider[] = ['spotify', 'youtube']
@@ -30,23 +28,23 @@ export async function finishMusicConnect(env: Env, state: MusicState, code: stri
   const businessId = await businessOf(env, state.uid)
   if (!businessId) throw new Error('That connection link expired. Try again.')
   const db = businessDb(env, businessId)
-  let refresh: string | undefined
+  let ciphertext: string | null = null
   let label: string | null
   if (state.provider === 'spotify') {
-    const t = await spotify.exchangeCode(spotifyCfg(env, origin)!, code)
-    const who = await spotify.me(t.access_token!)
-    refresh = t.refresh_token
+    // Through the Spotify app the sign-in started with (the business's own, or The Business Agent's); kept with it.
+    const t = await spotifyFinish(env, origin, state, code)
+    const who = await spotify.me(t.accessToken)
+    if (t.grant) ciphertext = await sealGrant(env, t.grant)
     // Spotify no longer says whether an account is Premium to new apps: only a known Free account is marked.
     label = `${who.display_name ?? who.id}${who.product === 'free' ? ' · Free (plays in the page only)' : ''}`
   } else {
     const t = await google.exchangeCode(googleCfg(env, origin)!, code)
-    refresh = t.refresh_token
+    if (t.refresh_token) ciphertext = await seal(env.INTEGRATION_KEY!, { refresh_token: t.refresh_token })
     label = await youtube.channel(t.access_token!).catch(() => null)
   }
-  if (!refresh) throw new Error(`${NAMES[state.provider]} did not give lasting access. Remove the app from your account settings and connect again.`)
+  if (!ciphertext) throw new Error(`${NAMES[state.provider]} did not give lasting access. Remove the app from your account settings and connect again.`)
   const { error } = await db.from('music_accounts').upsert({
-    profile_id: state.uid, provider: state.provider, account_label: label,
-    ciphertext: await seal(env.INTEGRATION_KEY!, { refresh_token: refresh }), connected_at: new Date().toISOString(),
+    profile_id: state.uid, provider: state.provider, account_label: label, ciphertext, connected_at: new Date().toISOString(),
   })
   if (error) throw new Error(error.message)
 }
@@ -55,20 +53,20 @@ export async function finishMusicConnect(env: Env, state: MusicState, code: stri
 async function session(env: Env, db: SupabaseClient, uid: string, provider: MusicProvider, origin: string) {
   const { data } = await db.from('music_accounts').select('ciphertext').eq('profile_id', uid).eq('provider', provider).maybeSingle()
   if (!data) throw new Error(`Connect ${NAMES[provider]} first`)
-  const { refresh_token } = await unseal<{ refresh_token: string }>(env.INTEGRATION_KEY!, data.ciphertext)
   try {
     if (provider === 'spotify') {
-      const t = await spotify.refreshAccess(spotifyCfg(env, origin)!, refresh_token)
-      if (t.refresh_token && t.refresh_token !== refresh_token) {
-        await db.from('music_accounts').update({ ciphertext: await seal(env.INTEGRATION_KEY!, { refresh_token: t.refresh_token }) })
-          .eq('profile_id', uid).eq('provider', provider)
+      // With the Spotify app it was connected through (worker/spotifyApp.ts).
+      const t = await spotifyRefresh(env, await unsealGrant(env, data.ciphertext))
+      if (t.rotated) {
+        await db.from('music_accounts').update({ ciphertext: await sealGrant(env, t.rotated) }).eq('profile_id', uid).eq('provider', provider)
       }
-      return t.access_token!
+      return t.accessToken
     }
+    const { refresh_token } = await unseal<{ refresh_token: string }>(env.INTEGRATION_KEY!, data.ciphertext)
     return (await google.refreshAccess(googleCfg(env, origin)!, refresh_token)).access_token!
   } catch (e) {
-    // Access was removed on the provider's side: forget the connection so the page asks again.
-    if (/invalid_grant|revoked|expired/i.test(String(e))) {
+    // Access was removed on the provider's side (or the Spotify app is gone): forget the connection so the page asks again.
+    if (/invalid_grant|invalid_client|revoked|expired/i.test(String(e))) {
       await db.from('music_accounts').delete().eq('profile_id', uid).eq('provider', provider)
       throw new Error(`${NAMES[provider]} access was removed. Connect it again.`)
     }
@@ -91,10 +89,11 @@ music.use('/api/me/music', teamOnly)
 music.use('/api/me/music/*', teamOnly)
 
 music.get('/api/me/music', async c => {
-  const { data, error } = await (await requestDb(c)).from('music_accounts').select('provider, account_label, connected_at')
+  const db = await requestDb(c)
+  const { data, error } = await db.from('music_accounts').select('provider, account_label, connected_at')
     .eq('profile_id', c.get('userId'))
   if (error) return c.json({ error: error.message }, 500)
-  return c.json({ configured: { spotify: !!spotifyCfg(c.env, ''), youtube: !!googleCfg(c.env, '') }, accounts: data ?? [] })
+  return c.json({ configured: { spotify: await spotifyReady(c.env, db), youtube: !!googleCfg(c.env, '') }, accounts: data ?? [] })
 })
 
 const providerOf = (p: string) => (PROVIDERS as string[]).includes(p) ? p as MusicProvider : null
@@ -103,12 +102,12 @@ music.post('/api/me/music/:provider/start', async c => {
   const provider = providerOf(c.req.param('provider'))
   if (!provider) return c.json({ error: 'Unknown music service' }, 404)
   const origin = new URL(c.req.url).origin
-  const state = await signState(c.env.INTEGRATION_KEY ?? '', { uid: c.get('userId'), kind: 'music', provider } satisfies MusicState)
   if (provider === 'spotify') {
-    const cfg = spotifyCfg(c.env, origin)
-    if (!cfg) return c.json({ error: 'Spotify is being set up. Ask an admin.' }, 400)
-    return c.json({ url: spotify.authUrl(cfg, state) })
+    const url = await spotifyStart(c.env, await requestDb(c), origin, { uid: c.get('userId'), kind: 'music', provider } satisfies MusicState)
+    if (!url) return c.json({ error: 'Spotify isn’t set up for this business yet. An admin sets it up on Connections → Spotify.' }, 400)
+    return c.json({ url })
   }
+  const state = await signState(c.env.INTEGRATION_KEY ?? '', { uid: c.get('userId'), kind: 'music', provider } satisfies MusicState)
   const cfg = googleCfg(c.env, origin)
   if (!cfg) return c.json({ error: 'YouTube Music is being set up. Ask an admin.' }, 400)
   return c.json({ url: google.authUrl(cfg, state, youtube.YOUTUBE_SCOPES) })

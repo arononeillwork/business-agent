@@ -1951,6 +1951,10 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
       const { url } = await worker<{ url: string }>('/api/integrations/spotify/start', { method: 'POST' })
       location.assign(url)
     },
+    spotifyApp: () => worker('/api/integrations/spotify/app'),
+    async saveSpotifyApp(clientId) {
+      await worker('/api/integrations/spotify/app', { method: 'POST', body: JSON.stringify({ client_id: clientId }) })
+    },
     cafePlaylists: provider => worker(`/api/integrations/music/playlists${provider ? `?provider=${provider}` : ''}`),
     async chooseCafePlaylist(playlist, provider) {
       await worker('/api/integrations/music/playlist', { method: 'POST', body: JSON.stringify({ playlist, provider }) })

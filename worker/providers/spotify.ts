@@ -3,36 +3,54 @@
 export const SPOTIFY_SCOPES = ['playlist-read-private', 'playlist-read-collaborative', 'user-read-playback-state',
   'user-modify-playback-state', 'user-read-currently-playing']
 
-export interface SpotifyOAuthConfig { clientId: string; clientSecret: string; redirectUri: string }
+/**
+ * A Spotify app to sign in through. With a secret: The Business Agent's app (the Worker's keys).
+ * Without: a business's own app, signed in with PKCE (worker/spotifyApp.ts), which needs only its Client ID.
+ */
+export interface SpotifyOAuthConfig { clientId: string; clientSecret?: string; redirectUri: string }
 
-export function authUrl(cfg: SpotifyOAuthConfig, state: string) {
+/** The sign-in link. `codeChallenge`: PKCE, for an app without a secret. */
+export function authUrl(cfg: SpotifyOAuthConfig, state: string, codeChallenge?: string) {
   const p = new URLSearchParams({ client_id: cfg.clientId, response_type: 'code', redirect_uri: cfg.redirectUri,
-    scope: SPOTIFY_SCOPES.join(' '), state, show_dialog: 'true' })
+    scope: SPOTIFY_SCOPES.join(' '), state, show_dialog: 'true',
+    ...(codeChallenge ? { code_challenge_method: 'S256', code_challenge: codeChallenge } : {}) })
   return `https://accounts.spotify.com/authorize?${p}`
 }
 
 async function token(cfg: SpotifyOAuthConfig, body: Record<string, string>) {
+  // An app with a secret proves itself with it; a PKCE app names itself (and sends the verifier, or the refresh token).
   const res = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',
-    headers: { authorization: `Basic ${btoa(`${cfg.clientId}:${cfg.clientSecret}`)}`, 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams(body),
+    headers: { 'content-type': 'application/x-www-form-urlencoded',
+      ...(cfg.clientSecret ? { authorization: `Basic ${btoa(`${cfg.clientId}:${cfg.clientSecret}`)}` } : {}) },
+    body: new URLSearchParams(cfg.clientSecret ? body : { ...body, client_id: cfg.clientId }),
   })
   const json = await res.json() as { access_token?: string; refresh_token?: string; error_description?: string; error?: string }
   if (!res.ok || !json.access_token) throw new Error(json.error_description ?? json.error ?? 'Spotify sign-in failed')
   return json
 }
 
-export const exchangeCode = (cfg: SpotifyOAuthConfig, code: string) =>
-  token(cfg, { grant_type: 'authorization_code', code, redirect_uri: cfg.redirectUri })
+export const exchangeCode = (cfg: SpotifyOAuthConfig, code: string, codeVerifier?: string) =>
+  token(cfg, { grant_type: 'authorization_code', code, redirect_uri: cfg.redirectUri, ...(codeVerifier ? { code_verifier: codeVerifier } : {}) })
 export const refreshAccess = (cfg: SpotifyOAuthConfig, refreshToken: string) =>
   token(cfg, { grant_type: 'refresh_token', refresh_token: refreshToken })
+
+/**
+ * Spotify refuses an account a development-mode app doesn't list under User Management (an app takes up to 5).
+ * Said the same way for the café's account and a team member's own.
+ */
+export const NOT_LISTED = 'Spotify didn’t let this account in: the Spotify app it connects through doesn’t list it. In Spotify’s developer dashboard, add the account’s email under the app’s User Management (an app takes up to 5 accounts), or use your own Spotify app (Connections → Spotify). Then connect again.'
 
 async function api<T>(accessToken: string, path: string, init: RequestInit = {}): Promise<T | null> {
   const res = await fetch(`https://api.spotify.com/v1${path}`, {
     ...init, headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json', ...init.headers },
   })
   if (res.status === 204) return null
-  const json = await res.json().catch(() => null) as (T & { error?: { message?: string; reason?: string } }) | null
+  const text = await res.text().catch(() => '')
+  let json: (T & { error?: { message?: string; reason?: string } }) | null = null
+  try { json = JSON.parse(text) } catch { /* not JSON: Spotify sometimes answers in plain text */ }
+  // "Check settings on developer.spotify.com/dashboard, the user may not be registered." (or in plain text).
+  if (res.status === 403 && /not be registered|not registered|developer\.spotify\.com\/dashboard/i.test(text)) throw new Error(NOT_LISTED)
   if (!res.ok) {
     const reason = json?.error?.reason
     if (reason === 'NO_ACTIVE_DEVICE') throw new Error('No Spotify speaker is on. Open Spotify on the café speaker or tablet first.')

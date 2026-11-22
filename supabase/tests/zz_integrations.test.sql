@@ -612,6 +612,17 @@ end $$;
 update public.business set website = null where id = 1;
 reset role;
 
+-- 27. A business's own Spotify app: only a Spotify Client ID ---------------------------------------
+select pg_temp.act_as('maria@test');
+select pg_temp.expect_error($q$update public.settings set spotify_client_id = 'not-a-client-id' where id = 1$q$, 'settings_spotify_client_id_check');
+select pg_temp.expect_error($q$update public.settings set spotify_client_id = '0123456789ABCDEF0123456789ABCDEF' where id = 1$q$, 'settings_spotify_client_id_check');
+update public.settings set spotify_client_id = '0123456789abcdef0123456789abcdef' where id = 1;
+do $$ begin
+  assert (select spotify_client_id from public.settings where id = 1) = '0123456789abcdef0123456789abcdef', 'a business keeps its own Spotify app';
+end $$;
+update public.settings set spotify_client_id = null where id = 1;
+reset role;
+
 -- Rugby joins the sports catalogue ---------------------------------------------------------------
 reset role;
 do $$ begin

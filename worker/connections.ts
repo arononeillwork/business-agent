@@ -12,6 +12,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ownsSecretAccounts, type Env } from './supabase'
 import { seal, unseal } from './crypto'
+import { sealGrant, spotifyRefresh, unsealGrant } from './spotifyApp'
 import { forget } from './cache'
 import * as google from './providers/google'
 import * as ms from './providers/microsoft'
@@ -139,10 +140,8 @@ export const linkedinOAuth = (env: Env, origin: string): linkedin.LinkedInOAuthC
         pages: !/^(off|false|0|no)$/i.test(env.LINKEDIN_PAGES ?? ''), version: env.LINKEDIN_VERSION ?? '202509' }
     : null
 
-export const spotifyConfig = (env: Env, origin: string): spotify.SpotifyOAuthConfig | null =>
-  env.SPOTIFY_CLIENT_ID && env.SPOTIFY_CLIENT_SECRET && env.INTEGRATION_KEY
-    ? { clientId: env.SPOTIFY_CLIENT_ID, clientSecret: env.SPOTIFY_CLIENT_SECRET, redirectUri: `${origin}/api/integrations/spotify/callback` }
-    : null
+// The Business Agent's Spotify app; a business can use its own instead (worker/spotifyApp.ts).
+export { spotifyConfig } from './spotifyApp'
 
 export const connectorConfigured = (env: Env, p: Connector) =>
   isGoogle(p) ? !!googleConfig(env, '') : !!msConfig(env, '')
@@ -218,6 +217,10 @@ export function explain(p: Provider, e: unknown): string {
   const raw = message(e)
   const name = optionName(p)
   if (/invalid_grant|revoked|expired or revoked/i.test(raw)) return `${name} access was removed or has expired. Connect it again.`
+  // A business's own Spotify app that's gone, or whose Client ID was typed wrong.
+  if (p === 'spotify' && /invalid_client|Invalid client/i.test(raw)) {
+    return 'Spotify doesn’t know this Spotify app (it was deleted, or the Client ID is wrong). Check the Client ID on Connections → Spotify, then connect again.'
+  }
   if ((p === 'instagram' || p === 'facebook') && /Error validating access token|has not authorized application|Session has expired|Invalid OAuth access token/i.test(raw)) {
     return `${name} access was removed or has expired. Connect it again.`
   }
@@ -347,16 +350,23 @@ export async function connectorGrant(env: Env, db: SupabaseClient, p: Connector,
   return { token: t.access_token!, scope: t.scope }
 }
 
-/** A fresh Spotify access token for the café's account, plus the approved playlist. */
-export async function spotifySession(env: Env, db: SupabaseClient, origin = '') {
-  const cfg = spotifyConfig(env, origin)
-  if (!cfg) throw new Error('Spotify is not set up')
-  const { data: row } = await db.from('integrations').select('external').eq('provider', 'spotify').single()
-  const refresh = await refreshTokenOf(env, db, 'spotify')
-  const t = await spotify.refreshAccess(cfg, refresh)
-  await keepRotated(env, db, 'spotify', refresh, t.refresh_token)
+/**
+ * A fresh Spotify access token for the café's account, plus the approved playlist. Refreshed with the
+ * Spotify app the account was connected through (The Business Agent's, or the business's own).
+ */
+export async function spotifySession(env: Env, db: SupabaseClient, _origin = '') {
+  if (!env.INTEGRATION_KEY) throw new Error('Spotify is not set up')
+  const [{ data: row }, { data: secret }] = await Promise.all([
+    db.from('integrations').select('external').eq('provider', 'spotify').single(),
+    db.from('integration_secrets').select('ciphertext').eq('provider', 'spotify').maybeSingle(),
+  ])
+  if (!secret) throw new Error('Spotify is not connected')
+  const t = await spotifyRefresh(env, await unsealGrant(env, secret.ciphertext))
+  if (t.rotated) {
+    await db.from('integration_secrets').update({ ciphertext: await sealGrant(env, t.rotated), updated_at: new Date().toISOString() }).eq('provider', 'spotify')
+  }
   const ext = (row?.external ?? {}) as { playlist?: spotify.Playlist }
-  return { token: t.access_token!, playlist: ext.playlist, external: ext }
+  return { token: t.accessToken, playlist: ext.playlist, external: ext }
 }
 
 interface InstagramSecret { access_token: string; expires_at: string; user_id: string }

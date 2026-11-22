@@ -18,6 +18,7 @@ import { authEmail, hookSecret, verifyHook } from './authEmail'
 import { syncSquareCustomers } from './squareCustomers'
 import { hmacBase64 } from './crypto'
 import worker from './index'
+import { music } from './music'
 
 const APP = 'https://app.test'
 const env = {
@@ -290,6 +291,86 @@ describe('Café music: Spotify, YouTube Music or both', () => {
     expect(status('youtube_music')).toBe('connected')
     const after = await (await integrations.request(`${APP}/api/music/library`, { headers: as('staff') }, env, ctx())).json()
     expect(after).not.toHaveProperty('spotify')
+  })
+
+  it('a business can use its own Spotify app: only its Client ID, signed in with PKCE, and every connection keeps the app it was made with', async () => {
+    // No platform keys at all: Spotify needs setting up, and the business can do it itself.
+    const own = { ...env, SPOTIFY_CLIENT_ID: undefined, SPOTIFY_CLIENT_SECRET: undefined } as Env
+    const req = (path: string, init: RequestInit = {}, who: 'admin' | 'staff' = 'admin', withEnv = own) =>
+      integrations.request(`${APP}${path}`, { ...init, headers: as(who) }, withEnv, ctx())
+    const configured = async (withEnv = own) => ((await (await req('/api/integrations', {}, 'admin', withEnv)).json()) as { configured: Record<string, boolean> }).configured.spotify
+    expect(await configured()).toBe(false)
+    expect(await (await req('/api/integrations/spotify/app')).json()).toMatchObject({
+      own: null, platform: false,
+      redirect_uris: expect.arrayContaining(['https://businesssagent.com/api/integrations/spotify/callback', `${APP}/api/integrations/spotify/callback`]),
+    })
+    // Staff can't choose the app; a Client ID is 32 hex characters (as Spotify shows it, any case).
+    expect((await req('/api/integrations/spotify/app', { method: 'POST', body: JSON.stringify({ client_id: 'a'.repeat(32) }) }, 'staff')).status).toBe(403)
+    expect((await req('/api/integrations/spotify/app', { method: 'POST', body: JSON.stringify({ client_id: 'not-a-client-id' }) })).status).toBe(400)
+    const id = '0123456789ABCDEF0123456789ABCDEF'
+    expect((await req('/api/integrations/spotify/app', { method: 'POST', body: JSON.stringify({ client_id: id }) })).status).toBe(200)
+    expect(await (await req('/api/integrations/spotify/app')).json()).toMatchObject({ own: id.toLowerCase(), platform: false })
+    expect(await configured()).toBe(true)
+
+    // Connect: the sign-in names the business's app and carries a PKCE challenge; the code is swapped with the
+    // verifier and the Client ID, no secret.
+    const start = await req('/api/integrations/spotify/start', { method: 'POST', body: '{}' })
+    const auth = new URL((await start.json() as { url: string }).url)
+    expect(auth.searchParams.get('client_id')).toBe(id.toLowerCase())
+    expect(auth.searchParams.get('code_challenge_method')).toBe('S256')
+    expect(auth.searchParams.get('redirect_uri')).toBe(`${APP}/api/integrations/spotify/callback`)
+    const back = await integrations.request(`${APP}/api/integrations/spotify/callback?code=c&state=${encodeURIComponent(auth.searchParams.get('state')!)}`, {}, own, ctx())
+    expect(new URL(back.headers.get('location')!).searchParams.get('connected')).toBe('spotify')
+    const swap = apis.spotify.tokens.at(-1)!
+    expect(swap.auth).toBeNull()
+    expect(swap.body).toMatchObject({ grant_type: 'authorization_code', client_id: id.toLowerCase(), redirect_uri: `${APP}/api/integrations/spotify/callback` })
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(swap.body.code_verifier))
+    const challenge = btoa(String.fromCharCode(...new Uint8Array(digest))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+    expect(auth.searchParams.get('code_challenge')).toBe(challenge)
+    // Kept: the refresh token with the app that gave it.
+    const kept = await unseal<{ refresh_token: string; client_id?: string }>(env.INTEGRATION_KEY!, String(db.table('integration_secrets').find(r => r.provider === 'spotify')!.ciphertext))
+    expect(kept).toEqual({ refresh_token: 'sp-refresh', client_id: id.toLowerCase() })
+
+    // Staff play it: refreshed with the business's app (and the new refresh token Spotify hands out is kept).
+    expect((await req('/api/music/now', {}, 'staff')).status).toBe(200)
+    expect(apis.spotify.tokens.at(-1)).toMatchObject({ auth: null, body: { grant_type: 'refresh_token', refresh_token: 'sp-refresh', client_id: id.toLowerCase() } })
+    const rotated = await unseal<{ refresh_token: string; client_id?: string }>(env.INTEGRATION_KEY!, String(db.table('integration_secrets').find(r => r.provider === 'spotify')!.ciphertext))
+    expect(rotated.client_id).toBe(id.toLowerCase())
+    expect(rotated.refresh_token).not.toBe('sp-refresh')
+
+    // Back to The Business Agent's app (now set up): new sign-ins use it, the café's connection keeps its own app.
+    expect((await req('/api/integrations/spotify/app', { method: 'POST', body: JSON.stringify({ client_id: null }) }, 'admin', env)).status).toBe(200)
+    expect(await (await req('/api/integrations/spotify/app', {}, 'admin', env)).json()).toMatchObject({ own: null, platform: true })
+    expect((await req('/api/music/now', {}, 'staff', env)).status).toBe(200)
+    expect(apis.spotify.tokens.at(-1)).toMatchObject({ auth: null, body: { grant_type: 'refresh_token', client_id: id.toLowerCase() } })
+    const next = new URL((await (await req('/api/integrations/spotify/start', { method: 'POST', body: '{}' }, 'admin', env)).json() as { url: string }).url)
+    expect(next.searchParams.get('client_id')).toBe('spotify-id')
+    expect(next.searchParams.get('code_challenge')).toBeNull()
+  })
+
+  it('a team member’s own Spotify goes through the business’s Spotify app too', async () => {
+    const own = { ...env, SPOTIFY_CLIENT_ID: undefined, SPOTIFY_CLIENT_SECRET: undefined } as Env
+    const me = (path: string, init: RequestInit = {}) => music.request(`${APP}${path}`, { ...init, headers: as('staff') }, own, ctx())
+    expect(await (await me('/api/me/music')).json()).toMatchObject({ configured: { spotify: false } })
+    expect((await me('/api/me/music/spotify/start', { method: 'POST' })).status).toBe(400)
+    await integrations.request(`${APP}/api/integrations/spotify/app`, { method: 'POST', headers: as('admin'), body: JSON.stringify({ client_id: 'f'.repeat(32) }) }, own, ctx())
+    expect(await (await me('/api/me/music')).json()).toMatchObject({ configured: { spotify: true } })
+
+    const auth = new URL((await (await me('/api/me/music/spotify/start', { method: 'POST' })).json() as { url: string }).url)
+    expect(auth.searchParams.get('client_id')).toBe('f'.repeat(32))
+    expect(auth.searchParams.get('code_challenge')).toBeTruthy()
+    const back = await integrations.request(`${APP}/api/integrations/spotify/callback?code=c&state=${encodeURIComponent(auth.searchParams.get('state')!)}`, {}, own, ctx())
+    expect(new URL(back.headers.get('location')!).pathname).toBe('/music')
+    expect(new URL(back.headers.get('location')!).searchParams.get('connected')).toBe('spotify')
+    expect(apis.spotify.tokens.at(-1)).toMatchObject({ auth: null, body: { client_id: 'f'.repeat(32), code_verifier: expect.any(String) } })
+    const lists = await (await me('/api/me/music/spotify/playlists')).json() as { playlists: { id: string; tracks: number }[] }
+    expect(lists.playlists).toEqual([expect.objectContaining({ id: 'sp1', tracks: 30 })])
+  })
+
+  it('Spotify refusing an account its app doesn’t list says how to let it in', async () => {
+    apis.spotify.listed = false
+    expect((await connectSpotify()).searchParams.get('connect_error')).toMatch(/User Management.*up to 5 accounts.*your own Spotify app/)
+    expect(status('spotify')).toBe('disconnected')
   })
 
   it('a Google account without a YouTube channel is not connected', async () => {

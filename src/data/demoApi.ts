@@ -41,6 +41,7 @@ import { postProblem } from '../../shared/social'
 import type { SportsFavourite } from '../../shared/sports'
 import { POPULAR_FONTS } from '../../shared/fonts'
 import { addToCalendarUrl, cleanWebsite, groupOf } from '../../shared/connections'
+import { businessConfig } from '../../shared/business.config'
 import { mergeSales } from '../../shared/sales'
 import { dueFrom, emailId, matchSupplier, numberFromName, type InboxInvoice, type Invoice } from '../../shared/invoices'
 import type { Licence } from '../../shared/licences'
@@ -323,6 +324,8 @@ export function createDemoApi(): Api {
   }
   const player: MusicPlayerState = { device_id: null, device_name: null, playlist: null, queue: [], queue_version: 0, playlist_order: [], position: 0, playing: false,
     elapsed: 0, duration: 0, volume: 80, command: null, command_seq: 0, heartbeat_at: null, updated_at: nowIso() }
+  /** The business's own Spotify app's Client ID (Connections → Spotify); none: The Business Agent's. */
+  let spotifyClientId: string | null = null
   /** The café's music app: the one asked for, or whichever is connected (YouTube Music first, as the Worker does). */
   const cafeMusic = (want?: 'spotify' | 'youtube_music') => (want ? [want] : ['youtube_music', 'spotify'])
     .map(p => integ.integrations.find(i => i.provider === p && i.status === 'connected')).find(Boolean)
@@ -5435,6 +5438,17 @@ export function createDemoApi(): Api {
     async connectSpotify() {
       requireAdmin()
       setConnection('spotify', { status: 'connected', account_label: 'Easy Beans (Premium)', connected_at: nowIso(), last_checked_at: nowIso(), last_error: null, external: {} })
+    },
+    async spotifyApp() {
+      requireAdmin()
+      const uris = [...new Set([businessConfig.appUrl, businessConfig.workersUrl, location.origin])].map(o => `${o}/api/integrations/spotify/callback`)
+      return { own: spotifyClientId, platform: true, redirect_uris: uris }
+    },
+    async saveSpotifyApp(clientId) {
+      requireAdmin()
+      const id = clientId?.trim().toLowerCase() ?? null
+      if (id !== null && !/^[0-9a-f]{32}$/.test(id)) throw new Error('That isn’t a Spotify Client ID: it’s 32 letters and numbers, under the app’s Settings in Spotify’s developer dashboard.')
+      spotifyClientId = id
     },
     async cafePlaylists(provider) {
       const p = cafeMusic(provider)

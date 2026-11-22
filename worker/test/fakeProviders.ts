@@ -215,7 +215,8 @@ export class FakeProviders {
     /** The café's own files and folders in its OneDrive (the Legal page browses them), by id; `parent` 'root' is the top. */
     items: new Map<string, { name: string; parent: string; folder?: boolean; type?: string; bytes?: Uint8Array }>(),
   }
-  spotify = { premium: true, revoked: false }
+  /** listed: the app lets this account in (a development-mode app takes the accounts under its User Management). tokens: what was asked of /api/token. */
+  spotify = { premium: true, revoked: false, listed: true, tokens: [] as { auth: string | null; body: Record<string, string> }[] }
   facebook = {
     /** What the person allowed (Facebook and Meta Ads share the sign-in's permission list here). */
     granted: ['pages_show_list', 'pages_manage_posts', 'pages_read_engagement', 'pages_messaging', 'public_profile', 'ads_read', 'ads_management', 'business_management'],
@@ -924,10 +925,18 @@ export class FakeProviders {
     // ---- Spotify ----
     if (url.href === 'https://accounts.spotify.com/api/token') {
       const f = form()
+      const auth = new Headers(init.headers).get('authorization')
+      this.spotify.tokens.push({ auth, body: Object.fromEntries(f) })
+      // An app proves itself with its secret, or (PKCE) names itself with client_id.
+      if (!auth && !f.get('client_id')) return json({ error: 'invalid_client', error_description: 'Invalid client' }, 400)
       if (f.get('grant_type') === 'refresh_token' && this.spotify.revoked) return json({ error: 'invalid_grant', error_description: 'Refresh token revoked' }, 400)
-      return json({ access_token: `sp-access-${this.nextId++}`, token_type: 'Bearer', expires_in: 3600, ...(f.get('grant_type') === 'authorization_code' ? { refresh_token: 'sp-refresh' } : {}) })
+      const pkce = !auth
+      // A PKCE refresh hands out a new refresh token each time, to keep instead of the old one.
+      const refresh = f.get('grant_type') === 'authorization_code' ? 'sp-refresh' : pkce ? `sp-refresh-${this.nextId++}` : undefined
+      return json({ access_token: `sp-access-${this.nextId++}`, token_type: 'Bearer', expires_in: 3600, ...(refresh ? { refresh_token: refresh } : {}) })
     }
     if (url.host === 'api.spotify.com') {
+      if (!this.spotify.listed) return json({ error: { status: 403, message: 'Check settings on developer.spotify.com/dashboard, the user may not be registered.' } }, 403)
       if (url.pathname === '/v1/me') return json({ id: 'easybeans', display_name: 'Easy Beans', product: this.spotify.premium ? 'premium' : 'free' })
       if (url.pathname === '/v1/me/playlists') return json({ items: [{ id: 'sp1', name: 'Café mornings', tracks: { total: 30 }, images: [], external_urls: { spotify: 'https://open.spotify.com/playlist/sp1' }, owner: { display_name: 'Easy Beans' } }] })
       if (url.pathname === '/v1/me/player') return new Response(null, { status: 204 })

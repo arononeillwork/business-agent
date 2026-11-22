@@ -243,6 +243,16 @@ labelled so. Register both addresses as redirect URIs:
 `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` as repository secrets and deploy: the deploy gives
 them to the Worker. Until then the Music page's **Connect Spotify** says what's missing.
 
+**A business's own Spotify app.** Because The Business Agent's app takes 5 accounts in all, a
+business can use its own instead: Connections → Spotify → **Use your own Spotify app** shows the
+steps (make the app with the business's Premium account, add the two redirect URIs it lists, add
+each account under User Management) and takes the app's **Client ID**
+(`settings.spotify_client_id`). Its café account and its team's own Spotify then sign in through
+it with PKCE, so no secret is kept for it. Each kept connection remembers which app gave it
+(`worker/spotifyApp.ts`), so switching apps doesn't break connections already made; connect one
+again to move it. Without the platform keys, Spotify is still offered: it just needs the
+business's own app first.
+
 Spotify and YouTube Music can both be connected for the café (Connections → Café music), each
 with its own approved playlist. The Music page then has a switch between YouTube Music's player
 and Spotify (play or pause the approved playlist on the speaker); Today shows YouTube Music's.

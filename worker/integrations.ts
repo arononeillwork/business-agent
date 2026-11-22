@@ -30,6 +30,7 @@ import { replyWindow } from '../shared/messages'
 import { takingsMinutes } from '../shared/refresh'
 import { minutesFor } from './refresh'
 import { finishMusicConnect, type MusicState } from './music'
+import { CLIENT_ID, ownSpotifyApp, redirectUris, sealGrant, spotifyFinish, spotifyReady, spotifyStart, type SpotifyStateApp } from './spotifyApp'
 import { ensureFeed } from './calendarFeed'
 import { checkMentions, decide, putForward, repostMention } from './mentions'
 import { ideaChatIn } from '../shared/instagramIdeas'
@@ -369,7 +370,8 @@ integrations.get('/api/integrations', async c => {
     square: !!squareOAuth(c.env),
     stripe: !!stripeOAuth(c.env, ''),
     sumup: !!sumupOAuth(c.env, ''),
-    spotify: !!spotifyConfig(c.env, ''),
+    // The Business Agent's Spotify app, or the business's own (worker/spotifyApp.ts).
+    spotify: await spotifyReady(c.env, db),
     ...Object.fromEntries(CONNECTORS.map(p => [p, connectorConfigured(c.env, p)])),
     // Calendars need no keys of their own: the calendar app subscribes to the team calendar link.
     google_calendar: !!c.env.INTEGRATION_KEY,
@@ -623,11 +625,28 @@ integrations.post('/api/integrations/:provider/disconnect', async c => {
   return c.json({ ok: true })
 })
 
-// Spotify: one-click connect, then pick the approved playlist.
+// Spotify: one-click connect, then pick the approved playlist. Through the business's own Spotify app if it
+// has one, else The Business Agent's (worker/spotifyApp.ts).
 integrations.post('/api/integrations/spotify/start', async c => {
-  const cfg = spotifyConfig(c.env, new URL(c.req.url).origin)
-  if (!cfg) return c.json({ error: 'Spotify is not set up yet. Add SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET.' }, 400)
-  return c.json({ url: spotify.authUrl(cfg, await signState(c.env.INTEGRATION_KEY!, { uid: c.get('userId') })) })
+  const url = await spotifyStart(c.env, businessDb(c.env, c.get('businessId')), new URL(c.req.url).origin, { uid: c.get('userId') })
+  if (!url) return c.json({ error: 'Spotify is not set up yet: use your own Spotify app (Connections → Spotify), or add SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET.' }, 400)
+  return c.json({ url })
+})
+
+// The business's own Spotify app: its Client ID, and the addresses to register in it as redirect URIs.
+integrations.get('/api/integrations/spotify/app', async c => {
+  const db = businessDb(c.env, c.get('businessId'))
+  return c.json({ own: await ownSpotifyApp(db), platform: !!spotifyConfig(c.env, ''), redirect_uris: redirectUris(new URL(c.req.url).origin) })
+})
+
+// Use it (a Client ID), or stop (null). Connections already made keep the app they were made with.
+integrations.post('/api/integrations/spotify/app', async c => {
+  const { client_id } = await c.req.json<{ client_id?: string | null }>().catch(() => ({ client_id: undefined }))
+  const id = typeof client_id === 'string' ? client_id.trim().toLowerCase() : null
+  if (id !== null && !CLIENT_ID.test(id)) return c.json({ error: 'That isn’t a Spotify Client ID: it’s 32 letters and numbers, under the app’s Settings in Spotify’s developer dashboard.' }, 400)
+  const { error } = await businessDb(c.env, c.get('businessId')).from('settings').update({ spotify_client_id: id }).eq('id', 1)
+  if (error) return c.json({ error: error.message }, 500)
+  return c.json({ ok: true })
 })
 
 integrations.get('/api/integrations/spotify/callback', async c => {
@@ -636,16 +655,15 @@ integrations.get('/api/integrations/spotify/callback', async c => {
   const origin = new URL(c.req.url).origin
   const back = (q: string) => c.redirect(`${origin}/connections?${q}`)
   try {
-    const cfg = spotifyConfig(c.env, origin)
-    if (!cfg) throw new Error('Spotify is not set up')
     if (c.req.query('error')) throw new Error(c.req.query('error') === 'access_denied' ? 'Spotify connection was cancelled' : c.req.query('error'))
-    const { uid } = await verifyState<{ uid: string }>(c.env.INTEGRATION_KEY!, c.req.query('state') ?? '')
-    const t = await spotify.exchangeCode(cfg, c.req.query('code') ?? '')
-    if (!t.refresh_token) throw new Error('Spotify did not allow lasting access. Connect again.')
+    const state = await verifyState<{ uid: string } & SpotifyStateApp>(c.env.INTEGRATION_KEY!, c.req.query('state') ?? '')
+    const { accessToken, grant } = await spotifyFinish(c.env, origin, state, c.req.query('code') ?? '')
+    if (!grant) throw new Error('Spotify did not allow lasting access. Connect again.')
+    const uid = state.uid
     // Proof first: the account signs in and its playlists can be read. Only then is it kept.
-    const proven = await proveSpotify(t.access_token!)
+    const proven = await proveSpotify(accessToken)
     const db = await callbackDb(c.env, uid)
-    const { error } = await db.from('integration_secrets').upsert({ provider: 'spotify', ciphertext: await seal(c.env.INTEGRATION_KEY!, { refresh_token: t.refresh_token }), updated_at: new Date().toISOString() })
+    const { error } = await db.from('integration_secrets').upsert({ provider: 'spotify', ciphertext: await sealGrant(c.env, grant), updated_at: new Date().toISOString() })
     if (error) throw new Error(error.message)
     const now = new Date().toISOString()
     await setIntegration(db, 'spotify', { status: 'connected', connected_by: uid, connected_at: now, last_checked_at: now, last_error: null,
