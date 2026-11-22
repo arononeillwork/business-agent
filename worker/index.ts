@@ -431,7 +431,7 @@ const provider = (env: Env, origin: string) => new OAuthProvider<Env>({
 const overHttp = (url: URL) => url.protocol === 'http:' && !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
 
 export default {
-  fetch: (request, env, ctx) => {
+  fetch: async (request, env, ctx) => {
     const url = new URL(request.url)
     // The OAuth provider refuses an http address (it threw, Cloudflare error 1101), so plain http
     // never reaches it. Calendar apps fetch the webcal:// feed links over http (Google Calendar
@@ -442,8 +442,14 @@ export default {
       return Response.redirect(url.toString(), 308)
     }
     // The connector through the backup address on Vercel answers as that address (worker/backupAddress.ts).
-    const req = asBackupAddress(request)
-    return provider(env, new URL(req.url).origin).fetch(req, env, ctx)
+    const req = await asBackupAddress(request)
+    // Each request gets its own env for the OAuth library's helpers. The library puts them on env
+    // once (env.OAUTH_PROVIDER, built for that request's address), and Cloudflare keeps one env for
+    // all of a Worker's requests, so a sign-in page used the helpers of whichever address the Worker
+    // served first: a sign-in for businesssagent.vercel.app was checked against businesssagent.com's
+    // connector and refused ("The resource parameter must name exactly one configured protected resource").
+    const own = Object.create(env) as Env
+    return provider(own, new URL(req.url).origin).fetch(req, own, ctx)
   },
   // Every minute: close forgotten timecards, queue shift alerts, remind admins about events,
   // send planned social posts, deliver the outbox, refresh sports, send menu prices to Square; every
