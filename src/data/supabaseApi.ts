@@ -1759,6 +1759,7 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
     async deleteReportSchedule(id) { check(await sb.from('report_schedules').delete().eq('id', id)) },
     saveFile: f => worker('/api/integrations/files/save', { method: 'POST', body: JSON.stringify(f) }),
     reviews: () => worker('/api/reviews'),
+    translateReviews: language => worker('/api/reviews/translate', { method: 'POST', body: JSON.stringify({ language }) }),
     async replyReview(id, text) { await worker('/api/reviews/reply', { method: 'PUT', body: JSON.stringify({ id, text }) }) },
     async deleteReviewReply(id) { await worker('/api/reviews/reply', { method: 'DELETE', body: JSON.stringify({ id }) }) },
     website: () => worker('/api/website'),

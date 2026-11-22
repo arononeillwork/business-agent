@@ -22,6 +22,16 @@ async function open(page: Page, path = '/', email = 'aron@example.com') {
   await expect(page.getByRole('heading', { name: 'Sign in' })).toHaveCount(0)
 }
 
+/** Signed in as someone who then picks Spanish too (My account) and switches to it with the flags, then opens `path` from the menu. */
+async function inSpanish(page: Page, menuLink: string) {
+  await open(page, '/account')
+  await page.getByRole('combobox', { name: 'Languages', exact: true }).click()
+  await page.getByRole('option', { name: 'Español' }).click()
+  await page.keyboard.press('Escape')
+  await page.getByRole('group', { name: 'Language' }).getByRole('button', { name: 'Español' }).click()
+  await page.getByRole('navigation', { name: 'Principal' }).getByRole('link', { name: menuLink, exact: true }).first().click()
+}
+
 test('the app opens at the sign-in screen and shows nothing before login', async ({ page }) => {
   await page.goto('/?demo')
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
@@ -7022,6 +7032,19 @@ test.describe('reviews and website', () => {
     await expect(reviews.first()).toHaveAccessibleName('Lucía Pérez, 5 stars')
   })
 
+  test('reviews follow the app’s language: in Spanish, the ones written in English show translated', async ({ page }) => {
+    await inSpanish(page, 'Reseñas')
+    const reviews = page.getByRole('region', { name: 'Reseñas de Google' }).getByRole('article')
+    const tom = reviews.filter({ hasText: 'Tom Hughes' })
+    await expect(tom).toContainText('El café estaba bueno, pero esperamos 20 minutos por dos flat whites')
+    await expect(tom).toContainText('Traducida del inglés')
+    await tom.getByRole('button', { name: 'Ver el original' }).click()
+    await expect(tom).toContainText('Coffee was good but we waited 20 minutes')
+    // Written in Spanish: as it is.
+    await expect(reviews.filter({ hasText: 'Javier Ruiz' })).toContainText('El café está bien, pero la terraza se llena enseguida')
+    await expect(reviews.filter({ hasText: 'Javier Ruiz' })).not.toContainText('Traducida')
+  })
+
   test('reviews: the photos people added show with their review, open large, and have a filter of their own', async ({ page }) => {
     await open(page, '/reviews')
     const list = page.getByRole('region', { name: 'Google reviews' })
@@ -7032,9 +7055,13 @@ test.describe('reviews and website', () => {
     await expect(reviews.nth(0)).toHaveAccessibleName('Lucía Pérez, 5 stars')
     await expect(reviews.nth(1)).toHaveAccessibleName('Ana García, 5 stars')
 
-    // Words and photos together; photos alone aren't "stars only".
+    // Words and photos together; photos alone aren't "stars only". Written in Spanish: in English here, her own words a press away.
     const lucia = reviews.nth(0)
+    await expect(lucia).toContainText('The best coffee in San Pedro. The matcha latte with oat milk is wonderful')
+    await expect(lucia).toContainText('Translated from Spanish')
+    await lucia.getByRole('button', { name: 'Show original' }).click()
     await expect(lucia).toContainText('El mejor café de San Pedro')
+    await expect(lucia).toContainText('As they wrote it')
     await expect(lucia.getByRole('list', { name: 'Photos' }).getByRole('listitem')).toHaveCount(2)
     await expect(reviews.nth(1)).not.toContainText('Stars only, no words')
     await expect(reviews.nth(1).getByRole('list', { name: 'Photos' }).getByRole('listitem')).toHaveCount(1)
@@ -8337,6 +8364,26 @@ test.describe('daily checklists', () => {
 })
 
 test.describe('roles and rules', () => {
+  test('the café’s own roles and staff rules follow the app’s language', async ({ page }) => {
+    await inSpanish(page, 'Puestos y responsabilidades')
+    await expect(page.getByRole('heading', { name: 'Puestos y responsabilidades', level: 1 })).toBeVisible()
+    const roles = page.getByRole('region', { name: 'Puestos', exact: true })
+    await expect(roles).toContainText('Responsable de personas')
+    await expect(roles).not.toContainText('Head of People')
+    await page.getByRole('button', { name: 'Abrir todo' }).click()
+    await expect(roles).toContainText('Preparar el café y todas las bebidas')
+    await expect(roles).not.toContainText('Making coffee and all drinks')
+    // Editing starts from the words as they were written.
+    await roles.getByRole('button', { name: 'Editar Barista / Camarero/a' }).click()
+    await expect(page.getByRole('dialog').getByRole('textbox', { name: 'Nombre' })).toHaveValue('Barista / Bartender')
+    await page.keyboard.press('Escape')
+
+    await page.getByRole('navigation', { name: 'Principal' }).getByRole('link', { name: 'Normas del personal' }).click()
+    await expect(page.getByText('Normas básicas')).toBeVisible()
+    await page.getByRole('button', { name: 'Abrir todo' }).click()
+    await expect(page.getByText('Nada de auriculares. Ni uno, ni en un turno tranquilo.')).toBeVisible()
+  })
+
   // Sections open without the slide, so a button inside one isn't pressed while it's still moving.
   test.use({ reducedMotion: 'reduce' })
 

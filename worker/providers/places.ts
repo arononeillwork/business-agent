@@ -7,7 +7,11 @@ import { NEARBY_TYPES } from '../../shared/businessKind'
 export interface PlaceReviews {
   rating: number | null
   count: number | null
-  reviews: { name: string; rating: number; text: string | null; language: string | null; author: string; publishTime: string | null; url: string | null }[]
+  reviews: {
+    name: string; rating: number; text: string | null; language: string | null; author: string; publishTime: string | null; url: string | null
+    /** Google's translation into the language asked for, when the review is in another one. */
+    translated: string | null
+  }[]
 }
 
 interface ApiReview {
@@ -28,8 +32,10 @@ export async function placeReviews(apiKey: string, placeId: string, language = '
     reviews: (json.reviews ?? []).filter(r => r.name && r.rating).map(r => ({
       name: r.name!, rating: r.rating!,
       // The original words, not Google's translation into the language asked for.
-      text: r.originalText?.text ?? r.text?.text ?? null,
+      // An empty original (Google sends one at times) isn't words: the text is.
+      text: r.originalText?.text?.trim() || r.text?.text?.trim() || null,
       language: r.originalText?.languageCode ?? r.text?.languageCode ?? null,
+      translated: r.originalText?.text?.trim() && r.text?.text?.trim() && r.text.languageCode !== r.originalText.languageCode ? r.text.text.trim() : null,
       author: r.authorAttribution?.displayName ?? '',
       publishTime: r.publishTime ?? null,
       url: r.googleMapsUri ?? null,

@@ -23,6 +23,12 @@ export interface Review {
   url: string | null
   /** Photos the reviewer added to it (Google Maps connection only), oldest first. */
   photos: ReviewPhoto[]
+  /**
+   * Its words in the app's other language, so the page follows the language it's shown in: Google's own
+   * translation when Google sends one with the review, else one made the first time the page is opened in
+   * that language (worker/reviews.ts). Missing: none yet.
+   */
+  translations?: Partial<Record<ReviewLanguage, string>>
 }
 
 /** A photo on a review, as Google hosts it: the full size and a smaller one for the list. */
@@ -44,6 +50,10 @@ export interface ReviewsState {
   problem: string | null
   /** When the service was last asked (the Worker keeps its answer a while: shared/refresh.ts). */
   fetched_at?: string
+  /** Whether reviews can be translated into the language the page is shown in (the Worker has an Anthropic key). */
+  can_translate?: boolean
+  /** The business's listing on Google Maps, to see a review there (the Business Profile's reviews come without their own link). */
+  listing_url?: string | null
 }
 
 /** Google gives stars as words on the business profile. */
@@ -86,6 +96,36 @@ export function originalWords(comment: string | null | undefined): string | null
   if (original >= 0) return text.slice(original).replace(ORIGINAL, '').trim() || null
   return text.replace(TRANSLATED, '').trim() || null
 }
+
+/**
+ * Google's translation of a review, when it sent one with the reviewer's words (the other half of what
+ * originalWords keeps): after "(Translated by Google)", up to "(Original)" when the review follows it.
+ */
+export function googleTranslation(comment: string | null | undefined): string | null {
+  const text = comment?.trim() ?? ''
+  const at = text.search(TRANSLATED)
+  if (at < 0) return null
+  const after = text.slice(at).replace(TRANSLATED, '')
+  const original = after.search(ORIGINAL)
+  return (original >= 0 ? after.slice(0, original) : after).trim() || null
+}
+
+/** A translation kept for a review: the language it's in, when that's the other one (a guess that says it's the review's own is no translation). */
+export function translationOf(own: ReviewLanguage, text: string | null): Partial<Record<ReviewLanguage, string>> {
+  if (!text) return {}
+  const language = guessLanguage(text)
+  return language === own ? {} : { [language]: text }
+}
+
+/** A review's words in the language asked for: its own, or a translation of them (`translated`). */
+export function wordsIn(r: Pick<Review, 'text' | 'language' | 'translations'>, language: ReviewLanguage): { text: string | null; translated: boolean } {
+  const other = r.text && r.language !== language ? r.translations?.[language] : undefined
+  return other ? { text: other, translated: true } : { text: r.text, translated: false }
+}
+
+/** The reviews still to translate into a language: words in the other one, and no translation yet. */
+export const toTranslate = <R extends Pick<Review, 'text' | 'language' | 'translations'>>(reviews: R[], language: ReviewLanguage) =>
+  reviews.filter(r => !!r.text?.trim() && r.language !== language && !r.translations?.[language])
 
 export interface ReviewSummary {
   count: number

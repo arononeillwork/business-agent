@@ -2,6 +2,7 @@
 // when no Supabase project is configured. Mirrors the SQL rules closely but is not the source
 // of truth: the database functions are.
 import { PromptError, type Api, type BillingInfo, type ShiftInput } from './api'
+import { REVIEW_TRANSLATIONS } from './demoReviewTranslations'
 import { PLANS, SOCIAL_CONNECTIONS, TRIAL_DAYS, effectivePlan, payPerUse, plan as planById, type PlanId } from '../../shared/plans'
 import { isMood, namesArtist, usesFor, type Mood } from '../../shared/music'
 import type { AiMusicQuote, MusicGeneration, MusicTrack } from '../../shared/types'
@@ -596,7 +597,8 @@ export function createDemoApi(): Api {
   const review = (id: string, rating: Review['rating'], reviewer: string, created_at: string, language: Review['language'], text: string | null,
     reply: string | null = null, replied_at: string | null = null, photos: string[] = []): Review =>
     ({ id: `accounts/1/locations/1/reviews/${id}`, source: 'google', rating, reviewer, created_at, language, text, reply, replied_at, url: null,
-      photos: photos.map(p => ({ url: demoPhoto(p, /croissant|cake|toast/i.test(p)), thumb: null })) })
+      photos: photos.map(p => ({ url: demoPhoto(p, /croissant|cake|toast/i.test(p)), thumb: null })),
+      translations: text && REVIEW_TRANSLATIONS[text] ? { [language === 'es' ? 'en' : 'es']: REVIEW_TRANSLATIONS[text] } : {} })
   const demoReviews: Review[] = [
     review('r12', 2, 'Tom Hughes', '2026-09-28T16:20:00Z', 'en', 'Coffee was good but we waited 20 minutes for two flat whites on Saturday morning, and nobody said sorry.'),
     review('r11', 3, 'Javier Ruiz', '2026-09-24T09:05:00Z', 'es', 'El café está bien, pero la terraza se llena enseguida y no hay sitio para sentarse.'),
@@ -4927,8 +4929,10 @@ export function createDemoApi(): Api {
       const profile = integ.integrations.find(i => i.provider === 'google_business')?.status === 'connected'
       return { feed: profile ? 'business_profile' : 'places', can_reply: profile, google_rating: profile ? null : 4.6, google_count: profile ? null : demoReviews.length,
         reviews: clone(profile ? demoReviews : demoReviews.slice(0, 5).map(r => ({ ...r, reply: null, replied_at: null }))),
-        problem: profile ? null : CONNECT_MAPS }
+        problem: profile ? null : CONNECT_MAPS, can_translate: true, listing_url: profile ? 'https://maps.google.com/?cid=1000000000000000001' : null }
     },
+    // The demo's reviews come translated (REVIEW_TRANSLATIONS): nothing left to do.
+    async translateReviews() { requireAdmin(); return { translated: 0, left: 0 } },
     async replyReview(id, text) {
       requireAdmin()
       const r = demoReviews.find(x => x.id === id)
