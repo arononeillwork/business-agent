@@ -172,6 +172,34 @@ npm run music:competitors
 npm run render:competitors && npm run web:competitors
 ```
 
+## Bring them back.
+
+The eighth video (`public/video/regulars.mp4`, 94 seconds, `RegularsVideo` in `src/regulars/`), played on the Sales
+page's "Customers who never come back" card (`/sell/cafes`): bringing regulars back on the quiet days, with Customers,
+Loyalty & gift cards, Campaigns and Competitions. Easy Beans in demo mode, the till (Square) connected off camera, so the
+stamp card is there and the takings say which day is quiet: Mondays, 36% under the average day.
+
+| Time | Scene | What it shows |
+|---|---|---|
+| 0:00 | The title | "Bring them back. On the quiet days." |
+| 0:04 | A quiet Monday | The week's takings by day, a rush on Saturday, Monday 36% down; the regulars the owner knows by their order, with no number or email for any of them |
+| 0:16 | 1 Your regulars | Customers searched for "regular": three, all said yes to marketing; then the stamp card from the till, its 40 members and when each last came in |
+| 0:34 | 2 A message | Campaigns' ready-made quiet-day boost, to the customers tagged regular who said yes (3), how Pablo gets it, planned for Monday 14 Dec at 10:00 with a reminder; saved, in the list |
+| 0:56 | 3 A draw | Competitions' Mondays draw, from the takings; its prize, how to enter, the bases legales and the post, written; saved |
+| 1:14 | Monday, ten o'clock | The message on a regular's phone, and what the owner gets |
+| 1:26 | The close | The brand |
+
+The app's scenes are recorded by `capture/regulars.mjs`. Until Brevo or Mailchimp is on Connections, Campaigns doesn't
+send by itself: it writes the message, picks who it goes to, reminds you on the day and exports the list to send. So
+the film plans the message, and the phone it reaches is drawn, with the campaign's own words. The week's takings and
+the notebook are drawn too. Its music is `music/regulars.py`.
+
+```bash
+npm run capture:regulars             # the app's scenes for it (the dev server running)
+npm run music:regulars
+npm run render:regulars && npm run web:regulars
+```
+
 Everything is made here from scratch, so it can be made again whenever the app changes, and in Spanish.
 
 ## How it's made

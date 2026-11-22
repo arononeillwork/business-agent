@@ -65,7 +65,7 @@ export default {
     'Clientes, recompensas de fidelidad (con Square) y ofertas en un solo sitio. Envía un WhatsApp o un email para que los habituales vengan un día flojo, y haz un sorteo para atraer caras nuevas.',
   'Quiet days get a reason to come in, and regulars come back more often.':
     'Los días flojos tienen un motivo para venir, y los habituales vuelven más a menudo.',
-  'Filling a quiet Tuesday': 'Llenar un martes flojo',
+  'Bring them back on the quiet days': 'Que vuelvan en los días flojos',
 
   // Cafés: prices
   'Prices set by feel': 'Precios puestos a ojo',

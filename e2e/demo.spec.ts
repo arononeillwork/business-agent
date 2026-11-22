@@ -2605,7 +2605,7 @@ test('sales page: pick a business type, then its pain points with what the app d
   await expect(film).toHaveAttribute('poster', '/video/food-waste.jpg')
   expect((await page.request.get('/video/food-waste.mp4')).ok()).toBe(true)
   await expect(food.getByText('Film coming soon')).toHaveCount(0)
-  await expect(page.getByRole('article', { name: 'Customers who never come back' }).getByText('Film coming soon')).toBeVisible()
+  await expect(page.getByRole('article', { name: 'Prices set by feel' }).getByText('Film coming soon')).toBeVisible()
   await expect(page.getByRole('article', { name: 'The working-hours record' })).toContainText('Stay legal')
   // Google reviews & opening hours has its film too.
   for (const file of ['public/video/google-listing.mp4', 'public/video/google-listing.jpg']) expect(readFileSync(file).length).toBeGreaterThan(10_000)
@@ -2617,6 +2617,10 @@ test('sales page: pick a business type, then its pain points with what the app d
   await expect(rivals).toContainText('round the corner')
   await expect(rivals).toContainText('Competitors')
   await expect(rivals.getByLabel('Competitor insights: know your competition, every week, video')).toHaveAttribute('src', '/video/competitors.mp4')
+  // And customers who never come back (src/regulars).
+  for (const file of ['public/video/regulars.mp4', 'public/video/regulars.jpg']) expect(readFileSync(file).length).toBeGreaterThan(10_000)
+  await expect(page.getByRole('article', { name: 'Customers who never come back' }).getByLabel('Bring them back on the quiet days, video'))
+    .toHaveAttribute('src', '/video/regulars.mp4')
   // The cheat sheet at the top lists each problem under what it's mainly about, and links to its card.
   const glance = page.getByRole('region', { name: 'Selling points at a glance' })
   for (const win of ['Make money', 'Save time', 'Cut costs', 'Stay legal']) await expect(glance.getByRole('heading', { name: win })).toBeVisible()
