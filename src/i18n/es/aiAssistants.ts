@@ -15,6 +15,10 @@ export default {
   'Talk to the app from Claude, ChatGPT or any AI that takes connectors (MCP): ask about the rota, add a licence, check what’s due. Your AI signs in as you, so it can do what you can do here and nothing more, and every change it makes is logged as made via AI.':
     'Habla con la app desde Claude, ChatGPT o cualquier IA que admita conectores (MCP): pregunta por el cuadrante, añade una licencia, mira lo que vence. Tu IA entra como tú, así que puede hacer lo que tú puedes hacer aquí y nada más, y cada cambio que hace queda registrado como hecho por IA.',
   'Connector address': 'Dirección del conector',
+  'Backup connector address': 'Dirección de reserva del conector',
+  'Two ways in. If the first stops opening (Spanish internet providers block it on some football match days), add a second connector the same way with the backup address, through Vercel. Each connector signs in on its own.':
+    'Dos formas de entrar. Si la primera deja de abrir (los proveedores de internet españoles la bloquean algunos días de partido de fútbol), añade un segundo conector igual con la dirección de reserva, a través de Vercel. Cada conector inicia sesión por su cuenta.',
+  'Backup command': 'Comando de reserva',
   'Which AI': 'Qué IA',
   'In Claude (web, desktop or phone), open Settings, then Connectors.': 'En Claude (web, escritorio o móvil), abre Ajustes y luego Conectores.',
   'Choose Add custom connector, give it a name ({business}) and paste the connector address above.':

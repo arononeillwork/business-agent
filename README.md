@@ -950,6 +950,13 @@ the Worker. Nothing is deployed twice; each deploy shows on it straight away. Si
 there come back there (`scripts/ops/supabase-auth.mjs`). Links the Worker builds (invite emails,
 connection and billing returns) still use the workers.dev address.
 
+The AI connector works on the backup address too, so AI assistants offers two connector addresses:
+`https://businesssagent.com/mcp` and `https://businesssagent.vercel.app/mcp`, each its own
+connector with its own sign-in. Vercel names the backup in `x-forwarded-host`. For the connector's
+paths only (`/mcp`, `/authorize`, `/token`, `/register` and the OAuth discovery files), the Worker
+then answers as if the request was sent to the backup, so its sign-in details name that address
+(`worker/backupAddress.ts`). Only that host is believed, and the rest of the app keeps the workers.dev address.
+
 ### Who owns each key
 
 **Actions → Key owners → Run workflow** asks each provider whose account or app every key opens
