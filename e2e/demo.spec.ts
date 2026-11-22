@@ -83,6 +83,13 @@ async function giveBaristas(page: Page, area: string, level: string, here = fals
   await expect(cell).toHaveText(level)
 }
 
+/** Café music on Connections: connect the café's YouTube Music too (Spotify stays connected next to it). */
+async function connectYouTubeMusic(page: Page) {
+  const cafe = page.getByRole('region', { name: 'Café music' })
+  await cafe.getByRole('button', { name: 'Connect YouTube Music' }).click()
+  await expect(cafe.getByRole('article', { name: 'YouTube Music' })).toContainText('Connected')
+}
+
 /** In a choose-one group on Connections: pick another app from "Also works with", switch to it and close its details. */
 async function switchApp(page: Page, group: Locator, name: string) {
   await group.getByRole('group', { name: /^Other / }).getByRole('button', { name: `Use ${name} instead` }).click()
@@ -1091,9 +1098,7 @@ test.describe('music', () => {
 
   test('café music: one device plays the café’s YouTube Music, with now playing, controls, queue and playlists', async ({ page }) => {
     await open(page, '/connections')
-    const cafe = page.getByRole('region', { name: 'Café music' })
-    await switchApp(page, cafe, 'YouTube Music')
-    await expect(cafe.getByRole('article', { name: 'YouTube Music' })).toContainText('Connected')
+    await connectYouTubeMusic(page)
 
     // No personal connection needed: the café account's music is right there.
     await page.getByRole('link', { name: 'Music' }).first().click()
@@ -1131,7 +1136,7 @@ test.describe('music', () => {
 
   test('café music: search all of YouTube Music, and play a song now, next or at the end, or a whole playlist', async ({ page }) => {
     await open(page, '/connections')
-    await switchApp(page, page.getByRole('region', { name: 'Café music' }), 'YouTube Music')
+    await connectYouTubeMusic(page)
     await page.getByRole('link', { name: 'Music' }).first().click()
     // No header text or speaker instructions: the page opens on what's playing.
     await expect(page.getByText('connected to the speaker')).toHaveCount(0)
@@ -1173,7 +1178,7 @@ test.describe('music', () => {
 
   test('café music: the X clears the song on now, in Now playing or the queue, and the next one plays; Clear empties the queue', async ({ page }) => {
     await open(page, '/connections')
-    await switchApp(page, page.getByRole('region', { name: 'Café music' }), 'YouTube Music')
+    await connectYouTubeMusic(page)
     await page.getByRole('link', { name: 'Music' }).first().click()
     const now = page.getByRole('region', { name: 'Now playing' })
     const queue = page.getByRole('list', { name: 'Queue' })
@@ -1209,7 +1214,7 @@ test.describe('music', () => {
 
   test('café music: one press of play on a search result plays it straight away, even with nothing playing; another switches to it', async ({ page }) => {
     await open(page, '/connections')
-    await switchApp(page, page.getByRole('region', { name: 'Café music' }), 'YouTube Music')
+    await connectYouTubeMusic(page)
     await page.getByRole('link', { name: 'Music' }).first().click()
     const now = page.getByRole('region', { name: 'Now playing' })
     await expect(now).toContainText('Nothing playing')
@@ -1246,7 +1251,7 @@ test.describe('music', () => {
 
   test('café music: songs from a search go into the café playlist, each once, and it plays with the café’s playlists', async ({ page }) => {
     await open(page, '/connections')
-    await switchApp(page, page.getByRole('region', { name: 'Café music' }), 'YouTube Music')
+    await connectYouTubeMusic(page)
     await page.getByRole('link', { name: 'Music' }).first().click()
     const cafe = page.getByRole('region', { name: 'Café playlists' })
     await expect(cafe.getByRole('listitem', { name: 'Easy Beans · Café mix', exact: true })).toBeVisible()
@@ -1282,7 +1287,7 @@ test.describe('music', () => {
 
   test('café music: playlists play one after another, in an order anyone can drag; only music playlists show', async ({ page }) => {
     await open(page, '/connections')
-    await switchApp(page, page.getByRole('region', { name: 'Café music' }), 'YouTube Music')
+    await connectYouTubeMusic(page)
     await page.getByRole('link', { name: 'Music' }).first().click()
     const cafe = page.getByRole('region', { name: 'Café playlists' })
     const order = () => cafe.getByRole('list', { name: 'Café playlists' }).getByRole('listitem').evaluateAll(els => els.map(e => e.getAttribute('aria-label')))
@@ -2804,12 +2809,35 @@ test.describe('connections for email, files and music', () => {
     await expect(page.getByRole('region', { name: 'Team calendar' }).getByLabel('Calendar link')).toContainText('.ics')
   })
 
-  test('café music: switching to YouTube Music replaces Spotify; staff open the playlist on the café device', async ({ page }) => {
+  test('Spotify: a business switches to its own Spotify app by pasting its Client ID, with the steps and addresses to make it', async ({ page }) => {
+    await open(page, '/connections')
+    await page.getByRole('region', { name: 'Café music' }).getByRole('button', { name: 'Manage Spotify' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Spotify' })
+    const app = dialog.getByRole('region', { name: 'Spotify app' })
+    await expect(app).toContainText('Through The Business Agent’s Spotify app')
+    await app.getByRole('button', { name: 'Use your own Spotify app' }).click()
+    await expect(app.getByRole('link', { name: /Open Spotify’s developer dashboard/ })).toHaveAttribute('href', 'https://developer.spotify.com/dashboard')
+    await expect(app.getByLabel('Redirect URI').first()).toHaveText('https://businesssagent.com/api/integrations/spotify/callback')
+    const field = app.getByLabel('Client ID')
+    await field.fill('not-an-id')
+    await expect(app).toContainText('A Client ID is 32 letters and numbers.')
+    await expect(app.getByRole('button', { name: 'Save' })).toBeDisabled()
+    await field.fill('0123456789ABCDEF0123456789ABCDEF')
+    await app.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Your Spotify app is saved. Connect Spotify now.')
+    await expect(app).toContainText('Through your own Spotify app (Client ID 0123…cdef)')
+    await app.getByRole('button', { name: 'Use The Business Agent’s app instead' }).click()
+    await toast(page, 'Spotify now connects through The Business Agent’s app')
+    await expect(app).toContainText('Through The Business Agent’s Spotify app')
+  })
+
+  test('café music: YouTube Music and Spotify both connected, each with its own playlist; the Music page switches between them', async ({ page }) => {
     await open(page, '/connections')
     const music = page.getByRole('region', { name: 'Café music' })
-    await switchApp(page, music, 'YouTube Music')
-    await expect(music.getByRole('article', { name: 'YouTube Music' })).toContainText('Connected')
-    await expect(music.getByRole('article', { name: 'Spotify' })).toHaveCount(0)
+    // Not a choose-one: both apps are listed, and connecting YouTube Music leaves Spotify connected.
+    await expect(music.getByRole('group', { name: /^Other / })).toHaveCount(0)
+    await connectYouTubeMusic(page)
+    await expect(music.getByRole('article', { name: 'Spotify' })).toContainText('Connected')
     await music.getByRole('button', { name: 'Manage YouTube Music' }).click()
     const dialog = page.getByRole('dialog', { name: 'YouTube Music' })
     await dialog.getByLabel('Approved playlist').click()
@@ -2822,6 +2850,23 @@ test.describe('connections for email, files and music', () => {
     await expect(card).toContainText('Nothing playing')
     await card.getByRole('link', { name: 'Open Music' }).click()
     await expect(page.getByRole('region', { name: 'Café playlists' }).getByRole('button', { name: 'Easy Beans · Café mix', exact: true })).toContainText('Approved')
+
+    // Spotify too: its own approved playlist, played and paused on the café speaker.
+    const from = page.getByRole('tablist', { name: 'Café music from' })
+    await expect(from.getByRole('tab', { name: 'YouTube Music' })).toHaveAttribute('aria-selected', 'true')
+    await from.getByRole('tab', { name: 'Spotify' }).click()
+    await expect(page.getByRole('region', { name: 'Now playing' })).toHaveCount(0)
+    const spotify = page.locator('.MuiCard-root', { hasText: 'Café music' })
+    await expect(spotify).toContainText('Easy Beans · Mornings')
+    await spotify.getByRole('button', { name: 'Play' }).click()
+    await toast(page, 'Playing the café playlist')
+    await expect(spotify).toContainText('On Café speaker')
+    // Remembered on this device.
+    await page.getByRole('link', { name: 'Home: Today' }).click()
+    await page.getByRole('link', { name: 'Music' }).first().click()
+    await expect(page.getByRole('tablist', { name: 'Café music from' }).getByRole('tab', { name: 'Spotify' })).toHaveAttribute('aria-selected', 'true')
+    await page.getByRole('tablist', { name: 'Café music from' }).getByRole('tab', { name: 'YouTube Music' }).click()
+    await expect(page.getByRole('region', { name: 'Now playing' })).toBeVisible()
   })
 
   test('one logo: admins click it to replace it ("Replace" shows on hover); staff only look', async ({ page }) => {
@@ -11012,7 +11057,7 @@ test.describe('theme days and the weekly routine', () => {
 
   test('theme days: today’s theme playlist plays on the café speaker from the Music page', async ({ page }) => {
     await open(page, '/connections')
-    await switchApp(page, page.getByRole('region', { name: 'Café music' }), 'YouTube Music')
+    await connectYouTubeMusic(page)
     await page.getByRole('link', { name: 'Music' }).first().click()
     const shortcut = page.getByRole('region', { name: 'Today’s theme playlist' })
     await expect(shortcut).toContainText('Brazilian roast day')
