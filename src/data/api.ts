@@ -38,6 +38,7 @@ import type { Coffee, CoffeeInput, DayThemeInput, ThemeDays } from '../../shared
 import type { RoutineDone, RoutineItem, RoutineItemInput } from '../../shared/routine'
 import type { ChecklistItem, ChecklistItemInput, ChecklistTick } from '../../shared/checklists'
 import type { CompanyValue, CompanyValueInput } from '../../shared/companyValues'
+import type { AdminSession, Prospect, ProspectInput, SalesBoard, SalesMember } from '../../shared/salesTeam'
 import type { PostIdea, PostIdeaInput } from '../../shared/postIdeas'
 import type { ListRow, NewsletterEvent, NewsletterSettings } from '../../shared/newsletter'
 import type { Contact, ContactInput } from '../../shared/contacts'
@@ -1291,6 +1292,22 @@ export interface Api {
   musicNow(): Promise<MusicNow>
   musicPlay(): Promise<void>
   musicPause(): Promise<void>
+
+  // The admin area (/admin): The Business Agent's own, opened with its PIN, no sign-in. Each call takes the
+  // session's token, and throws AdminLocked (shared/salesTeam.ts) once it has ended.
+  adminUnlock(pin: string): Promise<AdminSession>
+  adminLock(token: string): Promise<void>
+  /** A new PIN (the one in use typed again): everyone else is locked out. */
+  adminChangePin(token: string, current: string, next: string): Promise<void>
+  /** The sales team's board: a lane per salesperson, a card per business they're talking to. */
+  salesBoard(token: string): Promise<SalesBoard>
+  addSalesMember(token: string, name: string): Promise<SalesMember>
+  updateSalesMember(token: string, id: string, patch: { name?: string; position?: number }): Promise<SalesMember>
+  /** Their businesses stay on the board, in nobody's lane. */
+  deleteSalesMember(token: string, id: string): Promise<void>
+  /** Add a business (no id) or change one (only what's sent). */
+  saveProspect(token: string, p: ProspectInput): Promise<Prospect>
+  deleteProspect(token: string, id: string): Promise<void>
 
   // kiosk
   kioskRoster(): Promise<KioskPerson[]>

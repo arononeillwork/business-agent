@@ -75,6 +75,7 @@ import { addDays, zonedIso } from '../../shared/time'
 import { forget, keep, opened, readKept, shownAccounts, smallLogo, writeKept, type KeptSession } from './deviceAccounts'
 import type { CalendarEvent } from '../../shared/types'
 import { TOWN_HOLIDAY_PREFIX } from '../../shared/townHolidays'
+import { liveAdminArea } from './adminArea'
 
 const PROFILE_COLUMNS = 'id, business_id, full_name, email, role, can_see_pay, colour, active, phone, birth_date, whatsapp_opt_in, partner_company, partner_access, preferences, on_rota, on_people'
 
@@ -2058,6 +2059,9 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
     async sendRota(monday) {
       return check(await sb.rpc('send_rota', { p_week_start: monday })) as number
     },
+
+    // The admin area (/admin): through the Worker, with its own session (src/data/adminArea.ts).
+    ...liveAdminArea,
 
     async kioskRoster() {
       return check(await sb.rpc('kiosk_roster'))

@@ -95,6 +95,7 @@ const ScreensPage = page(() => import('./pages/ScreensPage'), 'ScreensPage')
 const CamerasPage = page(() => import('./pages/CamerasPage'), 'CamerasPage')
 const DisplayPage = page(() => import('./pages/DisplayPage'), 'DisplayPage')
 const RepPage = page(() => import('./pages/RepPage'), 'RepPage')
+const AdminPage = page(() => import('./pages/AdminPage'), 'AdminPage')
 const WastePage = page(() => import('./pages/WastePage'), 'WastePage')
 const RegistroPage = page(() => import('./pages/RegistroPage'), 'RegistroPage')
 const OpeningHoursPage = page(() => import('./pages/OpeningHoursPage'), 'OpeningHoursPage')
@@ -155,6 +156,8 @@ function Routed() {
   if (pathname.startsWith('/display/') || isShortLink(pathname)) return <DisplayPage />
   // A sales rep's own page: no sign-in, the link itself is the rep's secret (Sales reps & rewards).
   if (pathname.startsWith('/rep/')) return <RepPage />
+  // The admin area: The Business Agent's own, opened with its PIN, signed in or not (worker/adminArea.ts).
+  if (pathname === '/admin' || pathname.startsWith('/admin/')) return <AdminPage />
   if (loading) return <Loading />
   // Adding another business while others stay signed in on this device: sign in to it (or go back).
   if (!me && api.deviceAccounts().some(a => !a.signedOut)) return <AddBusinessPage />
