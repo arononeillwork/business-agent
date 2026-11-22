@@ -180,9 +180,14 @@ do $$ begin
   assert (select count(*) from public.profiles where id <> auth.uid()) = 0, 'kiosk sees only its own profile';
   assert (select count(*) from public.shifts) = 0, 'kiosk cannot read the rota';
 end $$;
-select pg_temp.expect_error(
-  $q$select public.kiosk_punch((select id from public.kiosk_roster() where full_name = 'Maria'), '9999', 'in')$q$,
-  'Wrong PIN');
+-- A wrong PIN is answered as an error through the API (400, the body a raised one has) without
+-- raising, so the try is kept (the kiosk_wrong_pins_kept migration).
+do $$
+declare v jsonb := public.kiosk_punch((select id from public.kiosk_roster() where full_name = 'Maria'), '9999', 'in');
+begin
+  assert v ->> 'message' = 'Wrong PIN' and v ->> 'code' = 'P0001' and not v ? 'action', 'a wrong PIN: ' || v;
+  assert current_setting('response.status', true) = '400', 'sent as an error';
+end $$;
 select public.kiosk_punch((select id from public.kiosk_roster() where full_name = 'Maria'), '1234', 'in');
 do $$ begin
   assert (select status from public.kiosk_roster() where full_name = 'Maria') = 'in', 'maria is in via kiosk';
@@ -194,6 +199,28 @@ do $$ begin
           where profile_id = (select id from public.profiles where email = 'maria@test')
             and clock_out is null) = 'kiosk', 'kiosk source recorded';
 end $$;
+
+-- Wrong PINs are kept, so after five in 10 minutes even the right one waits (the kiosk_wrong_pins_kept
+-- migration). Before, each was undone with the error and the lockout never came.
+select pg_temp.act_as('tablet@test');
+do $$
+declare v_maria uuid := (select id from public.kiosk_roster() where full_name = 'Maria');
+begin
+  for i in 1..4 loop
+    assert public.kiosk_punch(v_maria, '0000', 'out') ->> 'message' = 'Wrong PIN', 'wrong';
+  end loop;
+end $$;
+select pg_temp.expect_error(
+  $q$select public.kiosk_punch((select id from public.kiosk_roster() where full_name = 'Maria'), '1234', 'out')$q$,
+  'Too many wrong PINs');
+reset role;
+do $$ begin
+  assert (select count(*) from public.kiosk_attempts
+           where not ok and profile_id = (select id from public.profiles where email = 'maria@test')) = 5, 'all five kept';
+  assert (select clock_out is null from public.time_entries
+           where profile_id = (select id from public.profiles where email = 'maria@test') and source = 'kiosk'), 'and nothing punched';
+end $$;
+delete from public.kiosk_attempts where profile_id = (select id from public.profiles where email = 'maria@test');
 
 -- 8. Forgotten clock-out closes automatically, flagged for review --------------
 update public.time_entries set clock_in = now() - interval '10 hours'

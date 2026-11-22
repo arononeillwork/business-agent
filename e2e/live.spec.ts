@@ -150,6 +150,10 @@ test.describe('sign-in and time tracking', () => {
     await expect(pad).toContainText('Eva Test')
     for (const d of '0000') await pad.getByRole('button', { name: d, exact: true }).click()
     await expect(pad.getByText('Wrong PIN')).toBeVisible()
+    // Kept, for the lockout after five (the kiosk_wrong_pins_kept migration): the API keeps what the
+    // function wrote when it answers with an error status rather than raising one.
+    const { data: tries } = await service(cfg).from('kiosk_attempts').select('ok').eq('profile_id', ids[USERS.employee.email])
+    expect(tries).toEqual([{ ok: false }])
     for (const d of EMPLOYEE_PIN) await pad.getByRole('button', { name: d, exact: true }).click()
     await expect(page.getByRole('dialog').getByText('Clock in', { exact: true })).toBeVisible()
 

@@ -12669,3 +12669,149 @@ test.describe('reviews and posts on the website', () => {
     await expect(shareReviews).toBeChecked()
   })
 })
+
+test.describe('admin area', () => {
+  /** /admin, opened with the demo's code (the real one is checked by the Worker and never in the app). */
+  async function openAdmin(page: Page) {
+    await page.clock.install({ time: WED_0900 })
+    await page.goto('/admin?demo')
+    await page.getByLabel('PIN', { exact: true }).fill('0000')
+    await page.getByRole('button', { name: 'Open', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Admin', level: 1 })).toBeVisible()
+  }
+
+  test('admin area: locked until its code is typed, then a lane for Maria Cortes and one for Julio Cesar, each with their businesses', async ({ page }) => {
+    await page.clock.install({ time: WED_0900 })
+    await page.goto('/admin?demo')
+    // Nobody signs in for it, and nothing shows before the code.
+    await expect(page.getByRole('heading', { name: 'Sign in' })).toHaveCount(0)
+    await expect(page.getByRole('navigation', { name: 'Main' })).toHaveCount(0)
+    await expect(page.getByRole('region', { name: 'Maria Cortes' })).toHaveCount(0)
+    await page.getByLabel('PIN', { exact: true }).fill('1234')
+    await page.getByRole('button', { name: 'Open', exact: true }).click()
+    await expect(page.getByText('That isn’t the PIN')).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Maria Cortes' })).toHaveCount(0)
+    await page.getByLabel('PIN', { exact: true }).fill('0000')
+    await page.getByRole('button', { name: 'Open', exact: true }).click()
+
+    const maria = page.getByRole('region', { name: 'Maria Cortes' })
+    const julio = page.getByRole('region', { name: 'Julio Cesar' })
+    await expect(maria.getByRole('group', { name: 'To contact' }).getByRole('article')).toHaveText([/Santa Roaster.*@santaroaster/, /The Bootes Cafe.*@the_bootes_cafe/])
+    await expect(julio.getByRole('group', { name: 'To contact' }).getByRole('article')).toHaveText([/Keki Marbella.*@kekimarbella/, /Roasted Spain.*@roasted\.spain/])
+    await expect(maria.getByRole('link', { name: 'Open @the_bootes_cafe on Instagram' })).toHaveAttribute('href', 'https://www.instagram.com/the_bootes_cafe/')
+    for (const stage of ['Contacted', 'Demo booked', 'On a trial', 'Signed up', 'Not now']) {
+      await expect(maria.getByRole('group', { name: stage }).getByRole('article')).toHaveCount(0)
+    }
+
+    // Lock: the code again.
+    await page.getByRole('button', { name: 'Lock', exact: true }).click()
+    await expect(page.getByLabel('PIN', { exact: true })).toBeVisible()
+    await expect(maria).toHaveCount(0)
+  })
+
+  test('admin area: a business added from its Instagram link and a phone number lands in the salesperson’s lane, and moves along', async ({ page }) => {
+    // Tall enough for both lanes, so a drag doesn't scroll the page under the pointer.
+    await page.setViewportSize({ width: 1280, height: 1200 })
+    await openAdmin(page)
+    const julio = page.getByRole('region', { name: 'Julio Cesar' })
+    const maria = page.getByRole('region', { name: 'Maria Cortes' })
+    await julio.getByRole('button', { name: 'Add a contact for Julio Cesar' }).click()
+    const dialog = page.getByRole('dialog')
+    const paste = dialog.getByLabel('Instagram link, phone number, email or website')
+    await paste.fill('https://www.instagram.com/Cafe.Lola_/?igsh=abc')
+    await expect(dialog.getByText('Instagram: @cafe.lola_. Press Enter to add it.')).toBeVisible()
+    await paste.press('Enter')
+    await expect(dialog.getByLabel('Instagram', { exact: true })).toHaveValue('cafe.lola_')
+    await expect(dialog.getByLabel('Business name')).toHaveValue('Cafe Lola')
+    await paste.fill('600 111 222')
+    await paste.press('Enter')
+    await expect(dialog.getByLabel('Phone', { exact: true })).toHaveValue('+34 600 111 222')
+    await expect(dialog.getByLabel('Salesperson')).toHaveText('Julio Cesar')
+    await dialog.getByLabel('Business name').fill('Café Lola')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Café Lola is on the board')
+
+    const card = julio.getByRole('group', { name: 'To contact' }).getByRole('article', { name: 'Café Lola' })
+    await expect(card.getByRole('link', { name: 'Open @cafe.lola_ on Instagram' })).toBeVisible()
+    await expect(card.getByRole('link', { name: 'Call Café Lola' })).toHaveAttribute('href', 'tel:+34600111222')
+    await expect(card.getByRole('link', { name: 'WhatsApp Café Lola' })).toHaveAttribute('href', 'https://wa.me/34600111222')
+    await expect(page.getByRole('listitem').filter({ hasText: 'Being talked to' })).toContainText('5')
+
+    // Along the stages from its menu, and over to Maria.
+    await card.getByRole('button', { name: 'More for Café Lola' }).click()
+    await page.getByRole('menuitem', { name: 'Move to Demo booked' }).click()
+    await toast(page, 'Café Lola: Demo booked')
+    await expect(julio.getByRole('group', { name: 'Demo booked' }).getByRole('article', { name: 'Café Lola' })).toBeVisible()
+    await julio.getByRole('button', { name: 'More for Café Lola' }).click()
+    await page.getByRole('menuitem', { name: 'Give to Maria Cortes' }).click()
+    await toast(page, 'Café Lola is Maria Cortes’s now')
+    await expect(maria.getByRole('group', { name: 'Demo booked' }).getByRole('article', { name: 'Café Lola' })).toBeVisible()
+    await expect(julio.getByRole('article', { name: 'Café Lola' })).toHaveCount(0)
+
+    // Or dragged: Keki Marbella to Contacted in Julio's lane.
+    const target = julio.getByRole('group', { name: 'Contacted' })
+    await target.scrollIntoViewIfNeeded()
+    const from = (await julio.getByRole('article', { name: 'Keki Marbella' }).boundingBox())!
+    await page.mouse.move(from.x + 30, from.y + 12)
+    await page.mouse.down()
+    await page.mouse.move(from.x + 50, from.y + 30, { steps: 5 })
+    const box = (await target.boundingBox())!
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 15 })
+    await page.mouse.up()
+    await expect(target.getByRole('article', { name: 'Keki Marbella' })).toBeVisible()
+
+    // The same Instagram twice isn't kept.
+    await page.getByRole('button', { name: 'Add a contact', exact: true }).click()
+    await page.getByRole('dialog').getByLabel('Instagram link, phone number, email or website').fill('@the_bootes_cafe')
+    await page.getByRole('dialog').getByLabel('Instagram link, phone number, email or website').press('Enter')
+    await page.getByRole('dialog').getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'That Instagram is on the board already')
+  })
+
+  test('admin area: someone joins the sales team with a lane of their own; someone who leaves leaves their businesses for someone else', async ({ page }) => {
+    await openAdmin(page)
+    await page.getByRole('button', { name: 'Sales team', exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByLabel('Someone new').fill('Lola Pérez')
+    await dialog.getByRole('button', { name: 'Add', exact: true }).click()
+    await toast(page, 'Lola Pérez has a lane now')
+    await dialog.getByRole('button', { name: 'Take Julio Cesar off the sales team' }).click()
+    await toast(page, 'Julio Cesar is off the sales team')
+    await dialog.getByRole('button', { name: 'Done' }).click()
+
+    await expect(page.getByRole('region', { name: 'Lola Pérez' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Julio Cesar' })).toHaveCount(0)
+    const nobody = page.getByRole('region', { name: 'Nobody’s yet' })
+    await expect(nobody.getByRole('article')).toHaveText([/Keki Marbella/, /Roasted Spain/])
+    await nobody.getByRole('button', { name: 'More for Roasted Spain' }).click()
+    await page.getByRole('menuitem', { name: 'Give to Lola Pérez' }).click()
+    await expect(page.getByRole('region', { name: 'Lola Pérez' }).getByRole('article', { name: 'Roasted Spain' })).toBeVisible()
+  })
+
+  test('admin area: a new code locks everyone else out, and opens it from then on', async ({ page }) => {
+    await openAdmin(page)
+    await page.getByRole('button', { name: 'Change PIN', exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByLabel('PIN in use now').fill('0000')
+    await dialog.getByLabel('New PIN', { exact: true }).fill('246810')
+    await dialog.getByLabel('New PIN again').fill('24681')
+    await expect(dialog.getByText('The two aren’t the same')).toBeVisible()
+    await expect(dialog.getByRole('button', { name: 'Change PIN' })).toBeDisabled()
+    await dialog.getByLabel('New PIN again').fill('246810')
+    await dialog.getByRole('button', { name: 'Change PIN' }).click()
+    await toast(page, 'The PIN is changed. Everyone else types the new one.')
+    await page.getByRole('button', { name: 'Lock', exact: true }).click()
+    await page.getByLabel('PIN', { exact: true }).fill('0000')
+    await page.getByRole('button', { name: 'Open', exact: true }).click()
+    await expect(page.getByText('That isn’t the PIN')).toBeVisible()
+    await page.getByLabel('PIN', { exact: true }).fill('246810')
+    await page.getByRole('button', { name: 'Open', exact: true }).click()
+    await expect(page.getByRole('region', { name: 'Maria Cortes' })).toBeVisible()
+  })
+
+  test('@phone admin area: the board scrolls inside its lanes, not the page', async ({ page }) => {
+    await openAdmin(page)
+    await expect(page.getByRole('region', { name: 'Maria Cortes' })).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0)
+  })
+})

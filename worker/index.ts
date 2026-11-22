@@ -60,6 +60,7 @@ import { signInCheck } from './signedIn'
 import { addNationalHolidays } from './holidays'
 import { remindTownHolidays } from './holidays'
 import { hq } from './hq'
+import { adminArea } from './adminArea'
 import { account } from './account'
 import { answerError, errors, reportError } from './errors'
 import { clearOldUsage, usage } from './usage'
@@ -355,6 +356,8 @@ app.route('/', repPage)
 app.route('/', billing)
 // The Business Agent's back-office: what HQ's admins do through Stripe (a longer free trial).
 app.route('/', hq)
+// The admin area (/admin): The Business Agent's own, opened with its PIN, no sign-in (worker/adminArea.ts).
+app.route('/', adminArea)
 // An owner's own data and account (Billing): everything out as CSV files, closing the account and keeping it.
 app.route('/', account)
 

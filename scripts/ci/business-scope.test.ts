@@ -8,6 +8,7 @@ describe('the service role over every business is only used to find which busine
   // requestDb). Adding one: it may only find a business (by a link, a token, a webhook's account)
   // or touch accounts (auth), never read or change a business's rows for it.
   const ALLOWED: Record<string, number> = {
+    'adminArea.ts': 1,    // which business is HQ, whose the admin area is
     'apiKeys.ts': 1,      // an access key's owner, by the key's hash
     'authEmail.ts': 2,    // the business of whoever the email is for, and which business is HQ (its mailbox sends for everyone else)
     'billing.ts': 2,      // the business of a Stripe customer; AI music still to charge, each on its business

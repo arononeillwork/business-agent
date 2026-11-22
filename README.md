@@ -168,6 +168,18 @@ built-in **AI connector** so owners can run it by talking to Claude.
   own list; each line waits 30 days, then counts by itself, and a refund or a lost dispute takes it back. Each rep's own page
   shows their businesses. The `hq_reps` migration makes HQ on the live database; its first owner is invited with the third line
   of `ops/invite.txt` (`hq`).
+- Admin area (`/admin`): The Business Agent's own back room on the site, for running The Business Agent rather than a café. No
+  sign-in: it opens with its PIN, which the Worker has the database check (never the browser), and stays open on that device
+  for 12 hours or until Lock. Wrong PINs are kept and counted: 5 from one connection, or 25 from anywhere, in 15 minutes, and it
+  waits out the 15 minutes. Whoever is in changes the PIN (Change PIN), which locks out everyone else; the first one is in the
+  `admin_area` migration, so change it once it's live (this repository is public). First in it is the **sales team's board**:
+  a swimlane per salesperson (Maria Cortes and Julio Cesar to start; add, rename or take people off on Sales team), a column per
+  stage (To contact, Contacted, Demo booked, On a trial, Signed up, Not now) and a card per business, dragged or moved from its
+  menu. A business is added by pasting its Instagram link, a phone number, an email or its website into one box: it goes in the
+  right field and names the business from its Instagram; each card links to Instagram, a call, WhatsApp, email and the website.
+  Someone taken off the team leaves their businesses in nobody's lane. Everything is HQ's own rows (`worker/adminArea.ts`,
+  `shared/salesTeam.ts`, the `admin_area` migration; a new database runs `select public.start_admin_area();` after
+  `start_hq()`). In the demo, the PIN is 0000.
 - Staff kitty (Team section): a share of each month's profit (5% to start; a month with a loss puts nothing
   in) and anything else put in (the tips jar, a bonus), saved up for goals chosen together, like the
   Christmas party or a pair of Ray-Bans for the café. The goals are jars on a shelf that fill with coffee

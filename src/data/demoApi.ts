@@ -22,6 +22,7 @@ import { followerDays, ownPost, postAbout, postImpacts } from '../../shared/post
 import { creatorBoard } from '../../shared/creators'
 import { CASHBACK_DEFAULTS, CASHBACK_MIN, cashbackDue, cashbackFor, cashbackRates, followersIn } from '../../shared/cashback'
 import { demoSports } from './demoSports'
+import { demoAdminArea } from './adminArea'
 import { demoInbox, demoMessenger, demoWhatsApp } from './demoMessages'
 import { demoIdeas } from './demoIdeas'
 import { DEMO_CAFE_NETWORK, demoSignIns, demoUsage } from './demoUsage'
@@ -5688,6 +5689,9 @@ export function createDemoApi(): Api {
       requireUpdate('rota')
       return profiles.filter(p => p.whatsapp_opt_in && p.phone).length
     },
+
+    // The admin area (/admin), with the demo's own PIN, 0000 (src/data/adminArea.ts).
+    ...demoAdminArea(nowIso),
 
     async kioskRoster() {
       return profiles.filter(p => p.active && staffOnly(p)).map(p => {
