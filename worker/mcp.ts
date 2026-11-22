@@ -93,6 +93,12 @@ ul{padding-left:18px;color:var(--muted);font-size:14px}
   })
 }
 
+/** The connector the sign-in is for, sent with the form so the backup address knows its own (worker/backupAddress.ts). */
+function resourceFields(oauthReq: AuthRequest) {
+  const resources = oauthReq.resource === undefined ? [] : [oauthReq.resource].flat()
+  return resources.map(r => `<input type="hidden" name="resource" value="${esc(r)}">`).join('')
+}
+
 function loginForm(oauthReq: AuthRequest, clientName: string, error?: string) {
   const state = btoa(JSON.stringify(oauthReq))
   return page(`<h1>Connect ${esc(clientName)}</h1>
@@ -101,6 +107,7 @@ function loginForm(oauthReq: AuthRequest, clientName: string, error?: string) {
 ${error ? `<div class="err">${esc(error)}</div>` : ''}
 <form method="post" action="/authorize">
 <input type="hidden" name="state" value="${esc(state)}">
+${resourceFields(oauthReq)}
 <label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required>
 <label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required>
 <button type="submit">Sign in and allow</button></form>`)
