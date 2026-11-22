@@ -659,9 +659,15 @@ integrations.get('/api/integrations/spotify/callback', async c => {
   }
 })
 
-/** The café's music account (Spotify or YouTube Music, whichever is connected) and its playlists. */
-async function cafeMusic(env: Env, db: SupabaseClient, origin: string) {
-  const p = await connectedOf(db, ['spotify', 'youtube_music'] as const)
+type CafeMusicApp = 'spotify' | 'youtube_music'
+const cafeMusicApp = (p: unknown): CafeMusicApp | undefined => (p === 'spotify' || p === 'youtube_music' ? p : undefined)
+
+/**
+ * The café's music account and its playlists: the one asked for, or whichever is connected. Both can
+ * be: then YouTube Music, whose player is the Music page's, and Spotify alongside it.
+ */
+async function cafeMusic(env: Env, db: SupabaseClient, origin: string, want?: CafeMusicApp) {
+  const p = await connectedOf(db, want ? [want] : ['youtube_music', 'spotify'] as const)
   if (p === 'spotify') {
     const s = await spotifySession(env, db, origin)
     return { provider: p, external: s.external, approved: s.playlist ?? null, playlists: () => spotify.playlists(s.token) }
@@ -675,18 +681,20 @@ async function cafeMusic(env: Env, db: SupabaseClient, origin: string) {
   return null
 }
 
-// The approved café playlist: pick one of the connected account's own playlists.
+// The approved café playlist: pick one of the connected account's own playlists (each music app has its own).
 integrations.get('/api/integrations/music/playlists', async c => {
-  const m = await cafeMusic(c.env, businessDb(c.env, c.get('businessId')), new URL(c.req.url).origin)
-  if (!m) return c.json({ error: 'Connect Spotify or YouTube Music first' }, 400)
+  const want = cafeMusicApp(c.req.query('provider'))
+  const m = await cafeMusic(c.env, businessDb(c.env, c.get('businessId')), new URL(c.req.url).origin, want)
+  if (!m) return c.json({ error: want ? `Connect ${optionName(want)} first` : 'Connect Spotify or YouTube Music first' }, 400)
   return c.json({ provider: m.provider, playlists: await m.playlists(), approved: m.approved })
 })
 
 integrations.post('/api/integrations/music/playlist', async c => {
-  const { playlist } = await c.req.json<{ playlist: { id: string } }>()
+  const { playlist, provider } = await c.req.json<{ playlist: { id: string }; provider?: string }>()
+  const want = cafeMusicApp(provider)
   const db = businessDb(c.env, c.get('businessId'))
-  const m = await cafeMusic(c.env, db, new URL(c.req.url).origin)
-  if (!m) return c.json({ error: 'Connect Spotify or YouTube Music first' }, 400)
+  const m = await cafeMusic(c.env, db, new URL(c.req.url).origin, want)
+  if (!m) return c.json({ error: want ? `Connect ${optionName(want)} first` : 'Connect Spotify or YouTube Music first' }, 400)
   const mine = (await m.playlists()).find(p => p.id === playlist?.id)
   if (!mine) return c.json({ error: `That playlist is not in the connected ${optionName(m.provider)} account` }, 400)
   await setIntegration(db, m.provider, { external: { ...m.external, playlist: mine } })
@@ -717,6 +725,8 @@ integrations.get('/api/music/library', async c => {
   const { data } = await db.from('integrations').select('account_label').eq('provider', m.provider).single()
   const playlists = await m.playlists()
   if (m.provider !== 'youtube_music') return c.json({ provider: 'spotify', account: data?.account_label ?? null, playlists, approved: m.approved })
+  // Spotify connected too: the Music page offers it next to YouTube Music's player.
+  const spotifyToo = await connectedOf(db, ['spotify']) === 'spotify'
   // YouTube Music: only the playlists of music. Each playlist is checked once (again if its size changes).
   type Kinds = Record<string, { n: number; music: boolean }>
   const known = ((m.external as { music_kinds?: Kinds }).music_kinds ?? {}) as Kinds
@@ -732,7 +742,7 @@ integrations.get('/api/music/library', async c => {
   // other only once it's been checked and its name doesn't say otherwise (stretches, recipes, vlogs…).
   // Plain YouTube playlists aren't offered at all.
   const isMusic = (p: SpotifyPlaylist) => p.id === m.approved?.id || (kinds[p.id]?.music === true && youtube.musicByName(p.name))
-  return c.json({ provider: 'youtube', account: data?.account_label ?? null, approved: m.approved, playlists: playlists.filter(isMusic) })
+  return c.json({ provider: 'youtube', account: data?.account_label ?? null, approved: m.approved, playlists: playlists.filter(isMusic), ...(spotifyToo ? { spotify: true } : {}) })
 })
 
 // Search all of YouTube for songs or playlists (not only the café account's). A search costs 100
@@ -771,7 +781,7 @@ integrations.get('/api/music/tracks/:playlist', async c => {
 const YOUTUBE_PLAYS_ON_DEVICE = 'YouTube Music plays on the café device: open the playlist there.'
 
 // Spotify can be played and paused from the app; YouTube Music has no remote control, so staff
-// open the approved playlist on the café device.
+// open the approved playlist on the café device. With both connected, these are Spotify's.
 integrations.get('/api/music/now', async c => {
   const db = businessDb(c.env, c.get('businessId'))
   const p = await connectedOf(db, ['spotify', 'youtube_music'] as const)
@@ -785,7 +795,7 @@ integrations.get('/api/music/now', async c => {
 })
 
 integrations.post('/api/music/play', async c => {
-  if (await connectedOf(businessDb(c.env, c.get('businessId')), ['youtube_music'])) return c.json({ error: YOUTUBE_PLAYS_ON_DEVICE }, 400)
+  if (await connectedOf(businessDb(c.env, c.get('businessId')), ['spotify', 'youtube_music'] as const) === 'youtube_music') return c.json({ error: YOUTUBE_PLAYS_ON_DEVICE }, 400)
   const s = await spotifySession(c.env, businessDb(c.env, c.get('businessId')), new URL(c.req.url).origin)
   if (!s.playlist) return c.json({ error: 'No playlist approved yet. An admin picks one on the Connections page.' }, 400)
   await spotify.playPlaylist(s.token, s.playlist.id)
@@ -793,7 +803,7 @@ integrations.post('/api/music/play', async c => {
 })
 
 integrations.post('/api/music/pause', async c => {
-  if (await connectedOf(businessDb(c.env, c.get('businessId')), ['youtube_music'])) return c.json({ error: YOUTUBE_PLAYS_ON_DEVICE }, 400)
+  if (await connectedOf(businessDb(c.env, c.get('businessId')), ['spotify', 'youtube_music'] as const) === 'youtube_music') return c.json({ error: YOUTUBE_PLAYS_ON_DEVICE }, 400)
   const s = await spotifySession(c.env, businessDb(c.env, c.get('businessId')), new URL(c.req.url).origin)
   await spotify.pause(s.token)
   return c.json({ ok: true })

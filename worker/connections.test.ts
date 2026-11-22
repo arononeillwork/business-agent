@@ -236,16 +236,14 @@ describe('Connecting an app: "Connected" only once it has really worked', () => 
   })
 })
 
-describe('Café music: Spotify or YouTube Music', () => {
+describe('Café music: Spotify, YouTube Music or both', () => {
   it('Spotify is connected once its playlists could be read', async () => {
     expect((await connectSpotify()).searchParams.get('connected')).toBe('spotify')
     expect(db.integration('spotify')).toMatchObject({ status: 'connected', account_label: 'Easy Beans', external: { playlists: 1 } })
   })
 
-  it('YouTube Music replaces Spotify; staff open the approved playlist on the café device', async () => {
-    await connectSpotify()
+  it('YouTube Music alone: staff open the approved playlist on the café device', async () => {
     expect((await connect('youtube_music')).searchParams.get('connected')).toBe('youtube_music')
-    expect(status('spotify')).toBe('disconnected')
     expect(db.integration('youtube_music')).toMatchObject({ status: 'connected', account_label: 'Easy Beans', external: { playlists: 1 } })
 
     const lists = await (await get('/api/integrations/music/playlists')).json() as { provider: string; playlists: { id: string; name: string; url: string }[] }
@@ -259,6 +257,39 @@ describe('Café music: Spotify or YouTube Music', () => {
     const play = await integrations.request(`${APP}/api/music/play`, { method: 'POST', headers: as('staff') }, env, ctx())
     expect(play.status).toBe(400)
     expect((await play.json() as { error: string }).error).toMatch(/café device/)
+  })
+
+  it('both stay connected, each with its own approved playlist; Spotify is played and paused from the app', async () => {
+    await connectSpotify()
+    expect((await connect('youtube_music')).searchParams.get('connected')).toBe('youtube_music')
+    expect(status('spotify')).toBe('connected')
+    expect(status('youtube_music')).toBe('connected')
+
+    // Each app's playlists, and its own choice (a playlist of one isn't the other's).
+    const spotifyLists = await (await get('/api/integrations/music/playlists?provider=spotify')).json() as { provider: string; playlists: { id: string }[] }
+    expect(spotifyLists).toMatchObject({ provider: 'spotify', playlists: [{ id: 'sp1' }] })
+    const youtubeLists = await (await get('/api/integrations/music/playlists?provider=youtube_music')).json() as { provider: string; playlists: { id: string }[] }
+    expect(youtubeLists).toMatchObject({ provider: 'youtube_music', playlists: [{ id: 'PL1' }] })
+    expect((await post('/api/integrations/music/playlist', { playlist: { id: 'PL1' }, provider: 'spotify' })).status).toBe(400)
+    expect((await post('/api/integrations/music/playlist', { playlist: { id: 'sp1' }, provider: 'spotify' })).status).toBe(200)
+    expect((await post('/api/integrations/music/playlist', { playlist: { id: 'PL1' }, provider: 'youtube_music' })).status).toBe(200)
+    expect(db.integration('spotify').external).toMatchObject({ playlist: { id: 'sp1' } })
+    expect(db.integration('youtube_music').external).toMatchObject({ playlist: { id: 'PL1' } })
+
+    // The Music page: YouTube Music's player, with Spotify offered next to it.
+    const library = await (await integrations.request(`${APP}/api/music/library`, { headers: as('staff') }, env, ctx())).json()
+    expect(library).toMatchObject({ provider: 'youtube', approved: { id: 'PL1' }, spotify: true })
+    // Play and pause go to Spotify (YouTube Music has no remote control).
+    const staffNow = await integrations.request(`${APP}/api/music/now`, { headers: as('staff') }, env, ctx())
+    expect(await staffNow.json()).toMatchObject({ provider: 'spotify', controls: true, playlist: { id: 'sp1' } })
+    expect((await integrations.request(`${APP}/api/music/play`, { method: 'POST', headers: as('staff') }, env, ctx())).status).toBe(200)
+    expect((await integrations.request(`${APP}/api/music/pause`, { method: 'POST', headers: as('staff') }, env, ctx())).status).toBe(200)
+
+    // Disconnecting one leaves the other.
+    expect((await post('/api/integrations/spotify/disconnect')).status).toBe(200)
+    expect(status('youtube_music')).toBe('connected')
+    const after = await (await integrations.request(`${APP}/api/music/library`, { headers: as('staff') }, env, ctx())).json()
+    expect(after).not.toHaveProperty('spotify')
   })
 
   it('a Google account without a YouTube channel is not connected', async () => {

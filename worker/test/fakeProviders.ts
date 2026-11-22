@@ -931,6 +931,8 @@ export class FakeProviders {
       if (url.pathname === '/v1/me') return json({ id: 'easybeans', display_name: 'Easy Beans', product: this.spotify.premium ? 'premium' : 'free' })
       if (url.pathname === '/v1/me/playlists') return json({ items: [{ id: 'sp1', name: 'Café mornings', tracks: { total: 30 }, images: [], external_urls: { spotify: 'https://open.spotify.com/playlist/sp1' }, owner: { display_name: 'Easy Beans' } }] })
       if (url.pathname === '/v1/me/player') return new Response(null, { status: 204 })
+      // Play (the approved playlist), shuffle and pause on the café speaker: done, nothing to say.
+      if (/^\/v1\/me\/player\/(play|pause|shuffle)$/.test(url.pathname) && init.method === 'PUT') return new Response(null, { status: 204 })
     }
 
     // ---- Facebook Pages (Meta Graph) ----

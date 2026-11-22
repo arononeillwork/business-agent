@@ -36,7 +36,8 @@ export async function finishMusicConnect(env: Env, state: MusicState, code: stri
     const t = await spotify.exchangeCode(spotifyCfg(env, origin)!, code)
     const who = await spotify.me(t.access_token!)
     refresh = t.refresh_token
-    label = `${who.display_name ?? who.id}${who.product === 'premium' ? '' : ' · Free (plays in the page only)'}`
+    // Spotify no longer says whether an account is Premium to new apps: only a known Free account is marked.
+    label = `${who.display_name ?? who.id}${who.product === 'free' ? ' · Free (plays in the page only)' : ''}`
   } else {
     const t = await google.exchangeCode(googleCfg(env, origin)!, code)
     refresh = t.refresh_token

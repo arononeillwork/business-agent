@@ -470,12 +470,14 @@ do $$ begin
   assert (select status from public.integrations where provider = 'outlook') = 'connected', 'email unaffected by other groups';
   assert (select status from public.integrations where provider = 'google_drive') = 'connected', 'files unaffected';
   assert (select status from public.integrations where provider = 'outlook_calendar') = 'disconnected', 'choosing Google Calendar replaces Outlook Calendar';
-  assert (select status from public.integrations where provider = 'spotify') = 'disconnected', 'YouTube Music replaces Spotify for the café';
+  assert (select status from public.integrations where provider = 'spotify') = 'connected'
+     and (select status from public.integrations where provider = 'youtube_music') = 'connected', 'Spotify and YouTube Music can both be connected';
+  assert public.integration_group('spotify') is null and public.integration_group('youtube_music') is null, 'café music is not a choose-one';
   assert public.integration_group('google_business') is null and public.integration_group('instagram') is null,
     'Google Maps and Instagram are extras, not a choice';
 end $$;
 -- Tidy up for later sections.
-update public.integrations set status = 'disconnected' where provider in ('outlook', 'google_drive', 'google_calendar', 'youtube_music');
+update public.integrations set status = 'disconnected' where provider in ('outlook', 'google_drive', 'google_calendar', 'youtube_music', 'spotify');
 delete from public.integration_secrets where provider in ('outlook');
 
 -- 21. Access keys: only hashes, and nobody reads them from the app (the Worker manages them) ------

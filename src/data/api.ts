@@ -1209,8 +1209,9 @@ export interface Api {
   sendRota(monday: string): Promise<number>
   connectSpotify(): Promise<void>
   /** The café music account's playlists (Spotify or YouTube Music, whichever is connected) and the approved one. */
-  cafePlaylists(): Promise<{ provider: 'spotify' | 'youtube_music'; playlists: SpotifyPlaylist[]; approved: SpotifyPlaylist | null }>
-  chooseCafePlaylist(playlist: SpotifyPlaylist): Promise<void>
+  /** The approved café playlist's choices, from one music app (both can be connected) or whichever is. */
+  cafePlaylists(provider?: 'spotify' | 'youtube_music'): Promise<{ provider: 'spotify' | 'youtube_music'; playlists: SpotifyPlaylist[]; approved: SpotifyPlaylist | null }>
+  chooseCafePlaylist(playlist: SpotifyPlaylist, provider?: 'spotify' | 'youtube_music'): Promise<void>
 
   // Brand guidelines (everyone reads; admins change) and the Google Fonts list for the picker
   brand(): Promise<Brand>

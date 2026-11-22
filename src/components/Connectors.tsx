@@ -223,7 +223,7 @@ export const oneClick = (s: OptionState) => s.configured && s.o.id !== 'whatsapp
 
 /**
  * The business's apps, like an AI's connector directory: one tile per app, in groups. In most groups
- * the business picks ONE (Gmail or Outlook, Spotify or YouTube Music…). An app shows "Connected"
+ * the business picks ONE (Gmail or Outlook, Square or SumUp…). An app shows "Connected"
  * only once it has really worked. `back`: where the sign-in sends you afterwards.
  */
 export function ServiceConnections({ back = 'connections', groups = GROUPS.map(g => g.key) }: { back?: 'setup' | 'connections'; groups?: ConnectionGroup[] }) {
@@ -522,17 +522,17 @@ function WhatsAppTest({ onDone, label }: { onDone: () => Promise<void>; label: s
   </>
 }
 
-/** The approved café playlist, from the connected Spotify or YouTube Music account. */
+/** The approved café playlist, from this Spotify or YouTube Music account (each connected one has its own). */
 function CafePlaylist({ provider }: { provider: 'spotify' | 'youtube_music' }) {
   const { api } = useApp()
   const run = useAction()
-  const lists = useAsync('cafe-playlists', () => api.cafePlaylists(), [provider])
+  const lists = useAsync(`cafe-playlists-${provider}`, () => api.cafePlaylists(provider), [provider])
   return (
     <Stack sx={{ gap: 1.25, mt: 2.5 }}>
       <TextField select size="small" label={t('Approved playlist')} value={lists.data?.approved?.id ?? ''} sx={{ maxWidth: 380 }}
         onChange={e => {
           const pl = lists.data?.playlists.find(x => x.id === e.target.value)
-          if (pl) run(async () => { await api.chooseCafePlaylist(pl); await lists.reload() }, t('“{name}” is now the café playlist', { name: pl.name }))
+          if (pl) run(async () => { await api.chooseCafePlaylist(pl, provider); await lists.reload() }, t('“{name}” is now the café playlist', { name: pl.name }))
         }}>
         {(lists.data?.playlists ?? []).map(pl => <MenuItem key={pl.id} value={pl.id}>{pl.name} · {tn(pl.tracks, '{n} song', '{n} songs')}</MenuItem>)}
       </TextField>

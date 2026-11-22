@@ -44,12 +44,15 @@ async function api<T>(accessToken: string, path: string, init: RequestInit = {})
 
 export interface Playlist { id: string; name: string; image?: string; tracks: number; url: string; owner?: string }
 
-type RawPlaylist = { id: string; name: string; images?: { url: string }[]; tracks?: { total: number }; external_urls?: { spotify: string }; owner?: { display_name?: string } }
+// Apps made since Spotify's February 2026 changes get a playlist's songs as `items` (was `tracks`), and only
+// for playlists the person owns or collaborates on; older apps still get `tracks`.
+type RawPlaylist = { id: string; name: string; images?: { url: string }[] | null; items?: { total?: number }; tracks?: { total?: number }; external_urls?: { spotify: string }; owner?: { display_name?: string } }
 const toPlaylist = (p: RawPlaylist): Playlist => ({
-  id: p.id, name: p.name, image: p.images?.[0]?.url, tracks: p.tracks?.total ?? 0,
+  id: p.id, name: p.name, image: p.images?.[0]?.url, tracks: p.items?.total ?? p.tracks?.total ?? 0,
   url: p.external_urls?.spotify ?? `https://open.spotify.com/playlist/${p.id}`, owner: p.owner?.display_name,
 })
 
+/** Who signed in. `product` (premium or free) is only sent to apps made before Spotify's February 2026 changes. */
 export async function me(accessToken: string) {
   return (await api<{ display_name?: string; id: string; product?: string }>(accessToken, '/me'))!
 }

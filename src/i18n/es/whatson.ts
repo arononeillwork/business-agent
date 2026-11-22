@@ -283,6 +283,8 @@ export default {
   'Connect {name}': 'Conectar {name}',
   '{name} disconnected': '{name} desconectado',
   'Music service': 'Servicio de música',
+  // The café's Spotify and YouTube Music both connected: the switch between them.
+  'Café music from': 'Música del café desde',
   'No playlists in this {name} account yet. Make one in the app and it shows up here.': 'Esta cuenta de {name} aún no tiene listas. Crea una en la app y aparecerá aquí.',
   'Your playlists': 'Tus listas',
   'Selected': 'Seleccionada',

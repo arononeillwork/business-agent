@@ -708,7 +708,8 @@ export async function showMailboxAddress(db: SupabaseClient, email: string) {
 export async function proveSpotify(token: string): Promise<Proven> {
   const [who, lists] = await Promise.all([spotify.me(token), spotify.playlists(token)])
   return {
-    label: `${who.display_name ?? who.id}${who.product === 'premium' ? '' : ' (not Premium: playback control won’t work)'}`,
+    // Spotify no longer says whether an account is Premium to new apps: only a known Free account is marked.
+    label: `${who.display_name ?? who.id}${who.product === 'free' ? ' (not Premium: playback control won’t work)' : ''}`,
     external: { playlists: lists.length },
   }
 }

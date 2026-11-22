@@ -25,7 +25,8 @@ import { CAFE_PLAYLIST_ID, playlistOrder, useCafeMusic, useWatchCafeMusic } from
 import { useAsync, useTick } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
 import { Empty, ErrorBox, SectionTitle, Tag } from '../components/common'
-import { MusicCard } from '../components/MusicCard'
+import { MusicCard, SpotifyCard } from '../components/MusicCard'
+import { KEYS_NEEDED } from '../components/Connectors'
 import { restrictToVerticalAxis } from '../components/dnd'
 import type { CafeTrack, MusicPlaylist, MusicProvider, MyNowPlaying, SpotifyPlaylist } from '../../shared/types'
 import { fonts, tokens } from '../theme'
@@ -54,8 +55,8 @@ const PROVIDERS: MusicProvider[] = ['spotify', 'youtube']
 
 /**
  * Music. Top: the café's music (the YouTube Music account an admin connected): one device plays
- * it, anyone on the team controls it. Below: each person's own Spotify / YouTube Music, if they
- * want to connect it (only they see it).
+ * it, anyone on the team controls it; with the café's Spotify connected too, a switch between the
+ * two. Below: each person's own Spotify / YouTube Music, if they want to connect it (only they see it).
  */
 export function MusicPage() {
   const notify = useNotify()
@@ -89,9 +90,20 @@ const visuallyHidden = { position: 'absolute', width: '1px', height: '1px', p: 0
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 
+/** Which of the café's music apps this device shows, when both are connected (remembered here). */
+function useCafeApp() {
+  const [app, setApp] = useState<MusicProvider>(() => { try { return localStorage.getItem('cafe-music-app') === 'spotify' ? 'spotify' : 'youtube' } catch { return 'youtube' } })
+  const choose = (next: MusicProvider) => {
+    setApp(next)
+    try { localStorage.setItem('cafe-music-app', next) } catch { /* storage unavailable */ }
+  }
+  return [app, choose] as const
+}
+
 function CafeMusicSection() {
   const music = useWatchCafeMusic()
   const { isAdmin } = useApp()
+  const [app, setApp] = useCafeApp()
   if (!music || !music.library) return null
   if (music.library.provider === 'spotify') return <MusicCard />
   if (!music.enabled) {
@@ -101,13 +113,25 @@ function CafeMusicSection() {
       </Alert>
     )
   }
+  // The café's Spotify is connected too: the team switches between the two.
+  const both = !!music.library.spotify
   return (
     <>
-      <ErrorBox error={music.error} />
-      <NowPlaying />
-      <FindMusic />
-      <Queue />
-      <CafePlaylists />
+      {both && (
+        <Tabs value={app} onChange={(_, v: MusicProvider) => setApp(v)} aria-label={t('Café music from')} sx={{ mb: -1.5 }}>
+          {/* YouTube Music first: its player is the one shown until someone picks Spotify. */}
+          {(['youtube', 'spotify'] as const).map(p => <Tab key={p} value={p} label={BRAND[p].name} icon={<Logo provider={p} />} iconPosition="start" sx={{ minHeight: 48, gap: 1 }} />)}
+        </Tabs>
+      )}
+      {both && app === 'spotify' ? <SpotifyCard /> : (
+        <>
+          <ErrorBox error={music.error} />
+          <NowPlaying />
+          <FindMusic />
+          <Queue />
+          <CafePlaylists />
+        </>
+      )}
     </>
   )
 }
@@ -450,6 +474,13 @@ function PersonalMusic({ tab, setTab }: { tab: MusicProvider | null; setTab: (p:
           <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
             {PROVIDERS.map(p => <ConnectButton key={p} provider={p} disabled={!mine.data!.configured[p]} onClick={() => run(() => api.connectMyMusic(p))} />)}
           </Stack>
+          {/* A button that can't be pressed yet says why, instead of just being grey. */}
+          {PROVIDERS.filter(p => !mine.data!.configured[p]).map(p => (
+            <Alert key={p} severity="info" sx={{ mt: 1.5 }}>
+              {t('Not set up yet: The Business Agent needs {keys} before anyone can connect {app}. They’re added once, for every business; after that, connecting is one click.',
+                { keys: t(KEYS_NEEDED[p === 'youtube' ? 'youtube_music' : 'spotify'] ?? ''), app: BRAND[p].name })}
+            </Alert>
+          ))}
         </Card>
       ) : (
         <>
