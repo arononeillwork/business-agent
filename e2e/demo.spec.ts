@@ -10870,6 +10870,45 @@ test.describe('agents', () => {
     await expect(tab.getByLabel('Investor in the Agents menu')).toBeChecked()
   })
 
+  test('an owner views the app as a role from the Agents button’s Roles tab: a barista sees nobody’s pay', async ({ page }) => {
+    await open(page)
+    const menu = page.getByRole('navigation', { name: 'Main' })
+    await page.getByRole('button', { name: 'Agents', exact: true }).click()
+    await expect(page.getByRole('tab', { name: 'Agents' })).toHaveAttribute('aria-selected', 'true')
+    await page.getByRole('tab', { name: 'Roles' }).click()
+    const roles = page.getByRole('menu', { name: 'Roles' })
+    // The business's roles in use, each with the access someone in it has and who's in it.
+    await expect(roles.getByRole('menuitemradio', { name: /^Shop Manager/ })).toContainText('Shop manager · Nobody yet')
+    await expect(roles.getByRole('menuitemradio', { name: /^Barista \/ Bartender/ })).toContainText('Employee · Julio, Maria')
+    await expect(roles.getByRole('menuitemradio', { name: /^Head Barista/ })).toHaveCount(0) // not in use
+    await roles.getByRole('menuitemradio', { name: /^Barista \/ Bartender/ }).click()
+
+    const banner = page.getByRole('region', { name: 'Role view' })
+    await expect(banner).toContainText('Viewing as Barista / Bartender')
+    await expect(banner).toContainText('no pay, takings or finances')
+    await expect(menu.getByRole('link', { name: 'Rota', exact: true })).toBeVisible()
+    for (const name of ['Finances', 'Sales', 'Reviews', 'Connections', 'Current stock']) await expect(menu.getByRole('link', { name, exact: true })).toHaveCount(0)
+    // The pages as a barista sees them: nobody's pay on the Team page, no labour cost on the rota.
+    await menu.getByRole('link', { name: 'Team', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Team', level: 1 })).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: 'Hourly rate' })).toHaveCount(0)
+    await expect(page.getByText(/€\d+,\d{2}\/h/)).toHaveCount(0)
+    await menu.getByRole('link', { name: 'Rota', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Rota', level: 1 })).toBeVisible()
+    await expect(page.getByText('Labour cost')).toHaveCount(0)
+    // The menu opens on the Roles tab, the role ticked.
+    await page.getByRole('button', { name: 'Agents', exact: true }).click()
+    await expect(page.getByRole('tab', { name: 'Roles' })).toHaveAttribute('aria-selected', 'true')
+    await expect(roles.getByRole('menuitemradio', { name: /^Barista \/ Bartender/ })).toHaveAttribute('aria-checked', 'true')
+    await page.keyboard.press('Escape')
+
+    // Back to everything: the owner's pay and pages again.
+    await banner.getByRole('button', { name: 'Back to everything' }).click()
+    await expect(banner).toHaveCount(0)
+    await expect(page.getByText('Labour cost')).toBeVisible()
+    await expect(menu.getByRole('link', { name: 'Finances', exact: true })).toBeVisible()
+  })
+
   test('@phone an owner switches agent from the top bar on a phone', async ({ page }) => {
     await open(page)
     await page.getByRole('button', { name: 'Agents', exact: true }).click()
