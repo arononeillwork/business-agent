@@ -39,6 +39,7 @@ import type { RoutineDone, RoutineItem, RoutineItemInput } from '../../shared/ro
 import type { ChecklistItem, ChecklistItemInput, ChecklistTick } from '../../shared/checklists'
 import type { CompanyValue, CompanyValueInput } from '../../shared/companyValues'
 import type { AdminSession, Prospect, ProspectInput, SalesBoard, SalesMember } from '../../shared/salesTeam'
+import type { ActivityKind, AdminTodo, AdminTodos, HqOverview, SalesActivity, SalesTemplate, TodoInput } from '../../shared/adminArea'
 import type { PostIdea, PostIdeaInput } from '../../shared/postIdeas'
 import type { ListRow, NewsletterEvent, NewsletterSettings } from '../../shared/newsletter'
 import type { Contact, ContactInput } from '../../shared/contacts'
@@ -1314,6 +1315,19 @@ export interface Api {
   /** Add a business (no id) or change one (only what's sent). */
   saveProspect(token: string, p: ProspectInput): Promise<Prospect>
   deleteProspect(token: string, id: string): Promise<void>
+  /** What happened with a contact, newest first; and something logged by hand (a message, a call, a visit, a note). */
+  prospectActivity(token: string, prospectId: string): Promise<SalesActivity[]>
+  logActivity(token: string, prospectId: string, kind: ActivityKind, note?: string | null): Promise<SalesActivity>
+  /** Messages to send, with {business}, {me}, {code} and {link} filled in where they're used. */
+  salesTemplates(token: string): Promise<SalesTemplate[]>
+  saveSalesTemplate(token: string, t: Partial<Pick<SalesTemplate, 'title' | 'body'>> & { id?: string }): Promise<SalesTemplate>
+  deleteSalesTemplate(token: string, id: string): Promise<void>
+  /** HQ's own to-do list (open jobs, and those done in the last 14 days), with its categories. */
+  adminTodos(token: string): Promise<AdminTodos>
+  saveAdminTodo(token: string, t: TodoInput): Promise<AdminTodo>
+  deleteAdminTodo(token: string, id: string): Promise<void>
+  /** The businesses HQ's reps brought, the reps and what each has earned. */
+  adminHq(token: string): Promise<HqOverview>
 
   // kiosk
   kioskRoster(): Promise<KioskPerson[]>

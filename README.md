@@ -184,6 +184,23 @@ built-in **AI connector** so owners can run it by talking to Claude.
   Someone taken off the team leaves their businesses in nobody's lane. Everything is HQ's own rows (`worker/adminArea.ts`,
   `shared/salesTeam.ts`, the `admin_area` migration; a new database runs `select public.start_admin_area();` after
   `start_hq()`). In the demo, the PIN is 0000.
+- Admin area sections (`/admin`, a tab each, at its own address): **Today** (first) lists the contacts to follow up,
+  the jobs due or gone by (ticked off there), the businesses that signed up with a code this week, and those that need a
+  hand (set-up not finished after 3 days, or a payment that failed). **Sales** is the board, shown by customers or
+  partners (a roaster or supplier who could bring cafés; Santa Roaster and Roasted Spain to start) and by town; its columns
+  are To contact, Contacted, Demo booked, Signed up, Paying and Not now. Each card opens to its history (added, each move,
+  and a message, call, visit, demo or note logged in a tap) and a message to send, with the business, the salesperson,
+  their code and sign-up link filled in: copied, or opened in Instagram, WhatsApp or email, which logs it. Every
+  salesperson has a rep code (Julio Cesar is JULIO27, Maria Cortes has her own), so a café that signs up with one moves its
+  card by itself: to Signed up, then to Paying at its first payment; a sign-up with no card gets one in that salesperson's
+  lane, and nothing there can stop a sign-up (`sales_board_from_introduction()`). **To-do** is HQ's own to-do list (the
+  app's To-do page shows the same jobs, signed in as The Business Agent HQ), grouped by overdue, today, coming up, whenever
+  and done, each job with a day and the contact it's about. **Onboarding** lists every business that signed up with a
+  rep's code, where it is and whether it needs a hand. **Team** has each salesperson's code, sign-up link and QR, the
+  businesses they brought and their commission (earned, waiting its 30 days, paid out, owed) from HQ's ledger.
+  **Settings** has the PIN, the sales team and the messages to send. All of it is HQ's rows through the Worker (the
+  `admin_area_sections` migration; a new database runs `select public.start_admin_area_sections();` after
+  `start_admin_area()`; `shared/adminArea.ts`, `src/pages/admin/`).
 - Staff kitty (Team section): a share of each month's profit (5% to start; a month with a loss puts nothing
   in) and anything else put in (the tips jar, a bonus), saved up for goals chosen together, like the
   Christmas party or a pair of Ray-Bans for the café. The goals are jars on a shelf that fill with coffee

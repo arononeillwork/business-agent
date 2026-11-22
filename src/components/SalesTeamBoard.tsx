@@ -10,6 +10,7 @@ import DeleteIcon from '@mui/icons-material/DeleteOutlined'
 import MoreIcon from '@mui/icons-material/MoreHoriz'
 import MoveIcon from '@mui/icons-material/ArrowForward'
 import PersonIcon from '@mui/icons-material/PersonOutlined'
+import OpenIcon from '@mui/icons-material/ChatOutlined'
 import { DndContext, DragOverlay, PointerSensor, TouchSensor, pointerWithin, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { useState, type ReactNode } from 'react'
 import { Tag } from './common'
@@ -38,10 +39,12 @@ export type Spot = { member_id: string | null; stage: ProspectStage }
  * a column per stage from To contact to Signed up (and Not now), a card per business with the ways to
  * reach it. Cards are dragged to another stage or someone else's lane, or moved from their menu.
  */
-export function SalesTeamBoard({ board, today, onMove, onEdit, onAdd, onRemove }: {
+export function SalesTeamBoard({ board, today, onMove, onEdit, onOpen, onAdd, onRemove }: {
   board: SalesBoard; today: string
   onMove: (p: Prospect, to: Spot) => void
   onEdit: (p: Prospect) => void
+  /** Its history, and a message to send. */
+  onOpen: (p: Prospect) => void
   /** A business for someone's lane (null: nobody's). */
   onAdd: (member: SalesMember | null) => void
   onRemove: (p: Prospect) => void
@@ -58,7 +61,7 @@ export function SalesTeamBoard({ board, today, onMove, onEdit, onAdd, onRemove }
   }
   const totals = Object.fromEntries(PROSPECT_STAGES.map(s => [s.id, rows.reduce((n, l) => n + l.byStage[s.id].length, 0)])) as Record<ProspectStage, number>
   const card = (p: Prospect) => ({
-    p, today, team: board.team, onMove: (to: Spot) => onMove(p, to), onEdit: () => onEdit(p), onRemove: () => onRemove(p),
+    p, today, team: board.team, onMove: (to: Spot) => onMove(p, to), onEdit: () => onEdit(p), onOpen: () => onOpen(p), onRemove: () => onRemove(p),
   })
 
   return (
@@ -121,7 +124,7 @@ function Cell({ member, stage, children }: { member: SalesMember | null; stage: 
 
 interface CardProps {
   p: Prospect; today: string; team: SalesMember[]; lifted?: boolean
-  onMove?: (to: Spot) => void; onEdit?: () => void; onRemove?: () => void
+  onMove?: (to: Spot) => void; onEdit?: () => void; onOpen?: () => void; onRemove?: () => void
 }
 
 function DraggableCard(props: CardProps) {
@@ -145,7 +148,7 @@ function Reach({ href, icon, label, children, external = true }: { href: string;
 }
 
 /** A business's card: its name and town, each way to reach it, when to follow up, the start of the notes; moved, edited or removed from its menu. */
-function CardFace({ p, today, team, onMove, onEdit, onRemove, handle, lifted }: CardProps & { handle?: Record<string, unknown> }) {
+function CardFace({ p, today, team, onMove, onEdit, onOpen, onRemove, handle, lifted }: CardProps & { handle?: Record<string, unknown> }) {
   const [more, setMore] = useState<HTMLElement | null>(null)
   const icon = { fontSize: 14, flexShrink: 0 }
   const site = p.website?.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')
@@ -158,6 +161,12 @@ function CardFace({ p, today, team, onMove, onEdit, onRemove, handle, lifted }: 
         <Typography variant="body2" sx={{ fontWeight: 500, lineHeight: 1.35, wordBreak: 'break-word' }}>{p.name}</Typography>
         {p.town && <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>{p.town}</Typography>}
       </Box>
+      {(p.kind === 'partner' || p.introduction_id) && (
+        <Stack direction="row" spacing={0.5} useFlexGap sx={{ flexWrap: 'wrap', mt: 0.5 }}>
+          {p.kind === 'partner' && <Tag fg={tokens.ubeDeep} bg={tokens.ubeSoft}>{t('Partner')}</Tag>}
+          {p.introduction_id && <Tag fg={tokens.goodFg} bg={tokens.goodBg}>{t('Code used')}</Tag>}
+        </Stack>
+      )}
       <Stack spacing={0.25} sx={{ mt: 0.5 }}>
         {p.instagram && <Reach href={instagramLink(p.instagram)} icon={<InstagramIcon sx={icon} />} label={t('Open @{handle} on Instagram', { handle: p.instagram })}>@{p.instagram}</Reach>}
         {p.phone && (
@@ -191,6 +200,9 @@ function CardFace({ p, today, team, onMove, onEdit, onRemove, handle, lifted }: 
             <MoreIcon sx={{ fontSize: 18 }} />
           </IconButton>
           <Menu anchorEl={more} open={!!more} onClose={() => setMore(null)}>
+            <MenuItem onClick={() => { setMore(null); onOpen?.() }}>
+              <ListItemIcon><OpenIcon fontSize="small" /></ListItemIcon>{t('Open {name}: history and messages', { name: p.name })}
+            </MenuItem>
             <MenuItem onClick={() => { setMore(null); onEdit?.() }}>
               <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>{t('Edit {name}', { name: p.name })}
             </MenuItem>

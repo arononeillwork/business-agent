@@ -11,18 +11,30 @@ export type ProspectStage = 'to_contact' | 'contacted' | 'demo' | 'trial' | 'won
 /** The columns, in order. */
 export const PROSPECT_STAGES: { id: ProspectStage; label: string }[] = [
   { id: 'to_contact', label: msg('To contact') }, { id: 'contacted', label: msg('Contacted') }, { id: 'demo', label: msg('Demo booked') },
-  { id: 'trial', label: msg('On a trial') }, { id: 'won', label: msg('Signed up') }, { id: 'lost', label: msg('Not now') },
+  { id: 'trial', label: msg('Signed up') }, { id: 'won', label: msg('Paying') }, { id: 'lost', label: msg('Not now') },
 ]
 export const prospectStageLabel = (s: ProspectStage) => PROSPECT_STAGES.find(x => x.id === s)?.label ?? s
 export const isProspectStage = (v: unknown): v is ProspectStage => PROSPECT_STAGES.some(s => s.id === v)
 
-export interface SalesMember { id: string; name: string; position: number }
+export interface SalesMember {
+  id: string; name: string; position: number
+  /** Their rep code for sign-ups (JULIO27), from HQ's reps; null until they have one. */
+  rep_id?: string | null; code?: string | null
+}
+
+/** A café to sign up, or a partner (a roaster, a supplier) who could bring cafés. */
+export type ProspectKind = 'customer' | 'partner'
+export const PROSPECT_KINDS: { id: ProspectKind; label: string }[] = [{ id: 'customer', label: msg('Customer') }, { id: 'partner', label: msg('Partner') }]
+export const isProspectKind = (v: unknown): v is ProspectKind => v === 'customer' || v === 'partner'
 export interface Prospect {
   id: string
   /** Whose lane (null: nobody's yet, as when someone leaves the team). */
   member_id: string | null
   name: string
   stage: ProspectStage
+  kind?: ProspectKind
+  /** The business that signed up for it with a rep code (on HQ's list); the card then moves by itself. */
+  introduction_id?: string | null
   instagram: string | null
   phone: string | null
   email: string | null
@@ -33,7 +45,7 @@ export interface Prospect {
   created_at: string
   updated_at: string
 }
-export type ProspectInput = Partial<Omit<Prospect, 'id' | 'created_at' | 'updated_at'>> & { id?: string }
+export type ProspectInput = Partial<Omit<Prospect, 'id' | 'created_at' | 'updated_at' | 'introduction_id'>> & { id?: string }
 export interface SalesBoard { team: SalesMember[]; prospects: Prospect[] }
 
 /** A session in the admin area: its token (kept in the browser) and when it ends. */
@@ -149,6 +161,11 @@ export function cleanProspect(input: Record<string, unknown>, isNew: boolean): {
     const m = input.member_id
     if (m !== null && (typeof m !== 'string' || !/^[0-9a-f-]{36}$/i.test(m))) return { error: 'Choose someone on the sales team' }
     row.member_id = m
+  }
+  if (has('kind') || isNew) {
+    const kind = input.kind ?? 'customer'
+    if (!isProspectKind(kind)) return { error: 'A contact is a customer or a partner' }
+    row.kind = kind
   }
   if (has('town')) row.town = text(input.town, 80)
   if (has('notes')) row.notes = text(input.notes, 2000)

@@ -47,6 +47,19 @@ beforeEach(() => {
   answer('admin_area_session', ({ p_token }) => p_token === TOKEN)
   answer('admin_area_lock', () => null)
   answer('admin_area_change_pin', ({ p_current, p_new }) => (p_current !== '1234568' ? { error: 'wrong' } : /^\d{4,12}$/.test(String(p_new)) ? { ok: true } : { error: 'bad_pin' }))
+  // A rep (with a code) for a salesperson who has none, as admin_area_give_code() does.
+  answer('admin_area_give_code', ({ p_member }) => {
+    const m = db.tables.sales_team.find(x => x.id === p_member)!
+    if (!m.rep_id) {
+      const id = `rep-${String(m.name).split(' ')[0].toLowerCase()}`
+      db.tables.sales_reps.push({ id, name: m.name, code: `${String(m.name).split(' ')[0].toUpperCase()}42`, active: true, business_id: HQ })
+      m.rep_id = id
+    }
+    return m.rep_id
+  })
+  db.tables.sales_reps = [{ id: 'rep-julio', name: 'Julio', code: 'JULIO27', active: true, business_id: HQ },
+    { id: 'rep-dani', name: 'Dani', code: 'DANI20', active: true, business_id: 1 }]
+  db.tables.sales_team.find(m => m.id === JULIO)!.rep_id = 'rep-julio'
   vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
     named = new Headers(init?.headers).get('x-business-id')
@@ -162,5 +175,110 @@ describe('the sales team’s board', () => {
     expect(await res.json()).toMatchObject({ id: JULIO, name: 'Julio César' })
     expect((await send('DELETE', `/api/admin-area/sales/team/${JULIO}`, {})).status).toBe(200)
     expect(db.tables.sales_team.map(m => m.name)).not.toContain('Julio César')
+  })
+})
+
+describe('the sales team’s codes', () => {
+  it('each salesperson has their rep code; someone new gets one', async () => {
+    const board = await (await get('/api/admin-area/sales')).json() as { team: { name: string; code: string | null }[] }
+    expect(board.team.map(m => [m.name, m.code])).toEqual([['Maria Cortes', null], ['Julio Cesar', 'JULIO27']])
+    const res = await send('POST', '/api/admin-area/sales/team', { name: 'Lola Pérez' })
+    expect(await res.json()).toMatchObject({ name: 'Lola Pérez', rep_id: 'rep-lola', code: 'LOLA42' })
+    expect(calls.at(-1)).toMatchObject({ name: 'admin_area_give_code', business: String(HQ) })
+  })
+
+  it('renamed, their rep goes by the new name and keeps the code', async () => {
+    const res = await send('PATCH', `/api/admin-area/sales/team/${JULIO}`, { name: 'Julio César' })
+    expect(await res.json()).toMatchObject({ name: 'Julio César', code: 'JULIO27' })
+    expect(db.tables.sales_reps.find(r => r.id === 'rep-julio')).toMatchObject({ name: 'Julio César', code: 'JULIO27' })
+  })
+})
+
+describe('what happened with a contact', () => {
+  it('a call logged, and the history newest first', async () => {
+    db.tables.sales_activity = [{ id: 'a1', prospect_id: BOOTES, kind: 'added', stage: 'to_contact', note: null, at: '2026-11-20T10:00:00Z', business_id: HQ }]
+    let res = await send('POST', `/api/admin-area/sales/prospects/${BOOTES}/activity`, { kind: 'call', note: ' Spoke to Ana, call back Friday ' })
+    expect(await res.json()).toMatchObject({ prospect_id: BOOTES, kind: 'call', note: 'Spoke to Ana, call back Friday' })
+    expect(db.tables.sales_activity.at(-1)).toMatchObject({ business_id: HQ })
+    db.tables.sales_activity.at(-1)!.at = '2026-11-22T10:00:00Z'
+    res = await get(`/api/admin-area/sales/prospects/${BOOTES}/activity`)
+    expect((await res.json() as { kind: string }[]).map(a => a.kind)).toEqual(['call', 'added'])
+  })
+
+  it('only what can be logged by hand, a note with words, on a card that’s on the board', async () => {
+    expect((await send('POST', `/api/admin-area/sales/prospects/${BOOTES}/activity`, { kind: 'paid' })).status).toBe(400)
+    expect(await (await send('POST', `/api/admin-area/sales/prospects/${BOOTES}/activity`, { kind: 'note', note: ' ' })).json()).toEqual({ error: 'Write the note' })
+    expect((await send('POST', '/api/admin-area/sales/prospects/0b0e2f6c-2222-4c2d-8e3f-000000000404/activity', { kind: 'call' })).status).toBe(404)
+  })
+})
+
+describe('messages to send', () => {
+  it('added, changed and taken away; a message needs a name and words', async () => {
+    db.tables.sales_templates = [{ id: '0b0e2f6c-3333-4c2d-8e3f-000000000001', title: 'First message', body: 'Hi {business}!', position: 1, business_id: HQ }]
+    let res = await send('POST', '/api/admin-area/sales/templates', { title: ' Thanks ', body: 'Thanks {business}, here’s {link}' })
+    expect(await res.json()).toMatchObject({ title: 'Thanks', position: 2 })
+    expect((await send('POST', '/api/admin-area/sales/templates', { title: 'Empty', body: ' ' })).status).toBe(400)
+    res = await send('PATCH', '/api/admin-area/sales/templates/0b0e2f6c-3333-4c2d-8e3f-000000000001', { body: 'Hola {business}!' })
+    expect(await res.json()).toMatchObject({ title: 'First message', body: 'Hola {business}!' })
+    expect((await get('/api/admin-area/sales/templates')).status).toBe(200)
+    await send('DELETE', '/api/admin-area/sales/templates/0b0e2f6c-3333-4c2d-8e3f-000000000001', {})
+    expect(db.tables.sales_templates.map(t => t.title)).toEqual(['Thanks'])
+  })
+})
+
+describe('the to-do list', () => {
+  const JOB = '0b0e2f6c-4444-4c2d-8e3f-000000000001'
+  beforeEach(() => {
+    db.tables.todos = [{ id: JOB, title: 'Print rep cards', done: false, done_at: null, planned_on: '2026-11-22', category_id: null, sales_prospect_id: null,
+      created_at: '2026-11-20T10:00:00Z', business_id: HQ },
+    // Easy Beans' own: never on HQ's list.
+    { id: '0b0e2f6c-4444-4c2d-8e3f-000000000099', title: 'Order milk', done: false, created_at: '2026-11-20T10:00:00Z', business_id: 1 }]
+    db.tables.todo_categories = [{ id: '0b0e2f6c-5555-4c2d-8e3f-000000000001', name: 'Sales', colour: '#8A7E76', sort: 1, business_id: HQ }]
+  })
+
+  it('HQ’s own jobs, with its categories', async () => {
+    const list = await (await get('/api/admin-area/todos')).json() as { todos: { title: string }[]; categories: { name: string }[] }
+    expect(list.todos.map(t => t.title)).toEqual(['Print rep cards'])
+    expect(list.categories.map(c => c.name)).toEqual(['Sales'])
+  })
+
+  it('a job about a contact, then done', async () => {
+    let res = await send('POST', '/api/admin-area/todos', { title: 'Call back The Bootes Cafe', planned_on: '2026-11-24', sales_prospect_id: BOOTES })
+    expect(await res.json()).toMatchObject({ title: 'Call back The Bootes Cafe', sales_prospect_id: BOOTES })
+    expect(db.tables.todos.at(-1)).toMatchObject({ business_id: HQ })
+    res = await send('PATCH', `/api/admin-area/todos/${JOB}`, { done: true })
+    expect(await res.json()).toMatchObject({ id: JOB, done: true })
+    await send('DELETE', `/api/admin-area/todos/${JOB}`, {})
+    expect(db.tables.todos.map(t => t.title)).toEqual(['Order milk', 'Call back The Bootes Cafe'])
+  })
+
+  it('what isn’t right is said: no title, a contact or category that isn’t HQ’s', async () => {
+    expect(await (await send('POST', '/api/admin-area/todos', { title: ' ' })).json()).toEqual({ error: 'Say what the job is' })
+    expect(await (await send('POST', '/api/admin-area/todos', { title: 'X', sales_prospect_id: '0b0e2f6c-2222-4c2d-8e3f-000000000404' })).json())
+      .toEqual({ error: 'Choose a contact' })
+    expect(await (await send('POST', '/api/admin-area/todos', { title: 'X', category_id: '0b0e2f6c-5555-4c2d-8e3f-000000000404' })).json())
+      .toEqual({ error: 'Choose a category' })
+    expect((await send('PATCH', '/api/admin-area/todos/0b0e2f6c-4444-4c2d-8e3f-000000000099', { done: true })).status).toBe(404)
+    expect(db.tables.todos.find(t => t.title === 'Order milk')).toMatchObject({ done: false })
+  })
+})
+
+describe('onboarding and earnings', () => {
+  it('HQ’s sign-ups and reps, with each rep’s money', async () => {
+    db.tables.rep_introductions = [{ id: 'i1', rep_id: 'rep-julio', name: 'Café Lola', kind: 'cafe', code: 'JULIO27', plan: 'pro', status: 'active',
+      created_at: '2026-11-01T10:00:00Z', business_id: HQ }]
+    db.tables.rep_rewards = [{ rep_id: 'rep-julio', kind: 'earn', status: 'approved', amount: 50, business_id: HQ },
+      { rep_id: 'rep-julio', kind: 'earn', status: 'pending', amount: 15.8, business_id: HQ },
+      { rep_id: 'rep-dani', kind: 'earn', status: 'approved', amount: 3, business_id: 1 }]
+    const res = await get('/api/admin-area/hq')
+    const hq = await res.json() as { introductions: { name: string }[]; reps: { code: string }[]; earnings: Record<string, unknown> }
+    expect(hq.introductions.map(i => i.name)).toEqual(['Café Lola'])
+    expect(hq.reps.map(r => r.code)).toEqual(['JULIO27'])
+    expect(hq.earnings).toEqual({ 'rep-julio': { earned: 50, waiting: 15.8, paid: 0, owed: 50 } })
+  })
+
+  it('locked: nothing', async () => {
+    expect((await get('/api/admin-area/hq', null)).status).toBe(401)
+    expect((await get('/api/admin-area/todos', null)).status).toBe(401)
   })
 })
