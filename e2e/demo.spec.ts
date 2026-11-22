@@ -9818,6 +9818,71 @@ test.describe('UI round: dashboards, the business advisor and the landing pages'
     await expect(page.getByRole('region', { name: 'Takings by day' }).getByRole('img')).toBeVisible()
   })
 
+  test('dashboards: the Accountant, by the month or the quarter: takings net of refunds, profit and loss, VAT, tax returns, what’s owed', async ({ page }) => {
+    await open(page, '/')
+    await connectSquare(page)
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Dashboards' }).click()
+    await page.getByRole('button', { name: 'Start from Accountant' }).click()
+    await toast(page, 'Added Accountant')
+    // Its own periods, whole months and quarters: last month (August) to start.
+    const periods = page.getByRole('group', { name: 'Period' })
+    await expect(periods.getByRole('button')).toHaveText(['This month', 'Last month', 'This quarter', 'Last quarter'])
+    await expect(periods.getByRole('button', { name: 'Last month' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByRole('region', { name: 'Takings, net of refunds' })).toContainText(/€[\d.,]+ without VAT/)
+    await expect(page.getByRole('region', { name: 'How people paid' })).toContainText('Cash')
+    const pnl = page.getByRole('region', { name: 'Profit & loss' })
+    for (const line of ['Takings, without VAT', 'Cost of sales', 'Team', 'Running costs', 'Operating profit']) await expect(pnl).toContainText(line)
+    await expect(page.getByRole('region', { name: 'Staff wages' })).toContainText('€4.300,00 estimated from Finances')
+    // VAT: on August's takings, less the two invoices received in August.
+    const vat = page.getByRole('region', { name: 'VAT', exact: true })
+    await expect(vat).toContainText('Charged on the takings (10%)')
+    await expect(vat).toContainText('Paid on invoices received−€88,19')
+    await expect(vat).toContainText(/To pay€[\d.,]+/)
+    await expect(page.getByRole('region', { name: 'Next tax returns' }).getByRole('listitem').filter({ hasText: '303 · Q3' })).toContainText('With the gestoría')
+    const invoices = page.getByRole('region', { name: 'Invoices to pay' })
+    await expect(invoices).toContainText('€1.120,00')
+    await expect(invoices.getByRole('listitem').first()).toContainText('By EricOverdue since 15 Sep€600,00')
+    await expect(invoices).toContainText('Customers owe €450,00 on 1 invoice sent.')
+    await expect(page.getByRole('region', { name: 'Expenses to pay back' }).getByRole('listitem')).toHaveText(['Maria€6,00'])
+    await expect(page.getByRole('region', { name: 'Monthly costs' })).toContainText('18 costs on Finances')
+    await expect(page.getByRole('region', { name: 'Credit & debit' })).toContainText('€5.300,00still to pay · €300,00 a month')
+
+    // This quarter: the sales invoice and all four received count.
+    await periods.getByRole('button', { name: 'This quarter' }).click()
+    await expect(vat).toContainText('Charged on sales invoices€40,91')
+    await expect(vat).toContainText('Paid on invoices received−€135,46')
+    // The other dashboards keep the usual periods; the Accountant keeps its own.
+    await page.getByRole('button', { name: 'New dashboard' }).click()
+    await page.getByRole('menuitem', { name: /Executive template/ }).click()
+    await expect(periods.getByRole('button', { name: 'This week' })).toHaveAttribute('aria-pressed', 'true')
+    await page.getByRole('tab', { name: 'Accountant' }).click()
+    await expect(periods.getByRole('button', { name: 'This quarter' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  test('dashboards: the Accountant’s money is only for those who see it: not an employee’s, and the gestoría gets the finances', async ({ page }) => {
+    await giveBaristas(page, 'Dashboards', 'Read')
+    await signInAs(page, 'maria@example.com')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Dashboards' }).click()
+    await expect(page.getByRole('button', { name: 'Start from Executive' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Start from Accountant' })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Start from Blank' }).click()
+    await page.getByRole('button', { name: 'Add a widget' }).first().click()
+    const add = page.getByRole('dialog', { name: 'Add a widget' })
+    await expect(add.getByRole('button', { name: 'Add Low on stock' })).toBeVisible()
+    await expect(add.getByRole('heading', { name: 'Accounts' })).toHaveCount(0)
+    for (const name of ['VAT', 'Profit & loss', 'Invoices to pay', 'Staff wages', 'Monthly costs']) await expect(add.getByRole('button', { name: `Add ${name}`, exact: true })).toHaveCount(0)
+    await add.getByRole('button', { name: 'Done' }).click()
+
+    // A gestoría with the finances area: the Accountant only, without the till's takings or anyone's pay.
+    await signInAs(page, 'laura@gestoria.example')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Dashboards' }).click()
+    await expect(page.getByRole('button', { name: /^Start from / })).toHaveText([/^Accountant/, /^Blank/])
+    await page.getByRole('button', { name: 'Start from Accountant' }).click()
+    for (const name of ['Monthly costs', 'Credit & debit', 'Next tax returns', 'Invoices to pay', 'Expenses to pay back']) await expect(page.getByRole('region', { name })).toBeVisible()
+    for (const name of ['Takings, net of refunds', 'VAT', 'Profit & loss', 'Staff wages', 'How people paid']) await expect(page.getByRole('region', { name, exact: true })).toHaveCount(0)
+    await expect(page.getByRole('tab', { name: 'Reports' })).toHaveCount(0)
+  })
+
   test('business advisor: findings from the takings, the menu, the team and the waste; employees can’t open it', async ({ page }) => {
     await open(page, '/')
     await connectSquare(page)

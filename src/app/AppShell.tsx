@@ -158,7 +158,7 @@ export const SECTIONS: NavSection[] = [
   ] },
   // What the figures say: each person's own dashboards, and the Business advisor's findings.
   { key: 'insights', label: msg('Insights'), items: [
-    { key: 'dashboards', to: '/dashboards', label: msg('Dashboards'), icon: <DashboardsIcon /> },
+    { key: 'dashboards', to: '/dashboards', label: msg('Dashboards'), icon: <DashboardsIcon />, partner: ['finances'] },
     { key: 'advisor', to: '/advisor', label: msg('Business advisor'), short: msg('Advisor'), icon: <AdvisorIcon />, who: 'admin' },
   ] },
   // Takings from the till (Square, SumUp or Stripe) and the people who buy; the running costs; then

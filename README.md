@@ -651,6 +651,15 @@ built-in **AI connector** so owners can run it by talking to Claude.
   average sale, best and slow sellers, prices below the margin aimed for or below the area's, staffing
   against takings day by day, team cost against takings, late starts and forgotten clock-outs, waste,
   what's low and reviews waiting for a reply. Today opens with the same figures at a glance.
+- Dashboards → the **Accountant** template: what the gestoría or accountant asks for, over this or last
+  month or this or last quarter (its own period, kept on the dashboard; it opens on last month): takings
+  net of refunds and the VAT in them, how people paid, the profit and loss over exactly those days, staff
+  wages with the employer's Social Security, the VAT charged on the takings and sales invoices against the
+  VAT on the invoices received, the next tax returns, invoices to pay, expenses to pay back, the monthly
+  costs and what's still owed on Credit & debit (`shared/accountant.ts`). The money is only for those who
+  see it (`canHave` in `shared/dashboards.ts`): admins with pay access get all of it, a gestoría given the
+  finances area opens Dashboards for the finances (not the till's takings or anyone's pay), and the
+  templates offered are the ones with something the person can see.
 - Dashboards → Reports (admins): pick reports (takings and breakeven, best sellers, team hours, low on
   stock, waste, freshly made, jobs) and a period, pick who gets them (people on the team, the business's
   contacts for owners, any address), see the email, and send it from the connected Gmail or Outlook, one

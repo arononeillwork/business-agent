@@ -12,6 +12,7 @@ import DeleteIcon from '@mui/icons-material/DeleteOutlined'
 import ExecIcon from '@mui/icons-material/InsightsOutlined'
 import ManagerIcon from '@mui/icons-material/StorefrontOutlined'
 import BlankIcon from '@mui/icons-material/DashboardCustomizeOutlined'
+import AccountantIcon from '@mui/icons-material/CalculateOutlined'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
@@ -19,9 +20,10 @@ import { useNotify } from '../app/Notify'
 import { PageHeader, SectionTitle } from '../components/common'
 import { WidgetBody, useTakings } from '../components/dashboardWidgets'
 import {
-  DASH_PERIODS, TEMPLATES, WIDGETS, WIDGET_GROUPS, addWidget, dashRange, moveWidget, newDashboard, readSaved, removeWidget, resizeWidget, widgetInfo,
+  TEMPLATES, WIDGETS, WIDGET_GROUPS, addWidget, dashRange, moveWidget, newDashboard, readSaved, removeWidget, resizeWidget, widgetInfo,
   type DashPeriod, type DashTemplate, type Dashboard, type SavedDashboards, type Widget, type WidgetKind, type WidgetNeeds, type WidgetSize,
 } from '../../shared/dashboards'
+import { boardPeriod, canHave, ownPeriod, periodsOf, templatesFor } from '../../shared/dashboards'
 import { ReportsTab } from './ReportsTab'
 import { today } from '../../shared/time'
 import { tokens } from '../theme'
@@ -33,7 +35,7 @@ const SPAN: Record<WidgetSize, Record<string, string>> = {
   large: { xs: 'span 12' },
 }
 const SIZES: { id: WidgetSize; label: string }[] = [{ id: 'small', label: msg('Small') }, { id: 'medium', label: msg('Medium') }, { id: 'large', label: msg('Wide') }]
-const TEMPLATE_ICON = { executive: <ExecIcon />, manager: <ManagerIcon />, blank: <BlankIcon /> }
+const TEMPLATE_ICON = { executive: <ExecIcon />, manager: <ManagerIcon />, accountant: <AccountantIcon />, blank: <BlankIcon /> }
 
 /**
  * Dashboards (Insights): each person's own reports, made of widgets over a period (today, this
@@ -42,9 +44,11 @@ const TEMPLATE_ICON = { executive: <ExecIcon />, manager: <ManagerIcon />, blank
  * show what the person may see. Kept in their preferences, on every device they sign in on.
  * Admins also have Reports: the figures written out and emailed to whoever they pick (ReportsTab).
  * One row of tabs: Reports pinned first (admins), then each dashboard.
+ * The Accountant template is the gestoría's view, by the month or the quarter (its own period, kept on
+ * the dashboard); a gestoría given the finances area opens Dashboards for it too.
  */
 export function DashboardsPage() {
-  const { api, me, refresh, isAdmin, isPartner, canSeePay } = useApp()
+  const { api, me, refresh, isAdmin, isPartner, canSeePay, canSeeFinances } = useApp()
   const notify = useNotify()
   const [saved, setSaved] = useState<SavedDashboards>(() => readSaved(me?.preferences?.dashboards))
   useEffect(() => setSaved(readSaved(me?.preferences?.dashboards)), [me?.preferences?.dashboards])
@@ -53,12 +57,14 @@ export function DashboardsPage() {
   const [renaming, setRenaming] = useState(false)
   const [menu, setMenu] = useState<HTMLElement | null>(null)
   const { till } = useTakings()
-  const period: DashPeriod = saved.period ?? 'week'
-  const range = dashRange(period, today())
   const board = saved.boards.find(b => b.id === saved.open) ?? saved.boards[0] ?? null
+  // The Accountant keeps its own period (months and quarters); the other dashboards share one.
+  const period: DashPeriod = boardPeriod(board, saved.period)
+  const range = dashRange(period, today())
 
   /** Which widgets the person can have: by role and pay access (the takings ones also need a till, and say so). */
-  const can = (k: WidgetKind) => widgetInfo(k).needs.every(n => (n === 'admin' ? isAdmin && !isPartner : n === 'pay' || n === 'sales' ? canSeePay && !isPartner : !isPartner))
+  const viewer = { isAdmin, isPartner, canSeePay, canSeeFinances }
+  const can = (k: WidgetKind) => canHave(widgetInfo(k).needs, viewer)
   const save = (next: SavedDashboards) => {
     setSaved(next)
     if (!me) return
@@ -91,14 +97,16 @@ export function DashboardsPage() {
     showTab('boards')
     if (board && id !== board.id) save({ ...saved, open: id })
   }
-  const canShow = (needs: WidgetNeeds[]) => needs.every(n => (n === 'admin' ? isAdmin && !isPartner : n === 'pay' || n === 'sales' ? canSeePay && !isPartner : !isPartner))
+  const canShow = (needs: WidgetNeeds[]) => canHave(needs, viewer)
+  const templates = templatesFor(can)
+  const setPeriod = (p: DashPeriod) => (board && ownPeriod(board) ? change({ ...board, period: p }) : save({ ...saved, period: p }))
 
   return (
     <>
       <PageHeader eyebrow={t('Insights')} title={t('Dashboards')} actions={tab === 'reports' ? undefined : <>
         {board && (
-          <ToggleButtonGroup size="small" exclusive value={period} onChange={(_, p: DashPeriod | null) => p && save({ ...saved, period: p })} aria-label={t('Period')}>
-            {DASH_PERIODS.map(p => <ToggleButton key={p.id} value={p.id} sx={{ px: 1.5 }}>{t(p.label)}</ToggleButton>)}
+          <ToggleButtonGroup size="small" exclusive value={period} onChange={(_, p: DashPeriod | null) => p && setPeriod(p)} aria-label={t('Period')}>
+            {periodsOf(board).map(p => <ToggleButton key={p.id} value={p.id} sx={{ px: 1.5 }}>{t(p.label)}</ToggleButton>)}
           </ToggleButtonGroup>
         )}
         {board && (
@@ -108,7 +116,7 @@ export function DashboardsPage() {
         )}
         <Button variant="outlined" startIcon={<AddIcon />} onClick={e => setMenu(e.currentTarget)} aria-haspopup="menu">{t('New dashboard')}</Button>
         <Menu anchorEl={menu} open={!!menu} onClose={() => setMenu(null)}>
-          {TEMPLATES.map(x => (
+          {templates.map(x => (
             <MenuItem key={x.id} onClick={() => create(x.id)} sx={{ whiteSpace: 'normal', maxWidth: 380, gap: 1.5 }}>
               {TEMPLATE_ICON[x.id]}<ListItemText primary={t('{name} template', { name: t(x.name) })} secondary={t(x.hint)} />
             </MenuItem>
@@ -125,7 +133,7 @@ export function DashboardsPage() {
           {saved.boards.length ? saved.boards.map(b => <Tab key={b.id} value={b.id} label={b.name} />) : <Tab value="boards" label={t('Dashboards')} />}
         </Tabs>
       )}
-      {tab === 'reports' ? <ReportsTab can={canShow} /> : !board ? <TemplatePicker onPick={create} /> : <>
+      {tab === 'reports' ? <ReportsTab can={canShow} /> : !board ? <TemplatePicker can={can} onPick={create} /> : <>
         {editing && (
           <Card sx={{ mb: 2, bgcolor: tokens.roseSoft, borderColor: tokens.rose }}>
             <CardContent sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center', py: '12px !important' }}>
@@ -165,18 +173,19 @@ export function DashboardsPage() {
   )
 }
 
-/** No dashboards yet: the two templates (and blank), each saying what's on it. */
-function TemplatePicker({ onPick }: { onPick: (t: DashTemplate) => void }) {
+/** No dashboards yet: the templates with something the person can see (and blank), each saying what's on it for them. */
+function TemplatePicker({ can, onPick }: { can: (k: WidgetKind) => boolean; onPick: (t: DashTemplate) => void }) {
   return (
     <>
       <Typography sx={{ color: 'text.secondary', mb: 2.5, maxWidth: 760 }}>
         {t('Make your own reports from the figures in the app: start from a template and change it, or choose every widget yourself.')}
       </Typography>
-      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' } }}>
-        {[...TEMPLATES, { id: 'blank' as const, name: msg('Blank'), hint: msg('An empty dashboard: add the widgets you want, in the order you want.'), widgets: [] }].map(x => (
+      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' } }}>
+        {[...templatesFor(can).map(x => ({ ...x, widgets: x.widgets.filter(w => can(w.kind)) })),
+          { id: 'blank' as const, name: msg('Blank'), hint: msg('An empty dashboard: add the widgets you want, in the order you want.'), widgets: [] }].map(x => (
           <Card key={x.id} sx={{ display: 'flex' }}>
             <ButtonBase onClick={() => onPick(x.id)} aria-label={t('Start from {name}', { name: t(x.name) })}
-              sx={{ display: 'block', textAlign: 'left', p: 2.5, width: '100%', '&:hover': { bgcolor: tokens.hover }, '&.Mui-focusVisible': { outline: `2px solid ${tokens.rose}` } }}>
+              sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start', textAlign: 'left', p: 2.5, width: '100%', '&:hover': { bgcolor: tokens.hover }, '&.Mui-focusVisible': { outline: `2px solid ${tokens.rose}` } }}>
               <Box sx={{ color: tokens.roseDeep, mb: 1 }}>{TEMPLATE_ICON[x.id]}</Box>
               <Typography variant="h6" component="h2">{t(x.name)}</Typography>
               <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5, mb: 1.5 }}>{t(x.hint)}</Typography>

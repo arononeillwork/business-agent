@@ -197,6 +197,7 @@ function Routed() {
           {partnerCan('finances') && <Route path="menu" element={<MenuPage />} />}
           {partnerCan('finances') && <Route path="allergens" element={<AllergensPage />} />}
           {partnerCan('finances') && <Route path="waste" element={<WastePage />} />}
+          {partnerCan('finances') && <Route path="dashboards" element={<DashboardsPage />} />}
           <Route path="*" element={<Navigate to="/business" />} />
         </Route>
       </Routes>
