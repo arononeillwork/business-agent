@@ -54,7 +54,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'people and pets', files: [/PeoplePage/, /components\/Pets/, /shared\/(people|pets)/], tests: String.raw`people|pets` },
   { name: 'connections', files: [/(Connections|SocialPlanner)Page/, /components\/(Connect|AiImages)/, /shared\/connections/],
     tests: String.raw`connect|Square|Stripe|TikTok|Instagram|Google|WhatsApp|Spotify|YouTube|social|post` },
-  { name: 'music', files: [/MusicPage/, /MusicCard/, /CafeSpeaker/], tests: String.raw`music|playlist|song` },
+  { name: 'music', files: [/MusicPage/, /MusicCard/, /CafeSpeaker/, /SpeakerSetup/, /lib\/speaker/, /i18n\/es\/musicSpeaker/], tests: String.raw`music|playlist|song` },
   { name: 'sports', files: [/SportsPage/, /shared\/(sports|crests)/], tests: String.raw`sports|teams|big nights|Favourites` },
   { name: 'finances', files: [/FinancesPage/], tests: String.raw`finances|takings|expenses` },
   { name: 'tax', files: [/TaxPage/, /shared\/tax/], tests: String.raw`tax|upload` },

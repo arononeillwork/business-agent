@@ -32,6 +32,7 @@ import type { CafeTrack, MusicPlaylist, MusicProvider, MyNowPlaying, SpotifyPlay
 import { fonts, tokens } from '../theme'
 import { msg, t, tn, tc } from '../i18n'
 import { ThemeMusicShortcut } from '../components/ThemeDays'
+import { ConnectSpeakerButton } from '../components/SpeakerSetup'
 
 const BRAND: Record<MusicProvider, { name: string; colour: string; soft: string; blurb: string; logo: ReactNode }> = {
   spotify: {
@@ -105,7 +106,7 @@ function CafeMusicSection() {
   const { isAdmin } = useApp()
   const [app, setApp] = useCafeApp()
   if (!music || !music.library) return null
-  if (music.library.provider === 'spotify') return <MusicCard />
+  if (music.library.provider === 'spotify') return <><MusicCard /><SpotifySpeaker /></>
   if (!music.enabled) {
     return (
       <Alert severity="info" action={isAdmin && <Button component={RouterLink} to="/connections" size="small">{t('Connect')}</Button>}>
@@ -123,7 +124,7 @@ function CafeMusicSection() {
           {(['youtube', 'spotify'] as const).map(p => <Tab key={p} value={p} label={BRAND[p].name} icon={<Logo provider={p} />} iconPosition="start" sx={{ minHeight: 48, gap: 1 }} />)}
         </Tabs>
       )}
-      {both && app === 'spotify' ? <SpotifyCard /> : (
+      {both && app === 'spotify' ? <><SpotifyCard /><SpotifySpeaker /></> : (
         <>
           <ErrorBox error={music.error} />
           <NowPlaying />
@@ -135,6 +136,9 @@ function CafeMusicSection() {
     </>
   )
 }
+
+/** Under the café's Spotify: the steps for getting it out of a Bluetooth or Wi‑Fi speaker. */
+const SpotifySpeaker = () => <Box sx={{ mt: '12px !important' }}><ConnectSpeakerButton spotify /></Box>
 
 /**
  * Takes a song off the queue (its X). The one on now too: the next one plays in its place (the first,
@@ -218,6 +222,8 @@ function NowPlaying() {
             {!live && <Button variant="contained" startIcon={<SpeakerIcon />} onClick={() => run(() => music.claim())}>{t('Play on this device')}</Button>}
             {live && !music.here && <Button variant="outlined" startIcon={<SpeakerIcon />} onClick={() => run(() => music.claim())}>{t('Play here instead')}</Button>}
             {music.here && <Button onClick={() => run(() => music.release(), t('Stopped playing on this device'))}>{t('Stop playing on this device')}</Button>}
+            {/* Out of a Bluetooth (or AirPlay) speaker: the steps for the device that plays it. */}
+            <ConnectSpeakerButton playingOn={live && !music.here ? s?.device_name ?? t('another device') : undefined} />
           </Stack>
         </Box>
       </Stack>
