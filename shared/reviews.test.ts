@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { filterReviews, guessLanguage, isLow, originalWords, sortReviews, starsOf, suggestedReply, summarise, type Review } from './reviews'
+import { filterReviews, googleTranslation, guessLanguage, isLow, originalWords, sortReviews, starsOf, suggestedReply, summarise, toTranslate, translationOf, wordsIn, type Review } from './reviews'
 
 const review = (p: Partial<Review>): Review => ({ id: p.id ?? 'r', source: 'google', rating: 5, text: null, reviewer: 'Lucía Pérez',
   created_at: '2026-09-10T10:00:00Z', reply: null, replied_at: null, language: 'es', url: null, photos: [], ...p })
@@ -82,5 +82,41 @@ describe('reviews', () => {
     expect(suggestedReply({ rating: 2, reviewer: 'Tom Hughes', language: 'en' }, 'Easy Beans', 'hola@example.com')).toMatch(/very sorry.*hola@example\.com/)
     expect(suggestedReply({ rating: 1, reviewer: '', language: 'es' }, 'Easy Beans')).toMatch(/^Hola\. Sentimos mucho/)
     expect(suggestedReply({ rating: 3, reviewer: 'Ana', language: 'es' }, 'Easy Beans')).toMatch(/otra oportunidad/)
+  })
+})
+
+describe('reviews in the app’s language', () => {
+  it('keeps Google’s translation of a review, whichever way round Google sends it', () => {
+    expect(googleTranslation('Great coffee and lovely staff\n\n(Translated by Google)\nGran café y un personal encantador')).toBe('Gran café y un personal encantador')
+    expect(googleTranslation('(Translated by Google) Very good coffee\n\n(Original)\nMuy buen café')).toBe('Very good coffee')
+    expect(googleTranslation('(Traducido por Google) Muy buen café\n\n(Original)\nVery good coffee')).toBe('Muy buen café')
+    expect(googleTranslation('Just the review')).toBeNull()
+    expect(googleTranslation(null)).toBeNull()
+  })
+
+  it('keeps a translation by its language, only when it’s the other one', () => {
+    expect(translationOf('en', 'El café está muy bueno y el personal es muy amable')).toEqual({ es: 'El café está muy bueno y el personal es muy amable' })
+    expect(translationOf('en', 'The coffee was great')).toEqual({})
+    expect(translationOf('es', null)).toEqual({})
+  })
+
+  it('shows a review in the language asked for when there’s a translation, its own words otherwise', () => {
+    const r = { text: 'Riquísimo todo. Volveremos.', language: 'es' as const, translations: { en: 'Everything was delicious. We’ll be back.' } }
+    expect(wordsIn(r, 'en')).toEqual({ text: 'Everything was delicious. We’ll be back.', translated: true })
+    expect(wordsIn(r, 'es')).toEqual({ text: 'Riquísimo todo. Volveremos.', translated: false })
+    expect(wordsIn({ ...r, translations: {} }, 'en')).toEqual({ text: 'Riquísimo todo. Volveremos.', translated: false })
+    // Stars only: nothing to show in any language.
+    expect(wordsIn({ text: null, language: 'en', translations: { es: 'x' } }, 'es')).toEqual({ text: null, translated: false })
+  })
+
+  it('translates only the reviews with words in the other language and no translation yet', () => {
+    const list = [
+      { id: 'a', text: 'Muy buen café', language: 'es' as const, translations: {} },
+      { id: 'b', text: 'Great coffee', language: 'en' as const, translations: {} },
+      { id: 'c', text: 'Riquísimo', language: 'es' as const, translations: { en: 'Delicious' } },
+      { id: 'd', text: null, language: 'es' as const },
+    ]
+    expect(toTranslate(list, 'en').map(r => r.id)).toEqual(['a'])
+    expect(toTranslate(list, 'es').map(r => r.id)).toEqual(['b'])
   })
 })

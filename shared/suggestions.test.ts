@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  boardOf, findGroup, groupProblem, matchesSuggestion, nameFromIdea, suggestionProblem, tidySuggestion, type CustomerSuggestion, type SuggestionGroup,
+  USUAL_SOURCES, boardOf, findGroup, groupProblem, isUsualSource, matchesSuggestion, nameFromIdea, sourceToKeep, suggestionProblem, tidySuggestion,
+  type CustomerSuggestion, type SuggestionGroup,
 } from './suggestions'
 
 const group = (id: string, name: string): SuggestionGroup => ({ id, name, created_at: '2026-11-01T10:00:00Z' })
@@ -54,5 +55,22 @@ describe('customer suggestions', () => {
     expect(matchesSuggestion(i, 'counter')).toBe(true)
     expect(matchesSuggestion(i, 'oat', { name: 'Oat milk' })).toBe(true)
     expect(matchesSuggestion(i, 'dogs')).toBe(false)
+  })
+
+  it('offers where ideas are usually heard, word of mouth first, kept by their English names whatever language they were typed in', () => {
+    expect(USUAL_SOURCES).toEqual(['Word of mouth', 'In the café', 'Instagram', 'Google review', 'WhatsApp', 'Email'])
+    const spanish: Record<string, string> = { 'Word of mouth': 'Boca a boca', 'In the café': 'En la cafetería', 'At the counter': 'En la barra' }
+    const es = (s: string) => spanish[s] ?? s
+    expect(sourceToKeep('boca a boca', es)).toBe('Word of mouth')
+    expect(sourceToKeep(' En la  cafeteria ', es)).toBe('In the café')
+    expect(sourceToKeep('word of MOUTH')).toBe('Word of mouth')
+    // Offered before: still known.
+    expect(sourceToKeep('en la barra', es)).toBe('At the counter')
+    expect(sourceToKeep('  A flyer   at the gym ', es)).toBe('A flyer at the gym')
+    expect(sourceToKeep('  ', es)).toBe('')
+    expect(isUsualSource('Word of mouth')).toBe(true)
+    expect(isUsualSource('At the counter')).toBe(true)
+    expect(isUsualSource('A flyer at the gym')).toBe(false)
+    expect(isUsualSource(null)).toBe(false)
   })
 })

@@ -93,12 +93,13 @@ import { CSS } from '@dnd-kit/utilities'
 import ChevronIcon from '@mui/icons-material/ChevronLeftRounded'
 import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, Navigate, Outlet, useLocation } from 'react-router-dom'
-import { useApp } from './AppContext'
+import { SeenAs, useApp } from './AppContext'
 import { FEATURES } from './features'
 import { useUnreadMessages } from './unread'
 import { useConnected } from './connected'
 import type { PartnerArea } from '../../shared/types'
 import { hiddenByRole, roleNamesOf } from '../../shared/roles'
+import { shownRoleName } from './roleText'
 import { teamRoleLabel } from '../../shared/teamRoles'
 import { BrandLogo } from '../components/Logo'
 import { BusinessSwitchButton, Opening, businessMenuItems, useBusinesses, useSignOutLabel } from '../components/BusinessSwitcher'
@@ -112,9 +113,10 @@ import { SearchButton, ThemeToggle, roundButton } from './QuickActions'
 import { fonts, tokens } from '../theme'
 import { msg, t, tc, tr } from '../i18n'
 import { LanguageToggle } from '../components/Language'
-import { AgentBanner, AgentsButton, useAgentView } from './AgentsMenu'
+import { AgentBanner, AgentsButton, useAgentView, useRoleView } from './AgentsMenu'
 import { InstallApp, InstallMenuItem } from '../components/InstallApp'
 import { hiddenByAgent } from '../../shared/agents'
+import { hiddenByRoleView } from '../../shared/roleView'
 import { HelpDialog, useHelp } from '../components/HelpDialog'
 import { AppErrorBoundary } from './ErrorBoundary'
 import { useUsage } from './useUsage'
@@ -156,7 +158,7 @@ export const SECTIONS: NavSection[] = [
   ] },
   // What the figures say: each person's own dashboards, and the Business advisor's findings.
   { key: 'insights', label: msg('Insights'), items: [
-    { key: 'dashboards', to: '/dashboards', label: msg('Dashboards'), icon: <DashboardsIcon /> },
+    { key: 'dashboards', to: '/dashboards', label: msg('Dashboards'), icon: <DashboardsIcon />, partner: ['finances'] },
     { key: 'advisor', to: '/advisor', label: msg('Business advisor'), short: msg('Advisor'), icon: <AdvisorIcon />, who: 'admin' },
   ] },
   // Takings from the till (Square, SumUp or Stripe) and the people who buy; the running costs; then
@@ -672,6 +674,10 @@ export function AppShell() {
   // An owner viewing the app as an agent (the Agents button): just that agent's pages, and Settings.
   const agent = useAgentView()
   for (const k of hiddenByAgent(agent, SECTIONS)) hidden.add(k)
+  // An owner viewing the app as a role (the Agents button's Roles tab): the pages someone in it can open.
+  const roleView = useRoleView()
+  const roleHidden = hiddenByRoleView(roleView?.viewer ?? null, SECTIONS)
+  for (const k of roleHidden) hidden.add(k)
   const square = useConnected('square')
   const allowed = (n: NavItem) => (n.needs !== 'square' || square === true) && canOpen(n, { isAdmin, isPartner, canSeePay, partnerCan }) && !hidden.has(n.key)
   // Page order within sections: the person's own, kept locally while it saves.
@@ -698,11 +704,12 @@ export function AppShell() {
   // User analytics: the time spent on the page on screen (Settings → User analytics).
   useUsage(typeof current === 'string' ? current : null)
   // Under their name: their job (Barista / Bartender), after the access an admin has (Shop manager · Barista / Bartender).
-  const jobs = roleNamesOf(me?.id, jobRoles).join(', ')
+  const jobs = roleNamesOf(me?.id, jobRoles).map(shownRoleName).join(', ')
   const access = t((me && teamRoleLabel(me)) || 'Employee')
   const personLabel = me?.role === 'admin' ? [access, jobs].filter(Boolean).join(' · ') : jobs || access
   // A page their roles hide doesn't open either, from a link or the address bar: back to Today.
-  const blocked = typeof current === 'string' && hiddenByRole(permissions).includes(current)
+  const blocked = typeof current === 'string' && (hiddenByRole(permissions).includes(current) || roleHidden.includes(current)
+    || (!!roleView && YOU.some(n => n.key === current && !!n.who && (n.who === 'admin' ? !roleView.viewer.isAdmin : !roleView.viewer.canSeePay))))
   const home = isPartner ? '/business' : '/'
   const searchPages = [
     ...(isPartner ? [] : [{ key: 'today', to: '/', label: t('Today'), icon: <TodayIcon />, section: null }]),
@@ -815,7 +822,10 @@ export function AppShell() {
             <CafeSpeakerProvider>
               {/* A page that breaks shows its error screen here, with the menu still there to go to another page. */}
               <AppErrorBoundary inPage resetKey={pathname}>
-              <Suspense fallback={<Loading />}>{blocked ? <Navigate to="/" replace /> : <Outlet />}</Suspense>
+              {/* Viewing as a role: the page as someone in it sees it (their access, no pay unless it's an owner's). */}
+              <SeenAs viewer={roleView?.viewer ?? null}>
+                <Suspense fallback={<Loading />}>{blocked ? <Navigate to="/" replace /> : <Outlet />}</Suspense>
+              </SeenAs>
               </AppErrorBoundary>
             </CafeSpeakerProvider>
           </TitleSlot.Provider>

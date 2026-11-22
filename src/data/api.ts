@@ -977,6 +977,8 @@ export interface Api {
   socialAnalytics(source: SocialSource, from: string, to: string): Promise<SocialReport>
   // Reviews (admins): Google reviews, read now from the business's profile (or the public listing until that's approved).
   reviews(): Promise<ReviewsState>
+  /** The reviews in the other language translated into this one and kept; how many were, and how many are left. */
+  translateReviews(language: 'en' | 'es'): Promise<{ translated: number; left: number }>
   /** Reply to a review on Google (or change the reply). Only with the business's own profile. */
   replyReview(id: string, text: string): Promise<void>
   deleteReviewReply(id: string): Promise<void>

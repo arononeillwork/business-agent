@@ -40,7 +40,7 @@ import {
 } from '../../shared/reps'
 import { collabsBlocked, type Mention } from '../../shared/mentions'
 import { PostersBoard } from './PostersBoard'
-import { CashbackBlock } from './Cashback'
+import { CashbackBlock, CashbackSwitch } from './Cashback'
 import { CASHBACK_LABEL, cashbackRates, isCashback } from '../../shared/cashback'
 import { customerName } from '../../shared/customers'
 import { formatLocal, formatMoney, formatNumber, today } from '../../shared/time'
@@ -166,10 +166,23 @@ export function SalesRepsPage() {
         {myRep && <Button variant="outlined" startIcon={<LinkIcon />} onClick={() => setSharing(myRep)}>{t('My page')}</Button>}
         <Button variant="outlined" startIcon={<TillIcon />} onClick={() => setAtTill(true)}>{t('At the till')}</Button>
         <Button variant="contained" startIcon={<PersonAddIcon />} onClick={() => setEditing(newRep())}>{t('Add someone')}</Button>
-      </>} />
+      </>}>
+        {/* Cashback on or off for the whole business (admins). */}
+        {isAdmin && settings.data && <CashbackSwitch on={cashbackRates(set).cashback_on} />}
+      </PageToolbar>
       <ErrorBox error={reps.error ?? rules.error ?? rewards.error} />
 
-      {/* First, the people who post about the café, each with their posts and what they did. */}
+      {/* First, this month's top sellers. */}
+      <Card component="section" aria-label={t('Top sellers this month')} sx={{ mb: 3 }}>
+        <CardContent>
+          <SectionTitle>{t('Top sellers this month')}</SectionTitle>
+          {top.length === 0
+            ? <Empty>{t('No rewards yet this month.')}</Empty>
+            : <Podium standings={top} amounts={top.map(s => seesBalance(s.rep))} />}
+        </CardContent>
+      </Card>
+
+      {/* Then the people who post about the café, each with their posts and what they did. */}
       {isAdmin && <PostersBoard creators={posters.data} reps={allReps} ledger={ledger} rates={cashbackRates(set)}
         collabs={collabsBlocked(connection('instagram'), connection('facebook'))}
         onAdd={username => setEditing({ name: `@${username}`, kind: 'customer', instagram: username, active: true })}
@@ -277,15 +290,6 @@ export function SalesRepsPage() {
                     onCrew={() => { setCrew(crew === r.id ? null : r.id); setSearch('') }} />
                 ))}
               </Box>}
-        </CardContent>
-      </Card>
-
-      <Card component="section" aria-label={t('Top sellers this month')} sx={{ mb: 3 }}>
-        <CardContent>
-          <SectionTitle>{t('Top sellers this month')}</SectionTitle>
-          {top.length === 0
-            ? <Empty>{t('No rewards yet this month.')}</Empty>
-            : <Podium standings={top} amounts={top.map(s => seesBalance(s.rep))} />}
         </CardContent>
       </Card>
 

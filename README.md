@@ -158,6 +158,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
   ambassadors, waiting for an owner's OK unless the café says otherwise (the `post_cashback` migration, `pay_post_cashback()`;
   `shared/cashback.ts` says the same for the page). Nothing is sent to the people who post: the owners see it to approve, and
   Posts about us has a button that opens a chat with someone on Instagram, for whoever wants to write.
+- Cashback on or off for the whole business: a switch at the top of Sales reps & rewards (admins; the database keeps it
+  to them), under which Top sellers this month opens the page. Off, nothing new is offered or paid, and a post made while
+  it's off never earns cashback, even once it's back on (the `cashback_switch` migration keeps when it was off); what reps
+  have earned stays, to spend or be paid as before.
 - Business Agent's own reps ([docs/REPS_PLAN.md](docs/REPS_PLAN.md)): people who know business owners sell Business
   Agent for us, run as a business of its own in the app, **Business Agent HQ**, on its Sales reps & rewards page. Each rep has
   a code (Julio, for cafés: JULIO27) and leads kinds of business (café, restaurant & bar, pub, salon & beauty, real estate,
@@ -313,6 +317,9 @@ built-in **AI connector** so owners can run it by talking to Claude.
   not sorted yet starts a section with both; on a phone or from the keyboard, an idea's menu moves it. The
   whole team reads, adds and sorts them and names and removes sections (its ideas go back to not sorted yet);
   only admins delete an idea (`shared/suggestions.ts`, the `customer_suggestions` migration).
+- Adding a customer suggestion: Heard on is today, the business's day, worked out as the dialog opens (and by the AI
+  when it's given no day); Where it was heard offers Word of mouth, In the café, Instagram, Google review, WhatsApp and
+  Email, or anything typed.
 - Today: a top row of small cards (your clock, who's on today with faces and start times, the café music),
   then today's takings against the day's breakeven for admins with pay access and a till: the figure, a
   bar that fills to the breakeven mark and goes green past it, and the day so far as a line against the
@@ -663,6 +670,15 @@ built-in **AI connector** so owners can run it by talking to Claude.
   average sale, best and slow sellers, prices below the margin aimed for or below the area's, staffing
   against takings day by day, team cost against takings, late starts and forgotten clock-outs, waste,
   what's low and reviews waiting for a reply. Today opens with the same figures at a glance.
+- Dashboards → the **Accountant** template: what the gestoría or accountant asks for, over this or last
+  month or this or last quarter (its own period, kept on the dashboard; it opens on last month): takings
+  net of refunds and the VAT in them, how people paid, the profit and loss over exactly those days, staff
+  wages with the employer's Social Security, the VAT charged on the takings and sales invoices against the
+  VAT on the invoices received, the next tax returns, invoices to pay, expenses to pay back, the monthly
+  costs and what's still owed on Credit & debit (`shared/accountant.ts`). The money is only for those who
+  see it (`canHave` in `shared/dashboards.ts`): admins with pay access get all of it, a gestoría given the
+  finances area opens Dashboards for the finances (not the till's takings or anyone's pay), and the
+  templates offered are the ones with something the person can see.
 - Dashboards → Reports (admins): pick reports (takings and breakeven, best sellers, team hours, low on
   stock, waste, freshly made, jobs) and a period, pick who gets them (people on the team, the business's
   contacts for owners, any address), see the email, and send it from the connected Gmail or Outlook, one

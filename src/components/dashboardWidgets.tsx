@@ -27,6 +27,12 @@ import { addDays, currencySymbol, formatLocal, formatMoney, formatNumber, localD
 import { lowestFirst, topJobs } from '../../shared/todayGlance'
 import { tokens } from '../theme'
 import { msg, t, tn } from '../i18n'
+import { claimsOwed, invoicesDue, netTakings, periodPnl, pnlFigures, returnsDue, runningCosts, vatSummary } from '../../shared/accountant'
+import { countryProfile } from '../../shared/country'
+import { moneyLines, totals as moneyTotals } from '../../shared/creditDebit'
+import { isOverdue } from '../../shared/invoices'
+import { daysBetween, filingKey, type Filing } from '../../shared/tax'
+import { filingsIn, irishModelLabel } from '../../shared/taxIreland'
 
 const METHOD_NAMES: Record<PayMethod, string> = { card: msg('Card'), wallet: 'Apple Pay / Google Pay', cash: msg('Cash'), other: msg('Other') }
 const wholeMoney = (n: number) => `${currencySymbol()}${formatNumber(Math.round(n))}`
@@ -371,6 +377,271 @@ function TopAdvice() {
   )
 }
 
+// ---------------- The Accountant's (shared/accountant.ts works the figures out) ----------------
+
+const short = (d: string) => formatLocal(`${d}T12:00:00Z`, 'd MMM')
+const minus = (n: number) => (n ? `−${formatMoney(n)}` : formatMoney(0))
+
+/** Figures one under another, each name on the left and its amount on the right; a result in bold, over a line. */
+function Lines({ rows, label }: { rows: { name: string; value: string; strong?: boolean; tone?: string }[]; label: string }) {
+  return (
+    <Box component="dl" aria-label={label} sx={{ m: 0 }}>
+      {rows.map(x => (
+        <Stack key={x.name} direction="row" sx={{ justifyContent: 'space-between', gap: 2, py: 0.5, ...(x.strong ? { borderTop: `1px solid ${tokens.line}`, mt: 0.5, pt: 1 } : {}) }}>
+          <Typography component="dt" variant="body2" sx={{ fontWeight: x.strong ? 600 : 400, minWidth: 0 }}>{x.name}</Typography>
+          <Typography component="dd" variant="body2" sx={{ m: 0, fontWeight: x.strong ? 600 : 400, color: x.tone, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{x.value}</Typography>
+        </Stack>
+      ))}
+    </Box>
+  )
+}
+
+/** A line of small print under a widget, and the page it comes from. */
+function From({ to, action, children }: { to: string; action: string; children?: ReactNode }) {
+  return (
+    <Box sx={{ mt: 1 }}>
+      {children && <Typography variant="caption" component="p" sx={{ color: 'text.secondary', m: 0 }}>{children}</Typography>}
+      <Button size="small" component={RouterLink} to={to} sx={{ mt: 0.25, ml: -1 }}>{action}</Button>
+    </Box>
+  )
+}
+
+/** The VAT rate the takings are charged at (Profit & loss's setting; the country's usual one until it's read). */
+function useVatRate() {
+  const { api } = useApp()
+  const s = useAsync('pnl-settings', () => api.pnlSettings(), [])
+  return { rate: s.data?.vat_rate ?? countryProfile().defaultVat, ready: !!s.data || !!s.error }
+}
+
+/** The period's profit and loss, from the takings (with a till), Finances' costs, the timecards and the rota, and the one-off lines. */
+function usePeriodPnl(r: DashRange) {
+  const { api, settings } = useApp()
+  const { on } = useTakings()
+  const sales = useSales(r)
+  const team = useTeam(r)
+  const rates = usePayRates()
+  const vat = useVatRate()
+  const expenses = useAsync('expenses', () => api.expenses(), [])
+  const [fromMonth, toMonth] = [r.from.slice(0, 7), r.to.slice(0, 7)]
+  const lines = useAsync('pnl-lines', () => api.pnlLines(fromMonth, toMonth), [fromMonth, toMonth])
+  if (!team.data || !expenses.data || !lines.data || !vat.ready || (on && !sales.data)) {
+    return { pnl: null, error: team.error ?? expenses.error ?? lines.error ?? (on ? sales.error : null) }
+  }
+  const pnl = periodPnl({
+    vatRate: vat.rate, employerMultiplier: settings?.employer_cost_multiplier ?? 1, country: countryProfile().code,
+    takings: on ? sales.data!.days : [], expenses: expenses.data, entries: team.data.entries, shifts: team.data.shifts, rates, lines: lines.data,
+  }, r.from, r.to, today())
+  return { pnl, error: null }
+}
+
+function NetTakingsFigure({ r }: { r: DashRange }) {
+  const { on, ready } = useTakings()
+  const sales = useSales(r)
+  const vat = useVatRate()
+  if (!ready) return <Note>{t('Loading…')}</Note>
+  if (!on) return <NeedsTill />
+  if (sales.error) return <Note>{sales.error}</Note>
+  if (!sales.data || !vat.ready) return <Note>{t('Loading…')}</Note>
+  const now = netTakings(sales.data.days, r.from, r.to, vat.rate), before = netTakings(sales.data.days, r.prevFrom, r.prevTo, vat.rate)
+  return <Figure value={formatMoney(now.net)} now={now.net} before={before.net}
+    note={[t('{money} without VAT', { money: formatMoney(now.withoutVat) }), now.refunds ? t('{money} refunded', { money: formatMoney(now.refunds) }) : ''].filter(Boolean).join(' · ')} />
+}
+
+function Vat({ r }: { r: DashRange }) {
+  const { api } = useApp()
+  const { on, ready } = useTakings()
+  const sales = useSales(r)
+  const vat = useVatRate()
+  const invoices = useAsync('invoices', () => api.invoices(), [])
+  if (!ready) return <Note>{t('Loading…')}</Note>
+  if (!on) return <NeedsTill />
+  if (!sales.data || !vat.ready || !invoices.data) return <Note>{sales.error ?? invoices.error ?? t('Loading…')}</Note>
+  const v = vatSummary({ takings: netTakings(sales.data.days, r.from, r.to, vat.rate).net, rate: vat.rate, invoices: invoices.data, from: r.from, to: r.to })
+  return (
+    <Box>
+      <Lines label={t('VAT')} rows={[
+        { name: t('Charged on the takings ({rate}%)', { rate: formatNumber(vat.rate) }), value: formatMoney(v.onTakings) },
+        { name: t('Charged on sales invoices'), value: formatMoney(v.onSales) },
+        { name: t('Paid on invoices received'), value: minus(v.onPurchases) },
+        v.balance >= 0 ? { name: t('To pay'), value: formatMoney(v.balance), strong: true }
+          : { name: t('To claim back'), value: formatMoney(-v.balance), strong: true, tone: tokens.goodFg },
+      ]} />
+      <From to="/invoices" action={t('Open Invoices')}>
+        {[t('An estimate for the VAT return, by the day each invoice was issued.'),
+          v.missing ? tn(v.missing, '{n} invoice has no VAT on it yet, so isn’t counted.', '{n} invoices have no VAT on them yet, so aren’t counted.') : ''].filter(Boolean).join(' ')}
+      </From>
+    </Box>
+  )
+}
+
+function ProfitLoss({ r }: { r: DashRange }) {
+  const { on, ready } = useTakings()
+  const { pnl, error } = usePeriodPnl(r)
+  if (!ready) return <Note>{t('Loading…')}</Note>
+  if (!on) return <NeedsTill />
+  if (!pnl) return <Note>{error ?? t('Loading…')}</Note>
+  const f = pnlFigures(pnl)
+  return (
+    <Box>
+      <Lines label={t('Profit & loss')} rows={[
+        { name: t('Takings, without VAT'), value: formatMoney(f.takings) },
+        ...(f.otherIncome ? [{ name: t('Other income'), value: formatMoney(f.otherIncome) }] : []),
+        { name: t('Cost of sales'), value: minus(f.costOfSales) },
+        { name: t('Team'), value: minus(f.team) },
+        { name: t('Running costs'), value: minus(f.running) },
+        { name: t('Operating profit'), value: formatMoney(f.operatingProfit), strong: true, tone: f.operatingProfit < 0 ? tokens.badFg : tokens.goodFg },
+      ]} />
+      <From to="/profit-and-loss" action={t('Open Profit & loss')}>
+        {f.margin !== null ? t('{pct}% of the income. An estimate from the app’s own figures, not the filed accounts.', { pct: formatNumber(f.margin) })
+          : t('An estimate from the app’s own figures, not the filed accounts.')}
+      </From>
+    </Box>
+  )
+}
+
+function Wages({ r }: { r: DashRange }) {
+  const { pnl, error } = usePeriodPnl(r)
+  if (!pnl) return <Note>{error ?? t('Loading…')}</Note>
+  const f = pnlFigures(pnl)
+  const ie = countryProfile().code === 'IE'
+  if (!f.team) return <Note>{t('No timecards in this period yet.')}</Note>
+  return <Figure value={formatMoney(f.team)} note={[
+    f.pay ? t('{money} pay', { money: formatMoney(f.pay) }) : '',
+    f.social ? (ie ? t('{money} PRSI', { money: formatMoney(f.social) }) : t('{money} Social Security', { money: formatMoney(f.social) })) : '',
+    // Days with no timecards or rota yet: Finances' wages, as Profit & loss counts them.
+    f.estimate ? t('{money} estimated from Finances', { money: formatMoney(f.estimate) }) : '',
+  ].filter(Boolean).join(' · ')} />
+}
+
+/** A return's period, as Tax shows it: Q3, Year, Instalment 2; Ireland's Mar–Apr and April. */
+function filingPeriod(p: Filing['period']) {
+  const month = (m: number, f: string) => formatLocal(`2026-${String(m).padStart(2, '0')}-15T12:00:00Z`, f)
+  return p === '0A' ? t('Year') : p.endsWith('T') ? t('Q{n}', { n: p[0] }) : p.endsWith('B') ? `${month(Number(p[0]) * 2 - 1, 'MMM')}–${month(Number(p[0]) * 2, 'MMM')}`
+    : p.endsWith('M') ? month(Number(p.slice(0, -1)), 'MMMM') : t('Instalment {n}', { n: p[0] })
+}
+
+function TaxDue() {
+  const { api, business } = useApp()
+  const day = today(), year = Number(day.slice(0, 4))
+  const settings = useAsync('tax-settings', () => api.taxSettings(), [])
+  const records = useAsync('tax-filings', () => api.taxFilings(year), [year])
+  const before = useAsync('tax-filings', () => api.taxFilings(year - 1), [year - 1])
+  if (!settings.data || !records.data || !before.data) return <Note>{settings.error ?? records.error ?? before.error ?? t('Loading…')}</Note>
+  const country = business?.country === 'IE' ? 'IE' : 'ES'
+  const all = [...before.data, ...records.data]
+  const { next, overdue } = returnsDue([...filingsIn(country, year - 1, settings.data), ...filingsIn(country, year, settings.data)], all, day)
+  const withAdviser = new Set(all.filter(x => x.status === 'with_gestor').map(filingKey))
+  const adviser = country === 'IE' ? t('With your {adviser}', { adviser: t(countryProfile('IE').adviser) }) : t('With the gestoría')
+  return (
+    <Box>
+      {overdue.length > 0 && (
+        <Typography variant="body2" sx={{ color: tokens.badFg, fontWeight: 600, mb: 1 }}>
+          {tn(overdue.length, '{n} return is past its last day and not marked filed', '{n} returns are past their last day and not marked filed')}
+        </Typography>
+      )}
+      {next.length ? (
+        <Stack component="ul" aria-label={t('Next tax returns')} spacing={1} sx={{ listStyle: 'none', m: 0, p: 0 }}>
+          {[...next].sort((a, b) => a.due.localeCompare(b.due)).slice(0, 4).map(f => (
+            <Stack component="li" key={filingKey(f)} direction="row" sx={{ justifyContent: 'space-between', gap: 1.5, alignItems: 'flex-start' }}>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>{`${f.model === 'CCAA' ? t('Accounts') : irishModelLabel(f.model)} · ${filingPeriod(f.period)}`}</Typography>
+                <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t(f.name)}</Typography>
+              </Box>
+              <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
+                <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>{short(f.due)}</Typography>
+                <Typography variant="caption" sx={{ color: daysBetween(day, f.due) <= 7 ? tokens.warnFg : 'text.secondary' }}>
+                  {withAdviser.has(filingKey(f)) ? adviser : tn(daysBetween(day, f.due), 'in {n} day', 'in {n} days')}
+                </Typography>
+              </Box>
+            </Stack>
+          ))}
+        </Stack>
+      ) : <Note>{t('Nothing due')}</Note>}
+      <From to="/tax" action={t('Open Tax')} />
+    </Box>
+  )
+}
+
+function InvoicesToPay() {
+  const { api } = useApp()
+  const invoices = useAsync('invoices', () => api.invoices(), [])
+  const suppliers = useAsync('suppliers', () => api.suppliers(), [])
+  if (!invoices.data) return <Note>{invoices.error ?? t('Loading…')}</Note>
+  const day = today()
+  const d = invoicesDue(invoices.data, day)
+  const nameOf = (i: (typeof d.next)[number]) => suppliers.data?.find(s => s.id === i.supplier_id)?.name ?? i.party_name ?? i.party_email ?? t('Unknown')
+  return (
+    <Box>
+      <Figure value={formatMoney(d.toPay.total)} note={[tn(d.toPay.count, '{n} invoice not paid yet', '{n} invoices not paid yet'),
+        d.overdue.count ? t('{money} overdue', { money: formatMoney(d.overdue.total) }) : ''].filter(Boolean).join(' · ')} />
+      {d.next.length > 0 && (
+        <Stack component="ul" aria-label={t('Invoices to pay')} spacing={0.75} sx={{ listStyle: 'none', m: 0, mt: 1.25, p: 0 }}>
+          {d.next.slice(0, 4).map(i => (
+            <Stack component="li" key={i.id} direction="row" sx={{ justifyContent: 'space-between', gap: 1 }}>
+              <Typography variant="body2" noWrap sx={{ minWidth: 0 }}>{nameOf(i)}</Typography>
+              <Stack direction="row" spacing={1.5} sx={{ flexShrink: 0 }}>
+                <Typography variant="body2" sx={{ color: isOverdue(i, day) ? tokens.badFg : 'text.secondary' }}>
+                  {isOverdue(i, day) ? t('Overdue since {date}', { date: short(i.due_on!) }) : i.status === 'to_check' ? t('To check') : i.due_on ? t('Due {date}', { date: short(i.due_on) }) : t('To pay')}
+                </Typography>
+                <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>{formatMoney(Number(i.total ?? 0))}</Typography>
+              </Stack>
+            </Stack>
+          ))}
+        </Stack>
+      )}
+      <From to="/invoices" action={t('Open Invoices')}>
+        {d.owed.count ? tn(d.owed.count, 'Customers owe {money} on {n} invoice sent.', 'Customers owe {money} on {n} invoices sent.', { money: formatMoney(d.owed.total) }) : undefined}
+      </From>
+    </Box>
+  )
+}
+
+function ClaimsToPayBack({ r }: { r: DashRange }) {
+  const { api, profiles } = useApp()
+  const list = useAsync('expense-claims', () => api.expenseClaims(), [])
+  if (!list.data) return <Note>{list.error ?? t('Loading…')}</Note>
+  const c = claimsOwed(list.data, r.from, r.to)
+  return (
+    <Box>
+      <Figure value={formatMoney(c.toPayBack)} note={[t('approved, to pay back'),
+        c.toApprove.count ? tn(c.toApprove.count, '{n} to approve ({money})', '{n} to approve ({money})', { money: formatMoney(c.toApprove.total) }) : '',
+        c.paidBack ? t('{money} paid back in this period', { money: formatMoney(c.paidBack) }) : ''].filter(Boolean).join(' · ')} />
+      {c.people.length > 0 && (
+        <Stack component="ul" aria-label={t('Who’s owed')} spacing={0.75} sx={{ listStyle: 'none', m: 0, mt: 1.25, p: 0 }}>
+          {c.people.slice(0, 5).map(p => (
+            <Stack component="li" key={p.profile_id} direction="row" sx={{ justifyContent: 'space-between', gap: 1 }}>
+              <Typography variant="body2" noWrap>{profiles.find(x => x.id === p.profile_id)?.full_name ?? t('Someone on the team')}</Typography>
+              <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>{formatMoney(p.amount)}</Typography>
+            </Stack>
+          ))}
+        </Stack>
+      )}
+      <From to="/expenses" action={t('Open Expenses')} />
+    </Box>
+  )
+}
+
+function MonthlyCosts() {
+  const { api } = useApp()
+  const expenses = useAsync('expenses', () => api.expenses(), [])
+  if (!expenses.data) return <Note>{expenses.error ?? t('Loading…')}</Note>
+  const c = runningCosts(expenses.data)
+  if (!c.count) return <Note to="/finances" action={t('Open Finances')}>{t('Add the monthly running costs on Finances.')}</Note>
+  return <Figure value={formatMoney(c.monthly)} note={[tn(c.count, '{n} cost on Finances', '{n} costs on Finances'), t('{money} a year', { money: formatMoney(c.monthly * 12) })].join(' · ')} />
+}
+
+function CreditDebitFigure() {
+  const { api } = useApp()
+  const items = useAsync('credit-debit', () => api.creditDebit(), [])
+  const grants = useAsync('grant-applications', () => api.grantApplications(), [])
+  if (!items.data || !grants.data) return <Note>{items.error ?? grants.error ?? t('Loading…')}</Note>
+  const lines = moneyLines(items.data, grants.data)
+  if (!lines.length) return <Note to="/credit-debit" action={t('Open Credit & debit')}>{t('Nothing owed, by the business or to it.')}</Note>
+  const sums = moneyTotals(lines)
+  return <Figure value={formatMoney(sums.toPay)} note={[t('still to pay'), sums.monthly ? t('{money} a month', { money: formatMoney(sums.monthly) }) : '',
+    sums.comingIn ? t('{money} to come in', { money: formatMoney(sums.comingIn) }) : ''].filter(Boolean).join(' · ')} />
+}
+
 /** The widget's body, for the period picked. */
 export function WidgetBody({ kind, range }: { kind: WidgetKind; range: DashRange }) {
   switch (kind) {
@@ -395,6 +666,15 @@ export function WidgetBody({ kind, range }: { kind: WidgetKind; range: DashRange
     case 'area_prices': return <AreaPrices />
     case 'todo': return <Jobs />
     case 'advice': return <TopAdvice />
+    case 'net_takings': return <NetTakingsFigure r={range} />
+    case 'vat': return <Vat r={range} />
+    case 'pnl': return <ProfitLoss r={range} />
+    case 'wages': return <Wages r={range} />
+    case 'tax_due': return <TaxDue />
+    case 'invoices': return <InvoicesToPay />
+    case 'claims': return <ClaimsToPayBack r={range} />
+    case 'running_costs': return <MonthlyCosts />
+    case 'credit_debit': return <CreditDebitFigure />
   }
 }
 

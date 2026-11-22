@@ -27,16 +27,16 @@ export function demoSuggestionsApi(w: Who): SuggestionsApi {
     id: `cs-${++n}`, text, customer: null, source: null, heard_on: ago(days), group_id: null, created_at: `${ago(days)}T09:${String(10 + n).padStart(2, '0')}:00Z`, ...x,
   })
   const ideas: CustomerSuggestion[] = [
-    idea('Oat milk shouldn’t cost extra', 20, { customer: 'Lucía, a regular', source: 'At the counter', group_id: 'sg-oat' }),
+    idea('Oat milk shouldn’t cost extra', 20, { customer: 'Lucía, a regular', source: 'In the café', group_id: 'sg-oat' }),
     idea('Plant milks free like in Málaga cafés', 14, { source: 'Google review', group_id: 'sg-oat' }),
-    idea('Why is oat milk 50 cents more?', 9, { customer: 'Tom', source: 'At the counter', group_id: 'sg-oat' }),
+    idea('Why is oat milk 50 cents more?', 9, { customer: 'Tom', source: 'In the café', group_id: 'sg-oat' }),
     idea('Free oat milk would make me come every day', 2, { source: 'Instagram', group_id: 'sg-oat' }),
-    idea('Open at 7:30 so I can grab a coffee before work', 12, { customer: 'Javier', source: 'At the counter', group_id: 'sg-early' }),
+    idea('Open at 7:30 so I can grab a coffee before work', 12, { customer: 'Javier', source: 'In the café', group_id: 'sg-early' }),
     idea('Opening at 8 is too late for the school run', 5, { source: 'Google review', group_id: 'sg-early' }),
-    idea('A parasol over the corner tables', 6, { customer: 'Ingrid', source: 'At the counter', group_id: 'sg-shade' }),
+    idea('A parasol over the corner tables', 6, { customer: 'Ingrid', source: 'In the café', group_id: 'sg-shade' }),
     idea('Sunday brunch with eggs', 3, { customer: 'Marta', source: 'WhatsApp' }),
-    idea('Water bowl for dogs by the door', 1, { source: 'At the counter' }),
-    idea('Start opening earlier, like 7am', 0, { customer: 'Pedro', source: 'At the counter' }),
+    idea('Water bowl for dogs by the door', 1, { source: 'Word of mouth' }),
+    idea('Start opening earlier, like 7am', 0, { customer: 'Pedro', source: 'In the café' }),
   ]
 
   const needStaff = (table: string) => { if (!w.isStaff()) throw new Error(RLS(table)) }

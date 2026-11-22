@@ -1,11 +1,12 @@
 // Sales reps & rewards → Cashback for posts: what a rep's post about the café earns from what it did
 // (views, new followers in its days, likes), the café's rates, and (admins) changing them, with an
-// example worked out as they type. The database pays it nightly (shared/cashback.ts).
+// example worked out as they type, and switching it on or off for the whole business from the top of the
+// page. The database pays it nightly (shared/cashback.ts).
 import {
   Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, InputAdornment, Stack, Switch, TextField, Typography,
 } from '@mui/material'
 import EditIcon from '@mui/icons-material/EditRounded'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useApp } from '../app/AppContext'
 import { useAction } from '../app/Notify'
 import { Tag } from '../components/common'
@@ -23,6 +24,35 @@ export function cashbackWords(r: CashbackRates) {
     views: formatMoney(r.cashback_per_1000_views), followers: formatMoney(r.cashback_per_follower), likes: formatMoney(r.cashback_per_100_likes),
     max: formatMoney(r.cashback_max),
   })
+}
+
+/**
+ * Cashback on or off for the whole business, at the top of the page (admins; the database keeps it to them).
+ * Off: nothing new is offered or paid, and a post made while it's off never earns it; what reps have earned
+ * stays, to spend or be paid as before.
+ */
+export function CashbackSwitch({ on }: { on: boolean }) {
+  const { api } = useApp()
+  const run = useAction()
+  const [busy, setBusy] = useState(false)
+  const about = useId()
+  const flip = async (next: boolean) => {
+    setBusy(true)
+    await run(() => api.updateRepSettings({ cashback_on: next }),
+      next ? t('Cashback is on') : t('Cashback is off: no new cashback until you switch it back on'), { fresh: true })
+    setBusy(false)
+  }
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 1, width: 'fit-content', maxWidth: '100%', pl: 0.5, pr: 1.75, py: 0.25,
+      borderRadius: '14px', border: 1, borderColor: on ? tokens.rose : 'divider', bgcolor: on ? tokens.roseWash : 'background.paper' }}>
+      <FormControlLabel sx={{ m: 0 }} label={<Typography variant="body2" sx={{ fontWeight: 600 }}>{t('Cashback')}</Typography>}
+        control={<Switch checked={on} disabled={busy} onChange={e => void flip(e.target.checked)} slotProps={{ input: { 'aria-describedby': about } }} />} />
+      {/* Under the switch when it doesn't fit beside it (a phone). */}
+      <Typography id={about} variant="body2" sx={{ color: 'text.secondary', pl: { xs: 1.5, sm: 0 }, pb: { xs: 0.75, sm: 0 } }}>
+        {on ? t('Posts about the café earn cashback') : t('Off: no new cashback, and what reps have earned can still be spent')}
+      </Typography>
+    </Box>
+  )
 }
 
 /** The café's cashback, as a block under what earns a reward; admins change it. */
@@ -47,7 +77,7 @@ export function CashbackBlock({ rates, isAdmin }: { rates: CashbackRates; isAdmi
                 : t('Worked out three days after the post, when its new followers are in, and it counts straight away.')}{' '}
               {t('Customers get it as credit to spend here; the team and ambassadors as commission.')}
             </>
-          : t('Switched off: posts about the café earn nothing by themselves.')}
+          : t('Switched off: no new cashback. A post made while it’s off never earns it; what reps have earned stays, to spend or be paid as before.')}
       </Typography>
       {rates.cashback_on && (
         <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 0.75 }}>

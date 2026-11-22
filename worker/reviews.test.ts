@@ -111,6 +111,46 @@ describe('Reviews', () => {
     expect(s.reviews[0]).toMatchObject({ id, text: 'El mejor café de San Pedro, el personal muy amable', language: 'es' })
   })
 
+  it('keeps Google’s own translation of a review, and the page translates the rest into its language once, with the Worker’s Anthropic key', async () => {
+    await connectMaps()
+    apis.google.reviews = [
+      profileReview('en', 'FIVE', 'Lovely coffee and really friendly staff\n\n(Translated by Google)\nCafé precioso y un personal muy amable', 'Ana López', 2),
+      profileReview('es', 'FOUR', 'El café muy bueno pero la terraza está siempre llena', 'Javier', 3),
+    ]
+    const read = async (e = env) => (await (await call(reviews, '/api/reviews', { headers: admin }, e)).json()) as { can_translate: boolean; reviews: Record<string, unknown>[] }
+    const s = await read()
+    expect(s.can_translate).toBe(false)
+    expect(s.reviews.find(r => r.id === 'accounts/1/locations/1/reviews/en')).toMatchObject({ translations: { es: 'Café precioso y un personal muy amable' } })
+    expect(s.reviews.find(r => r.id === 'accounts/1/locations/1/reviews/es')).toMatchObject({ translations: {} })
+    // Without the key there's nothing to translate with: the reviews show as written.
+    expect(await (await call(reviews, '/api/reviews/translate', { method: 'POST', headers: admin, body: JSON.stringify({ language: 'en' }) })).json())
+      .toEqual({ translated: 0, left: 0 })
+    expect((await call(reviews, '/api/reviews/translate', { method: 'POST', headers: admin, body: JSON.stringify({ language: 'fr' }) })).status).toBe(400)
+    expect((await call(reviews, '/api/reviews/translate', { method: 'POST', headers: staff, body: '{}' })).status).toBe(403)
+
+    // A translation made and kept stays when Google's reviews are read again.
+    db.tables.reviews.find(r => r.id === 'accounts/1/locations/1/reviews/es')!.translations = { en: 'The coffee is very good but the terrace is always full' }
+    await checkReviews(env, businessDb(env, 1))
+    const again = await read({ ...env, ANTHROPIC_API_KEY: 'test-key' } as Env)
+    expect(again.can_translate).toBe(true)
+    expect(again.reviews.find(r => r.id === 'accounts/1/locations/1/reviews/es')).toMatchObject({ translations: { en: 'The coffee is very good but the terrace is always full' } })
+  })
+
+  it('a review a day old with stars and no words from the profile gets its words from the public listing; an older one isn’t looked up', async () => {
+    await connectMaps()
+    const { comment: _, ...noWords } = profileReview('today', 'FIVE', '', 'Alicia Puertas', 0)
+    const { comment: __, ...oldNoWords } = profileReview('old', 'FIVE', '', 'Old Timer', 20)
+    apis.google.reviews = [noWords, oldNoWords]
+    apis.places.reviews = [{ name: 'places/ChIJeasybeans/reviews/p9', rating: 5, publishTime: new Date(Date.parse(noWords.createTime) + 60_000).toISOString(),
+      originalText: { text: 'El café delicioso y la atención muy buena, claro que volveré', languageCode: 'es' },
+      text: { text: 'Delicious coffee and very good service, I’ll definitely be back', languageCode: 'en' }, authorAttribution: { displayName: 'Alicia Puertas' } }]
+    const s = await (await call(reviews, '/api/reviews', { headers: admin }, withPlaces)).json() as { reviews: Record<string, unknown>[] }
+    expect(s.reviews.find(r => r.id === 'accounts/1/locations/1/reviews/today')).toMatchObject({
+      text: 'El café delicioso y la atención muy buena, claro que volveré', language: 'es',
+      translations: { en: 'Delicious coffee and very good service, I’ll definitely be back' } })
+    expect(s.reviews.find(r => r.id === 'accounts/1/locations/1/reviews/old')).toMatchObject({ text: null })
+  })
+
   it('the photos a reviewer added come with their review: same name, within a day; others’ photos and other days’ don’t', async () => {
     await connectMaps()
     const photo = (n: string, who: string, at: string, format = 'PHOTO') => ({ name: `accounts/1/locations/1/media/customers/${n}`, mediaFormat: format,

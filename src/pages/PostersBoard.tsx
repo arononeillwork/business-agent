@@ -21,7 +21,7 @@ import type { Creator } from '../../shared/creators'
 import type { PostImpact } from '../../shared/postImpact'
 import type { AccountFigures } from '../../shared/mentions'
 import { balanceOf, earnsCredit, formatReach, type RepReward, type SalesRep } from '../../shared/reps'
-import { CASHBACK_MIN, cashbackDue, cashbackFor, isCashback, type CashbackRates } from '../../shared/cashback'
+import { CASHBACK_MIN, cashbackDue, cashbackFor, isCashback, postedWhileOff, type CashbackRates } from '../../shared/cashback'
 import { fonts, tokens } from '../theme'
 import { CollabsNotice } from './PostImpact'
 import type { collabsBlocked } from '../../shared/mentions'
@@ -63,6 +63,8 @@ function cashbackText(p: PostImpact, line: RepReward | undefined, rates: Cashbac
       : line.status === 'approved' ? t('{amount} cashback', { amount: formatMoney(line.amount) }) : null
   }
   if (!rates.cashback_on || !rep?.active) return null
+  // Made while cashback was switched off: it never earns it.
+  if (postedWhileOff(p.at, rates.cashback_paused)) return null
   const { amount } = cashbackFor(p, rates)
   if (amount < CASHBACK_MIN) return null
   if (!rep.approved) return t('{amount} cashback once they’re a rep', { amount: formatMoney(amount) })

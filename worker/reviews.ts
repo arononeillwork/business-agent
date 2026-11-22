@@ -4,6 +4,7 @@
 // once: the Worker looks every hour (every 3 hours on Places, which Google charges for past 1,000
 // look-ups a month: shared/refresh.ts) and admins get a notification, a low rating flagged. Opening
 // the page shows what's kept; it only asks Google when that's due.
+import Anthropic from '@anthropic-ai/sdk'
 import { Hono } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { bearer, requestDb, secretPlaceId, type Env } from './supabase'
@@ -11,7 +12,11 @@ import { explain, googleSession, lasting, markBroken, myBusinessApiOff } from '.
 import { cached } from './cache'
 import * as google from './providers/google'
 import { placeReviews } from './providers/places'
-import { CONNECT_MAPS, guessLanguage, isLow, originalWords, starsOf, MAX_REPLY, type Review, type ReviewFeed, type ReviewPhoto, type ReviewsState } from '../shared/reviews'
+import {
+  CONNECT_MAPS, googleTranslation, guessLanguage, isLow, originalWords, starsOf, toTranslate, translationOf, MAX_REPLY,
+  type Review, type ReviewFeed, type ReviewLanguage, type ReviewPhoto, type ReviewsState,
+} from '../shared/reviews'
+import { translateReviews } from './reviewTranslations'
 import { MINUTES } from '../shared/refresh'
 import { signInCheck } from './signedIn'
 
@@ -82,10 +87,14 @@ async function readFeed(env: Env, db: SupabaseClient): Promise<Feed> {
         if (!rating || !r.createTime) return []
         const text = originalWords(r.comment)
         const reviewer = r.reviewer?.isAnonymous ? '' : r.reviewer?.displayName ?? ''
+        const language = guessLanguage(text)
         return [{ id: r.name, source: 'google', rating, text, reviewer,
           created_at: r.createTime, reply: r.reviewReply?.comment ?? null, replied_at: r.reviewReply?.updateTime ?? null,
-          language: guessLanguage(text), url: null, photos: media ? photosFor(reviewer, r.createTime, r.updateTime, media) : [] }]
+          language, url: null, photos: media ? photosFor(reviewer, r.createTime, r.updateTime, media) : [],
+          // Google's own translation, when it sent one with the reviewer's words.
+          translations: translationOf(language, googleTranslation(r.comment)) }]
       })
+      await wordsFromPlaces(env, db, list)
       return { feed: 'business_profile', list, google_rating: null, google_count: null, problem: null, photos: !!media }
     } catch (e) {
       problem = explain('google_business', e)
@@ -99,8 +108,9 @@ async function readFeed(env: Env, db: SupabaseClient): Promise<Feed> {
       const list = p.reviews.flatMap((r): Review[] => {
         const rating = starsOf(r.rating)
         if (!rating || !r.publishTime) return []
+        const language: ReviewLanguage = r.language?.startsWith('es') ? 'es' : r.language?.startsWith('en') ? 'en' : guessLanguage(r.text)
         return [{ id: r.name, source: 'google', rating, text: r.text, reviewer: r.author, created_at: r.publishTime, reply: null, replied_at: null,
-          language: r.language?.startsWith('es') ? 'es' : r.language?.startsWith('en') ? 'en' : guessLanguage(r.text), url: r.url, photos: [] }]
+          language, url: r.url, photos: [], translations: translationOf(language, r.translated) }]
       })
       return { feed: 'places', list, google_rating: p.rating, google_count: p.count, problem }
     } catch (e) {
@@ -109,6 +119,28 @@ async function readFeed(env: Env, db: SupabaseClient): Promise<Feed> {
   }
   return { feed: null, list: [], google_rating: null, google_count: null,
     problem: problem ?? CONNECT_MAPS }
+}
+
+/**
+ * A review only a day or two old can come from the business's profile with its stars and no words yet,
+ * while Google's public listing already shows them. With a Places key, those words are filled in from
+ * the listing: the same reviewer, written within a day of it. Older reviews without words are left as
+ * they are (no look-up every hour for a review that really has none).
+ */
+async function wordsFromPlaces(env: Env, db: SupabaseClient, list: Review[]) {
+  const recent = list.filter(r => !r.text && r.reviewer && Date.now() - Date.parse(r.created_at) < 2 * DAY)
+  if (!recent.length || !placesOn(env, db)) return
+  try {
+    const p = await placeReviews(env.GOOGLE_PLACES_API_KEY!, secretPlaceId(env, db)!)
+    for (const r of recent) {
+      const same = p.reviews.find(x => x.text && x.publishTime && x.author.trim().toLowerCase() === r.reviewer.trim().toLowerCase()
+        && Math.abs(Date.parse(x.publishTime) - Date.parse(r.created_at)) < DAY)
+      if (!same?.text) continue
+      r.text = same.text
+      r.language = same.language?.startsWith('es') ? 'es' : same.language?.startsWith('en') ? 'en' : guessLanguage(same.text)
+      r.translations = translationOf(r.language, same.translated)
+    }
+  } catch { /* the listing is extra: the profile's reviews still come through */ }
 }
 
 const stars = (n: number) => `${n}★`
@@ -120,13 +152,16 @@ const stars = (n: number) => `${n}★`
 export async function checkReviews(env: Env, db: SupabaseClient): Promise<{ feed: Feed; added: number }> {
   const feed = await readFeed(env, db)
   if (!feed.list.length) return { feed, added: 0 }
-  const { data: known } = await db.from('reviews').select('id').in('id', feed.list.map(r => r.id))
+  const { data: known } = await db.from('reviews').select('id, translations').in('id', feed.list.map(r => r.id))
   const seen = new Set((known ?? []).map(r => r.id as string))
+  const kept = new Map((known ?? []).map(r => [r.id as string, (r.translations ?? {}) as Review['translations']]))
   const fresh = feed.list.filter(r => !seen.has(r.id))
   // Places has no replies: keep the ones made here; the profile's own are the truth. Photos likewise,
   // only when they could be read (Google's addresses for them change, so they're written each time).
-  const rows = feed.list.map(({ reply, replied_at, photos, ...r }) => ({
+  // Translations: the ones kept (made here), with Google's own on top.
+  const rows = feed.list.map(({ reply, replied_at, photos, translations, ...r }) => ({
     ...r, ...(feed.feed === 'business_profile' ? { reply, replied_at } : {}), ...(feed.photos ? { photos } : {}),
+    translations: { ...kept.get(r.id), ...translations },
   }))
   const { error } = await db.from('reviews').upsert(rows, { onConflict: 'business_id,id' })
   if (error) throw new Error(error.message)
@@ -167,11 +202,22 @@ export async function refreshReviews(env: Env, db: SupabaseClient, early = 0) {
   })
 }
 
-async function state(db: SupabaseClient, feed: FeedInfo): Promise<ReviewsState> {
-  const { data } = await db.from('reviews').select('id, source, rating, text, reviewer, created_at, reply, replied_at, language, url, photos')
-    .order('created_at', { ascending: false }).limit(1000)
+/** The business's listing on Google Maps, when the Google Maps connection knows it. */
+async function listingUrl(db: SupabaseClient) {
+  const { data } = await db.from('integrations').select('external').eq('provider', 'google_business').maybeSingle()
+  const ext = (data?.external ?? {}) as { location?: string; locations?: { name?: string; maps_url?: string }[] }
+  return ext.locations?.find(l => l.name === ext.location)?.maps_url ?? null
+}
+
+async function state(env: Env, db: SupabaseClient, feed: FeedInfo): Promise<ReviewsState> {
+  const [{ data }, listing] = await Promise.all([
+    db.from('reviews').select('id, source, rating, text, reviewer, created_at, reply, replied_at, language, url, photos, translations')
+      .order('created_at', { ascending: false }).limit(1000),
+    listingUrl(db),
+  ])
   return { feed: feed.feed, can_reply: feed.feed === 'business_profile', google_rating: feed.google_rating, google_count: feed.google_count,
-    reviews: ((data ?? []) as Review[]).map(r => ({ ...r, photos: r.photos ?? [] })), problem: feed.problem }
+    reviews: ((data ?? []) as Review[]).map(r => ({ ...r, photos: r.photos ?? [], translations: r.translations ?? {} })), problem: feed.problem,
+    can_translate: !!env.ANTHROPIC_API_KEY, listing_url: listing }
 }
 
 // The reviews kept, checked with Google first when that's due (new ones noticed).
@@ -179,7 +225,31 @@ reviews.get('/api/reviews', async c => {
   const db = await requestDb(c)
   try {
     const { data: feed, fetched_at } = await refreshReviews(c.env, db)
-    return c.json({ ...await state(db, feed), fetched_at })
+    return c.json({ ...await state(c.env, db, feed), fetched_at })
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : String(e) }, 502)
+  }
+})
+
+// The reviews in another language than the page's, translated into it ({ language: 'en' | 'es' }) and kept:
+// up to TRANSLATE_AT_ONCE a time, newest first. Answers how many were translated and how many are left.
+reviews.post('/api/reviews/translate', async c => {
+  const { language } = await c.req.json<{ language?: string }>().catch(() => ({} as { language?: string }))
+  if (language !== 'en' && language !== 'es') return c.json({ error: 'Pick English or Spanish' }, 400)
+  if (!c.env.ANTHROPIC_API_KEY) return c.json({ translated: 0, left: 0 })
+  const db = await requestDb(c)
+  const { data, error } = await db.from('reviews').select('id, text, language, translations').order('created_at', { ascending: false }).limit(200)
+  if (error) return c.json({ error: error.message }, 500)
+  const todo = toTranslate((data ?? []) as Pick<Review, 'id' | 'text' | 'language' | 'translations'>[], language)
+  if (!todo.length) return c.json({ translated: 0, left: 0 })
+  try {
+    const claude = new Anthropic({ apiKey: c.env.ANTHROPIC_API_KEY }).beta.messages
+    const done = await translateReviews(claude, todo, language)
+    for (const r of todo) {
+      const text = done.get(r.id)
+      if (text) await db.from('reviews').update({ translations: { ...r.translations, [language]: text } }).eq('id', r.id)
+    }
+    return c.json({ translated: done.size, left: Math.max(0, todo.length - done.size) })
   } catch (e) {
     return c.json({ error: e instanceof Error ? e.message : String(e) }, 502)
   }

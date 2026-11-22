@@ -8,6 +8,7 @@ import type { BreakType, Business, PartnerArea, PayRate, Position, Profile, Sett
 import { setBusinessTimeZone, setCurrency, setNumberFormat, setOwnTimeZone } from '../../shared/time'
 import { setCountry } from '../../shared/country'
 import { permissionsOf, type JobRole, type RoleArea, type RoleLevel } from '../../shared/roles'
+import type { RoleViewer } from '../../shared/roleView'
 import { withoutTestAccounts } from '../../shared/people'
 import { LoadError, StartError } from '../pages/StatusPages'
 import { reloadOnSignInChange, SHARED_KEY } from './signInWatch'
@@ -49,6 +50,30 @@ export const useApp = () => {
   const v = useContext(Ctx)
   if (!v) throw new Error('useApp outside provider')
   return v
+}
+
+/**
+ * The pages as someone in a role sees them: an owner viewing the app as one of the business's roles
+ * (the Agents button's Roles tab, src/app/AgentsMenu.tsx). Their access and their role's permissions
+ * in place of the owner's, so pay, takings and finances show only in an owner's role. The data is still
+ * read as the owner: it's a preview of what the pages show them, not a sign-in as them.
+ */
+export function SeenAs({ viewer, children }: { viewer: RoleViewer | null; children: ReactNode }) {
+  const real = useApp()
+  const value = useMemo<AppData>(() => {
+    if (!viewer) return real
+    const { permissions } = viewer
+    return {
+      ...real,
+      me: real.me && { ...real.me, role: viewer.isAdmin ? 'admin' : 'employee', can_see_pay: viewer.canSeePay },
+      isAdmin: viewer.isAdmin, isPartner: false, partnerCan: () => false,
+      canSeePay: viewer.canSeePay, canSeeFinances: viewer.canSeePay,
+      rates: viewer.canSeePay ? real.rates : new Map(), payRates: viewer.canSeePay ? real.payRates : [],
+      permissions,
+      can: (area, level = 'read') => (level === 'update' ? permissions[area] === 'update' : permissions[area] !== 'none'),
+    }
+  }, [real, viewer])
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
 
 /** Remember demo mode for the tab; storage can be unavailable (private mode, embeds). */

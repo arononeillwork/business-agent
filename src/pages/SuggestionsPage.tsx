@@ -19,7 +19,7 @@ import { useAction } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader } from '../components/common'
 import { KeyboardSensorNow } from '../components/dnd'
 import {
-  SUGGESTION_LIMITS, USUAL_SOURCES, boardOf, groupProblem, nameFromIdea, suggestionProblem, tidySuggestion,
+  SUGGESTION_LIMITS, USUAL_SOURCES, boardOf, groupProblem, isUsualSource, nameFromIdea, sourceToKeep, suggestionProblem, tidySuggestion,
   type CustomerSuggestion, type SuggestionGroup, type SuggestionInput,
 } from '../../shared/suggestions'
 import { formatLocal, today } from '../../shared/time'
@@ -31,6 +31,8 @@ const wash = (colour: string, pct = 10) => `color-mix(in srgb, ${colour} ${pct}%
 const UNSORTED = 'group:none'
 const groupKey = (id: string | null) => (id ? `group:${id}` : UNSORTED)
 const ideaKey = (id: string) => `idea:${id}`
+/** Where an idea was heard, a usual place in the person's language. */
+const sourceShown = (source: string | null) => (isUsualSource(source) ? t(source) : source)
 
 /** The innermost place under the pointer (an idea before the section it's in); else what the card overlaps. */
 const collisions: CollisionDetection = args => {
@@ -107,7 +109,7 @@ export function SuggestionsPage() {
     <>
       <PageHeader eyebrow={t('Sales')} title={t('Customer suggestions')} actions={<>
         <Button startIcon={<NewSectionIcon />} onClick={() => setNaming({ name: '' })}>{t('New section')}</Button>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setForm({ text: '', heard_on: today() })}>{t('Add a suggestion')}</Button>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setForm({ text: '' })}>{t('Add a suggestion')}</Button>
       </>} />
       <ErrorBox error={data.error} />
       <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2, maxWidth: 760 }}>
@@ -264,7 +266,7 @@ function IdeaCard({ idea, groups, isAdmin, onMove, onNewSection, onEdit, onDelet
 }
 
 function IdeaFace({ idea, handle, lifted }: { idea: CustomerSuggestion; handle?: Record<string, unknown>; lifted?: boolean }) {
-  const about = [idea.customer, idea.source, formatLocal(`${idea.heard_on}T12:00:00`, 'd MMM')].filter(Boolean).join(' · ')
+  const about = [idea.customer, sourceShown(idea.source), formatLocal(`${idea.heard_on}T12:00:00`, 'd MMM')].filter(Boolean).join(' · ')
   return (
     <Box component="article" aria-label={idea.text} data-testid="suggestion"
       sx={{ bgcolor: 'background.paper', borderRadius: '12px', border: 1, borderColor: 'divider', p: 1.25, pr: 4.5,
@@ -283,14 +285,13 @@ function IdeaDialog({ idea, groups, onClose }: { idea: SuggestionInput; groups: 
   const { api } = useApp()
   const run = useAction()
   const phone = useMediaQuery(useTheme().breakpoints.down('sm'))
-  const [s, setS] = useState<SuggestionInput>({ ...idea, source: idea.source && USUAL_SOURCES.includes(idea.source) ? t(idea.source) : idea.source })
+  // A new idea is heard today (the business's day), worked out as the dialog opens, not when the page did.
+  const [s, setS] = useState<SuggestionInput>(() => ({ ...idea, heard_on: idea.heard_on || today(), source: sourceShown(idea.source ?? null) }))
   const set = (p: Partial<SuggestionInput>) => setS(x => ({ ...x, ...p }))
   const save = async () => {
     const ok = await run(async () => {
       // A usual source typed in the person's language is kept by its English name.
-      const typed = (s.source ?? '').trim()
-      const source = USUAL_SOURCES.find(x => x.toLowerCase() === typed.toLowerCase() || t(x).toLowerCase() === typed.toLowerCase()) ?? typed
-      const next = tidySuggestion({ ...s, source })
+      const next = tidySuggestion({ ...s, source: sourceToKeep(s.source, t) })
       const problem = suggestionProblem(next)
       if (problem) throw new Error(t(problem))
       const { id, text, customer, source: from, heard_on, group_id } = next
@@ -312,7 +313,7 @@ function IdeaDialog({ idea, groups, onClose }: { idea: SuggestionInput; groups: 
               renderInput={p => <TextField {...p} label={t('Where it was heard')} slotProps={{ ...p.slotProps, htmlInput: { ...p.slotProps.htmlInput, maxLength: SUGGESTION_LIMITS.source } }} />} />
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <TextField fullWidth type="date" label={t('Heard on')} value={s.heard_on ?? today()} onChange={e => set({ heard_on: e.target.value || today() })}
+            <TextField fullWidth type="date" label={t('Heard on')} value={s.heard_on || today()} onChange={e => set({ heard_on: e.target.value || today() })}
               slotProps={{ inputLabel: { shrink: true } }} />
             <TextField fullWidth select label={t('Section')} value={s.group_id ?? ''} onChange={e => set({ group_id: e.target.value || null })}
               slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}>

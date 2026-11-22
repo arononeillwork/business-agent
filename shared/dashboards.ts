@@ -2,6 +2,8 @@
 // advisor's findings…) over a period. Two templates to start from: Executive (the business at a
 // glance: takings, costs, margins, what to act on) and Shop manager (the day to day: today's team,
 // the busy hours, what's low, the jobs). Kept in the person's preferences, so nobody else's changes.
+// A third, Accountant, is what the gestoría or accountant asks for, over whole months and quarters
+// (its figures: shared/accountant.ts).
 import { msg } from './i18n'
 import { addDays, weekStart } from './time'
 
@@ -10,15 +12,20 @@ export type WidgetKind =
   | 'team_cost' | 'labour_share' | 'hours_worked' | 'on_today' | 'late_starts'
   | 'low_stock' | 'stock_value' | 'waste' | 'margins'
   | 'reviews' | 'area_prices' | 'todo' | 'advice'
+  | 'net_takings' | 'vat' | 'pnl' | 'wages' | 'tax_due' | 'invoices' | 'claims' | 'running_costs' | 'credit_debit'
 
 export type WidgetSize = 'small' | 'medium' | 'large'
-/** What a widget needs to show: the takings (a till, and pay access), pay access, admin, or just being on the team. */
-export type WidgetNeeds = 'sales' | 'pay' | 'admin' | 'team'
-export type WidgetGroup = 'sales' | 'team' | 'stock' | 'customers' | 'operations'
+/**
+ * What a widget needs to show: the takings (a till, and pay access), pay access, admin, just being on the team,
+ * or the business's finances (admins with pay access, and a gestoría given the finances area: canSeeFinances).
+ */
+export type WidgetNeeds = 'sales' | 'pay' | 'admin' | 'team' | 'finances'
+export type WidgetGroup = 'sales' | 'team' | 'stock' | 'customers' | 'operations' | 'accounts'
 
 export const WIDGET_GROUPS: { id: WidgetGroup; label: string }[] = [
   { id: 'sales', label: msg('Sales') }, { id: 'team', label: msg('Team') }, { id: 'stock', label: msg('Stock') },
   { id: 'customers', label: msg('Customers and the area') }, { id: 'operations', label: msg('Running the place') },
+  { id: 'accounts', label: msg('Accounts') },
 ]
 
 export interface WidgetInfo { kind: WidgetKind; group: WidgetGroup; label: string; hint: string; size: WidgetSize; needs: WidgetNeeds[] }
@@ -45,13 +52,23 @@ export const WIDGETS: WidgetInfo[] = [
   { kind: 'area_prices', group: 'customers', label: msg('Your prices against the area'), hint: msg('From Competitors'), size: 'small', needs: ['admin'] },
   { kind: 'todo', group: 'operations', label: msg('Jobs to do'), hint: msg('Open and starred jobs'), size: 'medium', needs: ['team'] },
   { kind: 'advice', group: 'operations', label: msg('Business advisor'), hint: msg('What to act on first'), size: 'large', needs: ['admin'] },
+  { kind: 'net_takings', group: 'accounts', label: msg('Takings, net of refunds'), hint: msg('What came in less refunds, and the VAT in it'), size: 'small', needs: ['sales', 'finances'] },
+  { kind: 'vat', group: 'accounts', label: msg('VAT'), hint: msg('On the takings and sales invoices, against the invoices received'), size: 'medium', needs: ['sales', 'finances'] },
+  { kind: 'pnl', group: 'accounts', label: msg('Profit & loss'), hint: msg('Takings without VAT, the costs and the team: the operating profit'), size: 'medium', needs: ['sales', 'finances'] },
+  { kind: 'wages', group: 'accounts', label: msg('Staff wages'), hint: msg('Pay and the employer’s Social Security, from the timecards and the rota'), size: 'small', needs: ['admin', 'pay'] },
+  { kind: 'tax_due', group: 'accounts', label: msg('Next tax returns'), hint: msg('What’s due next, from Tax'), size: 'medium', needs: ['finances'] },
+  { kind: 'invoices', group: 'accounts', label: msg('Invoices to pay'), hint: msg('Received and not paid yet, overdue first'), size: 'medium', needs: ['finances'] },
+  { kind: 'claims', group: 'accounts', label: msg('Expenses to pay back'), hint: msg('What the team spent for the business and is owed'), size: 'medium', needs: ['finances'] },
+  { kind: 'running_costs', group: 'accounts', label: msg('Monthly costs'), hint: msg('The running costs on Finances'), size: 'small', needs: ['finances'] },
+  { kind: 'credit_debit', group: 'accounts', label: msg('Credit & debit'), hint: msg('Loans and finance still to pay, and money to come in'), size: 'small', needs: ['finances'] },
 ]
 export const widgetInfo = (k: WidgetKind) => WIDGETS.find(w => w.kind === k)!
 export const isWidgetKind = (k: unknown): k is WidgetKind => WIDGETS.some(w => w.kind === k)
 
 export interface Widget { id: string; kind: WidgetKind; size: WidgetSize }
-export type DashTemplate = 'executive' | 'manager' | 'blank'
-export interface Dashboard { id: string; name: string; template: DashTemplate; widgets: Widget[] }
+export type DashTemplate = 'executive' | 'manager' | 'accountant' | 'blank'
+/** `period`: its own, when its template has periods of its own (the Accountant's); the others share SavedDashboards' period. */
+export interface Dashboard { id: string; name: string; template: DashTemplate; widgets: Widget[]; period?: DashPeriod }
 /** Kept in the person's preferences. */
 export interface SavedDashboards { boards: Dashboard[]; open?: string; period?: DashPeriod }
 
@@ -64,7 +81,24 @@ export const TEMPLATES: { id: Exclude<DashTemplate, 'blank'>; name: string; hint
   { id: 'manager', name: msg('Shop manager'), hint: msg('The day to day: today’s takings and team, the busy hours, what’s running low, waste and the jobs to do.'),
     widgets: [w('takings'), w('payments'), w('waste'), w('average_sale'), w('on_today'), w('busiest_hours'), w('low_stock'), w('todo'),
       w('best_sellers'), w('hours_worked'), w('late_starts')] },
+  { id: 'accountant', name: msg('Accountant'), hint: msg('For the gestoría or accountant, by the month or the quarter: takings net of refunds and how people paid, the profit and loss, VAT, the next tax returns, invoices to pay, expenses to pay back, the monthly costs and what’s owed.'),
+    widgets: [w('net_takings'), w('wages'), w('running_costs'), w('credit_debit'), w('pnl'), w('vat'), w('payment_methods'), w('tax_due'),
+      w('invoices'), w('claims')] },
 ]
+
+/** Who's looking, as useApp() says: what canHave goes by. */
+export interface Viewer { isAdmin: boolean; isPartner: boolean; canSeePay: boolean; canSeeFinances: boolean }
+
+/**
+ * Whether someone can have what a widget (or a report) needs. The team's widgets are for the team; admin, pay
+ * and the takings for the business's own admins (never a partner: the till isn't theirs to read); the finances
+ * for admins with pay access and a gestoría given the finances area, who is the business's accountant too.
+ */
+export const canHave = (needs: WidgetNeeds[], v: Viewer) => needs.every(n => (n === 'finances' ? v.canSeeFinances
+  : n === 'admin' ? v.isAdmin && !v.isPartner : n === 'pay' || n === 'sales' ? v.canSeePay && !v.isPartner : !v.isPartner))
+
+/** The templates worth offering someone: those with a widget they can see. */
+export const templatesFor = (can: (k: WidgetKind) => boolean) => TEMPLATES.filter(x => x.widgets.some(w => can(w.kind)))
 
 let n = 0
 const id = () => `${Date.now().toString(36)}${(n++).toString(36)}${Math.random().toString(36).slice(2, 6)}`
@@ -96,11 +130,36 @@ export function readSaved(v: unknown): SavedDashboards {
 
 // ---------------- Periods ----------------
 
-export type DashPeriod = 'today' | 'week' | 'month' | '30'
+export type DashPeriod = 'today' | 'week' | 'month' | '30' | 'last_month' | 'quarter' | 'last_quarter'
 export const DASH_PERIODS: { id: DashPeriod; label: string }[] = [
   { id: 'today', label: msg('Today') }, { id: 'week', label: msg('This week') }, { id: 'month', label: msg('This month') }, { id: '30', label: msg('Last 30 days') },
 ]
+/** The Accountant's periods: whole months and quarters, as the books and the VAT returns go. It opens on last month, the one just closed. */
+export const ACCOUNTANT_PERIODS: { id: DashPeriod; label: string }[] = [
+  { id: 'month', label: msg('This month') }, { id: 'last_month', label: msg('Last month') }, { id: 'quarter', label: msg('This quarter') },
+  { id: 'last_quarter', label: msg('Last quarter') },
+]
+const OWN_PERIODS: Partial<Record<DashTemplate, { periods: { id: DashPeriod; label: string }[]; start: DashPeriod }>> = {
+  accountant: { periods: ACCOUNTANT_PERIODS, start: 'last_month' },
+}
+
+/** The periods a dashboard offers: its template's own (the Accountant's), or the usual ones. */
+export const periodsOf = (d: Pick<Dashboard, 'template'>) => OWN_PERIODS[d.template]?.periods ?? DASH_PERIODS
+/** Whether a dashboard keeps a period of its own, rather than the one the others share. */
+export const ownPeriod = (d: Pick<Dashboard, 'template'>) => !!OWN_PERIODS[d.template]
+
+/** The period a dashboard shows: its own (one it offers, else the one its template starts on), or the shared one (this week to start). */
+export function boardPeriod(d: Pick<Dashboard, 'template' | 'period'> | null, shared: DashPeriod | undefined): DashPeriod {
+  const own = d ? OWN_PERIODS[d.template] : undefined
+  if (d && own) return own.periods.some(p => p.id === d.period) ? d.period! : own.start
+  return shared && DASH_PERIODS.some(p => p.id === shared) ? shared : 'week'
+}
+
 export interface DashRange { from: string; to: string; prevFrom: string; prevTo: string }
+
+const monthStart = (day: string) => `${day.slice(0, 8)}01`
+const quarterStart = (day: string) => `${day.slice(0, 5)}${String(Math.floor((Number(day.slice(5, 7)) - 1) / 3) * 3 + 1).padStart(2, '0')}-01`
+const daysFrom = (from: string, to: string) => Math.round((Date.parse(`${to}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) / 86_400_000)
 
 /** The dates of a period and of the one it's compared with, the same length earlier on (today: the same day last week). */
 export function dashRange(p: DashPeriod, day: string): DashRange {
@@ -111,6 +170,20 @@ export function dashRange(p: DashPeriod, day: string): DashRange {
     const prevFirst = `${addDays(first, -1).slice(0, 8)}01`
     const sameDay = addDays(prevFirst, Math.round((Date.parse(`${day}T12:00:00Z`) - Date.parse(`${first}T12:00:00Z`)) / 86_400_000))
     return { from: first, to: day, prevFrom: prevFirst, prevTo: sameDay >= first ? addDays(first, -1) : sameDay }
+  }
+  // Last month and last quarter: whole, against the whole one before. This quarter: so far, against as many days of the last one.
+  if (p === 'last_month') {
+    const first = monthStart(addDays(monthStart(day), -1))
+    return { from: first, to: addDays(monthStart(day), -1), prevFrom: monthStart(addDays(first, -1)), prevTo: addDays(first, -1) }
+  }
+  if (p === 'quarter') {
+    const first = quarterStart(day), prevFirst = quarterStart(addDays(first, -1))
+    const sameDay = addDays(prevFirst, daysFrom(first, day))
+    return { from: first, to: day, prevFrom: prevFirst, prevTo: sameDay >= first ? addDays(first, -1) : sameDay }
+  }
+  if (p === 'last_quarter') {
+    const first = quarterStart(addDays(quarterStart(day), -1))
+    return { from: first, to: addDays(quarterStart(day), -1), prevFrom: quarterStart(addDays(first, -1)), prevTo: addDays(first, -1) }
   }
   return { from: addDays(day, -29), to: day, prevFrom: addDays(day, -59), prevTo: addDays(day, -30) }
 }

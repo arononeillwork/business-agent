@@ -2,6 +2,7 @@
 // when no Supabase project is configured. Mirrors the SQL rules closely but is not the source
 // of truth: the database functions are.
 import { PromptError, type Api, type BillingInfo, type ShiftInput } from './api'
+import { REVIEW_TRANSLATIONS } from './demoReviewTranslations'
 import { PLANS, SOCIAL_CONNECTIONS, TRIAL_DAYS, effectivePlan, payPerUse, plan as planById, type PlanId } from '../../shared/plans'
 import { isMood, namesArtist, usesFor, type Mood } from '../../shared/music'
 import type { AiMusicQuote, MusicGeneration, MusicTrack } from '../../shared/types'
@@ -20,7 +21,7 @@ import {
 import { collabId, collabMentions, isRecent, mentionTitle, mentionsIn, peopleToPutForward, shortcodeOf, type InstagramMention } from '../../shared/mentions'
 import { followerDays, ownPost, postAbout, postImpacts } from '../../shared/postImpact'
 import { creatorBoard } from '../../shared/creators'
-import { CASHBACK_DEFAULTS, CASHBACK_MIN, cashbackDue, cashbackFor, cashbackRates, followersIn } from '../../shared/cashback'
+import { CASHBACK_DEFAULTS, CASHBACK_MIN, cashbackDue, cashbackFor, cashbackRates, followersIn, pausesAfterSwitch, postedWhileOff } from '../../shared/cashback'
 import { demoSports } from './demoSports'
 import { demoAdminArea } from './adminArea'
 import { demoInbox, demoMessenger, demoWhatsApp } from './demoMessages'
@@ -199,6 +200,8 @@ export function createDemoApi(): Api {
     const paid = new Set(rewardList.map(r => r.mention_id).filter(Boolean))
     for (const p of postImpacts(demoMentions().filter(m => m.username).map(postAbout), followerDays(days, null))) {
       if (paid.has(p.id) || p.at.slice(0, 10) > addDays(now, -3) || !cashbackDue(p, now)) continue
+      // Made while cashback was switched off: never (the cashback_switch migration).
+      if (postedWhileOff(p.at, rates.cashback_paused)) continue
       const rep = repList.find(r => r.active && r.approved && r.instagram === p.username)
       if (!rep) continue
       const { amount } = cashbackFor(p, rates)
@@ -602,7 +605,8 @@ export function createDemoApi(): Api {
   const review = (id: string, rating: Review['rating'], reviewer: string, created_at: string, language: Review['language'], text: string | null,
     reply: string | null = null, replied_at: string | null = null, photos: string[] = []): Review =>
     ({ id: `accounts/1/locations/1/reviews/${id}`, source: 'google', rating, reviewer, created_at, language, text, reply, replied_at, url: null,
-      photos: photos.map(p => ({ url: demoPhoto(p, /croissant|cake|toast/i.test(p)), thumb: null })) })
+      photos: photos.map(p => ({ url: demoPhoto(p, /croissant|cake|toast/i.test(p)), thumb: null })),
+      translations: text && REVIEW_TRANSLATIONS[text] ? { [language === 'es' ? 'en' : 'es']: REVIEW_TRANSLATIONS[text] } : {} })
   const demoReviews: Review[] = [
     review('r12', 2, 'Tom Hughes', '2026-09-28T16:20:00Z', 'en', 'Coffee was good but we waited 20 minutes for two flat whites on Saturday morning, and nobody said sorry.'),
     review('r11', 3, 'Javier Ruiz', '2026-09-24T09:05:00Z', 'es', 'El café está bien, pero la terraza se llena enseguida y no hay sitio para sentarse.'),
@@ -1356,6 +1360,8 @@ export function createDemoApi(): Api {
     forgot_clock_out_grace_minutes: 30, phone_clock_in: 'anywhere', min_break_minutes: 15,
     break_after_hours: 6, max_daily_hours: 9, max_weekly_hours: 40, min_rest_hours: 12,
     approval_weekday: 1, employer_cost_multiplier: 1.3, auto_timecards_from_rota: true, vacation_days_per_year: 30, languages: [],
+    // Easy Beans shares tips out only from the days past breakeven (the `tips_after_breakeven` migration).
+    tips_after_breakeven: true,
     alert_shift_reminders: true, alert_missed_clock_in: true, alert_rota: true, alert_time_off: true,
     holiday_reminders: true, holiday_reminder_days: 7, holiday_reminder_day_before: true, holiday_reminder_kinds: ['national', 'regional', 'local'],
     whatsapp_retention_days: DEFAULT_WHATSAPP_RETENTION, hidden_pages: [], mileage_rate: DEFAULT_MILEAGE_RATE,
@@ -2603,6 +2609,7 @@ export function createDemoApi(): Api {
     async updateSettings(patch) {
       requireAdmin()
       if ('owner_pay' in patch && !paysAdmin()) throw new Error('Only an owner turns owner pay on or off')
+      if ('tips_after_breakeven' in patch && !paysAdmin()) throw new Error('Only an owner changes how tips are shared out')
       Object.assign(settings, patch)
     },
     async updateProfile(id, patch) {
@@ -4429,7 +4436,11 @@ export function createDemoApi(): Api {
     },
     async updateRepSettings(patch) {
       requireAdmin()
+      // When cashback was off is the database's to keep, from the switch (the cashback_switch migration).
+      const was = cashbackRates(repSettings)
+      const paused = pausesAfterSwitch(was.cashback_paused ?? [], was.cashback_on, patch.cashback_on ?? was.cashback_on, nowIso())
       repSettings = { ...repSettings, ...patch, ...('welcome_offer' in patch ? { welcome_offer: patch.welcome_offer?.trim() || null } : {}) }
+      repSettings.cashback_paused = paused
     },
 
     async kittySettings() {
@@ -4930,8 +4941,10 @@ export function createDemoApi(): Api {
       const profile = integ.integrations.find(i => i.provider === 'google_business')?.status === 'connected'
       return { feed: profile ? 'business_profile' : 'places', can_reply: profile, google_rating: profile ? null : 4.6, google_count: profile ? null : demoReviews.length,
         reviews: clone(profile ? demoReviews : demoReviews.slice(0, 5).map(r => ({ ...r, reply: null, replied_at: null }))),
-        problem: profile ? null : CONNECT_MAPS }
+        problem: profile ? null : CONNECT_MAPS, can_translate: true, listing_url: profile ? 'https://maps.google.com/?cid=1000000000000000001' : null }
     },
+    // The demo's reviews come translated (REVIEW_TRANSLATIONS): nothing left to do.
+    async translateReviews() { requireAdmin(); return { translated: 0, left: 0 } },
     async replyReview(id, text) {
       requireAdmin()
       const r = demoReviews.find(x => x.id === id)

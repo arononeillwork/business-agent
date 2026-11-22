@@ -9,6 +9,7 @@ import { PrintFootnote, PrintList, PrintSection, PrintSheet, PrintText, PrintTit
 import { rulesChangedAt, sortSections } from '../../shared/staffRules'
 import { formatLocal } from '../../shared/time'
 import { t } from '../i18n'
+import { shownSection } from '../app/roleText'
 
 export function StaffRulesPrintPage() {
   const { api, business } = useApp()
@@ -16,7 +17,7 @@ export function StaffRulesPrintPage() {
   const data = useAsync('staff-rule-sections', () => api.ruleSections(), [])
   if (data.error) return <Box sx={{ p: 4 }}><ErrorBox error={data.error} /></Box>
   if (!data.data) return <Loading />
-  const sections = sortSections(data.data)
+  const sections = sortSections(data.data).map(shownSection)
   const changedAt = rulesChangedAt(sections)
   return (
     <PrintSheet title={t('Staff rules')} back="/rules">

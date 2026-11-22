@@ -3,7 +3,7 @@ import ReplyIcon from '@mui/icons-material/ReplyOutlined'
 import CloseIcon from '@mui/icons-material/Close'
 import PrevIcon from '@mui/icons-material/ChevronLeft'
 import NextIcon from '@mui/icons-material/ChevronRight'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
@@ -15,10 +15,11 @@ import { Freshness } from '../components/Freshness'
 import type { ExportTable } from '../lib/export'
 import { formatLocal, formatNumber, today } from '../../shared/time'
 import {
-  REVIEW_FILTERS, REVIEW_SORTS, filterReviews, isLow, sortReviews, suggestedReply, summarise, MAX_REPLY, type Review, type ReviewFilter, type ReviewPhoto, type ReviewSort,
+  REVIEW_FILTERS, REVIEW_SORTS, filterReviews, isLow, sortReviews, suggestedReply, summarise, toTranslate, wordsIn, MAX_REPLY,
+  type Review, type ReviewFilter, type ReviewLanguage, type ReviewPhoto, type ReviewSort,
 } from '../../shared/reviews'
 import { tokens } from '../theme'
-import { t, tn } from '../i18n'
+import { t, tn, useLanguage } from '../i18n'
 
 const starText = (n: number) => '★'.repeat(n) + '☆'.repeat(5 - n)
 const day = (iso: string) => formatLocal(iso, 'd MMM yyyy')
@@ -37,6 +38,18 @@ export function ReviewsPage() {
   const list = s?.reviews ?? []
   const sum = summarise(list)
   const shown = sortReviews(filterReviews(list, filter), sort)
+  // In the page's language: a review written in the other one shows translated (Google's translation, or one
+  // made now, once, and kept). Asked for once each time the page opens; the reviews come back translated.
+  const language = useLanguage() as ReviewLanguage
+  const [translating, setTranslating] = useState(false)
+  const asked = useRef(false)
+  const missing = s?.can_translate ? toTranslate(list, language).length : 0
+  useEffect(() => {
+    if (!missing || asked.current) return
+    asked.current = true
+    setTranslating(true)
+    api.translateReviews(language).then(r => (r.translated ? data.reload() : undefined)).catch(() => { /* shown as written */ }).finally(() => setTranslating(false))
+  }, [missing, language, api, data])
 
   const table = (): ExportTable => ({
     title: t('Google reviews'),
@@ -104,10 +117,12 @@ export function ReviewsPage() {
                 {REVIEW_SORTS.map(o => <MenuItem key={o.id} value={o.id}>{t(o.label)}</MenuItem>)}
               </TextField>
             </Stack>
+            {translating && <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>{t('Translating the reviews written in the other language…')}</Typography>}
             {shown.length === 0
               ? <Empty>{list.length ? t('No reviews match.') : t('No reviews yet.')}</Empty>
               : <Stack spacing={1.5}>
-                  {shown.map(r => <ReviewCard key={r.id} review={r} canReply={s.can_reply} business={business?.name ?? ''} contact={business?.email ?? null} />)}
+                  {shown.map(r => <ReviewCard key={r.id} review={r} canReply={s.can_reply} business={business?.name ?? ''} contact={business?.email ?? null}
+                    language={language} listing={s.listing_url ?? null} />)}
                 </Stack>}
           </CardContent>
         </Card>
@@ -130,10 +145,17 @@ export function ReviewsPage() {
 }
 
 /** One review: its stars, words and photos, the reply if there is one, and replying (from a template) in place. */
-function ReviewCard({ review: r, canReply, business, contact }: { review: Review; canReply: boolean; business: string; contact: string | null }) {
+function ReviewCard({ review: r, canReply, business, contact, language, listing }: {
+  review: Review; canReply: boolean; business: string; contact: string | null; language: ReviewLanguage; listing: string | null
+}) {
   const { api } = useApp()
   const run = useAction()
   const [draft, setDraft] = useState<string | null>(null)
+  // In the page's language when it's a translation; their own words a press away.
+  const [original, setOriginal] = useState(false)
+  const words = wordsIn(r, language)
+  const text = words.translated && !original ? words.text : r.text
+  const onMaps = r.url ?? listing
   const start = () => setDraft(r.reply ?? suggestedReply(r, business, contact))
   const send = async () => {
     if (await run(() => api.replyReview(r.id, draft!), t('Reply posted on Google'))) setDraft(null)
@@ -147,10 +169,26 @@ function ReviewCard({ review: r, canReply, business, contact }: { review: Review
         <Typography variant="body2" sx={{ color: 'text.secondary' }}>{day(r.created_at)}</Typography>
         <Tag>{r.language === 'es' ? 'ES' : 'EN'}</Tag>
         {canReply && !r.reply && <Tag fg={tokens.warnFg} bg={tokens.warnBg}>{t('No reply yet')}</Tag>}
-        {r.url && <Link href={r.url} target="_blank" rel="noopener" variant="body2" sx={{ ml: 'auto' }}>{t('Open on Google Maps')}</Link>}
+        {onMaps && <Link href={onMaps} target="_blank" rel="noopener" variant="body2" sx={{ ml: 'auto' }}>{t('Open on Google Maps')}</Link>}
       </Stack>
-      {r.text ? <Typography sx={{ whiteSpace: 'pre-wrap' }}>{r.text}</Typography>
-        : !r.photos?.length && <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>{t('Stars only, no words')}</Typography>}
+      {text ? <Typography sx={{ whiteSpace: 'pre-wrap' }} lang={words.translated && !original ? language : r.language}>{text}</Typography>
+        : !r.photos?.length && (
+          <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+            {Date.now() - Date.parse(r.created_at) < 3 * 86_400_000
+              ? t('Stars only so far: Google hasn’t sent any words with it. Open it on Google Maps to check.')
+              : t('Stars only, no words')}
+          </Typography>
+        )}
+      {words.translated && (
+        <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', mt: 0.25 }}>
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+            {original ? t('As they wrote it') : r.language === 'es' ? t('Translated from Spanish') : t('Translated from English')}
+          </Typography>
+          <Button size="small" onClick={() => setOriginal(o => !o)} sx={{ minWidth: 0, px: 0.75, py: 0, fontSize: '0.75rem' }}>
+            {original ? t('Show the translation') : t('Show original')}
+          </Button>
+        </Stack>
+      )}
       {!!r.photos?.length && <ReviewPhotos photos={r.photos} reviewer={r.reviewer || t('Someone')} />}
 
       {r.reply && draft === null && (

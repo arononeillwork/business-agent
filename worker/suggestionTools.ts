@@ -8,7 +8,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ToolDef } from './tools'
 import { today } from '../shared/time'
 import {
-  SUGGESTION_LIMITS, boardOf, findGroup, groupProblem, matchesSuggestion, suggestionProblem, tidyGroupName, tidySuggestion,
+  SUGGESTION_LIMITS, USUAL_SOURCES, boardOf, findGroup, groupProblem, matchesSuggestion, sourceToKeep, suggestionProblem, tidyGroupName, tidySuggestion,
   type CustomerSuggestion, type SuggestionGroup,
 } from '../shared/suggestions'
 
@@ -78,11 +78,12 @@ export const SUGGESTION_TOOLS: ToolDef[] = [
       text: z.string().min(1).max(SUGGESTION_LIMITS.text).describe('The idea'),
       section: sectionArg.optional().describe('The section: an existing one\'s name (or id), or a new one\'s short name, e.g. "Oat milk at no extra cost"'),
       customer: z.string().max(SUGGESTION_LIMITS.customer).optional().describe('Who suggested it, when known: "Lucía, a regular"'),
-      source: z.string().max(SUGGESTION_LIMITS.source).optional().describe('Where it was heard: At the counter, Google review, Instagram, Email, WhatsApp, Website, or anything else'),
-      heard_on: date.optional().describe('The day it was heard (default today)'),
+      source: z.string().max(SUGGESTION_LIMITS.source).optional().describe(`Where it was heard: ${USUAL_SOURCES.join(', ')}, or anything else`),
+      heard_on: date.optional().describe('The day it was heard; leave it out for today (the business\'s day)'),
     }),
     async run({ sb }, a) {
-      const row = tidySuggestion({ text: a.text, customer: a.customer, source: a.source, heard_on: a.heard_on ?? today() })
+      // A usual place by its usual name ("word of mouth" is Word of mouth); no day is today, the business's.
+      const row = tidySuggestion({ text: a.text, customer: a.customer, source: sourceToKeep(a.source), heard_on: a.heard_on ?? today() })
       const problem = suggestionProblem(row)
       if (problem) throw new Error(problem)
       const { groups } = await readAll(sb)
