@@ -2067,10 +2067,13 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
       return check(await sb.rpc('kiosk_roster'))
     },
     async kioskPunch(profileId, pin, action, positionId, breakTypeId) {
-      return check(await sb.rpc('kiosk_punch', {
+      const result = check(await sb.rpc('kiosk_punch', {
         p_profile_id: profileId, p_pin: pin, p_action: action,
         p_position_id: positionId ?? null, p_break_type_id: breakTypeId ?? null,
       }))
+      // A wrong PIN comes back as an error (400) with its message, never as a punch (the kiosk_wrong_pins_kept migration).
+      if (!('action' in result) && typeof (result as { message?: unknown }).message === 'string') throw new Error((result as { message: string }).message)
+      return result
     },
   }
   return api
