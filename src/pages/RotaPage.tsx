@@ -3,6 +3,8 @@ import {
   TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
+import TableRowsIcon from '@mui/icons-material/TableRowsOutlined'
+import ViewColumnIcon from '@mui/icons-material/ViewColumnOutlined'
 import WarningIcon from '@mui/icons-material/WarningAmberRounded'
 import { useMemo, useState } from 'react'
 import { Link as RouterLink, useSearchParams } from 'react-router-dom'
@@ -35,6 +37,7 @@ interface Draft {
 }
 
 const VIEW_KEY = 'rota-view'
+const LAYOUT_KEY = 'rota-layout'
 
 export function RotaPage() {
   const { api, profiles, positions, business, can, isPartner, canSeePay, me, settings } = useApp()
@@ -59,6 +62,12 @@ export function RotaPage() {
   const setView = (v: 'week' | 'day') => { setViewChoice(v); try { localStorage.setItem(VIEW_KEY, v) } catch { /* private mode: not kept */ } }
   const view = viewChoice ?? (phone ? 'day' : 'week')
   const [day, setDay] = useState(today())
+  // People down the side (as it opens) or across the top, with the days, or the day's hours, down the side; kept on this device too.
+  const [layout, setLayoutChoice] = useState<'rows' | 'columns'>(() => {
+    try { return localStorage.getItem(LAYOUT_KEY) === 'columns' ? 'columns' : 'rows' } catch { return 'rows' }
+  })
+  const setLayout = (v: 'rows' | 'columns') => { setLayoutChoice(v); try { localStorage.setItem(LAYOUT_KEY, v) } catch { /* private mode: not kept */ } }
+  const across = layout === 'columns'
 
   const data = useAsync('rota', async () => {
     // Include the day before so 12h-rest checks see Sunday night shifts.
@@ -120,7 +129,8 @@ export function RotaPage() {
     note: d.note || null,
   })
 
-  const ShiftBlock = ({ s, who }: { s: Shift; who?: string }) => {
+  // `fill`: as tall as the space it's put in (the day with the hours down the side, where its height is its length).
+  const ShiftBlock = ({ s, who, fill }: { s: Shift; who?: string; fill?: boolean }) => {
     const warnings = shiftWarnings(s, ctx)
     const pos = position(s.position_id)
     const colour = pos?.colour ?? '#B5ADA6'
@@ -139,9 +149,10 @@ export function RotaPage() {
           '&::before': { content: '""', position: 'absolute', left: 5, top: 7, bottom: 7, width: 3, borderRadius: 2, bgcolor: colour },
           '&:hover': clickable ? { bgcolor: `${colour}33` } : {},
           '&:focus-visible': { outline: `2px solid ${tokens.roseDeep}`, outlineOffset: 1 },
+          ...(fill ? { height: '100%', mb: 0, boxSizing: 'border-box', overflow: 'hidden' } : {}),
           ...(mine ? { boxShadow: `0 0 0 1.5px ${tokens.matcha}` } : {}),
         }}>
-        <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', gap: 0.5, pl: 0.5 }}>
+        <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', gap: 0.5, pl: 0.5, flexWrap: fill ? 'wrap' : undefined }}>
           {who && <Typography variant="body2" sx={{ fontWeight: 600, flex: 1, minWidth: 0 }} noWrap>{who}</Typography>}
           <Typography variant="body2" sx={{ fontWeight: 500, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', fontSize: '0.82rem' }}>
             {localTime(s.starts_at)}–{localTime(s.ends_at)}
@@ -168,12 +179,58 @@ export function RotaPage() {
   const onLeave = (pid: string | null, date: string) => !!pid && (data.data?.timeOff ?? []).some(x => x.profile_id === pid && x.status === 'approved' && date >= x.starts_on && date <= x.ends_on)
 
   const NAME_W = 190
+  const DAY_W = 152 // the days down the side, people across the top
+  const PERSON_W = 134
   const line = `1px solid ${tokens.line}`
   const d = draft ? draftShift(draft) : null
   const draftWarnings = d ? shiftWarnings({ ...d, id: d.id ?? 'new', status: 'published' } as Shift, ctx) : []
   const flagged = weekShifts.filter(s => shiftWarnings(s, ctx).some(w => w.code !== 'holiday')).length
   const gapDays = days.filter(dt => dayCoverage(dt, weekShifts, openingHours, business?.peak_hours ?? undefined).some(c => c.level === 'none')).length
   const openCount = visible.filter(s => !s.profile_id).length
+
+  // The open shifts get a row (or a column) when there are some, or for whoever can add them.
+  const shownRows = rows.filter(row => row.id || canEdit || visible.some(s => s.profile_id === row.id))
+
+  // Who, their hours this week (and what they cost, for whoever sees pay) and the week's warnings: the start of their row,
+  // or the top of their column (`stacked`: the avatar over the name, so a narrow column still has room for it).
+  const personHead = (row: typeof rows[number], stacked = false) => {
+    const rowShifts = visible.filter(s => s.profile_id === row.id)
+    const week = row.id ? weeklyCheck(weekShifts.filter(s => s.profile_id === row.id), ctx.limits) : null
+    return <>
+      <Stack direction={stacked ? 'column' : 'row'} spacing={stacked ? 0.75 : 1} sx={{ alignItems: stacked ? 'flex-start' : 'center' }}>
+        <PersonAvatar name={row.name} colour={row.colour} size={28} />
+        <Box sx={{ minWidth: 0, maxWidth: '100%' }}>
+          <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>{row.name}</Typography>
+          <Typography variant="caption" color="text.secondary">
+            {formatDuration(mins(rowShifts))}{canSeePay && row.id ? ` · ${formatMoney(cost(rowShifts))}` : ''}
+          </Typography>
+        </Box>
+      </Stack>
+      {week?.notes.map(w => (
+        <Typography key={w.text} variant="caption" component="div" sx={{ color: tokens.warning, mt: 0.5, lineHeight: 1.3 }}>⚠ {t(w.text, w.vars)}</Typography>
+      ))}
+    </>
+  }
+
+  // One person's day in the week: their time off and shifts; pressing the space adds a shift for them that day.
+  const dayCell = (row: typeof rows[number], date: string) => (
+    <Box key={`${row.id}-${date}`} onClick={() => canEdit && openDraft(row.id, date)}
+      aria-label={canEdit ? t('Add a shift for {name} on {day}', { name: row.name, day: formatLocal(`${date}T12:00:00Z`, 'EEEE d') }) : undefined}
+      sx={{ position: 'relative', borderBottom: line, p: 0.75, minHeight: 72, cursor: canEdit ? 'pointer' : 'default',
+        bgcolor: date === today() ? tokens.today : undefined,
+        '& .add-hint': { opacity: 0 }, '&:hover .add-hint': { opacity: canEdit ? 1 : 0 } }}>
+      {onLeave(row.id, date) && (
+        <Box sx={{ px: 1, py: 0.6, mb: 0.6, borderRadius: '10px', fontSize: '0.78rem', fontWeight: 500, color: tokens.infoFg, bgcolor: tokens.infoBg }}>
+          {t('Time off')}
+        </Box>
+      )}
+      {visible.filter(s => s.profile_id === row.id && localDate(s.starts_at) === date).map(s => <ShiftBlock key={s.id} s={s} />)}
+      <Box className="add-hint" aria-hidden sx={{ display: 'grid', placeItems: 'center', height: 26, borderRadius: '8px',
+        border: `1px dashed ${tokens.lineStrong}`, color: tokens.inkFaint, transition: 'opacity .15s' }}>
+        <AddIcon sx={{ fontSize: 16 }} />
+      </Box>
+    </Box>
+  )
 
   const DayHead = ({ date, compact }: { date: string; compact?: boolean }) => {
     const dayShifts = visible.filter(s => localDate(s.starts_at) === date)
@@ -229,6 +286,66 @@ export function RotaPage() {
     const pct = (m: number) => `${((m - startMin) / span) * 100}%`
     const ticks = Array.from({ length: Math.floor(endMin / 60) - Math.ceil(startMin / 60) + 1 }, (_, i) => (Math.ceil(startMin / 60) + i) * 60)
     const away = people.filter(p => onLeave(p.id, day))
+
+    // People across the top and the hours down the side, like a calendar: a column each (the open shifts first, then
+    // in the order people start), each shift as long as it lasts. Columns scroll sideways in the card when they don't fit.
+    const HOUR_PX = 52
+    const PAD = 10 // room above the first hour and below the last for their labels
+    const GUTTER = phone ? 44 : 50
+    const COL_W = phone ? 120 : 150
+    const y = (m: number) => PAD + ((m - startMin) / 60) * HOUR_PX
+    const tall = PAD * 2 + (span / 60) * HOUR_PX
+    const endOf = (x: Shift) => (hm(x.ends_at) < hm(x.starts_at) ? 24 * 60 : hm(x.ends_at))
+    const columns = [...new Set(dayShifts.map(x => x.profile_id))].sort((a, b) => Number(a !== null) - Number(b !== null))
+    // Shifts that overlap in one column (two open shifts at once) sit side by side.
+    const lanes = (list: Shift[]) => {
+      const ends: number[] = []
+      const placed = list.map(x => {
+        let lane = ends.findIndex(e => e <= hm(x.starts_at))
+        if (lane < 0) lane = ends.length
+        ends[lane] = endOf(x)
+        return { x, lane }
+      })
+      return { placed, count: Math.max(1, ends.length) }
+    }
+    const hourLines = ticks.map(tick => `linear-gradient(to bottom, transparent ${y(tick) - 0.5}px, ${tokens.line} ${y(tick) - 0.5}px, ${tokens.line} ${y(tick) + 0.5}px, transparent ${y(tick) + 0.5}px)`).join(',')
+    const calendar = (
+      <Box sx={{ overflowX: 'auto', pb: 0.5, mt: 1 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: `${GUTTER}px repeat(${columns.length}, minmax(${COL_W}px, 1fr))`, minWidth: GUTTER + columns.length * COL_W, rowGap: 0.75 }}>
+          <Box sx={{ position: 'sticky', left: 0, zIndex: 2, bgcolor: tokens.surface }} />
+          {columns.map(pid => {
+            const p = profiles.find(pp => pp.id === pid)
+            return (
+              <Stack key={pid ?? OPEN} direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 0, ml: '6px' }}>
+                <PersonAvatar name={p?.full_name ?? t('Open')} colour={p?.colour ?? '#B5ADA6'} size={26} />
+                <Typography variant="body2" sx={{ fontWeight: 500, minWidth: 0 }} noWrap>{p?.full_name ?? t('Open shifts')}</Typography>
+              </Stack>
+            )
+          })}
+          <Box sx={{ position: 'sticky', left: 0, zIndex: 2, height: tall, bgcolor: tokens.surface }}>
+            {ticks.map(tick => (
+              <Typography key={tick} variant="caption" sx={{ position: 'absolute', top: y(tick), right: 6, transform: 'translateY(-50%)', color: 'text.secondary', fontSize: '0.74rem', fontVariantNumeric: 'tabular-nums', lineHeight: 1, whiteSpace: 'nowrap' }}>
+                {String(tick / 60).padStart(2, '0')}:00
+              </Typography>
+            ))}
+          </Box>
+          {columns.map(pid => {
+            const { placed, count } = lanes(dayShifts.filter(x => x.profile_id === pid))
+            return (
+              <Box key={pid ?? OPEN} sx={{ position: 'relative', height: tall, ml: '6px', borderRadius: '10px', bgcolor: tokens.surfaceAlt, backgroundImage: hourLines }}>
+                {placed.map(({ x, lane }) => (
+                  <Box key={x.id} sx={{ position: 'absolute', top: y(hm(x.starts_at)) + 1, height: Math.max(y(endOf(x)) - y(hm(x.starts_at)) - 2, 30),
+                    left: `calc(${(lane / count) * 100}% + 3px)`, width: `calc(${100 / count}% - 6px)` }}>
+                    <ShiftBlock s={x} fill />
+                  </Box>
+                ))}
+              </Box>
+            )
+          })}
+        </Box>
+      </Box>
+    )
+
     return (
       <Card sx={{ p: { xs: 1.5, md: 2 } }}>
         <Stack direction="row" sx={{ gap: 0.75, mb: 2, overflowX: 'auto', pb: 0.5 }} role="tablist" aria-label={t('Day')}>
@@ -239,7 +356,7 @@ export function RotaPage() {
           ))}
         </Stack>
         <DayHead date={day} compact />
-        {open && (
+        {open && !across && (
           <Box sx={{ position: 'relative', height: 18, ml: { xs: 0, sm: '150px' }, mb: 0.5 }}>
             {ticks.map(tick => (
               <Typography key={tick} variant="caption" sx={{ position: 'absolute', left: pct(tick), transform: 'translateX(-50%)', color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
@@ -248,7 +365,9 @@ export function RotaPage() {
             ))}
           </Box>
         )}
-        <Stack spacing={1}>
+        {across ? (
+          dayShifts.length ? calendar : <Typography sx={{ color: 'text.secondary', py: 2 }}>{t('Nobody on the rota this day.')}</Typography>
+        ) : <Stack spacing={1}>
           {dayShifts.length === 0 && <Typography sx={{ color: 'text.secondary', py: 2 }}>{t('Nobody on the rota this day.')}</Typography>}
           {dayShifts.map(x => {
             const p = profiles.find(pp => pp.id === x.profile_id)
@@ -268,7 +387,7 @@ export function RotaPage() {
               </Stack>
             )
           })}
-        </Stack>
+        </Stack>}
         {away.length > 0 && (
           <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1.5 }}>{t('Time off: {names}', { names: away.map(p => p.full_name).join(', ') })}</Typography>
         )}
@@ -353,6 +472,14 @@ export function RotaPage() {
           <ToggleButton value="week">{t('Week')}</ToggleButton>
           <ToggleButton value="day">{t('Day')}</ToggleButton>
         </ToggleButtonGroup>
+        {/* On a phone the week is already day under day, so the choice is for the day. */}
+        {!(phone && view === 'week') && (
+          <ToggleButtonGroup exclusive size="small" value={layout} onChange={(_, v) => v && setLayout(v)} aria-label={t('Rota layout')}
+            sx={{ '& .MuiToggleButton-root': { px: 1.1, borderRadius: '999px' }, '& .MuiToggleButtonGroup-grouped:not(:first-of-type)': { ml: 0.5, borderLeft: `1px solid ${tokens.lineStrong}` } }}>
+            <ToggleButton value="rows" aria-label={t('People down the side')}><Tooltip title={t('People down the side')}><TableRowsIcon fontSize="small" /></Tooltip></ToggleButton>
+            <ToggleButton value="columns" aria-label={t('People across the top')}><Tooltip title={t('People across the top')}><ViewColumnIcon fontSize="small" /></Tooltip></ToggleButton>
+          </ToggleButtonGroup>
+        )}
         <Stack direction="row" sx={{ gap: 0.75, flexWrap: 'wrap' }} role="group" aria-label={t('Position')}>
           {[{ id: 'all' as const, name: t('All'), colour: '' }, ...positions].map(p => (
             <Chip key={p.id} size="small" clickable label={p.name} onClick={() => setPositionFilter(p.id)} aria-pressed={positionFilter === p.id}
@@ -383,6 +510,24 @@ export function RotaPage() {
 
       {view === 'week' && phone ? (
         <WeekList />
+      ) : view === 'week' && across ? (
+        // People across the top, the days down the side.
+        <Card sx={{ overflow: 'hidden' }}>
+          <Box sx={{ overflowX: 'auto' }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: `${DAY_W}px repeat(${shownRows.length}, minmax(${PERSON_W}px, 1fr))`, minWidth: DAY_W + shownRows.length * PERSON_W }}>
+              <Box sx={{ position: 'sticky', left: 0, zIndex: 2, bgcolor: tokens.surface, borderBottom: line, borderRight: line }} />
+              {shownRows.map(row => (
+                <Box key={`${row.id}-name`} sx={{ bgcolor: row.id ? tokens.surface : tokens.surfaceAlt, borderBottom: line, p: 1.25 }}>{personHead(row, true)}</Box>
+              ))}
+              {days.map(date => [
+                <Box key={date} sx={{ position: 'sticky', left: 0, zIndex: 1, borderBottom: line, borderRight: line, bgcolor: date === today() ? tokens.today : tokens.surface }}>
+                  <DayHead date={date} />
+                </Box>,
+                ...shownRows.map(row => dayCell(row, date)),
+              ])}
+            </Box>
+          </Box>
+        </Card>
       ) : view === 'week' ? (
         <Card sx={{ overflow: 'hidden' }}>
           <Box sx={{ overflowX: 'auto' }}>
@@ -391,51 +536,19 @@ export function RotaPage() {
               {days.map(date => (
                 <Box key={date} sx={{ borderBottom: line, bgcolor: date === today() ? tokens.today : tokens.surface }}><DayHead date={date} /></Box>
               ))}
-              {rows.map(row => {
-                const rowShifts = visible.filter(s => s.profile_id === row.id)
-                const week = row.id ? weeklyCheck(weekShifts.filter(s => s.profile_id === row.id), ctx.limits) : null
-                if (!row.id && rowShifts.length === 0 && !canEdit) return null
-                return [
-                  <Box key={`${row.id}-name`} sx={{ position: 'sticky', left: 0, zIndex: 1, bgcolor: row.id ? tokens.surface : tokens.surfaceAlt,
-                    borderBottom: line, borderRight: line, p: 1.25 }}>
-                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                      <PersonAvatar name={row.name} colour={row.colour} size={28} />
-                      <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>{row.name}</Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {formatDuration(mins(rowShifts))}{canSeePay && row.id ? ` · ${formatMoney(cost(rowShifts))}` : ''}
-                        </Typography>
-                      </Box>
-                    </Stack>
-                    {week?.notes.map(w => (
-                      <Typography key={w.text} variant="caption" component="div" sx={{ color: tokens.warning, mt: 0.5, lineHeight: 1.3 }}>⚠ {t(w.text, w.vars)}</Typography>
-                    ))}
-                  </Box>,
-                  ...days.map(date => (
-                    <Box key={`${row.id}-${date}`} onClick={() => canEdit && openDraft(row.id, date)}
-                      aria-label={canEdit ? t('Add a shift for {name} on {day}', { name: row.name, day: formatLocal(`${date}T12:00:00Z`, 'EEEE d') }) : undefined}
-                      sx={{ position: 'relative', borderBottom: line, p: 0.75, minHeight: 72, cursor: canEdit ? 'pointer' : 'default',
-                        bgcolor: date === today() ? tokens.today : undefined,
-                        '& .add-hint': { opacity: 0 }, '&:hover .add-hint': { opacity: canEdit ? 1 : 0 } }}>
-                      {onLeave(row.id, date) && (
-                        <Box sx={{ px: 1, py: 0.6, mb: 0.6, borderRadius: '10px', fontSize: '0.78rem', fontWeight: 500, color: tokens.infoFg, bgcolor: tokens.infoBg }}>
-                          {t('Time off')}
-                        </Box>
-                      )}
-                      {rowShifts.filter(s => localDate(s.starts_at) === date).map(s => <ShiftBlock key={s.id} s={s} />)}
-                      <Box className="add-hint" aria-hidden sx={{ display: 'grid', placeItems: 'center', height: 26, borderRadius: '8px',
-                        border: `1px dashed ${tokens.lineStrong}`, color: tokens.inkFaint, transition: 'opacity .15s' }}>
-                        <AddIcon sx={{ fontSize: 16 }} />
-                      </Box>
-                    </Box>
-                  )),
-                ]
-              })}
+              {shownRows.map(row => [
+                <Box key={`${row.id}-name`} sx={{ position: 'sticky', left: 0, zIndex: 1, bgcolor: row.id ? tokens.surface : tokens.surfaceAlt,
+                  borderBottom: line, borderRight: line, p: 1.25 }}>
+                  {personHead(row)}
+                </Box>,
+                ...days.map(date => dayCell(row, date)),
+              ])}
             </Box>
           </Box>
         </Card>
       ) : (
-        <DayView />
+        // Called rather than mounted, so the day isn't built afresh on every change (and keeps where it was scrolled to).
+        DayView()
       )}
 
       <Stack direction="row" spacing={2} sx={{ mt: 1.5, flexWrap: 'wrap', rowGap: 0.5 }}>

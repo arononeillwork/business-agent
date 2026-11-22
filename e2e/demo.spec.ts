@@ -451,6 +451,57 @@ test('@phone the rota’s week is a list, day under day, each shift with who’s
   await expect(page.getByRole('region', { name: 'Monday 28' })).toBeVisible()
 })
 
+test('the rota turns round, people across the top and the days or the hours down the side, and stays the way picked', async ({ page }) => {
+  await open(page, '/rota')
+  const across = page.getByRole('button', { name: 'People across the top' })
+  await expect(page.getByRole('button', { name: 'People down the side' })).toHaveAttribute('aria-pressed', 'true')
+  await across.click()
+  const rota = page.getByRole('main')
+  const box = async (l: Locator) => (await l.boundingBox())!
+  // Maria's column: her name at the top, her Monday shift under it, Tuesday under Monday.
+  const turnedRound = async () => {
+    const monday = rota.getByLabel('Add a shift for Maria on Monday 28')
+    await expect(rota.getByText('Maria', { exact: true })).toBeVisible()
+    await expect(monday.getByRole('button').filter({ hasText: '10:00–15:00' })).toBeVisible()
+    const [head, mon, tue] = [await box(rota.getByText('Maria', { exact: true })), await box(monday), await box(rota.getByLabel('Add a shift for Maria on Tuesday 29'))]
+    expect(mon.y).toBeGreaterThan(head.y + head.height)
+    expect(tue.y).toBeGreaterThanOrEqual(mon.y + mon.height - 1)
+    expect(Math.abs(tue.x - mon.x)).toBeLessThan(2)
+  }
+  await turnedRound()
+  // Next time, it opens the same way round.
+  await page.reload()
+  await expect(across).toHaveAttribute('aria-pressed', 'true')
+  await turnedRound()
+  // The day reads like a calendar: Maria's 10:00 start sits lower than Julio's 07:45, in a column of her own.
+  await page.getByRole('button', { name: 'Day', exact: true }).click()
+  const julio = await box(rota.getByRole('button').filter({ hasText: '07:45–15:00' }))
+  const maria = await box(rota.getByRole('button').filter({ hasText: '10:00–17:30' }))
+  expect(maria.y).toBeGreaterThan(julio.y + 100)
+  expect(maria.x).toBeGreaterThan(julio.x + julio.width)
+})
+
+test('@phone the rota’s day turns round too: a column each and the hours down the side, inside the screen', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await open(page, '/rota')
+  await expect(page.getByRole('button', { name: 'Day', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('button', { name: 'People across the top' }).click()
+  const rota = page.getByRole('main')
+  const julio = rota.getByRole('button').filter({ hasText: '07:45–15:00' })
+  const maria = rota.getByRole('button').filter({ hasText: '10:00–17:30' })
+  await expect(julio).toBeVisible()
+  await expect(maria).toBeVisible()
+  const [j, m] = [(await julio.boundingBox())!, (await maria.boundingBox())!]
+  expect(m.y, 'a later start, lower down').toBeGreaterThan(j.y + 100)
+  expect(m.x, 'a column of her own').toBeGreaterThan(j.x + j.width)
+  // The columns scroll sideways inside the card, not the page.
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+  // The week on a phone is already day under day: nothing to turn round there.
+  await page.getByRole('button', { name: 'Week', exact: true }).click()
+  await expect(page.getByRole('region', { name: 'Monday 28' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'People across the top' })).toHaveCount(0)
+})
+
 test('@phone a message never covers the sign-in buttons', async ({ page }) => {
   await page.goto('/?demo')
   const google = (await page.getByRole('button', { name: 'Google' }).boundingBox())!
