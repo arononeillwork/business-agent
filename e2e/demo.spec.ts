@@ -2566,7 +2566,7 @@ test('sales page: pick a business type, then its pain points with what the app d
   await expect(page).toHaveURL(/\/sell\/cafes$/)
   // Every problem has its own card: what the owner says, what the app does, what they get, the film to come.
   const cards = page.getByRole('article')
-  await expect(cards).toHaveCount(14)
+  await expect(cards).toHaveCount(15)
   const food = page.getByRole('article', { name: 'Food waste' })
   await expect(food).toContainText('goes in the bin')
   await expect(food).toContainText('50% off')
@@ -2585,6 +2585,12 @@ test('sales page: pick a business type, then its pain points with what the app d
   for (const file of ['public/video/google-listing.mp4', 'public/video/google-listing.jpg']) expect(readFileSync(file).length).toBeGreaterThan(10_000)
   await expect(page.getByRole('article', { name: 'Google reviews & opening hours' }).getByLabel('Right on Google: opening hours and reviews, video'))
     .toHaveAttribute('src', '/video/google-listing.mp4')
+  // And competitor insights (made in video/, src/competitors).
+  for (const file of ['public/video/competitors.mp4', 'public/video/competitors.jpg']) expect(readFileSync(file).length).toBeGreaterThan(10_000)
+  const rivals = page.getByRole('article', { name: 'Not knowing the competition' })
+  await expect(rivals).toContainText('round the corner')
+  await expect(rivals).toContainText('Competitors')
+  await expect(rivals.getByLabel('Competitor insights: know your competition, every week, video')).toHaveAttribute('src', '/video/competitors.mp4')
   // The cheat sheet at the top lists each problem under what it's mainly about, and links to its card.
   const glance = page.getByRole('region', { name: 'Selling points at a glance' })
   for (const win of ['Make money', 'Save time', 'Cut costs', 'Stay legal']) await expect(glance.getByRole('heading', { name: win })).toBeVisible()

@@ -77,6 +77,16 @@ export default {
     'Precios basados en costes reales, para que cada venta deje lo que el dueño cree que deja.',
   'What does a flat white really cost?': '¿Cuánto cuesta de verdad un flat white?',
 
+  // Cafés: competitors
+  'Not knowing the competition': 'No saber qué hace la competencia',
+  '“A new café opened round the corner. I’ve no idea what they charge, or whether we’re cheap or dear.”':
+    '«Han abierto una cafetería a la vuelta de la esquina. No tengo ni idea de lo que cobran, ni de si somos baratos o caros.»',
+  'Follow the cafés around you, found on Google: their rating, hours and what they offer, checked every week. Note their prices as you see them and they sit next to yours, item by item, with what it all means in plain words. Each week it looks around again and tells you about any new café nearby.':
+    'Sigue las cafeterías de tu alrededor, encontradas en Google: su valoración, su horario y lo que ofrecen, revisados cada semana. Apunta sus precios cuando los veas y aparecen junto a los tuyos, producto a producto, con lo que significa todo en palabras sencillas. Cada semana vuelve a mirar alrededor y te avisa de cualquier cafetería nueva cerca.',
+  'Prices, hours and what’s on offer decided knowing what’s round the corner, and a new café nearby is never a surprise.':
+    'Precios, horario y oferta decididos sabiendo lo que hay a la vuelta de la esquina, y una cafetería nueva cerca nunca pilla por sorpresa.',
+  'Competitor insights: know your competition, every week': 'Análisis de la competencia: conócela, cada semana',
+
   // Cafés: reviews
   'Google reviews & opening hours': 'Reseñas de Google y horario',
   '“Reviews pile up and I never answer them. Google still has the wrong opening hours.”':

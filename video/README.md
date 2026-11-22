@@ -145,6 +145,33 @@ npm run music:listing
 npm run render:listing && npm run web:listing
 ```
 
+## Know your competition.
+
+The seventh video (`public/video/competitors.mp4`, 88 seconds, `CompetitorsVideo` in `src/competitors/`), played on the
+Sales page's "Not knowing the competition" card (`/sell/cafes`): competitor insights, on the Competitors page
+(Marketing). Easy Beans in demo mode, with its five made-up places round San Pedro de Alcántara
+(`src/data/demoCompetitors.ts`), so no real business is shown with invented prices or ratings.
+
+| Time | Scene | What it shows |
+|---|---|---|
+| 0:00 | The title | "Know your competition. Every week." |
+| 0:04 | The street | Easy Beans and the five places round it, the owner's guesses on a sticky note (a €2,90 cappuccino, too dear? who opens before us?); then a new café opens 150 m away and nobody says |
+| 0:16 | 1 At a glance | Five followed, the nearest 180 m away, prices against the area, the highest Google rating; then What it means for you, in plain words |
+| 0:32 | 2 Prices | The cappuccino at every place, €2,90 against the street's €2,70, yours in purple; the croissant; every price rise nearby in the last 90 days |
+| 0:50 | 3 New nearby | Google looks around every week; Nuevo Rincón Café, new, 150 m away, followed, and in Places with the others |
+| 1:08 | The street, known | The same street with every place's rating, the new café followed, and what the owner gets |
+| 1:20 | The close | The brand |
+
+The app's scenes are recorded by `capture/competitors.mjs`, nothing set up off camera: the demo already has the places,
+their prices and the weekly look around. The street and the sticky note are drawn. Its music is `music/competitors.py`
+(the listing video's instruments, to its own bars).
+
+```bash
+npm run capture:competitors          # the app's scenes for it (the dev server running)
+npm run music:competitors
+npm run render:competitors && npm run web:competitors
+```
+
 Everything is made here from scratch, so it can be made again whenever the app changes, and in Spanish.
 
 ## How it's made
