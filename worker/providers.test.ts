@@ -156,6 +156,19 @@ describe('Spotify', () => {
     await expect(playPlaylist('t', 'abc')).rejects.toThrow('No Spotify speaker is on')
     expect(await nowPlaying('t', 'abc')).toEqual({ playing: true, track: 'Song', artist: 'A', device: 'Café speaker', onApprovedPlaylist: true })
   })
+  it('counts a playlist’s songs however Spotify sends them (items since its February 2026 changes, tracks before)', async () => {
+    const { playlists } = await import('./providers/spotify')
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ items: [
+      { id: 'new', name: 'Mornings', items: { total: 12 }, images: null, external_urls: { spotify: 'https://open.spotify.com/playlist/new' } },
+      { id: 'old', name: 'Evenings', tracks: { total: 30 }, images: [{ url: 'https://i.scdn.co/x' }] },
+      { id: 'theirs', name: 'Someone else’s' },
+    ] }))))
+    expect(await playlists('t')).toEqual([
+      { id: 'new', name: 'Mornings', image: undefined, tracks: 12, url: 'https://open.spotify.com/playlist/new', owner: undefined },
+      { id: 'old', name: 'Evenings', image: 'https://i.scdn.co/x', tracks: 30, url: 'https://open.spotify.com/playlist/old', owner: undefined },
+      { id: 'theirs', name: 'Someone else’s', image: undefined, tracks: 0, url: 'https://open.spotify.com/playlist/theirs', owner: undefined },
+    ])
+  })
 })
 
 describe('YouTube Music', () => {

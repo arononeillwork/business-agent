@@ -24,6 +24,7 @@ import { GROUPS, optionName, type ConnectionGroup, type ConnectionGroupInfo, typ
 import type { CalendarApp, ConnectorProvider, Integration, IntegrationProvider, IntegrationsState } from '../../shared/types'
 import { ago } from './Freshness'
 import { HiggsfieldKeyDialog, HiggsfieldLogo } from './AiImages'
+import { SpotifyAppSetup } from './SpotifyApp'
 import { tokens } from '../theme'
 import { msg, t, tn, tr, tc } from '../i18n'
 
@@ -223,7 +224,7 @@ export const oneClick = (s: OptionState) => s.configured && s.o.id !== 'whatsapp
 
 /**
  * The business's apps, like an AI's connector directory: one tile per app, in groups. In most groups
- * the business picks ONE (Gmail or Outlook, Spotify or YouTube Music…). An app shows "Connected"
+ * the business picks ONE (Gmail or Outlook, Square or SumUp…). An app shows "Connected"
  * only once it has really worked. `back`: where the sign-in sends you afterwards.
  */
 export function ServiceConnections({ back = 'connections', groups = GROUPS.map(g => g.key) }: { back?: 'setup' | 'connections'; groups?: ConnectionGroup[] }) {
@@ -436,7 +437,8 @@ export function ConnectorDialog({ s, back, reload, onClose }: { s: OptionState; 
             : t('This account manages more than one Page. Pick the one to post to below.')}
         </Alert>}
         {row?.last_error && status !== 'connected' && <Alert severity="error" sx={{ mt: 2 }}>{row.last_error}</Alert>}
-        {!s.configured && <Alert severity="warning" sx={{ mt: 2 }}>{t('Not set up yet: The Business Agent needs {keys} before anyone can connect {app}. They’re added once, for every business; after that, connecting is one click.', { keys: KEYS_NEEDED[o.id] ? t(KEYS_NEEDED[o.id]!) : '', app: o.name })}</Alert>}
+        {/* Spotify: a business can use its own Spotify app instead (its setup is below). */}
+        {!s.configured && p !== 'spotify' && <Alert severity="warning" sx={{ mt: 2 }}>{t('Not set up yet: The Business Agent needs {keys} before anyone can connect {app}. They’re added once, for every business; after that, connecting is one click.', { keys: KEYS_NEEDED[o.id] ? t(KEYS_NEEDED[o.id]!) : '', app: o.name })}</Alert>}
 
         {CAN[o.id] && <>
           <Typography variant="overline" component="h3" sx={{ display: 'block', color: 'text.secondary', mt: 2.5 }}>
@@ -456,6 +458,7 @@ export function ConnectorDialog({ s, back, reload, onClose }: { s: OptionState; 
           <WhatsAppTest onDone={reload} label={status === 'connected' ? t('Send a test') : t('Send a test to connect')} />
         </Stack>}
         {status === 'connected' && (p === 'spotify' || p === 'youtube_music') && <CafePlaylist provider={p} />}
+        {p === 'spotify' && <SpotifyAppSetup onChange={reload} />}
         {p === 'facebook' && (row?.external.pages?.length ?? 0) > 1 && (
           <TextField select size="small" label={t('Page to post to')} value={row?.external.page_id ?? ''} sx={{ mt: 2.5, maxWidth: 380 }}
             onChange={e => run(async () => { await api.chooseFacebookPage(e.target.value); await reload() }, t('Page chosen'))}>
@@ -522,17 +525,17 @@ function WhatsAppTest({ onDone, label }: { onDone: () => Promise<void>; label: s
   </>
 }
 
-/** The approved café playlist, from the connected Spotify or YouTube Music account. */
+/** The approved café playlist, from this Spotify or YouTube Music account (each connected one has its own). */
 function CafePlaylist({ provider }: { provider: 'spotify' | 'youtube_music' }) {
   const { api } = useApp()
   const run = useAction()
-  const lists = useAsync('cafe-playlists', () => api.cafePlaylists(), [provider])
+  const lists = useAsync(`cafe-playlists-${provider}`, () => api.cafePlaylists(provider), [provider])
   return (
     <Stack sx={{ gap: 1.25, mt: 2.5 }}>
       <TextField select size="small" label={t('Approved playlist')} value={lists.data?.approved?.id ?? ''} sx={{ maxWidth: 380 }}
         onChange={e => {
           const pl = lists.data?.playlists.find(x => x.id === e.target.value)
-          if (pl) run(async () => { await api.chooseCafePlaylist(pl); await lists.reload() }, t('“{name}” is now the café playlist', { name: pl.name }))
+          if (pl) run(async () => { await api.chooseCafePlaylist(pl, provider); await lists.reload() }, t('“{name}” is now the café playlist', { name: pl.name }))
         }}>
         {(lists.data?.playlists ?? []).map(pl => <MenuItem key={pl.id} value={pl.id}>{pl.name} · {tn(pl.tracks, '{n} song', '{n} songs')}</MenuItem>)}
       </TextField>

@@ -30,6 +30,7 @@ import { replyWindow } from '../shared/messages'
 import { takingsMinutes } from '../shared/refresh'
 import { minutesFor } from './refresh'
 import { finishMusicConnect, type MusicState } from './music'
+import { CLIENT_ID, ownSpotifyApp, redirectUris, sealGrant, spotifyFinish, spotifyReady, spotifyStart, type SpotifyStateApp } from './spotifyApp'
 import { ensureFeed } from './calendarFeed'
 import { checkMentions, decide, putForward, repostMention } from './mentions'
 import { ideaChatIn } from '../shared/instagramIdeas'
@@ -369,7 +370,8 @@ integrations.get('/api/integrations', async c => {
     square: !!squareOAuth(c.env),
     stripe: !!stripeOAuth(c.env, ''),
     sumup: !!sumupOAuth(c.env, ''),
-    spotify: !!spotifyConfig(c.env, ''),
+    // The Business Agent's Spotify app, or the business's own (worker/spotifyApp.ts).
+    spotify: await spotifyReady(c.env, db),
     ...Object.fromEntries(CONNECTORS.map(p => [p, connectorConfigured(c.env, p)])),
     // Calendars need no keys of their own: the calendar app subscribes to the team calendar link.
     google_calendar: !!c.env.INTEGRATION_KEY,
@@ -623,11 +625,28 @@ integrations.post('/api/integrations/:provider/disconnect', async c => {
   return c.json({ ok: true })
 })
 
-// Spotify: one-click connect, then pick the approved playlist.
+// Spotify: one-click connect, then pick the approved playlist. Through the business's own Spotify app if it
+// has one, else The Business Agent's (worker/spotifyApp.ts).
 integrations.post('/api/integrations/spotify/start', async c => {
-  const cfg = spotifyConfig(c.env, new URL(c.req.url).origin)
-  if (!cfg) return c.json({ error: 'Spotify is not set up yet. Add SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET.' }, 400)
-  return c.json({ url: spotify.authUrl(cfg, await signState(c.env.INTEGRATION_KEY!, { uid: c.get('userId') })) })
+  const url = await spotifyStart(c.env, businessDb(c.env, c.get('businessId')), new URL(c.req.url).origin, { uid: c.get('userId') })
+  if (!url) return c.json({ error: 'Spotify is not set up yet: use your own Spotify app (Connections → Spotify), or add SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET.' }, 400)
+  return c.json({ url })
+})
+
+// The business's own Spotify app: its Client ID, and the addresses to register in it as redirect URIs.
+integrations.get('/api/integrations/spotify/app', async c => {
+  const db = businessDb(c.env, c.get('businessId'))
+  return c.json({ own: await ownSpotifyApp(db), platform: !!spotifyConfig(c.env, ''), redirect_uris: redirectUris(new URL(c.req.url).origin) })
+})
+
+// Use it (a Client ID), or stop (null). Connections already made keep the app they were made with.
+integrations.post('/api/integrations/spotify/app', async c => {
+  const { client_id } = await c.req.json<{ client_id?: string | null }>().catch(() => ({ client_id: undefined }))
+  const id = typeof client_id === 'string' ? client_id.trim().toLowerCase() : null
+  if (id !== null && !CLIENT_ID.test(id)) return c.json({ error: 'That isn’t a Spotify Client ID: it’s 32 letters and numbers, under the app’s Settings in Spotify’s developer dashboard.' }, 400)
+  const { error } = await businessDb(c.env, c.get('businessId')).from('settings').update({ spotify_client_id: id }).eq('id', 1)
+  if (error) return c.json({ error: error.message }, 500)
+  return c.json({ ok: true })
 })
 
 integrations.get('/api/integrations/spotify/callback', async c => {
@@ -636,16 +655,15 @@ integrations.get('/api/integrations/spotify/callback', async c => {
   const origin = new URL(c.req.url).origin
   const back = (q: string) => c.redirect(`${origin}/connections?${q}`)
   try {
-    const cfg = spotifyConfig(c.env, origin)
-    if (!cfg) throw new Error('Spotify is not set up')
     if (c.req.query('error')) throw new Error(c.req.query('error') === 'access_denied' ? 'Spotify connection was cancelled' : c.req.query('error'))
-    const { uid } = await verifyState<{ uid: string }>(c.env.INTEGRATION_KEY!, c.req.query('state') ?? '')
-    const t = await spotify.exchangeCode(cfg, c.req.query('code') ?? '')
-    if (!t.refresh_token) throw new Error('Spotify did not allow lasting access. Connect again.')
+    const state = await verifyState<{ uid: string } & SpotifyStateApp>(c.env.INTEGRATION_KEY!, c.req.query('state') ?? '')
+    const { accessToken, grant } = await spotifyFinish(c.env, origin, state, c.req.query('code') ?? '')
+    if (!grant) throw new Error('Spotify did not allow lasting access. Connect again.')
+    const uid = state.uid
     // Proof first: the account signs in and its playlists can be read. Only then is it kept.
-    const proven = await proveSpotify(t.access_token!)
+    const proven = await proveSpotify(accessToken)
     const db = await callbackDb(c.env, uid)
-    const { error } = await db.from('integration_secrets').upsert({ provider: 'spotify', ciphertext: await seal(c.env.INTEGRATION_KEY!, { refresh_token: t.refresh_token }), updated_at: new Date().toISOString() })
+    const { error } = await db.from('integration_secrets').upsert({ provider: 'spotify', ciphertext: await sealGrant(c.env, grant), updated_at: new Date().toISOString() })
     if (error) throw new Error(error.message)
     const now = new Date().toISOString()
     await setIntegration(db, 'spotify', { status: 'connected', connected_by: uid, connected_at: now, last_checked_at: now, last_error: null,
@@ -659,9 +677,15 @@ integrations.get('/api/integrations/spotify/callback', async c => {
   }
 })
 
-/** The café's music account (Spotify or YouTube Music, whichever is connected) and its playlists. */
-async function cafeMusic(env: Env, db: SupabaseClient, origin: string) {
-  const p = await connectedOf(db, ['spotify', 'youtube_music'] as const)
+type CafeMusicApp = 'spotify' | 'youtube_music'
+const cafeMusicApp = (p: unknown): CafeMusicApp | undefined => (p === 'spotify' || p === 'youtube_music' ? p : undefined)
+
+/**
+ * The café's music account and its playlists: the one asked for, or whichever is connected. Both can
+ * be: then YouTube Music, whose player is the Music page's, and Spotify alongside it.
+ */
+async function cafeMusic(env: Env, db: SupabaseClient, origin: string, want?: CafeMusicApp) {
+  const p = await connectedOf(db, want ? [want] : ['youtube_music', 'spotify'] as const)
   if (p === 'spotify') {
     const s = await spotifySession(env, db, origin)
     return { provider: p, external: s.external, approved: s.playlist ?? null, playlists: () => spotify.playlists(s.token) }
@@ -675,18 +699,20 @@ async function cafeMusic(env: Env, db: SupabaseClient, origin: string) {
   return null
 }
 
-// The approved café playlist: pick one of the connected account's own playlists.
+// The approved café playlist: pick one of the connected account's own playlists (each music app has its own).
 integrations.get('/api/integrations/music/playlists', async c => {
-  const m = await cafeMusic(c.env, businessDb(c.env, c.get('businessId')), new URL(c.req.url).origin)
-  if (!m) return c.json({ error: 'Connect Spotify or YouTube Music first' }, 400)
+  const want = cafeMusicApp(c.req.query('provider'))
+  const m = await cafeMusic(c.env, businessDb(c.env, c.get('businessId')), new URL(c.req.url).origin, want)
+  if (!m) return c.json({ error: want ? `Connect ${optionName(want)} first` : 'Connect Spotify or YouTube Music first' }, 400)
   return c.json({ provider: m.provider, playlists: await m.playlists(), approved: m.approved })
 })
 
 integrations.post('/api/integrations/music/playlist', async c => {
-  const { playlist } = await c.req.json<{ playlist: { id: string } }>()
+  const { playlist, provider } = await c.req.json<{ playlist: { id: string }; provider?: string }>()
+  const want = cafeMusicApp(provider)
   const db = businessDb(c.env, c.get('businessId'))
-  const m = await cafeMusic(c.env, db, new URL(c.req.url).origin)
-  if (!m) return c.json({ error: 'Connect Spotify or YouTube Music first' }, 400)
+  const m = await cafeMusic(c.env, db, new URL(c.req.url).origin, want)
+  if (!m) return c.json({ error: want ? `Connect ${optionName(want)} first` : 'Connect Spotify or YouTube Music first' }, 400)
   const mine = (await m.playlists()).find(p => p.id === playlist?.id)
   if (!mine) return c.json({ error: `That playlist is not in the connected ${optionName(m.provider)} account` }, 400)
   await setIntegration(db, m.provider, { external: { ...m.external, playlist: mine } })
@@ -717,6 +743,8 @@ integrations.get('/api/music/library', async c => {
   const { data } = await db.from('integrations').select('account_label').eq('provider', m.provider).single()
   const playlists = await m.playlists()
   if (m.provider !== 'youtube_music') return c.json({ provider: 'spotify', account: data?.account_label ?? null, playlists, approved: m.approved })
+  // Spotify connected too: the Music page offers it next to YouTube Music's player.
+  const spotifyToo = await connectedOf(db, ['spotify']) === 'spotify'
   // YouTube Music: only the playlists of music. Each playlist is checked once (again if its size changes).
   type Kinds = Record<string, { n: number; music: boolean }>
   const known = ((m.external as { music_kinds?: Kinds }).music_kinds ?? {}) as Kinds
@@ -732,7 +760,7 @@ integrations.get('/api/music/library', async c => {
   // other only once it's been checked and its name doesn't say otherwise (stretches, recipes, vlogs…).
   // Plain YouTube playlists aren't offered at all.
   const isMusic = (p: SpotifyPlaylist) => p.id === m.approved?.id || (kinds[p.id]?.music === true && youtube.musicByName(p.name))
-  return c.json({ provider: 'youtube', account: data?.account_label ?? null, approved: m.approved, playlists: playlists.filter(isMusic) })
+  return c.json({ provider: 'youtube', account: data?.account_label ?? null, approved: m.approved, playlists: playlists.filter(isMusic), ...(spotifyToo ? { spotify: true } : {}) })
 })
 
 // Search all of YouTube for songs or playlists (not only the café account's). A search costs 100
@@ -771,7 +799,7 @@ integrations.get('/api/music/tracks/:playlist', async c => {
 const YOUTUBE_PLAYS_ON_DEVICE = 'YouTube Music plays on the café device: open the playlist there.'
 
 // Spotify can be played and paused from the app; YouTube Music has no remote control, so staff
-// open the approved playlist on the café device.
+// open the approved playlist on the café device. With both connected, these are Spotify's.
 integrations.get('/api/music/now', async c => {
   const db = businessDb(c.env, c.get('businessId'))
   const p = await connectedOf(db, ['spotify', 'youtube_music'] as const)
@@ -785,7 +813,7 @@ integrations.get('/api/music/now', async c => {
 })
 
 integrations.post('/api/music/play', async c => {
-  if (await connectedOf(businessDb(c.env, c.get('businessId')), ['youtube_music'])) return c.json({ error: YOUTUBE_PLAYS_ON_DEVICE }, 400)
+  if (await connectedOf(businessDb(c.env, c.get('businessId')), ['spotify', 'youtube_music'] as const) === 'youtube_music') return c.json({ error: YOUTUBE_PLAYS_ON_DEVICE }, 400)
   const s = await spotifySession(c.env, businessDb(c.env, c.get('businessId')), new URL(c.req.url).origin)
   if (!s.playlist) return c.json({ error: 'No playlist approved yet. An admin picks one on the Connections page.' }, 400)
   await spotify.playPlaylist(s.token, s.playlist.id)
@@ -793,7 +821,7 @@ integrations.post('/api/music/play', async c => {
 })
 
 integrations.post('/api/music/pause', async c => {
-  if (await connectedOf(businessDb(c.env, c.get('businessId')), ['youtube_music'])) return c.json({ error: YOUTUBE_PLAYS_ON_DEVICE }, 400)
+  if (await connectedOf(businessDb(c.env, c.get('businessId')), ['spotify', 'youtube_music'] as const) === 'youtube_music') return c.json({ error: YOUTUBE_PLAYS_ON_DEVICE }, 400)
   const s = await spotifySession(c.env, businessDb(c.env, c.get('businessId')), new URL(c.req.url).origin)
   await spotify.pause(s.token)
   return c.json({ ok: true })
