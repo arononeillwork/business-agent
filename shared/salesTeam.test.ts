@@ -45,15 +45,17 @@ describe('names to start from', () => {
 describe('what’s sent for a business', () => {
   it('is tidied, with a name from its Instagram when none is given', () => {
     expect(cleanProspect({ instagram: 'https://www.instagram.com/the_bootes_cafe/', member_id: '0b0e2f6c-1111-4c2d-8e3f-123456789abc' }, true)).toEqual({
-      row: { instagram: 'the_bootes_cafe', name: 'The Bootes Cafe', stage: 'to_contact', member_id: '0b0e2f6c-1111-4c2d-8e3f-123456789abc' },
+      row: { instagram: 'the_bootes_cafe', name: 'The Bootes Cafe', stage: 'to_contact', kind: 'customer', member_id: '0b0e2f6c-1111-4c2d-8e3f-123456789abc' },
     })
     expect(cleanProspect({ name: ' Café Lola ', phone: '600111222', email: 'HOLA@lola.es', stage: 'demo' }, true)).toEqual({
-      row: { name: 'Café Lola', phone: '+34 600 111 222', email: 'hola@lola.es', stage: 'demo' },
+      row: { name: 'Café Lola', phone: '+34 600 111 222', email: 'hola@lola.es', stage: 'demo', kind: 'customer' },
     })
   })
 
   it('a change sends only what changed', () => {
     expect(cleanProspect({ stage: 'won' }, false)).toEqual({ row: { stage: 'won' } })
+    expect(cleanProspect({ kind: 'partner' }, false)).toEqual({ row: { kind: 'partner' } })
+    expect(cleanProspect({ kind: 'supplier' }, false)).toEqual({ error: 'A contact is a customer or a partner' })
     expect(cleanProspect({ member_id: null, follow_up_on: '' }, false)).toEqual({ row: { member_id: null, follow_up_on: null } })
     expect(cleanProspect({ instagram: '' }, false)).toEqual({ row: { instagram: null } })
   })
