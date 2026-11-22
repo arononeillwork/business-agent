@@ -10297,12 +10297,12 @@ test.describe('AI assistants', () => {
     await open(page, '/ai-assistants')
     await expect(page.getByRole('heading', { name: 'AI assistants' })).toBeVisible()
     const connect = page.getByRole('region', { name: 'Connect your AI' })
-    await expect(connect.getByRole('textbox', { name: 'Connector address' })).toHaveValue(/\/mcp$/)
+    await expect(connect.getByRole('textbox', { name: 'Connector address', exact: true })).toHaveValue(/\/mcp$/)
     await expect(connect).toContainText('Add custom connector')
     await connect.getByRole('tab', { name: 'ChatGPT' }).click()
     await expect(connect).toContainText('Developer mode')
     await connect.getByRole('tab', { name: 'Claude Code' }).click()
-    await expect(connect.getByRole('textbox', { name: 'Command' })).toHaveValue(/^claude mcp add --transport http easy-beans .*\/mcp$/)
+    await expect(connect.getByRole('textbox', { name: 'Command', exact: true })).toHaveValue(/^claude mcp add --transport http easy-beans .*\/mcp$/)
 
     const keys = page.getByRole('region', { name: 'Access keys' })
     await keys.getByRole('button', { name: 'Make a key' }).click()
@@ -10313,6 +10313,16 @@ test.describe('AI assistants', () => {
     await expect(keys).toContainText('Not used yet')
     await keys.getByRole('button', { name: 'Revoke' }).click()
     await toast(page, 'Key revoked')
+  })
+
+  test('AI assistants: two connector addresses, the app’s own and the backup on Vercel', async ({ page }) => {
+    await open(page, '/ai-assistants')
+    const connect = page.getByRole('region', { name: 'Connect your AI' })
+    await expect(connect.getByRole('textbox', { name: 'Connector address', exact: true })).toHaveValue(/\/mcp$/)
+    await expect(connect.getByRole('textbox', { name: 'Backup connector address' })).toHaveValue('https://businesssagent.vercel.app/mcp')
+    await expect(connect).toContainText('Each connector signs in on its own')
+    await connect.getByRole('tab', { name: 'Claude Code' }).click()
+    await expect(connect.getByRole('textbox', { name: 'Backup command' })).toHaveValue('claude mcp add --transport http easy-beans-backup https://businesssagent.vercel.app/mcp')
   })
 
   test('AI assistants is in the account menu', async ({ page }) => {

@@ -13,6 +13,11 @@ export const businessConfig = {
    * webhook registered here (and signs webhooks with the URL), so those stay on it.
    */
   workersUrl: 'https://business-agent.arononeillwork.workers.dev',
+  /**
+   * The backup address on Vercel (ops/vercel-backup), for days Spanish providers block Cloudflare's.
+   * The AI connector works there too (worker/backupAddress.ts), and AI assistants offers it.
+   */
+  backupUrl: 'https://businesssagent.vercel.app',
   timezone: 'Europe/Madrid',
   /** ISO 3166 country: whose employment law Staff benefits shows (shared/benefits.ts). */
   country: 'ES' as const,

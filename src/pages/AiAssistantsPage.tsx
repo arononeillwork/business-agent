@@ -12,6 +12,7 @@ import { Empty, PageHeader, SectionTitle } from '../components/common'
 import { t } from '../i18n'
 import type { ApiKey } from '../../shared/types'
 import { formatLocal } from '../../shared/time'
+import { businessConfig } from '../../shared/business.config'
 
 type AiId = 'claude' | 'chatgpt' | 'claude_code' | 'other' | 'key'
 
@@ -47,8 +48,12 @@ export function AiAssistantsPage() {
   const [keyName, setKeyName] = useState('')
   const [made, setMade] = useState<string | null>(null)
   const keys = useQuery({ queryKey: ['api-keys'], queryFn: () => api.apiKeys() })
-  const url = `${window.location.origin}/mcp`
+  // Two ways in: this address (the app's own when opened from the backup) and the backup on Vercel,
+  // for days Spanish providers block Cloudflare's (worker/backupAddress.ts).
+  const url = `${window.location.origin === businessConfig.backupUrl ? businessConfig.appUrl : window.location.origin}/mcp`
+  const backupUrl = `${businessConfig.backupUrl}/mcp`
   const claudeCode = `claude mcp add --transport http easy-beans ${url}`
+  const claudeCodeBackup = `claude mcp add --transport http easy-beans-backup ${backupUrl}`
   if (!me) return null
 
   const AIS: { id: AiId; label: string }[] = [
@@ -79,6 +84,10 @@ export function AiAssistantsPage() {
               {t('Talk to the app from Claude, ChatGPT or any AI that takes connectors (MCP): ask about the rota, add a licence, check what’s due. Your AI signs in as you, so it can do what you can do here and nothing more, and every change it makes is logged as made via AI.')}
             </Typography>
             <CopyField label={t('Connector address')} value={url} />
+            <Box sx={{ mt: 1.5 }}><CopyField label={t('Backup connector address')} value={backupUrl} /></Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              {t('Two ways in. If the first stops opening (Spanish internet providers block it on some football match days), add a second connector the same way with the backup address, through Vercel. Each connector signs in on its own.')}
+            </Typography>
             <Tabs value={ai} onChange={(_, v: AiId) => setAi(v)} variant="scrollable" allowScrollButtonsMobile sx={{ mt: 2, mb: 2 }} aria-label={t('Which AI')}>
               {AIS.map(a => <Tab key={a.id} value={a.id} label={a.label} />)}
             </Tabs>
@@ -100,6 +109,7 @@ export function AiAssistantsPage() {
                 t('Then type /mcp in Claude Code, choose easy-beans and Authenticate. Sign in with your team account.'),
               ]} />
               <Box sx={{ mt: 1.5 }}><CopyField label={t('Command')} value={claudeCode} /></Box>
+              <Box sx={{ mt: 1.5 }}><CopyField label={t('Backup command')} value={claudeCodeBackup} /></Box>
             </>}
             {ai === 'other' && <Steps steps={[
               t('Cursor, VS Code (Copilot), Gemini CLI and other AIs that take MCP servers: add a server with the connector address above.'),

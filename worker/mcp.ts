@@ -87,7 +87,10 @@ label{display:block;font-size:13px;margin:12px 0 4px}input{width:100%;padding:10
 button{margin-top:16px;width:100%;padding:12px;border:0;border-radius:8px;background:var(--brand);color:#fff;font-weight:600;font-size:15px;cursor:pointer}
 .err{background:#fdecea;color:#b71c1c;padding:8px 10px;border-radius:8px;font-size:14px}
 ul{padding-left:18px;color:var(--muted);font-size:14px}
-</style></head><body><div class="card">${body}</div></body></html>`, { headers: { 'content-type': 'text/html; charset=utf-8' } })
+</style></head><body><div class="card">${body}</div></body></html>`, {
+    // The form carries this sign-in's own request: never kept by a cache in front (Vercel's, for the backup address).
+    headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+  })
 }
 
 function loginForm(oauthReq: AuthRequest, clientName: string, error?: string) {

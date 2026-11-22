@@ -16,6 +16,7 @@ import { calendarFeeds } from './calendarFeed'
 import { fonts } from './fonts'
 import { ads } from './ads'
 import { authorizeGet, authorizePost, mcpApiHandler, tokenExchangeCallback, type GrantProps, type OAuthEnv } from './mcp'
+import { asBackupAddress } from './backupAddress'
 import { apiKeys, isAccessKey, resolveKey } from './apiKeys'
 import { authEmail } from './authEmail'
 import { inviteMark, signupCheck } from './signupCheck'
@@ -440,7 +441,9 @@ export default {
       url.protocol = 'https:'
       return Response.redirect(url.toString(), 308)
     }
-    return provider(env, url.origin).fetch(request, env, ctx)
+    // The connector through the backup address on Vercel answers as that address (worker/backupAddress.ts).
+    const req = asBackupAddress(request)
+    return provider(env, new URL(req.url).origin).fetch(req, env, ctx)
   },
   // Every minute: close forgotten timecards, queue shift alerts, remind admins about events,
   // send planned social posts, deliver the outbox, refresh sports, send menu prices to Square; every
