@@ -108,7 +108,8 @@ function CafeSpeakerCard() {
   )
 }
 
-function SpotifyCard({ compact }: { compact?: boolean }) {
+/** The café's Spotify: the approved playlist, played or paused on the café speaker (the Music page shows it when YouTube Music is connected too). */
+export function SpotifyCard({ compact }: { compact?: boolean }) {
   const { api } = useApp()
   const run = useAction()
   const now = useAsync('music-now', () => api.musicNow(), [], { refetchInterval: 30_000 })

@@ -42,6 +42,7 @@ import { postProblem } from '../../shared/social'
 import type { SportsFavourite } from '../../shared/sports'
 import { POPULAR_FONTS } from '../../shared/fonts'
 import { addToCalendarUrl, cleanWebsite, groupOf } from '../../shared/connections'
+import { businessConfig } from '../../shared/business.config'
 import { mergeSales } from '../../shared/sales'
 import { dueFrom, emailId, matchSupplier, numberFromName, type InboxInvoice, type Invoice } from '../../shared/invoices'
 import type { Licence } from '../../shared/licences'
@@ -324,7 +325,11 @@ export function createDemoApi(): Api {
   }
   const player: MusicPlayerState = { device_id: null, device_name: null, playlist: null, queue: [], queue_version: 0, playlist_order: [], position: 0, playing: false,
     elapsed: 0, duration: 0, volume: 80, command: null, command_seq: 0, heartbeat_at: null, updated_at: nowIso() }
-  const cafeMusic = () => integ.integrations.find(i => (i.provider === 'spotify' || i.provider === 'youtube_music') && i.status === 'connected')
+  /** The business's own Spotify app's Client ID (Connections → Spotify); none: The Business Agent's. */
+  let spotifyClientId: string | null = null
+  /** The café's music app: the one asked for, or whichever is connected (YouTube Music first, as the Worker does). */
+  const cafeMusic = (want?: 'spotify' | 'youtube_music') => (want ? [want] : ['youtube_music', 'spotify'])
+    .map(p => integ.integrations.find(i => i.provider === p && i.status === 'connected')).find(Boolean)
   // Social planner: a published post and carousel, a post Instagram refused (to fix and post again),
   // a reel and a story coming up, a story reminder that's due now (posted by hand), a Facebook text
   // post next week, and a draft.
@@ -5435,14 +5440,25 @@ export function createDemoApi(): Api {
       requireAdmin()
       setConnection('spotify', { status: 'connected', account_label: 'Easy Beans (Premium)', connected_at: nowIso(), last_checked_at: nowIso(), last_error: null, external: {} })
     },
-    async cafePlaylists() {
-      const p = cafeMusic()
+    async spotifyApp() {
+      requireAdmin()
+      const uris = [...new Set([businessConfig.appUrl, businessConfig.workersUrl, location.origin])].map(o => `${o}/api/integrations/spotify/callback`)
+      return { own: spotifyClientId, platform: true, redirect_uris: uris }
+    },
+    async saveSpotifyApp(clientId) {
+      requireAdmin()
+      const id = clientId?.trim().toLowerCase() ?? null
+      if (id !== null && !/^[0-9a-f]{32}$/.test(id)) throw new Error('That isn’t a Spotify Client ID: it’s 32 letters and numbers, under the app’s Settings in Spotify’s developer dashboard.')
+      spotifyClientId = id
+    },
+    async cafePlaylists(provider) {
+      const p = cafeMusic(provider)
       if (!p) throw new Error('Connect Spotify or YouTube Music first')
       return { provider: p.provider as 'spotify' | 'youtube_music', playlists: clone(p.provider === 'spotify' ? demoPlaylists : youtubePlaylists), approved: p.external.playlist ?? null }
     },
-    async chooseCafePlaylist(playlist) {
+    async chooseCafePlaylist(playlist, provider) {
       requireAdmin()
-      const p = cafeMusic()
+      const p = cafeMusic(provider)
       if (!p) throw new Error('Connect Spotify or YouTube Music first')
       p.external.playlist = playlist
     },
@@ -5607,7 +5623,8 @@ export function createDemoApi(): Api {
       const youtube = p.provider === 'youtube_music'
       return { provider: youtube ? 'youtube' : 'spotify', account: p.account_label ?? null,
         // Only music: the café account's plain YouTube playlists (a refit timelapse, shoulder stretches) aren't offered.
-        playlists: clone(youtube ? youtubePlaylists : demoPlaylists), approved: clone(p.external.playlist ?? null), demo: true }
+        playlists: clone(youtube ? youtubePlaylists : demoPlaylists), approved: clone(p.external.playlist ?? null), demo: true,
+        ...(youtube && cafeMusic('spotify') ? { spotify: true } : {}) }
     },
     async cafeTracks(playlistId) {
       if (!staffOnly(me()!)) throw new Error('Music is for the team')
@@ -5655,13 +5672,14 @@ export function createDemoApi(): Api {
       Object.assign(player, report, { updated_at: nowIso() })
     },
     async musicNow() {
-      const s = cafeMusic()
+      // Both connected: Spotify's, the one that can be played and paused from here.
+      const s = cafeMusic('spotify') ?? cafeMusic()
       if (!s) throw new Error('No café music connected yet. An admin connects Spotify or YouTube Music on the Connections page.')
       if (s.provider === 'youtube_music') return { provider: 'youtube', controls: false, playlist: s.external.playlist ?? null, playing: false, onApprovedPlaylist: false }
       return { provider: 'spotify', controls: true, playlist: s.external.playlist ?? null, ...music, onApprovedPlaylist: music.playing }
     },
     async musicPlay() {
-      const s = cafeMusic()
+      const s = cafeMusic('spotify') ?? cafeMusic()
       if (s?.provider === 'youtube_music') throw new Error('YouTube Music plays on the café device: open the playlist there.')
       if (!s?.external.playlist) throw new Error('No playlist approved yet. An admin picks one on the Connections page.')
       Object.assign(music, { playing: true, track: 'Sunday Morning', artist: 'Maroon 5', device: 'Café speaker' })

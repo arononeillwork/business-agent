@@ -1,7 +1,7 @@
 // The apps a business can connect, in groups. In most groups the business picks ONE (Gmail or
-// Outlook, Spotify or YouTube Music…); connecting another replaces it. Social media and file
-// storage are the exceptions: connect as many as you use (the Legal page picks documents from
-// whichever storage you choose). Shared by the Worker (which verifies a connection before
+// Outlook, Google Calendar or Outlook Calendar…); connecting another replaces it. Social media, file
+// storage and café music are the exceptions: connect as many as you use (the Legal page picks
+// documents from whichever storage you choose; the Music page offers each music service). Shared by the Worker (which verifies a connection before
 // calling it connected) and the app (which shows the choices).
 import type { IntegrationProvider } from './types'
 import { msg } from './i18n'
@@ -80,7 +80,8 @@ export const GROUPS: ConnectionGroupInfo[] = [
   { key: 'ai', title: msg('AI images'), pickOne: false, options: [
     { id: 'higgsfield', name: 'Higgsfield', by: 'Higgsfield AI', proves: msg('Higgsfield accepted the API key.') },
   ] },
-  { key: 'music', title: msg('Café music'), pickOne: true, options: [
+  // Both can be connected: the Music page then offers each, with its own approved playlist.
+  { key: 'music', title: msg('Café music'), pickOne: false, options: [
     { id: 'spotify', name: 'Spotify', by: 'Spotify', proves: msg('The account signed in and its playlists can be read. Staff can play or pause it on the speaker.') },
     { id: 'youtube_music', name: 'YouTube Music', by: 'Google', proves: msg('The account signed in and its playlists can be read. Staff open the playlist on the business’s device.') },
   ] },

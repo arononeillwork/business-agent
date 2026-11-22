@@ -230,6 +230,33 @@ covers both. The connection below works with any Spotify account; the licence is
 Play/pause from the app needs Spotify Premium. New Spotify apps start in development mode, which
 is fine for one café account (add the café's Spotify email under the app's User Management).
 
+Spotify's rules for apps made since 11 Feb 2026 (checked Nov 2026, in Spotify's February 2026
+migration guide): the Spotify account that owns the app needs **Premium** (the app stops working
+while it lapses), and a development-mode app lets in **at most 5 Spotify accounts**, each added
+under the app's **User Management**. Extended quota is only for companies with 250,000 monthly
+users, so every business's café account and team members share those 5 places for now. Such
+apps get a playlist's songs as `items` (was `tracks`) and aren't told whether an account is
+Premium; `worker/providers/spotify.ts` reads either, and only an account Spotify says is Free is
+labelled so. Register both addresses as redirect URIs:
+`https://businesssagent.com/api/integrations/spotify/callback` and
+`https://business-agent.arononeillwork.workers.dev/api/integrations/spotify/callback`. Then add
+`SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` as repository secrets and deploy: the deploy gives
+them to the Worker. Until then the Music page's **Connect Spotify** says what's missing.
+
+**A business's own Spotify app.** Because The Business Agent's app takes 5 accounts in all, a
+business can use its own instead: Connections → Spotify → **Use your own Spotify app** shows the
+steps (make the app with the business's Premium account, add the two redirect URIs it lists, add
+each account under User Management) and takes the app's **Client ID**
+(`settings.spotify_client_id`). Its café account and its team's own Spotify then sign in through
+it with PKCE, so no secret is kept for it. Each kept connection remembers which app gave it
+(`worker/spotifyApp.ts`), so switching apps doesn't break connections already made; connect one
+again to move it. Without the platform keys, Spotify is still offered: it just needs the
+business's own app first.
+
+Spotify and YouTube Music can both be connected for the café (Connections → Café music), each
+with its own approved playlist. The Music page then has a switch between YouTube Music's player
+and Spotify (play or pause the approved playlist on the speaker); Today shows YouTube Music's.
+
 ## 6. Music page (each person's own Spotify or YouTube Music)
 
 The Music page is locked until the person connects their own account. It reuses the apps above,

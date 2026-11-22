@@ -414,6 +414,11 @@ export interface SpotifyPlaylist { id: string; name: string; image?: string; tra
 export type MusicProvider = 'spotify' | 'youtube'
 export interface MusicAccount { provider: MusicProvider; account_label: string | null; connected_at: string }
 export interface MyMusic { configured: Record<MusicProvider, boolean>; accounts: MusicAccount[] }
+/**
+ * The Spotify app a business connects through (Connections → Spotify): its own (`own`, a Client ID), else
+ * The Business Agent's (`platform`: there). `redirect_uris`: what to register in its own app.
+ */
+export interface SpotifyAppState { own: string | null; platform: boolean; redirect_uris: string[] }
 export interface MusicPlaylist { id: string; name: string; image?: string; tracks: number; url: string; owner?: string; provider: MusicProvider }
 export interface MyNowPlaying { playing: boolean; track?: string; artist?: string; device?: string; image?: string }
 
@@ -747,7 +752,9 @@ export type TodoPatch = Partial<Pick<Todo, 'title' | 'category_id' | 'section' |
   | 'planned_on' | 'planned_from' | 'planned_to'>>
 
 /** Café music (Music page): the café account's playlists, whichever service is connected. */
-export interface CafeMusicLibrary { provider: 'youtube' | 'spotify' | null; account: string | null; playlists: SpotifyPlaylist[]; approved: SpotifyPlaylist | null; /** Sample songs (demo): played by a pretend player. */ demo?: boolean }
+export interface CafeMusicLibrary { provider: 'youtube' | 'spotify' | null; account: string | null; playlists: SpotifyPlaylist[]; approved: SpotifyPlaylist | null; /** Sample songs (demo): played by a pretend player. */ demo?: boolean
+  /** YouTube Music's library, and the café's Spotify is connected too (the Music page offers both). */
+  spotify?: boolean }
 /** One song in the café queue (YouTube video id). */
 export interface CafeTrack { id: string; title: string; artist?: string; image?: string }
 export type MusicAction = 'play' | 'pause' | 'next' | 'previous' | 'jump' | 'seek' | 'volume'

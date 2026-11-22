@@ -67,3 +67,10 @@ export async function verifyState<T>(secret: string, token: string): Promise<T> 
   if (data.exp < Date.now() / 1000) throw new Error('This link has expired. Start again.')
   return data
 }
+
+/** OAuth PKCE (S256): a random verifier (64 characters) and the challenge sent with the sign-in link. */
+export async function pkcePair() {
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)))
+  const challenge = b64url(await crypto.subtle.digest('SHA-256', enc.encode(verifier)))
+  return { verifier, challenge }
+}
