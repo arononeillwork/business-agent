@@ -229,4 +229,39 @@ export default {
   'If an idea is not taken up straight away, it is usually timing rather than the idea.': 'Si una idea no se pone en marcha enseguida, suele ser por el momento, no por la idea.',
   'Gradual, perfected progress beats doing everything at once. One change, done properly, then the next.':
     'Avanzar poco a poco y bien es mejor que hacerlo todo a la vez. Un cambio, bien hecho, y luego el siguiente.',
+
+  // The legal role the owners added on 22 Nov 2026 (its name stays as they wrote it)
+  'Keeps the café on the right side of the law: the team\'s contracts and working hours, the licences and notices on display, food labels and allergens, and every document ready when an inspector calls.':
+    'Mantiene la cafetería dentro de la ley: los contratos y las horas del equipo, las licencias y los carteles a la vista, las etiquetas de la comida y los alérgenos, y cada documento listo cuando llega un inspector.',
+  'Every team member has a signed contract, registered with the SEPE, and is signed up with Social Security (alta) before their first shift':
+    'Cada persona del equipo tiene un contrato firmado, comunicado al SEPE, y está dada de alta en la Seguridad Social antes de su primer turno',
+  'Time records (registro de jornada): everyone clocks in and out every shift, on the café tablet or their phone; the records are kept for 4 years and shown to staff or an inspector when asked':
+    'Registro de jornada: todos fichan al entrar y al salir en cada turno, en la tablet de la cafetería o en su móvil; los registros se guardan 4 años y se enseñan al personal o a un inspector cuando lo piden',
+  'Opening licence (licencia de apertura) and terrace licence up to date, with the licence on display in the café or to hand, as the town hall asks':
+    'Licencia de apertura y licencia de terraza al día, con la licencia a la vista en la cafetería o a mano, según pida el ayuntamiento',
+  'Complaint forms (hojas de reclamaciones) always available, with the official sign saying so on display where customers can see it':
+    'Hojas de reclamaciones siempre disponibles, con el cartel oficial que lo indica a la vista de los clientes',
+  'Food labels: everything made or opened in the kitchen labelled with what it is, the date it was made or opened and its use-by date':
+    'Etiquetas de la comida: todo lo que se prepara o se abre en la cocina, etiquetado con qué es, la fecha en que se hizo o se abrió y su fecha límite de uso',
+  'Allergens: the 14 allergens for every item on the menu written down and available to customers, and the team knows where to find it':
+    'Alérgenos: los 14 alérgenos de cada producto de la carta por escrito y a disposición de los clientes, y el equipo sabe dónde encontrarlos',
+  'Food safety plan (APPCC / HACCP) in place, with the fridge and freezer temperatures logged, and a food handler certificate (manipulador de alimentos) for everyone who handles food':
+    'Plan de seguridad alimentaria (APPCC) en marcha, con las temperaturas de neveras y congeladores registradas, y el certificado de manipulador de alimentos para todos los que tocan comida',
+  'Prices displayed for customers, with IVA included': 'Precios a la vista de los clientes, con el IVA incluido',
+  'The work calendar (calendario laboral) and the no-smoking signs on display': 'El calendario laboral y los carteles de prohibido fumar a la vista',
+  'Signs for the cameras (videovigilancia) and the privacy notices, as data protection asks': 'Carteles de las cámaras (videovigilancia) y los avisos de privacidad, como pide la protección de datos',
+  'Risk prevention (PRL): the risk assessment done, a prevention service contracted, and the team trained in it':
+    'Prevención de riesgos laborales (PRL): la evaluación de riesgos hecha, un servicio de prevención contratado y el equipo formado',
+  'Fire extinguishers checked and in date, emergency exits signed and clear, first aid kit stocked':
+    'Extintores revisados y en fecha, salidas de emergencia señalizadas y despejadas, botiquín completo',
+  'Liability insurance (responsabilidad civil) and the other insurance policies current': 'El seguro de responsabilidad civil y las demás pólizas en vigor',
+  'Payslips, Social Security and contract changes kept up to date with the gestoría': 'Nóminas, Seguridad Social y cambios de contrato al día con la gestoría',
+  'Every licence, certificate and renewal date kept on the Legal & licences page in the app':
+    'Cada licencia, certificado y fecha de renovación guardados en la página Legal y licencias de la app',
+  'Knows where every document is when the labour, health or town hall inspectors visit':
+    'Sabe dónde está cada documento cuando vienen los inspectores de trabajo, de sanidad o del ayuntamiento',
+  'Checks the week\'s timecards are complete: every clock-in has its clock-out, breaks are there and overtime is recorded':
+    'Comprueba que los fichajes de la semana están completos: cada entrada tiene su salida, están los descansos y las horas extra registradas',
+  'Spot-checks the labels in the kitchen and the fridges, and throws out anything past its date':
+    'Revisa por sorpresa las etiquetas de la cocina y las neveras, y tira lo que ha pasado de fecha',
 }
