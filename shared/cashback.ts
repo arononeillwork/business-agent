@@ -2,9 +2,14 @@
 // earns from what it did, so much per 1,000 views, per new follower the café gained in the post's days
 // (the day it went out and the two after: shared/postImpact.ts) and per 100 likes, up to a most per post,
 // however old the post. The database works it out nightly and logs it (the post_cashback and
-// cashback_every_follower migrations, pay_post_cashback()); this says the same for the page.
+// cashback_every_follower migrations, pay_post_cashback()); this says the same for the page. An admin
+// switches it off for the whole business from the top of the page: a post made while it's off never earns
+// it (the cashback_switch migration), and what reps have earned stays.
 import { msg } from './i18n'
 import type { PostImpact } from './postImpact'
+
+/** A time cashback was switched off: from then until it was switched back on (null while it's off). */
+export interface CashbackPause { from: string; until: string | null }
 
 export interface CashbackRates {
   cashback_on: boolean
@@ -15,11 +20,14 @@ export interface CashbackRates {
   cashback_max: number
   /** An admin approves each before it counts. */
   cashback_needs_approval: boolean
+  /** When it was off (the database keeps them from cashback_on): posts made then never earn it. */
+  cashback_paused?: CashbackPause[]
 }
 
 /** What every café starts with (the migration's defaults). */
 export const CASHBACK_DEFAULTS: CashbackRates = {
   cashback_on: true, cashback_per_1000_views: 0.5, cashback_per_follower: 0.1, cashback_per_100_likes: 0.2, cashback_max: 15, cashback_needs_approval: true,
+  cashback_paused: [],
 }
 export const CASHBACK_KEYS = Object.keys(CASHBACK_DEFAULTS) as (keyof CashbackRates)[]
 
@@ -58,4 +66,24 @@ export const cashbackRates = (row: Partial<Record<keyof CashbackRates, unknown>>
   cashback_per_100_likes: row?.cashback_per_100_likes === undefined ? CASHBACK_DEFAULTS.cashback_per_100_likes : Number(row.cashback_per_100_likes),
   cashback_max: row?.cashback_max === undefined ? CASHBACK_DEFAULTS.cashback_max : Number(row.cashback_max),
   cashback_needs_approval: row?.cashback_needs_approval === undefined ? CASHBACK_DEFAULTS.cashback_needs_approval : !!row.cashback_needs_approval,
+  cashback_paused: pausesOf(row?.cashback_paused),
 })
+
+function pausesOf(raw: unknown): CashbackPause[] {
+  return (Array.isArray(raw) ? raw : [])
+    .filter((p): p is { from: string; until?: unknown } => !!p && typeof p === 'object' && typeof (p as { from?: unknown }).from === 'string')
+    .map(p => ({ from: p.from, until: typeof p.until === 'string' ? p.until : null }))
+}
+
+/** Whether a post went out while cashback was off: then it never earns it, even once it's back on. */
+export function postedWhileOff(at: string, pauses: CashbackPause[] | null | undefined): boolean {
+  const when = Date.parse(at)
+  return (pauses ?? []).some(p => when >= Date.parse(p.from) && (p.until === null || when < Date.parse(p.until)))
+}
+
+/** The times it was off once it's switched (as the database's cashback_switch_rules()): off starts one, on ends it. */
+export function pausesAfterSwitch(pauses: CashbackPause[], wasOn: boolean, on: boolean, now: string): CashbackPause[] {
+  if (wasOn && !on) return [...pauses, { from: now, until: null }]
+  if (!wasOn && on) return pauses.map(p => (p.until === null ? { ...p, until: now } : p))
+  return pauses
+}

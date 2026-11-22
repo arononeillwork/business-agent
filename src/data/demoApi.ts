@@ -21,7 +21,7 @@ import {
 import { collabId, collabMentions, isRecent, mentionTitle, mentionsIn, peopleToPutForward, shortcodeOf, type InstagramMention } from '../../shared/mentions'
 import { followerDays, ownPost, postAbout, postImpacts } from '../../shared/postImpact'
 import { creatorBoard } from '../../shared/creators'
-import { CASHBACK_DEFAULTS, CASHBACK_MIN, cashbackDue, cashbackFor, cashbackRates, followersIn } from '../../shared/cashback'
+import { CASHBACK_DEFAULTS, CASHBACK_MIN, cashbackDue, cashbackFor, cashbackRates, followersIn, pausesAfterSwitch, postedWhileOff } from '../../shared/cashback'
 import { demoSports } from './demoSports'
 import { demoInbox, demoMessenger, demoWhatsApp } from './demoMessages'
 import { demoIdeas } from './demoIdeas'
@@ -198,6 +198,8 @@ export function createDemoApi(): Api {
     const paid = new Set(rewardList.map(r => r.mention_id).filter(Boolean))
     for (const p of postImpacts(demoMentions().filter(m => m.username).map(postAbout), followerDays(days, null))) {
       if (paid.has(p.id) || p.at.slice(0, 10) > addDays(now, -3) || !cashbackDue(p, now)) continue
+      // Made while cashback was switched off: never (the cashback_switch migration).
+      if (postedWhileOff(p.at, rates.cashback_paused)) continue
       const rep = repList.find(r => r.active && r.approved && r.instagram === p.username)
       if (!rep) continue
       const { amount } = cashbackFor(p, rates)
@@ -4428,7 +4430,11 @@ export function createDemoApi(): Api {
     },
     async updateRepSettings(patch) {
       requireAdmin()
+      // When cashback was off is the database's to keep, from the switch (the cashback_switch migration).
+      const was = cashbackRates(repSettings)
+      const paused = pausesAfterSwitch(was.cashback_paused ?? [], was.cashback_on, patch.cashback_on ?? was.cashback_on, nowIso())
       repSettings = { ...repSettings, ...patch, ...('welcome_offer' in patch ? { welcome_offer: patch.welcome_offer?.trim() || null } : {}) }
+      repSettings.cashback_paused = paused
     },
 
     async kittySettings() {

@@ -158,6 +158,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
   ambassadors, waiting for an owner's OK unless the café says otherwise (the `post_cashback` migration, `pay_post_cashback()`;
   `shared/cashback.ts` says the same for the page). Nothing is sent to the people who post: the owners see it to approve, and
   Posts about us has a button that opens a chat with someone on Instagram, for whoever wants to write.
+- Cashback on or off for the whole business: a switch at the top of Sales reps & rewards (admins; the database keeps it
+  to them), under which Top sellers this month opens the page. Off, nothing new is offered or paid, and a post made while
+  it's off never earns cashback, even once it's back on (the `cashback_switch` migration keeps when it was off); what reps
+  have earned stays, to spend or be paid as before.
 - Business Agent's own reps ([docs/REPS_PLAN.md](docs/REPS_PLAN.md)): people who know business owners sell Business
   Agent for us, run as a business of its own in the app, **Business Agent HQ**, on its Sales reps & rewards page. Each rep has
   a code (Julio, for cafés: JULIO27) and leads kinds of business (café, restaurant & bar, pub, salon & beauty, real estate,

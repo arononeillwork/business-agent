@@ -7490,8 +7490,9 @@ test.describe('sales reps and rewards', () => {
     await open(page, '/')
     await page.getByRole('navigation', { name: 'Main' }).getByRole('region', { name: 'Sales' }).getByRole('link', { name: 'Reps & rewards' }).click()
     await expect(page.getByRole('heading', { name: 'Sales reps & rewards', level: 1 })).toBeVisible()
-    // The people who post about the café come first: no boxes of text above them.
-    await expect(page.getByRole('main').getByRole('region').first()).toHaveAccessibleName('People who post about us')
+    // This month's top sellers come first, then the people who post about the café: no boxes of text above them.
+    await expect(page.getByRole('main').getByRole('region').first()).toHaveAccessibleName('Top sellers this month')
+    await expect(page.getByRole('main').getByRole('region').nth(1)).toHaveAccessibleName('People who post about us')
     await expect(page.getByRole('region', { name: 'Our people' })).toHaveCount(0)
     await expect(page.getByRole('region', { name: 'How it works' })).toHaveCount(0)
     await expect(page.getByRole('region', { name: 'What earns a reward' }).getByRole('list', { name: 'The bigger their reach, the bigger the reward' }).getByRole('listitem'))
@@ -7798,6 +7799,53 @@ test.describe('sales reps and rewards', () => {
     await toast(page, /^Saved$/)
     await expect(block).toContainText('counts straight away')
     await expect(block).toContainText('up to €25,00')
+  })
+
+  test('cashback switched off and back on for the whole café from the top of the page: nothing new while it’s off, credit already earned still spent', async ({ page }) => {
+    await open(page, '/sales-reps')
+    const cashback = page.getByRole('switch', { name: 'Cashback', exact: true })
+    const block = page.getByRole('region', { name: 'Cashback for posts about the café' })
+    const board = page.getByRole('region', { name: 'People who post about us' })
+    const waiting = page.getByRole('region', { name: 'Waiting for approval' })
+    await expect(cashback).toBeChecked()
+    await expect(page.getByText('Posts about the café earn cashback', { exact: true })).toBeVisible()
+    await expect(board).toContainText(/€\d+,\d\d cashback once they’re a rep/)
+
+    // Off: no cashback offered or paid, and the page says so.
+    await cashback.click()
+    await toast(page, 'Cashback is off: no new cashback until you switch it back on')
+    await expect(cashback).not.toBeChecked()
+    await expect(page.getByText('Off: no new cashback, and what reps have earned can still be spent')).toBeVisible()
+    await expect(block).toContainText('Off')
+    await expect(block).toContainText('Switched off: no new cashback.')
+    await expect(board).not.toContainText('cashback once they’re a rep')
+    // Nora is a rep now and her reel's days are in, but it earns nothing while it's off.
+    await waiting.getByRole('group', { name: '@nora.eats.mbl: new rep' }).getByRole('button', { name: 'Say yes' }).click()
+    await toast(page, '@nora.eats.mbl is a rep')
+    await expect(waiting.getByRole('group', { name: '@nora.eats.mbl: Cashback for a post' })).toHaveCount(0)
+    // What a customer has earned is still theirs to spend.
+    const lucia = page.getByRole('region', { name: 'Reps' }).getByRole('article', { name: 'Lucía García' })
+    await expect(lucia).toContainText('1,00')
+    await lucia.getByRole('button', { name: 'Use the credit of Lucía García' }).click()
+    const spend = page.getByRole('dialog', { name: 'Use the credit of Lucía García' })
+    await spend.getByRole('textbox', { name: 'Amount' }).fill('1')
+    await spend.getByRole('button', { name: 'Use credit' }).click()
+    await toast(page, /Credit used/)
+
+    // The team sees it's off; only an admin switches it.
+    await signInAs(page, 'maria@example.com')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('region', { name: 'Sales' }).getByRole('link', { name: 'Reps & rewards' }).click()
+    await expect(block).toContainText('Switched off: no new cashback.')
+    await expect(page.getByRole('switch', { name: 'Cashback', exact: true })).toHaveCount(0)
+
+    // Back on: Nora's reel, made before it was switched off, earns its cashback.
+    await signInAs(page, 'aron@example.com')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('region', { name: 'Sales' }).getByRole('link', { name: 'Reps & rewards' }).click()
+    await cashback.click()
+    await toast(page, 'Cashback is on')
+    await expect(cashback).toBeChecked()
+    await expect(block).toContainText('Every rep earns from their posts')
+    await expect(waiting.getByRole('group', { name: '@nora.eats.mbl: Cashback for a post' })).toContainText('14,200 views')
   })
 
   test('admins add a usual reward to the list, and print business cards with each rep’s code', async ({ page }) => {

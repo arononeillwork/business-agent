@@ -14,7 +14,6 @@ export default {
     'Se calcula tres días después de la publicación, cuando ya están sus nuevos seguidores, y cuenta al momento.',
   'Customers get it as credit to spend here; the team and ambassadors as commission.':
     'Los clientes lo reciben como saldo para gastar aquí; el equipo y los embajadores, como comisión.',
-  'Switched off: posts about the café earn nothing by themselves.': 'Desactivado: las publicaciones sobre la cafetería no ganan nada por sí solas.',
   'For example, a reel with {views} views, {followers} new followers over the usual and {likes} likes earns {amount}.':
     'Por ejemplo, un reel con {views} reproducciones, {followers} nuevos seguidores por encima de lo normal y {likes} me gusta gana {amount}.',
   'Each amount is a number of euros, like 0,50': 'Cada importe es un número de euros, como 0,50',

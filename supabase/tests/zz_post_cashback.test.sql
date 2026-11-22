@@ -81,11 +81,66 @@ update public.instagram_mentions set mentioned_at = mentioned_at - interval '7 d
 select public.each_business('pay_post_cashback');
 do $$ begin assert not exists (select 1 from public.rep_rewards where mention_id = 'collab:DfNora0002'), 'off: nothing'; end $$;
 
+-- The switch (the cashback_switch migration): only an admin turns it; the database keeps when it was off, and a
+-- post made then never earns cashback, even once it's back on; one made before still does.
+create function pg_temp.act_as(p_email text) returns void language plpgsql as $$
+begin
+  reset role;
+  perform set_config('request.jwt.claim.sub', (select id::text from auth.users where email = p_email), false);
+  perform set_config('request.jwt.claim.role', 'authenticated', false);
+  perform set_config('request.headers', '{}', false);
+  set role authenticated;
+end $$;
+
+do $$ declare p jsonb := (select cashback_paused from public.rep_settings where id = 1); begin
+  assert jsonb_array_length(p) = 1 and (p->0->>'from')::timestamptz <= now() and p->0->'until' = 'null'::jsonb, 'off since it was switched off';
+end $$;
+select pg_temp.act_as('julio@test');
+update public.rep_settings set cashback_on = true where id = 1;
+select pg_temp.act_as('maria@test');
+do $$ begin assert not (select cashback_on from public.rep_settings where id = 1), 'an employee doesn''t switch it'; end $$;
+-- Its time off is the database's to keep: written to, it stays as it was.
+update public.rep_settings set cashback_on = true, cashback_paused = '[]' where id = 1;
+update public.rep_settings set cashback_paused = '[]', cashback_max = 15 where id = 1;
+do $$ declare p jsonb := (select cashback_paused from public.rep_settings where id = 1); begin
+  assert (select cashback_on from public.rep_settings where id = 1), 'an admin switches it back on';
+  assert jsonb_array_length(p) = 1 and (p->0->>'until')::timestamptz >= (p->0->>'from')::timestamptz, 'back on: its time off ends';
+end $$;
+update public.rep_settings set cashback_on = false where id = 1;
+update public.rep_settings set cashback_on = true where id = 1;
+do $$ begin
+  assert jsonb_array_length((select cashback_paused from public.rep_settings where id = 1)) = 2, 'each time off kept';
+end $$;
+
+-- As if it had been off from ten days ago to eight days ago: Nora's reel of nine days ago never earns, the one of
+-- eleven days ago does (and the one of eight days ago, made once it was back on).
+reset role;
+alter table public.rep_settings disable trigger rep_settings_cashback_switch;
+update public.rep_settings set cashback_paused = jsonb_build_array(jsonb_build_object(
+  'from', ((now() at time zone 'UTC')::date - 10)::timestamp at time zone 'UTC', 'until', ((now() at time zone 'UTC')::date - 8)::timestamp at time zone 'UTC'))
+ where id = 1;
+alter table public.rep_settings enable trigger rep_settings_cashback_switch;
+select pg_temp.as_worker();
+insert into public.instagram_mentions (id, kind, username, permalink, mentioned_at, video, views, likes) values
+  ('collab:DfNora0004', 'collab', 'nora.eats.mbl', null, (now() at time zone 'UTC')::date - 9 + time '12:00', true, 5000, 300),
+  ('collab:DfNora0005', 'collab', 'nora.eats.mbl', null, (now() at time zone 'UTC')::date - 11 + time '12:00', true, 4000, 100);
+reset role;
+select public.each_business('pay_post_cashback');
+do $$ begin
+  assert not exists (select 1 from public.rep_rewards where mention_id = 'collab:DfNora0004'), 'made while it was off: never';
+  assert exists (select 1 from public.rep_rewards where mention_id = 'collab:DfNora0005'), 'made before it was off: earns once it''s back on';
+  assert exists (select 1 from public.rep_rewards where mention_id = 'collab:DfNora0002'), 'made after it was back on: earns';
+end $$;
+
 -- Tidy up for the tests after.
 update public.rep_settings set cashback_on = true where id = 1;
+alter table public.rep_settings disable trigger rep_settings_cashback_switch;
+update public.rep_settings set cashback_paused = '[]';
+alter table public.rep_settings enable trigger rep_settings_cashback_switch;
 delete from public.rep_rewards where source like 'cashback:%';
 delete from public.notifications where title like 'Post cashback for%';
 delete from public.sales_reps where instagram in ('nora.eats.mbl', 'tomas.runs');
-delete from public.instagram_mentions where id in ('collab:DfNora0001', 'collab:DfNora0002', 'collab:DfNora0003', 'collab:DfTomas001', 'post:p1');
+delete from public.instagram_mentions where id in ('collab:DfNora0001', 'collab:DfNora0002', 'collab:DfNora0003', 'collab:DfNora0004', 'collab:DfNora0005',
+  'collab:DfTomas001', 'post:p1');
 delete from public.social_follower_days;
 update public.profiles set can_see_pay = (select can_see_pay from maria_pay_cashback) where email = 'maria@test';

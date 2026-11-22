@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CASHBACK_DEFAULTS, cashbackDue, cashbackFor, cashbackRates, followersIn, isCashback } from './cashback'
+import { CASHBACK_DEFAULTS, CASHBACK_KEYS, cashbackDue, cashbackFor, cashbackRates, followersIn, isCashback, pausesAfterSwitch, postedWhileOff } from './cashback'
 
 // The database's own test (supabase/tests/zz_post_cashback.test.sql) has the same reel: they must agree.
 const reel = { views: 14_200, likes: 1_180, gained: 67, usual: 15, days: 3 }
@@ -29,5 +29,31 @@ describe('Cashback for posts', () => {
     expect(cashbackRates(null)).toEqual(CASHBACK_DEFAULTS)
     expect(isCashback({ source: 'cashback:collab:DfNora0001' })).toBe(true)
     expect(isCashback({ source: 'stripe:in_1' })).toBe(false)
+  })
+
+  it('switched off for the whole business: a post made while it was off never earns it, one made before or after does', () => {
+    const offAt = '2026-11-10T09:00:00.123456+00:00'
+    const onAt = '2026-11-14T18:00:00+00:00'
+    // As the database keeps them (the cashback_switch migration): off starts a time off, on ends it, nothing else changes them.
+    const off = pausesAfterSwitch([], true, false, offAt)
+    expect(off).toEqual([{ from: offAt, until: null }])
+    expect(pausesAfterSwitch(off, false, false, onAt)).toBe(off)
+    const back = pausesAfterSwitch(off, false, true, onAt)
+    expect(back).toEqual([{ from: offAt, until: onAt }])
+    expect(pausesAfterSwitch(back, true, true, onAt)).toBe(back)
+    expect(postedWhileOff('2026-11-12T20:15:00Z', back)).toBe(true)
+    expect(postedWhileOff('2026-11-10T08:59:00Z', back)).toBe(false)
+    expect(postedWhileOff('2026-11-14T18:00:00Z', back)).toBe(false)
+    // Still off: everything since.
+    expect(postedWhileOff('2026-12-01T10:00:00Z', off)).toBe(true)
+    expect(postedWhileOff('2026-11-12T20:15:00Z', [])).toBe(false)
+    expect(postedWhileOff('2026-11-12T20:15:00Z', undefined)).toBe(false)
+  })
+
+  it('reads when it was off as the database gives it, and asks for it with the rates', () => {
+    expect(cashbackRates({ cashback_paused: [{ from: '2026-11-10T09:00:00+00:00', until: null }, { nope: 1 }, null] }).cashback_paused)
+      .toEqual([{ from: '2026-11-10T09:00:00+00:00', until: null }])
+    expect(cashbackRates({ cashback_paused: null }).cashback_paused).toEqual([])
+    expect(CASHBACK_KEYS).toContain('cashback_paused')
   })
 })
