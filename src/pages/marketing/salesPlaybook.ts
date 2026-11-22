@@ -69,7 +69,8 @@ const CAFES: PainPoint[] = [
     says: msg('“We get a rush on Saturday and then nothing on Tuesday. I’ve no way to bring people back.”'),
     fix: msg('Customers, loyalty rewards (with Square) and offers in one place. Send a WhatsApp or an email to bring regulars in on a quiet day, and run a competition to get new faces through the door.'),
     result: msg('Quiet days get a reason to come in, and regulars come back more often.'),
-    video: msg('Filling a quiet Tuesday'),
+    video: msg('Bring them back on the quiet days'),
+    film: { src: '/video/regulars.mp4', poster: '/video/regulars.jpg' },
   },
   {
     id: 'costing', wins: ['money', 'costs'], pages: [msg('Menu costing'), msg('Menu'), msg('Suppliers')],

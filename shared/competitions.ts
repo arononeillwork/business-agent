@@ -378,7 +378,7 @@ export function suggest(input: SuggestInput): CompetitionIdea[] {
         why: w(msg('{day} take {percent}% less than the average day: a draw only for that day gives people a reason to come in.'), { day: WEEKDAYS[quiet], percent: less }),
         channels: ['in_cafe', 'instagram'], starts_on: first, ends_on: last, draw_on: plusDays(last, 1),
         prize: p.name, prize_es: p.es, prize_value: p.value, prize_item_id: p.item,
-        how_to_enter: [w(msg('Come in on a {day}, buy anything'), { day: WEEKDAYS[quiet] }), w(msg('Write your name and phone on a slip and drop it in the jar'))],
+        how_to_enter: [w(msg('Come in on {day}, buy anything'), { day: WEEKDAYS[quiet] }), w(msg('Write your name and phone on a slip and drop it in the jar'))],
         how_to_enter_es: [`Ven ${WEEKDAYS_ES[quiet]} y haz cualquier consumición`, 'Escribe tu nombre y teléfono en una papeleta y déjala en el bote'],
         caption_es: `☕ ${WEEKDAYS_ES[quiet][0].toUpperCase()}${WEEKDAYS_ES[quiet].slice(1)} tienen premio: durante cuatro semanas, cada consumición ${WEEKDAYS_ES[quiet]} es una papeleta para ganar ${p.es}.`,
         caption: `☕ ${WEEKDAYS_EN[quiet]} win: for four weeks, every order on ${WEEKDAYS_EN[quiet]} is a slip in the draw for ${p.en}.`,

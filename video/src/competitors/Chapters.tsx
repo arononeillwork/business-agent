@@ -22,10 +22,13 @@ const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const
 const STEPS = 3
 const URL = () => 'businesssagent.com/competitors'
 
-/** A recording in the browser window under its headlines, with its step top right; the window goes at the end of the recording. */
-function Recorded({ n, label, len, src, meta, segs, keys, captions, children }: {
-  n: number; label: string; len: number; src: string; meta: ClipMeta; segs: Segment[]; keys: CamKey[]
-  captions: { from: number; title: ReactNode }[]; children?: ReactNode
+/**
+ * A recording in the browser window under its headlines, with its step top right (`n` of `of`); the window goes at
+ * the end of the recording. `url` is the address bar at a frame (the Competitors page unless said).
+ */
+export function Recorded({ n, of = STEPS, label, len, src, meta, segs, keys, captions, url = URL, children }: {
+  n: number; of?: number; label: string; len: number; src: string; meta: ClipMeta; segs: Segment[]; keys: CamKey[]
+  captions: { from: number; title: ReactNode }[]; url?: (frame: number) => string; children?: ReactNode
 }) {
   const frame = useCurrentFrame()
   const W = lengthOf(segs)
@@ -44,13 +47,13 @@ function Recorded({ n, label, len, src, meta, segs, keys, captions, children }: 
           )
         })}
         {frame < W && (
-          <Browser url={URL()} width={WIN.w} height={WIN.h}
+          <Browser url={url(frame)} width={WIN.w} height={WIN.h}
             style={{ left: WIN.x, top: WIN.y, opacity: win * winOut, translate: `0 ${interpolate(win, [0, 1], [90, 0]) + interpolate(winOut, [0, 1], [60, 0])}px` }}>
             <Zoomed keys={keys} w={WIN.w} h={WIN.h}><Clip src={src} segs={segs} /></Zoomed>
           </Browser>
         )}
         {children}
-        <Step n={n} of={STEPS} label={label} at={0} />
+        <Step n={n} of={of} label={label} at={0} />
       </AbsoluteFill>
       {clicksOf(meta, segs).map((f, i) => <Sfx key={i} name="click" at={f} volume={0.28} />)}
       <Sfx name="whoosh" at={W - 10} volume={0.2} />

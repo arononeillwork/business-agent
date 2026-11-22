@@ -26,7 +26,7 @@ export default {
   'Christmas': 'Navidad',
   'Close it': 'Cerrarlo',
   'Collect a stamp on your card': 'Consigue un sello en tu tarjeta',
-  'Come in on a {day}, buy anything': 'Ven {day} y haz cualquier consumición',
+  'Come in on {day}, buy anything': 'Ven {day} y haz cualquier consumición',
   'Comment a name for the new drink': 'Comenta un nombre para la bebida nueva',
   'Comment on the post: who would you bring?': 'Comenta en la publicación: ¿con quién vendrías?',
   'Comment your score before kick-off': 'Comenta tu resultado antes del partido',

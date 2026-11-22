@@ -11,6 +11,7 @@
     "capture:waste": "node capture/waste.mjs",
     "capture:listing": "node capture/listing.mjs",
     "capture:competitors": "node capture/competitors.mjs",
+    "capture:regulars": "node capture/regulars.mjs",
     "music": "python3 music/compose.py",
     "music:day": "python3 music/day.py",
     "music:owner": "python3 music/owner.py",
@@ -18,6 +19,7 @@
     "music:waste": "python3 music/waste.py",
     "music:listing": "python3 music/listing.py",
     "music:competitors": "python3 music/competitors.py",
+    "music:regulars": "python3 music/regulars.py",
     "studio": "remotion studio src/index.ts",
     "render": "remotion render src/index.ts LandingVideo out/landing-master.mp4 --codec=h264 --crf=16 --audio-bitrate=192k",
     "render:day": "remotion render src/index.ts DayVideo out/day-master.mp4 --codec=h264 --crf=16 --audio-bitrate=192k",
@@ -26,6 +28,7 @@
     "render:waste": "remotion render src/index.ts WasteVideo out/waste-master.mp4 --codec=h264 --crf=16 --audio-bitrate=192k",
     "render:listing": "remotion render src/index.ts ListingVideo out/listing-master.mp4 --codec=h264 --crf=16 --audio-bitrate=192k",
     "render:competitors": "remotion render src/index.ts CompetitorsVideo out/competitors-master.mp4 --codec=h264 --crf=16 --audio-bitrate=192k",
+    "render:regulars": "remotion render src/index.ts RegularsVideo out/regulars-master.mp4 --codec=h264 --crf=16 --audio-bitrate=192k",
     "web": "node web.mjs landing",
     "web:day": "node web.mjs day",
     "web:owner": "node web.mjs owner",
@@ -33,6 +36,7 @@
     "web:waste": "node web.mjs waste",
     "web:listing": "node web.mjs listing",
     "web:competitors": "node web.mjs competitors",
+    "web:regulars": "node web.mjs regulars",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
