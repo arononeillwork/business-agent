@@ -8253,22 +8253,36 @@ test.describe('customer suggestions', () => {
     await expect(page.getByRole('menuitem', { name: 'Delete' })).toHaveCount(0)
     await page.keyboard.press('Escape')
 
-    // Added on the page, straight into a section.
+    // Added on the page, straight into a section: heard today, filled in already, and word of mouth offered first.
     await page.getByRole('button', { name: 'Add a suggestion' }).click()
     const add = page.getByRole('dialog', { name: 'Add a suggestion' })
+    await expect(add.getByLabel('Heard on')).toHaveValue('2026-09-30')
     await add.getByRole('textbox', { name: 'The idea' }).fill('Oat milk for free, like in Málaga')
     await add.getByRole('textbox', { name: 'Who suggested it' }).fill('Carmen')
+    await add.getByRole('combobox', { name: 'Where it was heard' }).click()
+    const places = page.getByRole('listbox')
+    await expect(places.getByRole('option')).toHaveText(['Word of mouth', 'In the café', 'Instagram', 'Google review', 'WhatsApp', 'Email'])
+    await places.getByRole('option', { name: 'Word of mouth' }).click()
+    await expect(add.getByRole('combobox', { name: 'Where it was heard' })).toHaveValue('Word of mouth')
     await add.getByRole('combobox', { name: 'Section' }).selectOption({ label: 'Oat milk at no extra cost' })
     await add.getByRole('button', { name: 'Add', exact: true }).click()
     await toast(page, /^Added$/)
     await expect(counter('Oat milk at no extra cost')).toHaveText('5')
-    await expect(section('Oat milk at no extra cost').getByRole('article', { name: 'Oat milk for free, like in Málaga' })).toContainText('Carmen')
+    await expect(section('Oat milk at no extra cost').getByRole('article', { name: 'Oat milk for free, like in Málaga' })).toContainText('Carmen · Word of mouth · 30 Sep')
+    // Opened again after midnight, without reloading the page: the new day. Anything else can still be typed.
+    await page.clock.setSystemTime(new Date('2026-09-30T22:30:00Z'))
+    await page.getByRole('button', { name: 'Add a suggestion' }).click()
+    await expect(add.getByLabel('Heard on')).toHaveValue('2026-10-01')
+    await add.getByRole('textbox', { name: 'The idea' }).fill('Bigger cups to take away')
+    await add.getByRole('combobox', { name: 'Where it was heard' }).fill('A flyer at the gym')
+    await add.getByRole('button', { name: 'Add', exact: true }).click()
+    await expect(unsorted.getByRole('article', { name: 'Bigger cups to take away' })).toContainText('A flyer at the gym · 1 Oct')
 
     // A section removed: its ideas go back to not sorted yet.
     await section('Sunday brunch with eggs').getByRole('button', { name: 'Options for the Sunday brunch with eggs section' }).click()
     await page.getByRole('menuitem', { name: 'Remove the section' }).click()
     await expect(section('Sunday brunch with eggs')).toHaveCount(0)
-    await expect(unsorted.getByRole('article')).toHaveCount(2)
+    await expect(unsorted.getByRole('article')).toHaveCount(3)
 
     // An owner deletes an idea.
     await signInAs(page, 'aron@example.com')

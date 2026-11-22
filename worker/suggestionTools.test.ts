@@ -72,6 +72,21 @@ describe('customer suggestion tools', () => {
     expect(db.table('customer_suggestions').find(r => r.text === 'Free oat milk please')).toMatchObject({ group_id: 'g-oat' })
   })
 
+  it('an idea added without a day is heard today, the business’s day (past midnight in Madrid, still yesterday in UTC)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-21T23:30:00Z'))
+    try {
+      const out = await run('add_customer_suggestion', { text: 'Decaf oat flat white', source: 'word of mouth' }, employee) as { added: { heard_on: string; source: string } }
+      expect(out.added).toMatchObject({ heard_on: '2026-11-22', source: 'Word of mouth' })
+      // A business in Dublin is an hour behind: still the 21st there.
+      db.tables.business = [{ id: 1, name: 'The Daily Grind', timezone: 'Europe/Dublin' }]
+      const dublin = await run('add_customer_suggestion', { text: 'Scones on Sundays' }, employee) as { added: { heard_on: string; source: string | null } }
+      expect(dublin.added).toMatchObject({ heard_on: '2026-11-21', source: null })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('starts a section for a new idea, or leaves it not sorted yet', async () => {
     const started = await run('add_customer_suggestion', { text: 'Sunday brunch with eggs', section: 'Sunday brunch' }) as { section: string; started_section: boolean; section_count: number }
     expect(started).toMatchObject({ section: 'Sunday brunch', started_section: true, section_count: 1 })

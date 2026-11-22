@@ -301,6 +301,9 @@ built-in **AI connector** so owners can run it by talking to Claude.
   not sorted yet starts a section with both; on a phone or from the keyboard, an idea's menu moves it. The
   whole team reads, adds and sorts them and names and removes sections (its ideas go back to not sorted yet);
   only admins delete an idea (`shared/suggestions.ts`, the `customer_suggestions` migration).
+- Adding a customer suggestion: Heard on is today, the business's day, worked out as the dialog opens (and by the AI
+  when it's given no day); Where it was heard offers Word of mouth, In the café, Instagram, Google review, WhatsApp and
+  Email, or anything typed.
 - Today: a top row of small cards (your clock, who's on today with faces and start times, the café music),
   then today's takings against the day's breakeven for admins with pay access and a till: the figure, a
   bar that fills to the breakeven mark and goes green past it, and the day so far as a line against the

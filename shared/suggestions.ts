@@ -31,15 +31,34 @@ export interface SuggestionGroup {
 /** The same limits as the database's. */
 export const SUGGESTION_LIMITS = { text: 1000, customer: 120, source: 80, group: 120 } as const
 
-/** Where ideas are usually heard, offered when one is added on the page (anything else is fine too). */
+/**
+ * Where ideas are usually heard, offered when one is added (anything else can be typed too), word of mouth
+ * first. Kept by their English names and shown in the person's language.
+ */
 export const USUAL_SOURCES: string[] = [
-  msg('At the counter'),
-  msg('Google review'),
+  msg('Word of mouth'),
+  msg('In the café'),
   msg('Instagram'),
-  msg('Email'),
+  msg('Google review'),
   msg('WhatsApp'),
-  msg('Website'),
+  msg('Email'),
 ]
+/** Offered before: ideas kept with them still show them in the person's language. */
+const EARLIER_SOURCES: string[] = [msg('At the counter'), msg('Website')]
+
+/** Whether a source is one of the usual ones (kept in English, shown translated). */
+export const isUsualSource = (source: string | null | undefined): source is string =>
+  !!source && (USUAL_SOURCES.includes(source) || EARLIER_SOURCES.includes(source))
+
+/**
+ * A source as it's kept: a usual one typed in English or in the person's language (`translate`, the page's
+ * t()) by its English name, accents and case aside; anything else as typed.
+ */
+export function sourceToKeep(typed: string | null | undefined, translate: (s: string) => string = s => s): string {
+  const q = fold(typed ?? '')
+  if (!q) return tidy(typed)
+  return [...USUAL_SOURCES, ...EARLIER_SOURCES].find(s => fold(s) === q || fold(translate(s)) === q) ?? tidy(typed)
+}
 
 const tidy = (s: string | null | undefined) => (s ?? '').replace(/\s+/g, ' ').trim()
 const fold = (s: string) => tidy(s).normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
