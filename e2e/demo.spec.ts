@@ -1346,6 +1346,32 @@ test.describe('music', () => {
     await expect(mine).toContainText('1 song')
   })
 
+  test('café music: connect a speaker gives the steps for the device in hand, the Wi‑Fi way for a Sonos, and a test sound', async ({ page }) => {
+    await open(page, '/connections')
+    await connectYouTubeMusic(page)
+    await page.getByRole('link', { name: 'Music' }).first().click()
+    await page.getByRole('region', { name: 'Now playing' }).getByRole('button', { name: 'Connect a speaker' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Connect a speaker' })
+    await expect(dialog).toContainText('A web page can’t connect to Bluetooth itself')
+    // The speaker first (Bose's and Sonos's own steps), then this device's: the tests' browser says it's on Windows.
+    await expect(dialog.getByRole('region', { name: 'Put the speaker in pairing mode' })).toContainText('Sonos Roam: Press and hold the power button on the back for 2 seconds')
+    const pair = dialog.getByRole('region', { name: 'Pair it in the device’s Bluetooth settings' })
+    await expect(dialog.getByRole('button', { name: 'Windows' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(pair).toContainText('Settings → Bluetooth & devices → Add device')
+    // Another device: its own steps, and a Sonos without Bluetooth through AirPlay.
+    await dialog.getByRole('button', { name: 'iPad / iPhone' }).click()
+    await expect(pair).toContainText('tap the speaker under Other Devices')
+    await expect(dialog.getByRole('region', { name: 'A Sonos or Bose on Wi‑Fi instead' })).toContainText('tap the AirPlay icon')
+    await dialog.getByRole('button', { name: 'Android' }).click()
+    await expect(dialog.getByRole('region', { name: 'A Sonos or Bose on Wi‑Fi instead' })).toContainText('A browser on Android can’t send sound to a Wi‑Fi speaker')
+
+    // The chime plays here, wherever this device's sound goes, and says what to listen for.
+    await dialog.getByRole('button', { name: 'Play a test sound' }).click()
+    await expect(dialog.getByRole('status')).toContainText('Heard it from the speaker? You’re set.')
+    await dialog.getByRole('button', { name: 'Done' }).click()
+    await expect(dialog).toHaveCount(0)
+  })
+
   test('café music: playlists play one after another, in an order anyone can drag; only music playlists show', async ({ page }) => {
     await open(page, '/connections')
     await connectYouTubeMusic(page)
