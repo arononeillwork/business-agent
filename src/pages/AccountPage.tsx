@@ -14,6 +14,7 @@ import { TimeZoneField } from '../components/TimeZoneField'
 import { DeviceBusinesses, useSignOutLabel } from '../components/BusinessSwitcher'
 import { t, tc, tn } from '../i18n'
 import { roleNamesOf } from '../../shared/roles'
+import { shownRoleName } from '../app/roleText'
 import { currentCountry } from '../../shared/country'
 import { teamRoleLabel } from '../../shared/teamRoles'
 import type { ContactMethod } from '../../shared/types'
@@ -51,7 +52,7 @@ export function AccountPage() {
               <TextField label={t('Email')} value={me.email ?? ''} slotProps={{ input: { readOnly: true } }} />
               {!isPartner && <>
                 {/* Fixed: an admin gives them (Roles & responsibilities, and the Team page). */}
-                <TextField label={tc('job', 'Role')} value={roleNamesOf(me.id, jobRoles).join(', ') || t('No role yet')}
+                <TextField label={tc('job', 'Role')} value={roleNamesOf(me.id, jobRoles).map(shownRoleName).join(', ') || t('No role yet')}
                   slotProps={{ input: { readOnly: true } }} />
                 <TextField label={t('Access')} value={t(teamRoleLabel(me) ?? 'Employee')} slotProps={{ input: { readOnly: true } }} />
                 <PhoneField label={t('Mobile')} value={phone} onChange={setPhone} />

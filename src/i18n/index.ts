@@ -34,6 +34,24 @@ export const tc = (context: string, text: string, vars?: Vars) => {
   return fill(own ?? lookup(text), vars)
 }
 
+// The English for each Spanish text (built when first needed, once the Spanish is loaded).
+let english: Map<string, string> | null = null
+const englishOf = (text: string) => {
+  english ??= new Map(Object.entries(spanish).filter(([en]) => !/\{\w+\}/.test(en)).map(([en, es]) => [es, en]))
+  return english.get(text)
+}
+
+/**
+ * Text someone saved (not written in the app's code) in the current language when the app knows it in
+ * both: a ready-made role added in either language, or a business's own roles and rules that come with
+ * their Spanish (src/i18n/es/easyBeansHandbook.ts). Anything else shows as it was written. Unlike t(),
+ * no {placeholders} are filled in.
+ */
+export const tk = (text: string) => {
+  if (language === 'es') return spanish[text] ?? text
+  return (Object.keys(spanish).length && englishOf(text)) || text
+}
+
 /** One or many: tn(3, '{n} item', '{n} items') → "3 items". English and Spanish share the rule. */
 export const tn = (n: number, one: string, other: string, vars?: Vars) => t(n === 1 ? one : other, { n, ...vars })
 
@@ -52,6 +70,7 @@ export const locale = () => (language === 'es' ? 'es-ES' : 'en-GB')
 export async function setLanguage(next: Language) {
   if (next === 'es') {
     const es = await import('./es')
+    if (spanish !== es.spanish) english = null
     spanish = es.spanish
     setDateLocale(es.dateLocale)
   } else setDateLocale(undefined)

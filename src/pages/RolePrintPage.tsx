@@ -11,6 +11,7 @@ import { PrintFact, PrintFootnote, PrintList, PrintSection, PrintSheet, PrintTex
 import { dutiesByWhen } from '../../shared/roles'
 import { formatLocal } from '../../shared/time'
 import { t } from '../i18n'
+import { shownRole } from '../app/roleText'
 
 export function RolePrintPage() {
   const { id } = useParams()
@@ -18,7 +19,8 @@ export function RolePrintPage() {
   const data = useAsync('roles', () => api.jobRoles(), [])
   if (data.error) return <Box sx={{ p: 4 }}><ErrorBox error={data.error} /></Box>
   if (!data.data) return <Loading />
-  const roles = data.data
+  // In the app's language where it's known (src/app/roleText.ts).
+  const roles = data.data.map(shownRole)
   const r = roles.find(x => x.id === id && (isAdmin || (!!me && x.people.includes(me.id))))
   if (!r) {
     return (

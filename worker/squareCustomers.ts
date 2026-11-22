@@ -1,7 +1,9 @@
 // Square's customer directory comes into Customers by itself: right after Square is connected,
 // straight away when someone is added or changed in Square (its customer webhook), and every hour
 // as a safety net (only the people added or changed since). Each one is a customer with
-// source "square", linked by Square's id so they're never added twice. Someone already on the list
+// source "square", linked by Square's id so they're never added twice; the ones Square holds for the
+// people who post about the café on Instagram (worker/squareReps.ts) come in as from Instagram, with
+// their Instagram name. Someone already on the list
 // (same email or phone) is linked rather than added again, and keeps where they came from. What's
 // typed in the app wins: Square only fills fields that are empty here. Nobody is opted in to
 // marketing (GDPR: Square doesn't record a yes), and people deleted in Square stay.
@@ -12,16 +14,31 @@ import { setIntegration, squareSession } from './connections'
 import { EMAIL, cleanDate, cleanPhone } from '../shared/customers'
 import type { Customer, CustomerInput } from '../shared/types'
 
-type Row = Pick<Customer, 'id' | 'first_name' | 'last_name' | 'email' | 'phone' | 'company' | 'birthday' | 'notes'> & { square_id: string | null }
+type Row = Pick<Customer, 'id' | 'first_name' | 'last_name' | 'email' | 'phone' | 'company' | 'birthday' | 'notes' | 'instagram' | 'source'> & { square_id: string | null }
 type Incoming = CustomerInput & { square_id: string }
-const FILLABLE = ['first_name', 'last_name', 'email', 'phone', 'company', 'birthday', 'notes'] as const
+const FILLABLE = ['first_name', 'last_name', 'email', 'phone', 'company', 'birthday', 'notes', 'instagram'] as const
+
+const HANDLE = /^@?([A-Za-z0-9._]{1,30})$/
+/**
+ * Their Instagram name, when Square's customer is one made for someone who posts about the café on
+ * Instagram (worker/squareReps.ts: "rep:" as its reference, "@name" as its nickname, or its note).
+ */
+export function instagramOf(c: Pick<square.SquareCustomer, 'nickname' | 'reference_id' | 'note'>): string | null {
+  const nick = c.nickname?.trim() ?? ''
+  if (nick.startsWith('@') || c.reference_id?.startsWith('rep:')) {
+    const name = HANDLE.exec(nick)?.[1]
+    if (name) return name
+  }
+  return /^Posts about the café on Instagram \(@([A-Za-z0-9._]{1,30})\)/.exec(c.note?.trim() ?? '')?.[1] ?? null
+}
 
 /** A Square customer as a customer here; null when there's no name, email or phone to keep. */
 export function fromSquare(c: square.SquareCustomer): Incoming | null {
   const text = (v: string | undefined, max: number) => v?.trim().slice(0, max) || null
   const email = c.email_address?.trim().toLowerCase() ?? ''
+  const instagram = instagramOf(c)
   const r: Incoming = {
-    square_id: c.id, kind: 'customer', source: 'square',
+    square_id: c.id, kind: 'customer', source: instagram ? 'instagram' : 'square', instagram,
     first_name: text(c.given_name, 100), last_name: text(c.family_name, 100), company: text(c.company_name, 120),
     email: EMAIL.test(email) && email.length <= 254 ? email : null,
     phone: c.phone_number ? cleanPhone(c.phone_number) : null,
@@ -48,6 +65,8 @@ export function plan(incoming: Incoming[], existing: Row[]) {
       ?? unlinked.find(r => (c.email && r.email?.toLowerCase() === c.email) || (digits(c.phone) && digits(r.phone) === digits(c.phone)))
     if (!here) { add.push(c); continue }
     const patch: Partial<Incoming> = Object.fromEntries(FILLABLE.filter(k => here[k] == null && c[k] != null).map(k => [k, c[k]]))
+    // Someone who posts about the café on Instagram came from Instagram, not from Square itself.
+    if (c.source === 'instagram' && here.source === 'square') patch.source = 'instagram'
     if (!here.square_id) {
       patch.square_id = c.square_id
       unlinked.splice(unlinked.indexOf(here), 1)
@@ -86,7 +105,7 @@ export async function syncSquareCustomers(env: Env, db: SupabaseClient, full = f
 /** Add the new people and fill the gaps of those already here. Returns how many were added. */
 async function save(db: SupabaseClient, incoming: Incoming[]) {
   if (!incoming.length) return 0
-  const { data: existing, error } = await db.from('customers').select('id, square_id, first_name, last_name, email, phone, company, birthday, notes')
+  const { data: existing, error } = await db.from('customers').select('id, square_id, first_name, last_name, email, phone, company, birthday, notes, instagram, source')
   if (error) throw new Error(error.message)
   const { add, fill } = plan(incoming, (existing ?? []) as Row[])
   for (let i = 0; i < add.length; i += 500) {

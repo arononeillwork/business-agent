@@ -213,6 +213,10 @@ export interface SquareCustomer {
   /** "1990-05-14", or "0000-05-14" when Square wasn't told the year. */
   birthday?: string
   note?: string
+  /** "@theirname" for the customers made for reps who post about the café on Instagram (worker/squareReps.ts). */
+  nickname?: string
+  /** "rep:<id>" for those same customers. */
+  reference_id?: string
   updated_at?: string
 }
 

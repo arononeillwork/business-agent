@@ -30,6 +30,7 @@ import { tokens } from '../theme'
 import { t, tc, tn } from '../i18n'
 import { countryProfile } from '../../shared/country'
 import { AgentsTab } from './RolesAgentsTab'
+import { shownRole } from '../app/roleText'
 import { OwnershipTab } from './RolesOwnershipTab'
 
 /** A preset in the admin's language, linked to the rota position it's worked as. */
@@ -67,7 +68,10 @@ export function RolesPage() {
   const [choosing, setChoosing] = useState(false)
   const data = useAsync('roles', () => api.jobRoles(), [])
   // Every role (for names, templates in use, owners and what people can do), and the ones in use: the Active tab.
-  const all = sortRoles(data.data ?? [])
+  // Shown in the app's language where it's known (shownRole); editing starts from what was saved.
+  const saved = sortRoles(data.data ?? [])
+  const all = saved.map(shownRole)
+  const edit = (r: JobRole) => setEditing(saved.find(x => x.id === r.id) ?? r)
   const roles = all.filter(r => r.active !== false)
   const inactive = all.filter(r => r.active === false)
   const mine = new Set(all.filter(r => me && r.people.includes(me.id)).map(r => r.id))
@@ -87,7 +91,7 @@ export function RolesPage() {
     let list = all
     for (const p of presets) {
       await api.saveJobRole(fromPreset(p, positions, list, list.reduce((n, r) => Math.max(n, r.sort + 1), 0)))
-      list = await api.jobRoles()
+      list = (await api.jobRoles()).map(shownRole)
     }
   }, presets.length === 1 ? t('Role added') : t('Roles added'))
   /** Out of use for now (the Inactive tab), or back in use; it keeps its duties, people and permissions. */
@@ -195,7 +199,7 @@ export function RolesPage() {
                 {isAdmin && (
                   <Stack direction="row" sx={{ gap: 1, alignItems: 'center', mt: 1.5 }}>
                     <Button size="small" variant="outlined" onClick={() => void setActive(r, true)} aria-label={t('Make {name} active', { name: r.name })}>{t('Make active')}</Button>
-                    <Button size="small" startIcon={<EditIcon />} onClick={() => setEditing(r)} aria-label={t('Edit {name}', { name: r.name })}>{t('Edit')}</Button>
+                    <Button size="small" startIcon={<EditIcon />} onClick={() => edit(r)} aria-label={t('Edit {name}', { name: r.name })}>{t('Edit')}</Button>
                   </Stack>
                 )}
               </ExpandableCard>
@@ -254,7 +258,7 @@ export function RolesPage() {
                 <RoleDetails role={r} roles={all} people={people} position={position} />
                 {isAdmin && (
                   <Stack direction="row" sx={{ gap: 1, alignItems: 'center', mt: 1.5 }}>
-                    <Button size="small" startIcon={<EditIcon />} onClick={() => setEditing(r)} aria-label={t('Edit {name}', { name: r.name })}>{t('Edit')}</Button>
+                    <Button size="small" startIcon={<EditIcon />} onClick={() => edit(r)} aria-label={t('Edit {name}', { name: r.name })}>{t('Edit')}</Button>
                     <Button size="small" onClick={() => void setActive(r, false)} aria-label={t('Make {name} inactive', { name: r.name })}>{t('Make inactive')}</Button>
                     <Tooltip title={t('Move up')}><span>
                       <IconButton size="small" disabled={i === 0} onClick={() => move(i, -1)} aria-label={t('Move {name} up', { name: r.name })}><UpIcon fontSize="small" /></IconButton>

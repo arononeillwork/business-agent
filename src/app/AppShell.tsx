@@ -99,6 +99,7 @@ import { useUnreadMessages } from './unread'
 import { useConnected } from './connected'
 import type { PartnerArea } from '../../shared/types'
 import { hiddenByRole, roleNamesOf } from '../../shared/roles'
+import { shownRoleName } from './roleText'
 import { teamRoleLabel } from '../../shared/teamRoles'
 import { BrandLogo } from '../components/Logo'
 import { BusinessSwitchButton, Opening, businessMenuItems, useBusinesses, useSignOutLabel } from '../components/BusinessSwitcher'
@@ -698,7 +699,7 @@ export function AppShell() {
   // User analytics: the time spent on the page on screen (Settings → User analytics).
   useUsage(typeof current === 'string' ? current : null)
   // Under their name: their job (Barista / Bartender), after the access an admin has (Shop manager · Barista / Bartender).
-  const jobs = roleNamesOf(me?.id, jobRoles).join(', ')
+  const jobs = roleNamesOf(me?.id, jobRoles).map(shownRoleName).join(', ')
   const access = t((me && teamRoleLabel(me)) || 'Employee')
   const personLabel = me?.role === 'admin' ? [access, jobs].filter(Boolean).join(' · ') : jobs || access
   // A page their roles hide doesn't open either, from a link or the address bar: back to Today.

@@ -26,6 +26,7 @@ import {
 } from '../../shared/staffRules'
 import { tokens } from '../theme'
 import { t, tn } from '../i18n'
+import { shownSection } from '../app/roleText'
 
 const day = (iso: string) => formatLocal(iso, 'd MMM yyyy')
 const READ_TONE: Record<ReadState, { fg: string; bg: string }> = {
@@ -49,7 +50,9 @@ export function StaffRulesPage() {
     const [sections, read] = await Promise.all([api.ruleSections(), api.rulesRead()])
     return { sections, read }
   }, [])
-  const sections = sortSections(data.data?.sections ?? [])
+  // Shown in the app's language where it's known (tk); editing starts from what was saved.
+  const saved = sortSections(data.data?.sections ?? [])
+  const sections = saved.map(shownSection)
   const read = data.data?.read ?? []
   const changedAt = rulesChangedAt(sections)
   const myRead = read.find(r => r.profile_id === me?.id)
@@ -136,7 +139,7 @@ export function StaffRulesPage() {
             </Box>
             <Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap', mt: 1.5 }}>
               {isAdmin && <>
-                <Button size="small" startIcon={<EditIcon />} onClick={() => setEditing(s)} aria-label={t('Edit {name}', { name: s.title })}>{t('Edit')}</Button>
+                <Button size="small" startIcon={<EditIcon />} onClick={() => setEditing(saved.find(x => x.id === s.id) ?? s)} aria-label={t('Edit {name}', { name: s.title })}>{t('Edit')}</Button>
                 <Tooltip title={t('Move up')}><span>
                   <IconButton size="small" disabled={i === 0} onClick={() => move(i, -1)} aria-label={t('Move {name} up', { name: s.title })}><UpIcon fontSize="small" /></IconButton>
                 </span></Tooltip>

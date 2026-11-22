@@ -9,6 +9,7 @@ import { PageHeader, PersonAvatar, Tag } from '../components/common'
 import { PetDialog, PetPhoto, petLine, usePets } from '../components/Pets'
 import { tokens } from '../theme'
 import { t, tn } from '../i18n'
+import { shownRole } from '../app/roleText'
 import { jobRolesByPerson, teamTiers } from '../../shared/people'
 import { petsByPerson, type Pet } from '../../shared/pets'
 import type { Profile } from '../../shared/types'
@@ -28,7 +29,7 @@ export function PeoplePage() {
   const roles = useAsync('roles', () => api.jobRoles(), [])
   const tiers = teamTiers(profiles)
   const petsOf = petsByPerson(pets.data ?? [])
-  const rolesOf = jobRolesByPerson(roles.data ?? [])
+  const rolesOf = jobRolesByPerson((roles.data ?? []).map(shownRole))
   const people = tiers.reduce((n, tier) => n + tier.people.length, 0)
   const petCount = tiers.reduce((n, tier) => n + tier.people.reduce((m, p) => m + (petsOf.get(p.id)?.length ?? 0), 0), 0)
   return (
