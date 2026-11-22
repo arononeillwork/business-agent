@@ -1570,6 +1570,28 @@ test.describe('opening hours', () => {
     await expect(page.getByRole('button', { name: 'Save hours' })).toHaveCount(0)
     await expect(page.getByRole('region', { name: 'Google Maps' })).toHaveCount(0)
   })
+
+  test('@phone the headings once at the top, each day’s four times on a line under them, nothing wider than the screen', async ({ page }) => {
+    await open(page, '/opening-hours')
+    const week = page.getByRole('region', { name: 'Weekly hours' })
+    await week.getByLabel('Closes for a break on Thursday').check()
+    // Each heading once, not on every day; each field still says which it is, and the day.
+    for (const heading of ['Opens', 'Closes', 'Closed from', 'Reopens']) {
+      await expect(week.getByText(heading, { exact: true })).toHaveCount(1)
+      await expect(week.getByText(heading, { exact: true })).toBeVisible()
+    }
+    await expect(week.getByLabel(/^Opens on /)).toHaveCount(7)
+    const thursday = ['Opens', 'Closes', 'Closed from', 'Reopens'].map(f => week.getByLabel(`${f} on Thursday`, { exact: true }))
+    await thursday[3].scrollIntoViewIfNeeded()
+    const tops = await Promise.all(thursday.map(async f => Math.round((await f.boundingBox())!.y)))
+    expect(new Set(tops).size, 'Thursday’s four times on one line').toBe(1)
+    // A common Android width and a small one: no scrolling sideways, Thursday's last time on screen.
+    for (const width of [412, 360]) {
+      await page.setViewportSize({ width, height: 915 })
+      await expect.poll(() => page.evaluate(() => document.scrollingElement!.scrollWidth <= document.scrollingElement!.clientWidth), `nothing wider than ${width}px`).toBe(true)
+      await expect(thursday[3]).toBeInViewport({ ratio: 1 })
+    }
+  })
 })
 
 test.describe('brand', () => {
