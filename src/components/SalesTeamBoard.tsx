@@ -16,7 +16,7 @@ import { useState, type ReactNode } from 'react'
 import { Tag } from './common'
 import { formatLocal } from '../../shared/time'
 import {
-  PROSPECT_STAGES, followUpDue, instagramLink, lanes, phoneLink, prospectStageLabel, whatsAppLink,
+  PROSPECT_STAGES, businessTypeLabel, businessTypeOf, followUpDue, instagramLink, lanes, phoneLink, prospectStageLabel, whatsAppLink,
   type Prospect, type ProspectStage, type SalesBoard, type SalesMember,
 } from '../../shared/salesTeam'
 import { tokens } from '../theme'
@@ -161,8 +161,10 @@ function CardFace({ p, today, team, onMove, onEdit, onOpen, onRemove, handle, li
         <Typography variant="body2" sx={{ fontWeight: 500, lineHeight: 1.35, wordBreak: 'break-word' }}>{p.name}</Typography>
         {p.town && <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>{p.town}</Typography>}
       </Box>
-      {(p.kind === 'partner' || p.introduction_id) && (
+      {(p.kind === 'partner' || p.introduction_id || businessTypeOf(p) !== 'cafe') && (
         <Stack direction="row" spacing={0.5} useFlexGap sx={{ flexWrap: 'wrap', mt: 0.5 }}>
+          {/* Cafés are most of the board: only another kind of business says what it is. */}
+          {businessTypeOf(p) !== 'cafe' && <Tag fg={tokens.warnFg} bg={tokens.warnBg}>{t(businessTypeLabel(businessTypeOf(p)))}</Tag>}
           {p.kind === 'partner' && <Tag fg={tokens.ubeDeep} bg={tokens.ubeSoft}>{t('Partner')}</Tag>}
           {p.introduction_id && <Tag fg={tokens.goodFg} bg={tokens.goodBg}>{t('Code used')}</Tag>}
         </Stack>

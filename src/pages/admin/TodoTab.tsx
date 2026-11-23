@@ -4,12 +4,17 @@ import {
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/EditOutlined'
 import DeleteIcon from '@mui/icons-material/DeleteOutlined'
-import { useState } from 'react'
+import DragIcon from '@mui/icons-material/DragIndicator'
+import { DndContext, KeyboardSensor, PointerSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import { useEffect, useState, type ReactNode } from 'react'
+import { restrictToVerticalAxis } from '../../components/dnd'
 import { useApp } from '../../app/AppContext'
 import { useAction } from '../../app/Notify'
 import { ErrorBox, Loading, Tag } from '../../components/common'
 import { formatLocal, today } from '../../../shared/time'
-import { TODO_GROUPS, groupTodos, type AdminTodo, type TodoCategory, type TodoInput } from '../../../shared/adminArea'
+import { TODO_GROUPS, groupTodos, reorderTodos, type AdminTodo, type TodoCategory, type TodoGroup, type TodoInput } from '../../../shared/adminArea'
 import type { Prospect } from '../../../shared/salesTeam'
 import { ContactDialog } from './ContactDialog'
 import { ProspectDialog } from './SalesTab'
@@ -23,6 +28,8 @@ const day = (d: string) => formatLocal(`${d}T12:00:00Z`, 'EEE d MMM')
  * To-do: your own list for running The Business Agent (HQ's To-do list: signed in as The Business Agent HQ,
  * the app's To-do page shows the same jobs). Each job can have a day, a category and a contact it's
  * about; they're grouped by when: gone by, today, coming up, whenever, and done in the last two weeks.
+ * Within each group (but done) they're dragged into order, by the handle or with the keyboard; the order
+ * is the To-do page's own (todos.position), and a new job goes at the top.
  */
 export function TodoTab() {
   const { api } = useApp()
@@ -35,12 +42,28 @@ export function TodoTab() {
   const [editing, setEditing] = useState<AdminTodo | null>(null)
   const [opened, setOpened] = useState<Prospect | null>(null)
   const [editingContact, setEditingContact] = useState<Prospect | null>(null)
+  // Where jobs were just dragged to, shown until the list comes back with it saved.
+  const [placed, setPlaced] = useState<Record<string, number>>({})
+  useEffect(() => setPlaced({}), [list.data])
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
   const now = today('Europe/Madrid')
   if (!list.data) return list.error ? <ErrorBox error={list.error} /> : <Loading />
-  const groups = groupTodos(list.data.todos, now)
+  const groups = groupTodos(list.data.todos.map(x => (x.id in placed ? { ...x, position: placed[x.id] } : x)), now)
   const prospects = board.data?.prospects ?? []
   const add = async () => {
     if (await run(() => api.saveAdminTodo(token, { title, planned_on: when || null }), t('Added: {title}', { title: title.trim() }))) { setTitle(''); setWhen('') }
+  }
+  // A job dragged within its group: only the jobs whose place changes are saved.
+  const reorder = (g: TodoGroup) => ({ active, over }: DragEndEvent) => {
+    const jobs = groups[g]
+    const from = jobs.findIndex(x => x.id === active.id)
+    const to = jobs.findIndex(x => x.id === over?.id)
+    const changes = reorderTodos(jobs, from, to)
+    if (!changes.length) return
+    setPlaced(p => ({ ...p, ...Object.fromEntries(changes.map(c => [c.id, c.position])) }))
+    void run(() => Promise.all(changes.map(c => api.saveAdminTodo(token, c)))).then(ok => { if (!ok) setPlaced({}) })
   }
   const toggle = (todo: AdminTodo) => run(() => api.saveAdminTodo(token, { id: todo.id, done: !todo.done }),
     todo.done ? t('Back on the list: {title}', { title: todo.title }) : t('Done: {title}', { title: todo.title }))
@@ -64,13 +87,16 @@ export function TodoTab() {
           </Stack>
           <Card variant="outlined">
             <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
-              <Stack role="list" divider={<Box sx={{ borderTop: 1, borderColor: 'divider' }} />}>
-                {groups[g.id].map(todo => (
-                  <Job key={todo.id} todo={todo} category={list.data!.categories.find(c => c.id === todo.category_id)}
-                    contact={prospects.find(p => p.id === todo.sales_prospect_id)} showDay={g.id !== 'today'}
-                    onToggle={() => void toggle(todo)} onEdit={() => setEditing(todo)} onContact={setOpened} />
-                ))}
-              </Stack>
+              <Sortable on={g.id !== 'done'} ids={groups[g.id].map(x => x.id)} sensors={sensors} onDragEnd={reorder(g.id)}>
+                <Stack role="list" aria-label={t(g.label)} divider={<Box sx={{ borderTop: 1, borderColor: 'divider' }} />}>
+                  {groups[g.id].map(todo => (
+                    <Job key={todo.id} todo={todo} category={list.data!.categories.find(c => c.id === todo.category_id)}
+                      contact={prospects.find(p => p.id === todo.sales_prospect_id)} showDay={g.id !== 'today'}
+                      draggable={g.id !== 'done'}
+                      onToggle={() => void toggle(todo)} onEdit={() => setEditing(todo)} onContact={setOpened} />
+                  ))}
+                </Stack>
+              </Sortable>
             </CardContent>
           </Card>
         </Box>
@@ -83,12 +109,47 @@ export function TodoTab() {
   )
 }
 
-function Job({ todo, category, contact, showDay, onToggle, onEdit, onContact }: {
+/** A group's jobs, dragged into order (up and down only). */
+function Sortable({ on, ids, sensors, onDragEnd, children }: {
+  on: boolean; ids: string[]; sensors: ReturnType<typeof useSensors>; onDragEnd: (e: DragEndEvent) => void; children: ReactNode
+}) {
+  if (!on) return <>{children}</>
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis]} onDragEnd={onDragEnd}>
+      <SortableContext items={ids} strategy={verticalListSortingStrategy}>{children}</SortableContext>
+    </DndContext>
+  )
+}
+
+function Job({ draggable, ...props }: JobProps & { draggable: boolean }) {
+  return draggable ? <DraggableJob {...props} /> : <JobRow {...props} />
+}
+
+function DraggableJob(props: JobProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.todo.id })
+  return (
+    <Box ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }}
+      sx={{ position: 'relative', zIndex: isDragging ? 1 : 'auto', bgcolor: 'background.paper', boxShadow: isDragging ? `0 10px 24px -12px ${tokens.shadow}` : 'none' }}>
+      <JobRow {...props} handle={
+        <IconButton size="small" {...attributes} {...listeners} aria-label={t('Drag {title}', { title: props.todo.title })}
+          sx={{ cursor: 'grab', touchAction: 'none', color: tokens.inkFaint, ml: -0.5 }}>
+          <DragIcon fontSize="small" />
+        </IconButton>
+      } />
+    </Box>
+  )
+}
+
+interface JobProps {
   todo: AdminTodo; category?: TodoCategory; contact?: Prospect; showDay: boolean
   onToggle: () => void; onEdit: () => void; onContact: (p: Prospect) => void
-}) {
+}
+
+function JobRow({ todo, category, contact, showDay, onToggle, onEdit, onContact, handle }: JobProps & { handle?: ReactNode }) {
   return (
     <Stack role="listitem" aria-label={todo.title} direction="row" spacing={1} sx={{ alignItems: 'center', px: 1.5, py: 0.75 }}>
+      {/* Done ones aren't dragged: the same room, so every checkbox lines up. */}
+      {handle ?? <Box aria-hidden sx={{ width: 34, ml: -0.5, flexShrink: 0 }} />}
       <Checkbox checked={todo.done} onChange={onToggle} slotProps={{ input: { 'aria-label': t('Done: {title}', { title: todo.title }) } }} />
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography variant="body2" sx={{ textDecoration: todo.done ? 'line-through' : 'none', color: todo.done ? 'text.secondary' : 'text.primary' }}>{todo.title}</Typography>

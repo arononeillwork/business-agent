@@ -7,7 +7,9 @@ import { Hono } from 'hono'
 import { businessDb, serviceClient, type Env } from './supabase'
 import { hmacHex } from './crypto'
 import { cleanMemberName, cleanProspect, prospectError, type Prospect, type SalesMember } from '../shared/salesTeam'
-import { cleanTodo, earningsOf, isLoggedKind, type AdminTodo, type HqRep, type SalesActivity, type SalesTemplate } from '../shared/adminArea'
+import {
+  cleanPerson, cleanTodo, earningsOf, isLoggedKind, reportsInACircle, type AdminPerson, type AdminTodo, type HqRep, type SalesActivity, type SalesTemplate,
+} from '../shared/adminArea'
 import type { RepIntroduction } from '../shared/hqReps'
 
 type Vars = { hq: number }
@@ -17,10 +19,11 @@ const LOCKED = 'Locked: type the PIN to open it again'
 const NOT_SET_UP = 'The admin area isn’t set up yet'
 const UNAVAILABLE = 'The admin area couldn’t be reached just now. Try again in a minute.'
 const NO_STORE = { 'cache-control': 'no-store' }
-const PROSPECT = 'id, member_id, name, stage, kind, introduction_id, instagram, phone, email, website, town, notes, follow_up_on, created_at, updated_at'
+const PROSPECT = 'id, member_id, name, stage, kind, business_type, introduction_id, instagram, phone, email, website, town, notes, follow_up_on, created_at, updated_at'
 const MEMBER = 'id, name, position, rep_id'
-const TODO = 'id, title, done, done_at, planned_on, category_id, sales_prospect_id, created_at'
+const TODO = 'id, title, done, done_at, planned_on, category_id, sales_prospect_id, position, created_at'
 const TEMPLATE = 'id, title, body, position'
+const PERSON = 'id, name, role, kind, reports_to, position, labels'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /** Which business is HQ: the admin area is its own. */
@@ -317,6 +320,11 @@ adminArea.post('/api/admin-area/todos', async c => {
   const db = businessDb(c.env, c.get('hq'))
   const bad = await todoLinksOk(db, clean.row)
   if (bad) return c.json({ error: bad }, 400)
+  // A new job goes at the top, as on the To-do page.
+  if (!('position' in clean.row)) {
+    const { data: first } = await db.from('todos').select('position').order('position').limit(1).maybeSingle()
+    clean.row.position = Math.min(0, (first?.position as number | undefined) ?? 0) - 1
+  }
   const { data, error } = await db.from('todos').insert(clean.row).select(TODO).single()
   if (error) return c.json({ error: UNAVAILABLE }, 503)
   return c.json(data as AdminTodo)
@@ -366,4 +374,68 @@ adminArea.get('/api/admin-area/hq', async c => {
     reps: all,
     earnings: Object.fromEntries(all.map(r => [r.id, earningsOf(ledger, r.id)])),
   })
+})
+
+// ---------------------------------------------------------------------------------------------
+// People: who reports to whom, and the investors (the database keeps the same rules)
+// ---------------------------------------------------------------------------------------------
+
+/** The words for what the database refuses about someone. */
+const personError = (message: string) =>
+  /report to someone who reports to them/.test(message) ? 'They can’t report to someone who reports to them'
+    : /report to/.test(message) ? 'Choose someone on the team to report to' : 'Something there isn’t right. Check it and try again.'
+
+/** Whom they'd report to must be on HQ's team, and not go round in a circle. */
+async function bossOk(db: ReturnType<typeof businessDb>, row: Record<string, unknown>, id: string | null) {
+  if (typeof row.reports_to !== 'string') return null
+  const { data } = await db.from('admin_people').select('id, kind, reports_to')
+  const people = (data ?? []) as Pick<AdminPerson, 'id' | 'kind' | 'reports_to'>[]
+  if (!people.some(p => p.id === row.reports_to && p.kind === 'team')) return 'Choose someone on the team to report to'
+  if (id && reportsInACircle(people, id, row.reports_to)) return 'They can’t report to someone who reports to them'
+  return null
+}
+
+adminArea.get('/api/admin-area/people', async c => {
+  const { data, error } = await businessDb(c.env, c.get('hq')).from('admin_people').select(PERSON).order('position').order('name')
+  if (error) return c.json({ error: UNAVAILABLE }, 503)
+  return c.json(data as AdminPerson[])
+})
+
+adminArea.post('/api/admin-area/people', async c => {
+  const clean = cleanPerson(await body(c), true)
+  if ('error' in clean) return c.json({ error: clean.error }, 400)
+  const db = businessDb(c.env, c.get('hq'))
+  const bad = await bossOk(db, clean.row, null)
+  if (bad) return c.json({ error: bad }, 400)
+  if (!('position' in clean.row)) {
+    const { data: last } = await db.from('admin_people').select('position').order('position', { ascending: false }).limit(1).maybeSingle()
+    clean.row.position = ((last?.position as number | undefined) ?? 0) + 1
+  }
+  const { data, error } = await db.from('admin_people').insert(clean.row).select(PERSON).single()
+  if (error) return c.json({ error: personError(error.message) }, 400)
+  return c.json(data as AdminPerson)
+})
+
+adminArea.patch('/api/admin-area/people/:id', async c => {
+  const id = c.req.param('id')
+  if (!UUID.test(id)) return c.json({ error: 'No such person' }, 404)
+  const clean = cleanPerson(await body(c), false)
+  if ('error' in clean) return c.json({ error: clean.error }, 400)
+  if (!Object.keys(clean.row).length) return c.json({ error: 'Nothing to change' }, 400)
+  const db = businessDb(c.env, c.get('hq'))
+  const bad = await bossOk(db, clean.row, id)
+  if (bad) return c.json({ error: bad }, 400)
+  const { data, error } = await db.from('admin_people').update(clean.row).eq('id', id).select(PERSON).maybeSingle()
+  if (error) return c.json({ error: personError(error.message) }, 400)
+  if (!data) return c.json({ error: 'No such person' }, 404)
+  return c.json(data as AdminPerson)
+})
+
+adminArea.delete('/api/admin-area/people/:id', async c => {
+  const id = c.req.param('id')
+  if (!UUID.test(id)) return c.json({ error: 'No such person' }, 404)
+  // Whoever reported to them reports to whom they reported to (the database does it).
+  const { error } = await businessDb(c.env, c.get('hq')).from('admin_people').delete().eq('id', id)
+  if (error) return c.json({ error: UNAVAILABLE }, 503)
+  return c.json({ ok: true })
 })

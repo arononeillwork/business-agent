@@ -142,6 +142,16 @@ describe('the sales team’s board', () => {
     expect(db.tables.sales_prospects.at(-1)).toMatchObject({ business_id: HQ, instagram: 'roasted.spain' })
   })
 
+  it('a kind of business: a garage, a barber; a café when none is said', async () => {
+    let res = await send('POST', '/api/admin-area/sales/prospects', { instagram: 'thedpfcentre', business_type: 'garage', member_id: JULIO })
+    expect(await res.json()).toMatchObject({ name: 'Thedpfcentre', business_type: 'garage' })
+    res = await send('PATCH', `/api/admin-area/sales/prospects/${BOOTES}`, { business_type: 'barber' })
+    expect(await res.json()).toMatchObject({ name: 'The Bootes Cafe', business_type: 'barber' })
+    res = await send('PATCH', `/api/admin-area/sales/prospects/${BOOTES}`, { business_type: 'bakery' })
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'Choose what kind of business it is' })
+  })
+
   it('or from a phone number; what isn’t right is said, and nothing is kept', async () => {
     let res = await send('POST', '/api/admin-area/sales/prospects', { name: 'Café Lola', phone: '600 111 222', member_id: MARIA })
     expect(await res.json()).toMatchObject({ name: 'Café Lola', phone: '+34 600 111 222' })
@@ -242,6 +252,15 @@ describe('the to-do list', () => {
     expect(list.categories.map(c => c.name)).toEqual(['Sales'])
   })
 
+  it('a new job goes at the top; a job dragged keeps its place', async () => {
+    db.tables.todos[0].position = -2
+    let res = await send('POST', '/api/admin-area/todos', { title: 'Register a tax-free residency' })
+    expect(await res.json()).toMatchObject({ title: 'Register a tax-free residency', position: -3 })
+    res = await send('PATCH', `/api/admin-area/todos/${JOB}`, { position: 4.5 })
+    expect(await res.json()).toMatchObject({ id: JOB, position: 4.5 })
+    expect((await send('PATCH', `/api/admin-area/todos/${JOB}`, { position: 'first' })).status).toBe(400)
+  })
+
   it('a job about a contact, then done', async () => {
     let res = await send('POST', '/api/admin-area/todos', { title: 'Call back The Bootes Cafe', planned_on: '2026-11-24', sales_prospect_id: BOOTES })
     expect(await res.json()).toMatchObject({ title: 'Call back The Bootes Cafe', sales_prospect_id: BOOTES })
@@ -280,5 +299,55 @@ describe('onboarding and earnings', () => {
   it('locked: nothing', async () => {
     expect((await get('/api/admin-area/hq', null)).status).toBe(401)
     expect((await get('/api/admin-area/todos', null)).status).toBe(401)
+  })
+})
+
+describe('people', () => {
+  const ARON = '0b0e2f6c-6666-4c2d-8e3f-000000000001'
+  const ALEJANDRO = '0b0e2f6c-6666-4c2d-8e3f-000000000002'
+  const RYAN = '0b0e2f6c-6666-4c2d-8e3f-000000000003'
+  const GIORGOS = '0b0e2f6c-6666-4c2d-8e3f-000000000009'
+  beforeEach(() => {
+    db.tables.admin_people = [
+      { id: ARON, name: 'Aron', role: 'CEO', kind: 'team', reports_to: null, position: 1, business_id: HQ },
+      { id: ALEJANDRO, name: 'Alejandro', role: 'Head of Product / Sales Manager', kind: 'team', reports_to: ARON, position: 2, business_id: HQ },
+      { id: RYAN, name: 'Ryan', role: 'Salesperson', kind: 'team', reports_to: ALEJANDRO, position: 3, business_id: HQ },
+      { id: GIORGOS, name: 'Giorgos', role: 'Investor', kind: 'investor', reports_to: null, position: 9, business_id: HQ },
+      // Easy Beans' own: never HQ's.
+      { id: '0b0e2f6c-6666-4c2d-8e3f-000000000099', name: 'Laura', role: 'Manager', kind: 'team', reports_to: null, position: 1, business_id: 1 },
+    ]
+  })
+
+  it('HQ’s people only, in order', async () => {
+    const res = await get('/api/admin-area/people')
+    expect((await res.json() as { name: string }[]).map(p => p.name)).toEqual(['Aron', 'Alejandro', 'Ryan', 'Giorgos'])
+    expect((await get('/api/admin-area/people', null)).status).toBe(401)
+  })
+
+  it('someone added at the end, reporting to someone on HQ’s team; an investor reports to nobody', async () => {
+    let res = await send('POST', '/api/admin-area/people', { name: ' Mark ', role: 'Salesperson', reports_to: ALEJANDRO, labels: [' C TWO ', 'c two'] })
+    expect(await res.json()).toMatchObject({ name: 'Mark', role: 'Salesperson', kind: 'team', reports_to: ALEJANDRO, position: 10, labels: ['C TWO'] })
+    expect(db.tables.admin_people.at(-1)).toMatchObject({ business_id: HQ })
+    res = await send('POST', '/api/admin-area/people', { name: 'Ollie', role: 'Investor', kind: 'investor', reports_to: ARON })
+    expect(await res.json()).toMatchObject({ name: 'Ollie', kind: 'investor', reports_to: null })
+    // Not to an investor, nor to another business's person.
+    for (const boss of [GIORGOS, '0b0e2f6c-6666-4c2d-8e3f-000000000099']) {
+      res = await send('POST', '/api/admin-area/people', { name: 'Kim', reports_to: boss })
+      expect(res.status).toBe(400)
+      expect(await res.json()).toEqual({ error: 'Choose someone on the team to report to' })
+    }
+  })
+
+  it('changed; never to report to someone who reports to them; taken off', async () => {
+    let res = await send('PATCH', `/api/admin-area/people/${RYAN}`, { reports_to: ARON, role: 'Sales lead' })
+    expect(await res.json()).toMatchObject({ id: RYAN, reports_to: ARON, role: 'Sales lead' })
+    res = await send('PATCH', `/api/admin-area/people/${ALEJANDRO}`, { reports_to: ALEJANDRO })
+    expect(await res.json()).toEqual({ error: 'They can’t report to someone who reports to them' })
+    db.tables.admin_people.find(p => p.id === RYAN)!.reports_to = ALEJANDRO
+    res = await send('PATCH', `/api/admin-area/people/${ARON}`, { reports_to: RYAN })
+    expect(res.status).toBe(400)
+    expect((await send('PATCH', '/api/admin-area/people/0b0e2f6c-6666-4c2d-8e3f-000000000099', { role: 'Boss' })).status).toBe(404)
+    expect((await send('DELETE', `/api/admin-area/people/${RYAN}`, {})).status).toBe(200)
+    expect(db.tables.admin_people.map(p => p.name)).toEqual(['Aron', 'Alejandro', 'Giorgos', 'Laura'])
   })
 })

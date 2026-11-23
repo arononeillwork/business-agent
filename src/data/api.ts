@@ -40,6 +40,7 @@ import type { ChecklistItem, ChecklistItemInput, ChecklistTick } from '../../sha
 import type { CompanyValue, CompanyValueInput } from '../../shared/companyValues'
 import type { AdminSession, Prospect, ProspectInput, SalesBoard, SalesMember } from '../../shared/salesTeam'
 import type { ActivityKind, AdminTodo, AdminTodos, HqOverview, SalesActivity, SalesTemplate, TodoInput } from '../../shared/adminArea'
+import type { AdminPerson, PersonInput } from '../../shared/adminArea'
 import type { PostIdea, PostIdeaInput } from '../../shared/postIdeas'
 import type { ListRow, NewsletterEvent, NewsletterSettings } from '../../shared/newsletter'
 import type { Contact, ContactInput } from '../../shared/contacts'
@@ -1328,6 +1329,12 @@ export interface Api {
   deleteAdminTodo(token: string, id: string): Promise<void>
   /** The businesses HQ's reps brought, the reps and what each has earned. */
   adminHq(token: string): Promise<HqOverview>
+  /** Everyone involved in The Business Agent: who reports to whom, and the investors. */
+  adminPeople(token: string): Promise<AdminPerson[]>
+  /** Add someone (no id) or change them (only what's sent). */
+  saveAdminPerson(token: string, p: PersonInput): Promise<AdminPerson>
+  /** Whoever reported to them reports to whom they reported to. */
+  deleteAdminPerson(token: string, id: string): Promise<void>
 
   // kiosk
   kioskRoster(): Promise<KioskPerson[]>

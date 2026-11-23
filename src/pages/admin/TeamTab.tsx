@@ -17,7 +17,7 @@ import { t, tn } from '../../i18n'
 const NOTHING: Earnings = { earned: 0, waiting: 0, paid: 0, owed: 0 }
 
 /**
- * Team: each salesperson's code, sign-up link and QR (a business that signs up with it gets a month free
+ * Sales team: each salesperson's code, sign-up link and QR (a business that signs up with it gets a month free
  * and is theirs), the businesses they've brought and how many pay, and their commission: counted, waiting
  * its 30 days, paid out, and owed.
  */
@@ -38,7 +38,7 @@ export function TeamTab() {
         <Typography variant="body2" sx={{ color: 'text.secondary', flex: 1 }}>
           {t('A business that signs up with someone’s code gets its first month free, and is theirs: €50 at its first payment, then 20% for its first 12 paid months.')}
         </Typography>
-        <Button startIcon={<GroupIcon />} onClick={() => setManaging(true)} sx={{ flexShrink: 0 }}>{t('Sales team')}</Button>
+        <Button startIcon={<GroupIcon />} onClick={() => setManaging(true)} sx={{ flexShrink: 0 }}>{t('Change the team')}</Button>
       </Stack>
       {board.data.team.length === 0 && <Empty>{t('Nobody on the sales team yet.')}</Empty>}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>

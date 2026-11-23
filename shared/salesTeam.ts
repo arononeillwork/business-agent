@@ -26,6 +26,18 @@ export interface SalesMember {
 export type ProspectKind = 'customer' | 'partner'
 export const PROSPECT_KINDS: { id: ProspectKind; label: string }[] = [{ id: 'customer', label: msg('Customer') }, { id: 'partner', label: msg('Partner') }]
 export const isProspectKind = (v: unknown): v is ProspectKind => v === 'customer' || v === 'partner'
+
+/** The kind of business a contact is, to show the board by (the admin_area_people migration). */
+export type BusinessType = 'cafe' | 'restaurant' | 'barber' | 'garage' | 'financial' | 'other'
+export const BUSINESS_TYPES: { id: BusinessType; label: string; many: string }[] = [
+  { id: 'cafe', label: msg('Café'), many: msg('Cafés') }, { id: 'restaurant', label: msg('Restaurant'), many: msg('Restaurants') },
+  { id: 'barber', label: msg('Barber'), many: msg('Barbers') }, { id: 'garage', label: msg('Garage'), many: msg('Garages') },
+  { id: 'financial', label: msg('Financial'), many: msg('Financial') }, { id: 'other', label: msg('Something else'), many: msg('Something else') },
+]
+export const isBusinessType = (v: unknown): v is BusinessType => BUSINESS_TYPES.some(x => x.id === v)
+/** A contact's kind of business (a café, when it was added before there were kinds). */
+export const businessTypeOf = (p: Pick<Prospect, 'business_type'>): BusinessType => p.business_type ?? 'cafe'
+export const businessTypeLabel = (b: BusinessType) => BUSINESS_TYPES.find(x => x.id === b)?.label ?? b
 export interface Prospect {
   id: string
   /** Whose lane (null: nobody's yet, as when someone leaves the team). */
@@ -33,6 +45,8 @@ export interface Prospect {
   name: string
   stage: ProspectStage
   kind?: ProspectKind
+  /** A café, a restaurant, a garage or something else. */
+  business_type?: BusinessType
   /** The business that signed up for it with a rep code (on HQ's list); the card then moves by itself. */
   introduction_id?: string | null
   instagram: string | null
@@ -166,6 +180,10 @@ export function cleanProspect(input: Record<string, unknown>, isNew: boolean): {
     const kind = input.kind ?? 'customer'
     if (!isProspectKind(kind)) return { error: 'A contact is a customer or a partner' }
     row.kind = kind
+  }
+  if (has('business_type')) {
+    if (!isBusinessType(input.business_type)) return { error: 'Choose what kind of business it is' }
+    row.business_type = input.business_type
   }
   if (has('town')) row.town = text(input.town, 80)
   if (has('notes')) row.notes = text(input.notes, 2000)

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { cleanTodo, earningsOf, fillTemplate, groupTodos, helpNeeded, todayList, whatsAppMessageLink, type AdminTodo } from './adminArea'
+import {
+  cleanPerson, cleanTodo, earningsOf, fillTemplate, groupTodos, helpNeeded, orgChart, reorderTodos, reportsInACircle, teamUnder, todayList, whatsAppMessageLink,
+  type AdminPerson, type AdminTodo,
+} from './adminArea'
 import type { RepIntroduction } from './hqReps'
 import type { Prospect } from './salesTeam'
 
@@ -30,6 +33,24 @@ describe('the to-do list', () => {
       overdue: ['b'], today: ['c'], soon: ['e', 'a'], later: ['d'], done: ['g', 'f'],
     })
   })
+  it('in the order they were dragged into; those never moved by day, as before', () => {
+    const g = groupTodos([{ ...todo('a', null), position: 2 }, { ...todo('b', null), position: -1 }, todo('c', null),
+      { ...todo('d', '2026-11-30'), position: 0.5 }, todo('e', '2026-11-25'), todo('f', '2026-11-24')], '2026-11-22')
+    expect(g.later.map(t => t.id)).toEqual(['b', 'c', 'a'])
+    expect(g.soon.map(t => t.id)).toEqual(['f', 'e', 'd'])
+  })
+
+  it('a job dragged: between its new neighbours, or the group numbered afresh when they’re level', () => {
+    const list = [{ id: 'a', position: 0 }, { id: 'b', position: 1 }, { id: 'c', position: 2 }]
+    expect(reorderTodos(list, 2, 0)).toEqual([{ id: 'c', position: -1 }])
+    expect(reorderTodos(list, 0, 2)).toEqual([{ id: 'a', position: 3 }])
+    expect(reorderTodos(list, 2, 1)).toEqual([{ id: 'c', position: 0.5 }])
+    expect(reorderTodos(list, 1, 1)).toEqual([])
+    expect(reorderTodos(list, 0, 5)).toEqual([])
+    // Never moved: all at 0 (and one with none), so they're numbered in their new order.
+    expect(reorderTodos([{ id: 'a', position: 0 }, { id: 'b' }, { id: 'c', position: 0 }], 2, 1)).toEqual([{ id: 'c', position: 1 }, { id: 'b', position: 2 }])
+  })
+
   it('a job as sent: tidied, and what isn’t right said', () => {
     expect(cleanTodo({ title: '  Print   rep cards ', planned_on: '2026-11-24' }, true)).toEqual({ row: { title: 'Print rep cards', planned_on: '2026-11-24' } })
     expect(cleanTodo({ done: true }, false)).toEqual({ row: { done: true } })
@@ -37,6 +58,8 @@ describe('the to-do list', () => {
     expect(cleanTodo({ title: ' ' }, true)).toEqual({ error: 'Say what the job is' })
     expect(cleanTodo({ planned_on: 'Friday' }, false)).toEqual({ error: 'That isn’t a date' })
     expect(cleanTodo({ sales_prospect_id: 'keki' }, false)).toEqual({ error: 'Choose a contact' })
+    expect(cleanTodo({ position: 1.5 }, false)).toEqual({ row: { position: 1.5 } })
+    expect(cleanTodo({ position: 'top' }, false)).toEqual({ error: 'That isn’t a place in the order' })
   })
 })
 
@@ -78,5 +101,45 @@ describe('Today', () => {
     expect(t.todos.map(x => x.id)).toEqual(['late', 'due'])
     expect(t.newSignUps.map(x => x.name)).toEqual(['New', 'Stuck'])
     expect(t.needHelp.map(x => x.name)).toEqual(['Old', 'Stuck'])
+  })
+})
+
+describe('people', () => {
+  const person = (id: string, reports_to: string | null, position: number, kind: AdminPerson['kind'] = 'team'): AdminPerson =>
+    ({ id, name: id, role: null, kind, reports_to, position })
+  const people = [
+    person('aron', null, 1), person('alejandro', 'aron', 2), person('ryan', 'alejandro', 3), person('mark', 'alejandro', 4),
+    person('kim', 'aron', 7), person('zoe', 'aron', 8), person('giorgos', null, 9, 'investor'), person('ollie', null, 10, 'investor'),
+  ]
+
+  it('the team from the top down, each one’s reports in order; the investors beside it', () => {
+    const chart = orgChart(people)
+    expect(chart.team.map(n => n.person.id)).toEqual(['aron'])
+    expect(chart.team[0].reports.map(n => n.person.id)).toEqual(['alejandro', 'kim', 'zoe'])
+    expect(chart.team[0].reports[0].reports.map(n => n.person.id)).toEqual(['ryan', 'mark'])
+    expect(teamUnder(chart.team[0])).toBe(5)
+    expect(chart.investors.map(p => p.id)).toEqual(['giorgos', 'ollie'])
+  })
+
+  it('someone whose boss has gone, or who’d go round in a circle, is at the top', () => {
+    expect(orgChart([...people.slice(0, 2), person('lola', 'gone', 5)]).team.map(n => n.person.id)).toEqual(['aron', 'lola'])
+    const circle = orgChart([person('a', 'b', 1), person('b', 'a', 2)])
+    expect(circle.team.map(n => n.person.id)).toEqual(['a', 'b'])
+    expect(reportsInACircle(people, 'alejandro', 'ryan')).toBe(true)
+    expect(reportsInACircle(people, 'alejandro', 'alejandro')).toBe(true)
+    expect(reportsInACircle(people, 'ryan', 'kim')).toBe(false)
+  })
+
+  it('someone as sent: tidied; an investor reports to nobody; what isn’t right said', () => {
+    expect(cleanPerson({ name: '  Kim  Lee ', role: ' Head of  Marketing ' }, true)).toEqual({ row: { name: 'Kim Lee', role: 'Head of Marketing', kind: 'team' } })
+    expect(cleanPerson({ kind: 'investor', reports_to: '0b0e2f6c-1111-4c2d-8e3f-000000000001' }, false)).toEqual({ row: { kind: 'investor', reports_to: null } })
+    expect(cleanPerson({ role: '' }, false)).toEqual({ row: { role: null } })
+    expect(cleanPerson({ name: ' ' }, true)).toEqual({ error: 'Give them a name' })
+    expect(cleanPerson({ name: 'X', kind: 'advisor' }, true)).toEqual({ error: 'Someone is on the team or an investor' })
+    expect(cleanPerson({ reports_to: 'aron' }, false)).toEqual({ error: 'Choose someone on the team to report to' })
+    // Labels: tidied, each once.
+    expect(cleanPerson({ labels: [' C  TWO ', 'c two', '', 'Board'] }, false)).toEqual({ row: { labels: ['C TWO', 'Board'] } })
+    expect(cleanPerson({ labels: 'C TWO' }, false)).toEqual({ error: 'Up to 10 labels' })
+    expect(cleanPerson({ labels: Array.from({ length: 11 }, (_, i) => `L${i}`) }, false)).toEqual({ error: 'Up to 10 labels' })
   })
 })
