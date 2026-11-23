@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  businessTypeOf, cleanProspect, cleanWebsite, followUpDue, lanes, nameFromHandle, prospectError, readContact, type Prospect, type SalesBoard,
+  businessTypeOf, cleanProspect, cleanWebsite, followUpDue, lanes, nameFromHandle, prospectError, readContact, salesTree, usualCountry, type Prospect, type SalesBoard,
 } from './salesTeam'
 
 describe('a contact pasted into one box', () => {
@@ -82,6 +82,13 @@ describe('what’s sent for a business', () => {
     expect(businessTypeOf({ business_type: 'restaurant' })).toBe('restaurant')
   })
 
+  it('a country: Ireland, Spain or not said', () => {
+    expect(cleanProspect({ country: 'IE' }, false)).toEqual({ row: { country: 'IE' } })
+    expect(cleanProspect({ country: null }, false)).toEqual({ row: { country: null } })
+    expect(cleanProspect({ country: '' as never }, false)).toEqual({ row: { country: null } })
+    expect(cleanProspect({ country: 'FR' as never }, false)).toEqual({ error: 'Choose Ireland or Spain' })
+  })
+
   it('the database’s refusals in plain words', () => {
     expect(prospectError('duplicate key value violates unique constraint "sales_prospects_instagram_key"')).toBe('That Instagram is on the board already')
     expect(prospectError('duplicate key value violates unique constraint "sales_team_name_key"')).toBe('Someone on the sales team has that name already')
@@ -114,5 +121,21 @@ describe('the board', () => {
     expect(followUpDue({ ...p('x', 'm', 'contacted'), follow_up_on: '2026-11-22' }, '2026-11-22')).toBe(true)
     expect(followUpDue({ ...p('x', 'm', 'contacted'), follow_up_on: '2026-11-23' }, '2026-11-22')).toBe(false)
     expect(followUpDue({ ...p('x', 'm', 'won'), follow_up_on: '2026-11-01' }, '2026-11-22')).toBe(false)
+  })
+
+  it('as a tree: each salesperson, the kinds they’re talking to in order, the businesses of each by stage', () => {
+    const tree = salesTree({ ...board, prospects: [...board.prospects, { ...p('e', 'm', 'contacted'), business_type: 'barber' }, { ...p('f', 'm', 'demo'), business_type: 'cafe' }] })
+    expect(tree.map(x => [x.member?.name ?? null, x.total])).toEqual([['Maria Cortes', 4], ['Julio Cesar', 1], [null, 1]])
+    expect(tree[0].kinds.map(k => [k.type, k.prospects.map(x => x.id)])).toEqual([['cafe', ['b', 'a', 'f']], ['barber', ['e']]])
+    expect(tree[2].kinds).toEqual([{ type: 'cafe', prospects: [expect.objectContaining({ id: 'd' })] }])
+  })
+
+  it('a new business starts in the country most of that salesperson’s are in', () => {
+    const list = [{ member_id: 'a', country: 'IE' as const }, { member_id: 'a', country: 'IE' as const }, { member_id: 'a', country: 'ES' as const },
+      { member_id: 'b', country: 'ES' as const }, { member_id: 'c', country: null }]
+    expect(usualCountry(list, 'a')).toBe('IE')
+    expect(usualCountry(list, 'b')).toBe('ES')
+    expect(usualCountry(list, 'c')).toBeNull()
+    expect(usualCountry(list, null)).toBeNull()
   })
 })

@@ -4,28 +4,35 @@ import {
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import CheckIcon from '@mui/icons-material/Check'
+import BoardIcon from '@mui/icons-material/ViewKanbanOutlined'
+import TreeIcon from '@mui/icons-material/AccountTreeOutlined'
 import { useMemo, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../../app/AppContext'
 import { useAction } from '../../app/Notify'
 import { ErrorBox, Loading, StatGrid, StatTile } from '../../components/common'
 import { SalesTeamBoard, type Spot } from '../../components/SalesTeamBoard'
+import { COUNTRIES, type Country } from '../../../shared/country'
 import { today } from '../../../shared/time'
 import {
-  BUSINESS_TYPES, PROSPECT_KINDS, PROSPECT_STAGES, businessTypeOf, followUpDue, nameFromHandle, nameFromWebsite, prospectStageLabel, readContact,
+  BUSINESS_TYPES, PROSPECT_KINDS, PROSPECT_STAGES, businessTypeOf, followUpDue, nameFromHandle, nameFromWebsite, prospectStageLabel, readContact, usualCountry,
   type BusinessType, type ContactKind, type Prospect, type ProspectInput, type ProspectKind, type SalesBoard, type SalesMember,
 } from '../../../shared/salesTeam'
 import { ContactDialog } from './ContactDialog'
+import { SalesTree } from './SalesTree'
 import { useAdmin, useAdminQuery } from './shared'
 import { t } from '../../i18n'
 
 type Show = 'all' | ProspectKind
 type ShowType = 'all' | BusinessType
+/** The countries in the filter, in the order it lists them. */
+const FILTER_COUNTRIES: Country[] = ['IE', 'ES']
 
 /**
  * Sales: a swimlane per salesperson, a column per stage, a card per business (a café to sign up, or a
- * partner who could bring cafés). Shown by kind of business (cafés, restaurants, garages), by town and by
- * customers or partners; each card opens to its
+ * partner who could bring cafés); or, as a tree, each salesperson with the kinds of business they're
+ * talking to and the businesses of each. Shown by kind of business (cafés, restaurants, garages), by
+ * country (Ireland or Spain) and by customers or partners; each business opens to its
  * history and the messages to send. A café that signs up with a salesperson's code moves by itself.
  */
 export function SalesTab() {
@@ -36,18 +43,18 @@ export function SalesTab() {
   const [editing, setEditing] = useState<ProspectInput | null>(null)
   const [opened, setOpened] = useState<Prospect | null>(null)
   const [removing, setRemoving] = useState<Prospect | null>(null)
-  const [town, setTown] = useState('')
+  const [country, setCountry] = useState<'' | Country>('')
+  const [view, setView] = useState<'board' | 'tree'>('board')
   const [show, setShow] = useState<Show>('all')
   const [type, setType] = useState<ShowType>('all')
   const navigate = useNavigate()
   const now = today('Europe/Madrid')
   const data = board.data
-  const towns = useMemo(() => [...new Set((data?.prospects ?? []).map(p => p.town).filter((x): x is string => !!x))].sort(), [data])
   const shown = useMemo<SalesBoard | undefined>(() => data && {
     team: data.team,
-    prospects: data.prospects.filter(p => (!town || p.town === town) && (show === 'all' || (p.kind ?? 'customer') === show)
+    prospects: data.prospects.filter(p => (!country || p.country === country) && (show === 'all' || (p.kind ?? 'customer') === show)
       && (type === 'all' || businessTypeOf(p) === type)),
-  }, [data, town, show, type])
+  }, [data, country, show, type])
 
   const move = (p: Prospect, to: Spot) => {
     const who = data?.team.find(m => m.id === to.member_id)?.name
@@ -55,9 +62,13 @@ export function SalesTab() {
       to.member_id !== p.member_id && who ? t('{name} is {who}’s now', { name: p.name, who })
         : t('{name}: {stage}', { name: p.name, stage: t(prospectStageLabel(to.stage)) }))
   }
-  // A new contact is the kind of business the board is showing (a café, when it's showing them all).
-  const blank = (member: SalesMember | null): ProspectInput => ({ member_id: member?.id ?? data?.team[0]?.id ?? null, stage: 'to_contact', kind: 'customer',
-    business_type: type === 'all' ? 'cafe' : type })
+  // A new contact is the kind of business the board is showing (a café, when it's showing them all), in the
+  // country it's showing (or where most of that salesperson's businesses are).
+  const blank = (member: SalesMember | null): ProspectInput => {
+    const member_id = member?.id ?? data?.team[0]?.id ?? null
+    return { member_id, stage: 'to_contact', kind: 'customer', business_type: type === 'all' ? 'cafe' : type,
+      country: country || usualCountry(data?.prospects ?? [], member_id) }
+  }
 
   return (
     <>
@@ -67,6 +78,10 @@ export function SalesTab() {
           <Figures board={data} today={now} />
           <Stack direction="row" spacing={1.5} useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center', mb: 2 }}>
             <Button variant="contained" startIcon={<AddIcon />} onClick={() => setEditing(blank(null))}>{t('Add a contact')}</Button>
+            <ToggleButtonGroup exclusive size="small" value={view} onChange={(_, v: 'board' | 'tree' | null) => v && setView(v)} aria-label={t('View')}>
+              <ToggleButton value="board" sx={{ gap: 0.75 }}><BoardIcon fontSize="small" />{t('Board')}</ToggleButton>
+              <ToggleButton value="tree" sx={{ gap: 0.75 }}><TreeIcon fontSize="small" />{t('Tree')}</ToggleButton>
+            </ToggleButtonGroup>
             <ToggleButtonGroup exclusive size="small" value={show} onChange={(_, v: Show | null) => v && setShow(v)} aria-label={t('Show')}>
               <ToggleButton value="all">{t('Everyone')}</ToggleButton>
               {PROSPECT_KINDS.map(k => <ToggleButton key={k.id} value={k.id}>{t(k.id === 'customer' ? 'Customers' : 'Partners')}</ToggleButton>)}
@@ -76,17 +91,18 @@ export function SalesTab() {
               <ToggleButton value="all">{t('All')}</ToggleButton>
               {BUSINESS_TYPES.map(b => <ToggleButton key={b.id} value={b.id}>{t(b.many)}</ToggleButton>)}
             </ToggleButtonGroup>
-            {towns.length > 0 && (
-              <TextField select size="small" label={t('Town')} value={town} onChange={e => setTown(e.target.value)} fullWidth={false} sx={{ width: 200 }}>
-                <MenuItem value="">{t('Every town')}</MenuItem>
-                {towns.map(x => <MenuItem key={x} value={x}>{x}</MenuItem>)}
-              </TextField>
-            )}
+            <TextField select size="small" label={t('Country')} value={country} onChange={e => setCountry(e.target.value as '' | Country)} fullWidth={false} sx={{ width: 200 }}
+              slotProps={{ inputLabel: { shrink: true }, select: { displayEmpty: true } }}>
+              <MenuItem value="">{t('Every country')}</MenuItem>
+              {FILTER_COUNTRIES.map(c => <MenuItem key={c} value={c}>{t(COUNTRIES[c].name)}</MenuItem>)}
+            </TextField>
           </Stack>
           {data.team.length === 0 && data.prospects.length === 0
             ? <Alert severity="info" action={<Button onClick={() => navigate('/admin/settings')}>{t('Add someone')}</Button>}>{t('Nobody on the sales team yet.')}</Alert>
-            : <SalesTeamBoard board={shown} today={now} onMove={(p, to) => void move(p, to)} onEdit={p => setEditing(p)} onOpen={setOpened}
-                onAdd={m => setEditing(blank(m))} onRemove={setRemoving} />}
+            : view === 'tree'
+              ? <SalesTree board={shown} today={now} onOpen={setOpened} />
+              : <SalesTeamBoard board={shown} today={now} onMove={(p, to) => void move(p, to)} onEdit={p => setEditing(p)} onOpen={setOpened}
+                  onAdd={m => setEditing(blank(m))} onRemove={setRemoving} />}
         </>
       )}
       {editing && data && <ProspectDialog start={editing} team={data.team} onClose={() => setEditing(null)} />}
@@ -203,9 +219,13 @@ export function ProspectDialog({ start, team, onClose }: { start: ProspectInput;
           </Row>
           <Row>
             <TextField label={t('Town')} value={str(p.town)} onChange={e => set({ town: e.target.value })} fullWidth />
-            <TextField label={t('Follow up on')} type="date" value={str(p.follow_up_on)} onChange={e => set({ follow_up_on: e.target.value || null })} fullWidth
-              slotProps={{ inputLabel: { shrink: true } }} />
+            <TextField label={t('Country')} select value={p.country ?? ''} onChange={e => set({ country: (e.target.value || null) as Country | null })} fullWidth>
+              {FILTER_COUNTRIES.map(c => <MenuItem key={c} value={c}>{t(COUNTRIES[c].name)}</MenuItem>)}
+              <MenuItem value="">{t('Not said')}</MenuItem>
+            </TextField>
           </Row>
+          <TextField label={t('Follow up on')} type="date" value={str(p.follow_up_on)} onChange={e => set({ follow_up_on: e.target.value || null })}
+            slotProps={{ inputLabel: { shrink: true } }} sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)' } }} />
           <TextField label={t('Notes')} value={str(p.notes)} onChange={e => set({ notes: e.target.value })} multiline minRows={2}
             placeholder={t('Who you spoke to, what they use now, what they asked')} />
           {!reachable && <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t('Add at least one way to reach them.')}</Typography>}

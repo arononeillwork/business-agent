@@ -135,6 +135,11 @@ export default {
   'Pubs': 'Pubs',
   'Construction': 'Construcción',
   'Transport': 'Transporte',
+  // The board as a tree, and shown by country.
+  'Tree': 'Árbol',
+  'Sales team, by kind of business': 'Equipo de ventas, por tipo de negocio',
+  'Nobody here yet.': 'Nadie aquí todavía.',
+  'Every country': 'Todos los países',
   'Labels': 'Etiquetas',
   'Type a label and press Enter, as C TWO': 'Escribe una etiqueta y pulsa Intro, como C TWO',
   // Sales team, and People: who reports to whom, and the investors.
