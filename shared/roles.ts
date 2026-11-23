@@ -91,6 +91,7 @@ export const sortRoles = <R extends Pick<JobRole, 'sort' | 'name'>>(roles: R[]) 
 export type RoleLevel = 'none' | 'own' | 'read' | 'update'
 export type RoleArea = 'business' | 'todo' | 'hours' | 'brand' | 'dashboards' | 'stock' | 'foodsafety' | 'waste' | 'expenses' | 'calendar' | 'rota' | 'timeoff' | 'timecards'
   | 'ai' | 'company' | 'menu'
+  | 'ideas' | 'qrcodes' | 'reps' | 'social' | 'leaderboard'
 export type RolePermissions = Partial<Record<RoleArea, RoleLevel>>
 
 export interface RoleAreaInfo {
@@ -113,12 +114,18 @@ export const ROLE_AREAS: RoleAreaInfo[] = [
   { id: 'todo', label: msg('To Do List'), pages: ['todo'], levels: ['none', 'own', 'read', 'update'],
     own: msg('Sees and ticks off only the tasks given to them'), read: msg('Sees the tasks and ticks them off'),
     update: msg('Sets up the lists and their categories') },
+  { id: 'ideas', label: msg('Ideas'), pages: ['ideas'], levels: ['none', 'read'],
+    read: msg('Sees the posts and reels sent to the Ideas chat') },
   { id: 'hours', label: msg('Opening hours'), pages: ['hours'], levels: ['none', 'read'],
     read: msg('Sees the opening hours (admins change them)') },
   { id: 'brand', label: msg('Brand'), pages: ['brand'], levels: ['none', 'read'],
     read: msg('Sees the brand: the logo, colours and fonts') },
+  { id: 'qrcodes', label: msg('QR codes'), pages: ['qrcodes'], levels: ['none', 'read'],
+    read: msg('Sees and downloads the QR codes (admins change them)') },
   { id: 'dashboards', label: msg('Dashboards'), pages: ['dashboards'], levels: ['none', 'read'],
     read: msg('Builds their own dashboards from the figures') },
+  { id: 'reps', label: msg('Reps & rewards'), pages: ['reps'], levels: ['none', 'read'],
+    read: msg('Rewards customers at the till and sees the reps') },
   { id: 'menu', label: msg('Menu'), pages: ['menu'], levels: ['none', 'read'],
     read: msg('Sees what’s on the menu (admins change it)') },
   { id: 'stock', label: msg('Stock'), pages: ['stock'], levels: ['none', 'read', 'update'],
@@ -129,12 +136,16 @@ export const ROLE_AREAS: RoleAreaInfo[] = [
     read: msg('Logs what’s thrown out'), update: msg('Changes and removes what’s logged') },
   { id: 'expenses', label: msg('Expenses'), pages: ['expenses'], levels: ['none', 'read'],
     read: msg('Claims back what they spent for the business') },
+  { id: 'social', label: msg('Social planner'), pages: ['social'], levels: ['none', 'read'],
+    read: msg('Picks up the planner’s ideas for posts and makes them') },
   { id: 'calendar', label: msg('Calendar'), pages: ['calendar'], levels: ['none', 'read', 'update'],
     read: msg('Sees what’s on'), update: msg('Adds and changes events') },
   { id: 'rota', label: msg('Rota'), pages: ['rota'], levels: ['read', 'update'],
     read: msg('Sees the published rota and their own shifts'), update: msg('Adds, changes and publishes shifts') },
   { id: 'timeoff', label: msg('Time off'), pages: ['timeoff'], levels: ['read', 'update'],
     read: msg('Asks for time off and sees who’s away'), update: msg('Approves or declines the team’s time off') },
+  { id: 'leaderboard', label: msg('Leaderboard'), pages: ['leaderboard'], levels: ['none', 'read'],
+    read: msg('Sees the team side by side: on time, hours and sales') },
   { id: 'timecards', label: msg('Timecards'), pages: ['timecards'], levels: ['read', 'update'],
     read: msg('Clocks in and sees their own hours'), update: msg('Sees, fixes and approves the team’s hours') },
   { id: 'ai', label: msg('AI assistants'), pages: ['ai-assistants'], levels: ['none', 'read'],
@@ -247,7 +258,9 @@ export const ROLE_PRESETS: RolePreset[] = [
   },
   {
     // The Business page's contact details but not the company's; the menu (to answer customers), not the stock.
-    id: 'cafe.barista', permissions: frontLine({ business: 'read', company: 'none', stock: 'none' }),
+    // Not the To Do List, Ideas, QR codes, Reps & rewards, the Social planner or the Leaderboard either.
+    id: 'cafe.barista', permissions: frontLine({ business: 'read', company: 'none', stock: 'none',
+      todo: 'none', ideas: 'none', qrcodes: 'none', reps: 'none', social: 'none', leaderboard: 'none' }),
     name: msg('Barista'), reportsTo: msg('Shift lead'), positions: ['barista'],
     summary: msg('Makes the coffee and looks after the customers: the face of the café.'),
     duties: [

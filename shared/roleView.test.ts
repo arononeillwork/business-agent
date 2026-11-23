@@ -38,6 +38,8 @@ describe('viewing the app as a role', () => {
     expect(roleOpens({ key: 'rota' }, barista)).toBe(true)
     // The barista's role leaves the stock out.
     expect(roleOpens({ key: 'stock' }, barista)).toBe(false)
+    // And the To Do List, Ideas, QR codes, Reps & rewards, the Social planner and the Leaderboard.
+    for (const key of ['todo', 'ideas', 'qrcodes', 'reps', 'social', 'leaderboard']) expect(roleOpens({ key }, barista), key).toBe(false)
 
     const owner = roleViewer({ template: 'cafe.owner', people: ['aron'], permissions: preset('cafe.owner').permissions }, team)
     expect(owner).toMatchObject({ access: 'owner', isAdmin: true, canSeePay: true })

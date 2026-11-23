@@ -93,6 +93,20 @@ async function giveBaristas(page: Page, area: string, level: string, here = fals
   await expect(cell).toHaveText(level)
 }
 
+/** The pages a barista's role leaves out of their menu, besides the Brand, Dashboards, Stock and Expenses. */
+const BARISTA_HIDES = ['To Do List', 'Ideas', 'QR codes', 'Reps & rewards', 'Social planner', 'Leaderboard']
+
+/**
+ * A demo barista (Julio or Maria) on a page their role hides (the To Do List, Ideas, QR codes, Reps & rewards, the
+ * Social planner, the Leaderboard): the admin gives the baristas' role the area (Read unless said), then they sign in
+ * and open it from the menu. `here`: as giveBaristas's.
+ */
+async function baristaOn(page: Page, email: string, area: string, level = 'Read', here = false) {
+  await giveBaristas(page, area, level, here)
+  await signInAs(page, email)
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: area, exact: true }).click()
+}
+
 /** Café music on Connections: connect the café's YouTube Music too (Spotify stays connected next to it). */
 async function connectYouTubeMusic(page: Page) {
   const cafe = page.getByRole('region', { name: 'Café music' })
@@ -3570,6 +3584,7 @@ test.describe('social planner', () => {
     await expect(ideas.getByRole('article', { name: 'Idea: The coffees we have now' })).toContainText('Puchero, Cocobrew and Santa Roaster’s decaf Colombia')
 
     // Maria (an employee): the planner is its ideas, nothing else.
+    await giveBaristas(page, 'Social planner', 'Read', true) // a barista's role hides the Social planner
     await signInAs(page, 'maria@example.com')
     await page.getByRole('link', { name: 'Social planner' }).first().click()
     await expect(page.getByRole('heading', { level: 1, name: 'Social planner' })).toBeVisible()
@@ -3936,7 +3951,7 @@ test.describe('To Do board', () => {
   })
 
   test('an employee’s board starts on their own jobs', async ({ page }) => {
-    await open(page, '/todo', 'julio@example.com')
+    await baristaOn(page, 'julio@example.com', 'To Do List', 'Own') // a barista's role hides the To Do List
     await page.getByRole('button', { name: 'Board', exact: true }).click()
     await expect(page.getByRole('tablist', { name: 'Whose jobs' }).getByRole('tab', { name: 'Mine' })).toHaveAttribute('aria-selected', 'true')
     await expect(page.getByRole('main').getByRole('region', { name: 'Doing', exact: true })).toContainText('Write the closing checklist')
@@ -4031,7 +4046,7 @@ test.describe('To Do List', () => {
   })
 
   test('employees use the list but cannot change the categories', async ({ page }) => {
-    await open(page, '/todo', 'julio@example.com')
+    await baristaOn(page, 'julio@example.com', 'To Do List', 'Own') // a barista's role hides the To Do List
     await expect(page.getByRole('heading', { name: 'To Do List', level: 1 })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Categories' })).toHaveCount(0)
     await page.getByLabel('New job', { exact: true }).fill('Restock napkins')
@@ -7670,7 +7685,7 @@ test.describe('sales reps and rewards', () => {
   })
 
   test('at the till: the team rewards a story repost with credit, and the customer spends it; commission stays private', async ({ page }) => {
-    await open(page, '/sales-reps', 'maria@example.com')
+    await baristaOn(page, 'maria@example.com', 'Reps & rewards') // a barista's role hides Reps & rewards
     const reps = page.getByRole('region', { name: 'Reps' })
     const lucia = reps.getByRole('article', { name: 'Lucía García' })
     await expect(lucia).toContainText('1,00')
@@ -7986,7 +8001,7 @@ test.describe('sales reps and rewards', () => {
   })
 
   test('someone on the team who is a rep waits for someone else to approve their own reward, and has their own page', async ({ page }) => {
-    await open(page, '/sales-reps', 'julio@example.com')
+    await baristaOn(page, 'julio@example.com', 'Reps & rewards') // a barista's role hides Reps & rewards
     await expect(page.getByRole('region', { name: 'Reps' }).getByRole('article', { name: 'Julio' })).toContainText('JULIO08')
     await page.getByRole('button', { name: 'Log a reward for Julio' }).click()
     const log = page.getByRole('dialog', { name: 'Reward Julio' })
@@ -8139,6 +8154,7 @@ test.describe('leaderboard', () => {
     await expect(sales.getByRole('row').filter({ hasText: 'Mark Murray' })).toContainText('€')
 
     // An employee sees the board and how many sales each person made, not how much.
+    await giveBaristas(page, 'Leaderboard', 'Read', true) // a barista's role hides the Leaderboard
     await signInAs(page, 'julio@example.com')
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Leaderboard' }).click()
     await expect(page.getByRole('heading', { name: 'Leaderboard', level: 1 })).toBeVisible()
@@ -10734,7 +10750,7 @@ test.describe('role permissions', () => {
     await expect(page.getByRole('option', { name: 'Own' })).toHaveCount(0)
     await page.keyboard.press('Escape')
     await expect(page.getByRole('table', { name: 'Each person' }).getByRole('row', { name: /Maria/ }))
-      .toContainText('Barista / BartenderReadHiddenOwnReadHiddenReadReadHiddenReadHiddenHiddenReadUpdateReadReadHidden')
+      .toContainText('Barista / BartenderReadHiddenHiddenHiddenReadHiddenHiddenReadHiddenReadHiddenReadHiddenHiddenHiddenReadUpdateReadHiddenReadHidden')
 
     await signInAs(page, 'maria@example.com')
     const menu = page.getByRole('navigation', { name: 'Main' })
@@ -10786,8 +10802,23 @@ test.describe('role permissions', () => {
     await expect(page.getByRole('button', { name: 'Add menu item' })).toHaveCount(0)
   })
 
+  test('a barista has no To Do List, Ideas, QR codes, Reps & rewards, Social planner or Leaderboard, and no jobs to do on Today', async ({ page }) => {
+    await open(page, '/', 'maria@example.com')
+    const menu = page.getByRole('navigation', { name: 'Main' })
+    await expect(menu.getByRole('link', { name: 'Rota', exact: true })).toBeVisible()
+    for (const name of BARISTA_HIDES) await expect(menu.getByRole('link', { name, exact: true })).toHaveCount(0)
+    // Nor do they open from a link, and Today has no jobs to do.
+    for (const path of ['/todo', '/ideas', '/qr-codes', '/sales-reps', '/social', '/leaderboard']) {
+      await page.evaluate(to => { history.pushState({ usr: null, key: to, idx: 1 }, '', to); dispatchEvent(new PopStateEvent('popstate', { state: history.state })) }, path)
+      await expect(page).toHaveURL(url => new URL(url).pathname === '/')
+      await expect(page.getByRole('heading', { name: /Hola, Maria/ })).toBeVisible()
+    }
+    await expect(page.getByRole('region', { name: 'At a glance' }).getByRole('region', { name: 'Low on stock' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Jobs to do' })).toHaveCount(0)
+  })
+
   test('a barista’s To Do List has only the jobs given to her, and what she adds is hers', async ({ page }) => {
-    await open(page, '/todo', 'maria@example.com')
+    await baristaOn(page, 'maria@example.com', 'To Do List', 'Own') // the role hides it; given Own, just her jobs
     await expect(page.getByText('Image / video loop for the TV')).toBeVisible()
     await expect(page.getByText('Write the closing checklist')).toHaveCount(0) // Julio's
     await expect(page.getByText('Get the AC serviced before summer')).toHaveCount(0) // nobody's
@@ -11268,6 +11299,8 @@ test.describe('agents', () => {
     await expect(banner).toContainText('no pay, takings or finances')
     await expect(menu.getByRole('link', { name: 'Rota', exact: true })).toBeVisible()
     for (const name of ['Finances', 'Sales', 'Reviews', 'Connections', 'Current stock']) await expect(menu.getByRole('link', { name, exact: true })).toHaveCount(0)
+    // Nor the To Do List, Ideas, QR codes, Reps & rewards, the Social planner or the Leaderboard.
+    for (const name of BARISTA_HIDES) await expect(menu.getByRole('link', { name, exact: true })).toHaveCount(0)
     // The pages as a barista sees them: nobody's pay on the Team page, no labour cost on the rota.
     await menu.getByRole('link', { name: 'Team', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'Team', level: 1 })).toBeVisible()
@@ -11287,6 +11320,7 @@ test.describe('agents', () => {
     await expect(banner).toHaveCount(0)
     await expect(page.getByText('Labour cost')).toBeVisible()
     await expect(menu.getByRole('link', { name: 'Finances', exact: true })).toBeVisible()
+    for (const name of BARISTA_HIDES) await expect(menu.getByRole('link', { name, exact: true })).toBeVisible()
   })
 
   test('@phone an owner switches agent from the top bar on a phone', async ({ page }) => {
@@ -12029,7 +12063,7 @@ test.describe('QR codes', () => {
   })
 
   test('QR codes: the team sees and downloads them; only admins add or change them', async ({ page }) => {
-    await open(page, '/qr-codes', 'julio@example.com')
+    await baristaOn(page, 'julio@example.com', 'QR codes') // a barista's role hides the QR codes
     await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'QR codes' })).toBeVisible()
     const codes = page.getByRole('list', { name: 'QR codes' })
     await expect(codes.getByRole('listitem')).toHaveCount(3)
@@ -12484,6 +12518,7 @@ test.describe('square pins', () => {
     await expect(pins).toHaveCount(0)
 
     // Maria, an employee: her own only, nobody else's, and no changes.
+    await giveBaristas(page, 'Leaderboard', 'Read', true) // a barista's role hides the Leaderboard
     await signInAs(page, 'maria@example.com')
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Leaderboard' }).click()
     await expect(actions.getByRole('button', { name: 'Square logins' })).toHaveCount(0)
@@ -12893,8 +12928,9 @@ test.describe('Ideas from the Instagram Ideas chat', () => {
 
   test('the team sees the Ideas chat’s posts, but can’t change the chat or take ideas off', async ({ page }) => {
     // Its old address, under the To Do List, still opens it.
-    await open(page, '/todo/ideas', 'julio@example.com')
+    await open(page, '/todo/ideas')
     await expect(page).toHaveURL(/\/ideas(\?|$)/)
+    await baristaOn(page, 'julio@example.com', 'Ideas', 'Read', true) // a barista's role hides Ideas
     await expect(page.getByRole('heading', { name: 'Ideas', level: 1 })).toBeVisible()
     await expect(page.getByText('Slow-motion pour for our next reel', { exact: false })).toBeVisible()
     await expect(page.getByRole('button', { name: /off the Ideas page/ })).toHaveCount(0)
