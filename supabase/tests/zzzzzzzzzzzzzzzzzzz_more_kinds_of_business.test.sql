@@ -43,3 +43,22 @@ begin
   exception when check_violation then null;
   end;
 end $$;
+
+-- HQ's people (the lawyer_and_investors migration), once: Eduardo, the lawyer, reporting to Aron;
+-- Eric Lein at the top of the investors; every investor labelled C TWO. HQ's people as a new database
+-- starts them (an earlier test leaves none), then the changes.
+delete from public.admin_people where business_id = current_setting('test.hq')::int;
+select public.start_admin_area_people();
+select public.start_lawyer_and_investors();
+select public.start_lawyer_and_investors();
+do $$
+declare v_hq int := current_setting('test.hq')::int;
+begin
+  assert (select string_agg(p.name || ':' || p.role || '>' || b.name || ':' || p.kind, ', ')
+            from public.admin_people p join public.admin_people b on b.id = p.reports_to where p.business_id = v_hq and p.name = 'Eduardo')
+    = 'Eduardo:Lawyer>Aron:team', 'Eduardo on the team, once, the lawyer, reporting to Aron';
+  assert (select string_agg(name || ':' || array_to_string(labels, '/'), ', ' order by position, name)
+            from public.admin_people where business_id = v_hq and kind = 'investor')
+    = 'Eric Lein:C TWO, Giorgos:C TWO, Ollie:C TWO', 'Eric Lein first, once; every investor labelled C TWO, once';
+  assert (select labels from public.admin_people where business_id = v_hq and name = 'Alejandro') = '{C TWO}', 'the team''s labels as they were';
+end $$;
