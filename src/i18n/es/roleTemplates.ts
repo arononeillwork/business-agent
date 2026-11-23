@@ -46,6 +46,11 @@ export default {
     'Ve los datos de la empresa en la página Negocio: su CIF/NIF, la moneda y adónde van los avisos al equipo',
   'Sees what’s on the menu (admins change it)': 'Ve lo que hay en la carta (la cambian los administradores)',
   'Not shown to them': 'No se le muestra',
+  'Sees the posts and reels sent to the Ideas chat': 'Ve las publicaciones y los reels enviados al chat de Ideas',
+  'Sees and downloads the QR codes (admins change them)': 'Ve y descarga los códigos QR (los cambian los administradores)',
+  'Rewards customers at the till and sees the reps': 'Da recompensas a los clientes en la caja y ve a los comerciales',
+  'Picks up the planner’s ideas for posts and makes them': 'Coge las ideas para publicaciones del planificador y las hace',
+  'Sees the team side by side: on time, hours and sales': 'Ve al equipo lado a lado: puntualidad, horas y ventas',
 
   // The areas: what Read and Update let someone do
   'Sees the published rota and their own shifts': 'Ve el cuadrante publicado y sus propios turnos',

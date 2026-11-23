@@ -215,7 +215,7 @@ function SmallTitle({ children, to, label }: { children: ReactNode; to?: string;
  * the business advisor says first.
  */
 function AtAGlance() {
-  const { isAdmin, isPartner } = useApp()
+  const { isAdmin, isPartner, can } = useApp()
   const { on } = useTakings()
   // The advisor reads a lot: its card comes once the rest of the page is in.
   const [later, setLater] = useState(false)
@@ -224,7 +224,8 @@ function AtAGlance() {
   const small: { key: string; title: string; to: string; label: string; body: ReactNode }[] = [
     ...(on ? [{ key: 'week', title: t('Takings this week'), to: '/sales', label: t('Open Sales'), body: <WidgetBody kind="takings" range={dashRange('week', d)} /> }] : []),
     { key: 'low', title: t('Low on stock'), to: '/stock', label: t('Open Stock'), body: <LowStockTop n={3} /> },
-    { key: 'jobs', title: t('Jobs to do'), to: '/todo', label: t('Open the To Do List'), body: <TopJobs n={3} /> },
+    // Not when their role hides the To Do List (a barista's).
+    ...(can('todo') ? [{ key: 'jobs', title: t('Jobs to do'), to: '/todo', label: t('Open the To Do List'), body: <TopJobs n={3} /> }] : []),
   ]
   if (isPartner) return null
   return (

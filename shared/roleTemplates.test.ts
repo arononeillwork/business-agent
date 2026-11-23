@@ -63,11 +63,14 @@ describe('role templates', () => {
     }
   })
 
-  it('a barista reads the rota, holidays and hours, the menu, the business’s contact details, their own tasks and no more; owners see everything', () => {
+  it('a barista reads the rota, holidays and hours, the menu, the business’s contact details and no more; owners see everything', () => {
     const tpl = (id: string) => tidyPermissions(ROLE_TEMPLATES.find(p => p.id === id)!.permissions)
-    expect(tpl('cafe.barista')).toEqual(levels('read', { company: 'none', brand: 'none', dashboards: 'none', stock: 'none', expenses: 'none', ai: 'none', todo: 'own' }))
+    expect(tpl('cafe.barista')).toEqual(levels('read', { company: 'none', brand: 'none', dashboards: 'none', stock: 'none', expenses: 'none', ai: 'none',
+      todo: 'none', ideas: 'none', qrcodes: 'none', reps: 'none', social: 'none', leaderboard: 'none' }))
     // The Company details are part of the Business page, which stays in the menu; so does the Menu page.
-    expect(hiddenByRole(tpl('cafe.barista'))).toEqual(['brand', 'dashboards', 'stock', 'expenses', 'ai-assistants'])
+    expect(hiddenByRole(tpl('cafe.barista'))).toEqual(['todo', 'ideas', 'brand', 'qrcodes', 'dashboards', 'reps', 'stock', 'expenses', 'social', 'leaderboard', 'ai-assistants'])
+    // The rest of the front line keeps them.
+    expect(tpl('cafe.kitchen')).toMatchObject({ todo: 'own', ideas: 'read', qrcodes: 'read', reps: 'read', social: 'read', leaderboard: 'read' })
     expect(tpl('cafe.shift-lead')).toMatchObject({ rota: 'update', timecards: 'update', timeoff: 'read' })
     for (const owner of ROLE_TEMPLATES.filter(p => p.id?.endsWith('.owner'))) expect(tpl(owner.id!), owner.id).toEqual(fullAccess())
     expect(tpl('cafe.cleaner')).toMatchObject({ rota: 'read', stock: 'none' })
