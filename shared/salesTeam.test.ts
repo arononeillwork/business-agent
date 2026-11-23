@@ -76,7 +76,8 @@ describe('what’s sent for a business', () => {
   it('a kind of business: a café, a restaurant, a barber, a garage or something else (a café, from before there were kinds)', () => {
     expect(cleanProspect({ business_type: 'garage' }, false)).toEqual({ row: { business_type: 'garage' } })
     expect(cleanProspect({ instagram: 'charliebyb', business_type: 'barber' }, true)).toMatchObject({ row: { business_type: 'barber' } })
-    expect(cleanProspect({ business_type: 'bakery' }, false)).toEqual({ error: 'Choose what kind of business it is' })
+    expect(cleanProspect({ business_type: 'bakery' }, false)).toEqual({ row: { business_type: 'bakery' } })
+    expect(cleanProspect({ business_type: 'florist' }, false)).toEqual({ error: 'Choose what kind of business it is' })
     expect(businessTypeOf({})).toBe('cafe')
     expect(businessTypeOf({ business_type: 'restaurant' })).toBe('restaurant')
   })
