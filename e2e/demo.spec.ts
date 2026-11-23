@@ -7906,6 +7906,8 @@ test.describe('sales reps and rewards', () => {
   })
 
   test('cashback switched off and back on for the whole café from the top of the page: nothing new while it’s off, credit already earned still spent', async ({ page }) => {
+    // Three sign-ins and the baristas' role given Reps & rewards on the way: some 32 s on CI.
+    test.setTimeout(60_000)
     await open(page, '/sales-reps')
     const cashback = page.getByRole('switch', { name: 'Cashback', exact: true })
     const block = page.getByRole('region', { name: 'Cashback for posts about the café' })
