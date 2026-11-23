@@ -14,6 +14,8 @@ import { CompetitorsVideo } from './competitors/CompetitorsVideo'
 import { COMPETITORS_TOTAL } from './competitors/timeline'
 import { RegularsVideo } from './regulars/RegularsVideo'
 import { REGULARS_TOTAL } from './regulars/timeline'
+import { CostingVideo } from './costing/CostingVideo'
+import { COSTING_TOTAL } from './costing/timeline'
 import { FPS, TOTAL } from './timeline'
 
 export const Root = () => (
@@ -26,5 +28,6 @@ export const Root = () => (
     <Composition id="ListingVideo" component={ListingVideo} durationInFrames={LISTING_TOTAL} fps={FPS} width={1920} height={1080} />
     <Composition id="CompetitorsVideo" component={CompetitorsVideo} durationInFrames={COMPETITORS_TOTAL} fps={FPS} width={1920} height={1080} />
     <Composition id="RegularsVideo" component={RegularsVideo} durationInFrames={REGULARS_TOTAL} fps={FPS} width={1920} height={1080} />
+    <Composition id="CostingVideo" component={CostingVideo} durationInFrames={COSTING_TOTAL} fps={FPS} width={1920} height={1080} />
   </>
 )
