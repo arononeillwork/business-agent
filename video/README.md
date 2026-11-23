@@ -226,6 +226,33 @@ npm run music:costing
 npm run render:costing && npm run web:costing
 ```
 
+## From an idea to a scheduled post.
+
+The tenth video (`public/video/social.mp4`, 76 seconds, `SocialVideo` in `src/social/`), played on the Sales page's
+"Instagram and TikTok never get posted" card (`/sell/cafes`): the Social planner's ideas for posts, made by the team
+and posted by the owner in one press. Easy Beans in demo mode.
+
+| Time | Scene | What it shows |
+|---|---|---|
+| 0:00 | The title | "From an idea to a scheduled post." |
+| 0:04 | Six weeks ago | The café's profile, its last post six weeks ago; "post on Insta" crossed off a to-do list week after week |
+| 0:16 | 1 The team | On Julio's phone, the ideas for posts; he takes "The coffees we have now", takes the photo (the camera's shutter drawn over the phone), adds it and hands it in |
+| 0:32 | 2 One press | At the computer, the owner makes the post from it in one press, adds a line to the caption, and schedules it for 18:00 on every account (Instagram, TikTok, LinkedIn, Google Maps), to go out by itself |
+| 0:56 | Six o'clock | The post on Instagram and on TikTok, and what the owner gets |
+| 1:08 | The close | The brand |
+
+The app's scenes are recorded by `capture/social.mjs`. Off camera, Google Drive is connected (where the team's photos
+are kept, and what lets posts go out by themselves) and TikTok too; for the owner's recording, Julio's hand-in is made
+again off camera with the demo's "View as", since the demo starts afresh each time. The photo Julio takes is drawn,
+not photographed (`capture/socialPhotos.mjs`, into `public/stills/social/`), so no real brand or person is in it; the
+café's profile, the to-do list and the two phones at six o'clock are drawn too. Its music is `music/social.py`.
+
+```bash
+npm run capture:social               # the app's scenes for it (the dev server running)
+npm run music:social
+npm run render:social && npm run web:social
+```
+
 Everything is made here from scratch, so it can be made again whenever the app changes, and in Spanish.
 
 ## How it's made
