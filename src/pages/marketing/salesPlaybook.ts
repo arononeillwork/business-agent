@@ -79,6 +79,7 @@ const CAFES: PainPoint[] = [
     fix: msg('Build each drink and bite from its ingredients and supplier prices, and see what it costs and what it earns. The advisor flags a price that’s below your margin.'),
     result: msg('Prices set on real costs, so every sale earns what the owner thinks it does.'),
     video: msg('What does a flat white really cost?'),
+    film: { src: '/video/costing.mp4', poster: '/video/costing.jpg' },
   },
   {
     id: 'competitors', wins: ['money'], pages: [msg('Competitors')],
