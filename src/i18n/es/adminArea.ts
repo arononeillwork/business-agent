@@ -148,11 +148,14 @@ export default {
   '{name} is on the chart': '{name} está en el organigrama',
   '{name} is off the chart': '{name} ya no está en el organigrama',
   'CEO, Salesperson, Engineer': 'CEO, comercial, ingeniero',
-  'On the team or an investor': 'En el equipo o inversor',
+  'On the team, on the bench or an investor': 'En el equipo, en el banquillo o inversor',
+  'On the bench': 'En el banquillo',
+  '{n} on the bench': '{n} en el banquillo',
+  'Substitutes bench': 'Banquillo de suplentes',
   'Reports to': 'Reporta a',
   'Nobody: the top': 'A nadie: arriba del todo',
-  'An investor is beside the team: whoever reported to them reports to whom they reported to.':
-    'Un inversor está al lado del equipo: quien le reportaba pasa a reportar a quien él reportaba.',
+  'The bench and the investors are beside the team: whoever reported to them reports to whom they reported to.':
+    'El banquillo y los inversores están al lado del equipo: quien le reportaba pasa a reportar a quien él reportaba.',
   'Taken off the chart, whoever reported to them reports to whom they reported to.':
     'Si se quita del organigrama, quien le reportaba pasa a reportar a quien él reportaba.',
 }

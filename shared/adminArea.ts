@@ -198,15 +198,16 @@ export function todayList(prospects: Prospect[], todos: AdminTodo[], introductio
 export const nothingToday = (t: Today) => !t.followUps.length && !t.todos.length && !t.newSignUps.length && !t.needHelp.length
 
 // ---------------------------------------------------------------------------------------------
-// People: everyone involved, who reports to whom, and the investors (the admin_area_people migration)
+// People: everyone involved, who reports to whom, the substitutes bench and the investors (the
+// admin_area_people migration)
 // ---------------------------------------------------------------------------------------------
-export type PersonKind = 'team' | 'investor'
+export type PersonKind = 'team' | 'bench' | 'investor'
 export interface AdminPerson {
   id: string
   name: string
   /** What they do: "CEO", "Café Salesperson". */
   role: string | null
-  /** On the team, or an investor (beside the team: reports to nobody, and nobody to them). */
+  /** On the team, on the substitutes bench, or an investor (the bench and investors are beside the team: they report to nobody, and nobody to them). */
   kind: PersonKind
   /** Whom they report to; none: the top. */
   reports_to: string | null
@@ -227,9 +228,9 @@ export function cleanLabels(v: unknown): string[] | null {
   }
   return out.length <= 10 ? out : null
 }
-export const isPersonKind = (v: unknown): v is PersonKind => v === 'team' || v === 'investor'
+export const isPersonKind = (v: unknown): v is PersonKind => v === 'team' || v === 'bench' || v === 'investor'
 
-/** Someone as sent: a name, what they do, team or investor, whom they report to; `{ error }` when something isn't right. */
+/** Someone as sent: a name, what they do, team, bench or investor, whom they report to; `{ error }` when something isn't right. */
 export function cleanPerson(input: Record<string, unknown>, isNew: boolean): { row: Record<string, unknown> } | { error: string } {
   const row: Record<string, unknown> = {}
   if ('name' in input || isNew) {
@@ -243,7 +244,7 @@ export function cleanPerson(input: Record<string, unknown>, isNew: boolean): { r
   }
   if ('kind' in input || isNew) {
     const kind = input.kind ?? 'team'
-    if (!isPersonKind(kind)) return { error: 'Someone is on the team or an investor' }
+    if (!isPersonKind(kind)) return { error: 'Someone is on the team, on the bench or an investor' }
     row.kind = kind
   }
   if ('reports_to' in input) {
@@ -251,7 +252,7 @@ export function cleanPerson(input: Record<string, unknown>, isNew: boolean): { r
     if (r !== null && (typeof r !== 'string' || !/^[0-9a-f-]{36}$/i.test(r))) return { error: 'Choose someone on the team to report to' }
     row.reports_to = r
   }
-  if (row.kind === 'investor') row.reports_to = null
+  if (row.kind && row.kind !== 'team') row.reports_to = null
   if ('labels' in input) {
     const labels = cleanLabels(input.labels)
     if (!labels) return { error: 'Up to 10 labels' }
@@ -280,16 +281,18 @@ export interface PersonNode { person: AdminPerson; reports: PersonNode[] }
 export interface OrgChart {
   /** The top of the team (the CEO), each with who reports to them, all the way down. */
   team: PersonNode[]
+  /** The substitutes bench: ready to step in. */
+  bench: AdminPerson[]
   investors: AdminPerson[]
 }
 const byOrder = (a: AdminPerson, b: AdminPerson) => a.position - b.position || a.name.localeCompare(b.name)
 
 /**
- * The chart: the team from the top down, each person's reports in their order, and the investors beside
+ * The chart: the team from the top down, each person's reports in their order, and the bench and the investors beside
  * it. Someone whose boss isn't there any more (or who would go round in a circle) is at the top.
  */
 export function orgChart(people: AdminPerson[]): OrgChart {
-  const team = people.filter(p => p.kind !== 'investor')
+  const team = people.filter(p => (p.kind ?? 'team') === 'team')
   const ids = new Set(team.map(p => p.id))
   const top = (p: AdminPerson) => !p.reports_to || !ids.has(p.reports_to) || reportsInACircle(team, p.id, p.reports_to)
   const placed = new Set<string>()
@@ -297,7 +300,8 @@ export function orgChart(people: AdminPerson[]): OrgChart {
     placed.add(p.id)
     return { person: p, reports: team.filter(x => x.reports_to === p.id && !placed.has(x.id) && !top(x)).sort(byOrder).map(node) }
   }
-  return { team: team.filter(top).sort(byOrder).map(node), investors: people.filter(p => p.kind === 'investor').sort(byOrder) }
+  return { team: team.filter(top).sort(byOrder).map(node), bench: people.filter(p => p.kind === 'bench').sort(byOrder),
+    investors: people.filter(p => p.kind === 'investor').sort(byOrder) }
 }
 
 /** Everyone who reports to someone, however far down. */

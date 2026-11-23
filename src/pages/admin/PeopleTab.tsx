@@ -19,7 +19,8 @@ const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2)
 
 /**
  * People: everyone involved in The Business Agent as a chart, from the CEO down, each with whom they
- * report to and their labels ("C TWO"); and the investors above it, linked to the team by their investment. On a phone, the same
+ * report to and their labels ("C TWO"); the investors above it, linked to the team by their investment;
+ * and the substitutes bench below it, ready to step in. On a phone, the same
  * as an indented list (a chart that wide would open scrolled away from its top). Someone opens to be
  * changed (their name, what they do, whom they report to) or taken off (whoever reported to them then
  * reports to whom they reported to).
@@ -32,13 +33,14 @@ export function PeopleTab() {
   if (!people.data) return people.error ? <ErrorBox error={people.error} /> : <Loading />
   const all = people.data
   const chart = orgChart(all)
-  const onTeam = all.length - chart.investors.length
+  const onTeam = all.filter(p => (p.kind ?? 'team') === 'team').length
 
   return (
     <Stack spacing={2}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' } }}>
         <Typography variant="body2" sx={{ color: 'text.secondary', flex: 1 }}>
-          {[tn(onTeam, '{n} person on the team', '{n} people on the team'), tn(chart.investors.length, '{n} investor', '{n} investors')].join(' · ')}
+          {[tn(onTeam, '{n} person on the team', '{n} people on the team'), chart.bench.length ? tn(chart.bench.length, '{n} on the bench', '{n} on the bench') : null,
+            tn(chart.investors.length, '{n} investor', '{n} investors')].filter(Boolean).join(' · ')}
           {'. '}{t('Open someone to change what they do or whom they report to.')}
         </Typography>
         <Button variant="contained" startIcon={<PersonAddIcon />} onClick={() => setEditing({ name: '', role: '', kind: 'team', reports_to: chart.team[0]?.person.id ?? null })}
@@ -55,7 +57,7 @@ export function PeopleTab() {
                   <Typography variant="overline" component="h2" sx={{ color: 'text.secondary', lineHeight: 1.5, mb: 0.75 }}>{t('Investors')}</Typography>
                   <Stack component="ul" aria-label={t('Investors')} direction="row" spacing={1.5} sx={{ listStyle: 'none', m: 0, p: 0 }}>
                     {chart.investors.map(p => (
-                      <Box component="li" key={p.id} aria-label={p.name}><PersonCard person={p} investor onOpen={() => setEditing(p)} /></Box>
+                      <Box component="li" key={p.id} aria-label={p.name}><PersonCard person={p} look="investor" onOpen={() => setEditing(p)} /></Box>
                     ))}
                   </Stack>
                   {chart.team.length > 0 && <Investment />}
@@ -64,6 +66,16 @@ export function PeopleTab() {
               {chart.team.length > 0 && (
                 <Box component="ul" aria-label={t('The team')} sx={tree}>
                   {chart.team.map(n => <Branch key={n.person.id} node={n} onOpen={setEditing} />)}
+                </Box>
+              )}
+              {chart.bench.length > 0 && (
+                <Box sx={{ alignSelf: 'stretch', mt: 3, pt: 2.5, borderTop: 1, borderColor: 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <Typography variant="overline" component="h2" sx={{ color: 'text.secondary', lineHeight: 1.5, mb: 0.75 }}>{t('Substitutes bench')}</Typography>
+                  <Stack component="ul" aria-label={t('Substitutes bench')} direction="row" spacing={1.5} sx={{ listStyle: 'none', m: 0, p: 0 }}>
+                    {chart.bench.map(p => (
+                      <Box component="li" key={p.id} aria-label={p.name}><PersonCard person={p} look="bench" onOpen={() => setEditing(p)} /></Box>
+                    ))}
+                  </Stack>
                 </Box>
               )}
             </Box>
@@ -77,7 +89,7 @@ export function PeopleTab() {
                 <Typography variant="overline" component="h2" sx={{ color: 'text.secondary', lineHeight: 1.5 }}>{t('Investors')}</Typography>
                 <Stack component="ul" aria-label={t('Investors')} spacing={1} sx={{ listStyle: 'none', m: 0, mt: 0.75, p: 0 }}>
                   {chart.investors.map(p => (
-                    <Box component="li" key={p.id} aria-label={p.name}><PersonRow person={p} investor onOpen={() => setEditing(p)} /></Box>
+                    <Box component="li" key={p.id} aria-label={p.name}><PersonRow person={p} look="investor" onOpen={() => setEditing(p)} /></Box>
                   ))}
                 </Stack>
                 {chart.team.length > 0 && <Investment />}
@@ -86,6 +98,16 @@ export function PeopleTab() {
             {chart.team.length > 0 && (
               <Box component="ul" aria-label={t('The team')} sx={outline}>
                 {chart.team.map(n => <Branch key={n.person.id} node={n} onOpen={setEditing} compact />)}
+              </Box>
+            )}
+            {chart.bench.length > 0 && (
+              <Box sx={{ mt: 2.5, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+                <Typography variant="overline" component="h2" sx={{ color: 'text.secondary', lineHeight: 1.5 }}>{t('Substitutes bench')}</Typography>
+                <Stack component="ul" aria-label={t('Substitutes bench')} spacing={1} sx={{ listStyle: 'none', m: 0, mt: 0.75, p: 0 }}>
+                  {chart.bench.map(p => (
+                    <Box component="li" key={p.id} aria-label={p.name}><PersonRow person={p} look="bench" onOpen={() => setEditing(p)} /></Box>
+                  ))}
+                </Stack>
               </Box>
             )}
           </CardContent>
@@ -163,15 +185,22 @@ function Branch({ node, onOpen, compact = false }: { node: PersonNode; onOpen: (
   )
 }
 
-const face = (investor: boolean) => ({
-  bgcolor: 'background.paper', border: 1, borderColor: investor ? tokens.ubeDeep : 'divider', borderStyle: investor ? 'dashed' : 'solid', borderRadius: '12px',
+/** How someone looks: the team in rose; the investors in ube, dashed; the bench in grey, dashed (not in the team yet). */
+type Look = 'team' | 'bench' | 'investor'
+const LOOK: Record<Look, { border: string; style: string; fg: string; bg: string }> = {
+  team: { border: tokens.line, style: 'solid', fg: tokens.roseDeep, bg: tokens.roseSoft },
+  bench: { border: tokens.inkFaint, style: 'dashed', fg: tokens.neutralFg, bg: tokens.neutralBg },
+  investor: { border: tokens.ubeDeep, style: 'dashed', fg: tokens.ubeDeep, bg: tokens.ubeSoft },
+}
+const face = (look: Look) => ({
+  bgcolor: 'background.paper', border: 1, borderColor: LOOK[look].border, borderStyle: LOOK[look].style, borderRadius: '12px',
   '&:hover': { bgcolor: tokens.hover }, '&:focus-visible': { outline: `2px solid ${tokens.ink}`, outlineOffset: 2 },
 })
 
-function Initials({ name, investor }: { name: string; investor: boolean }) {
+function Initials({ name, look }: { name: string; look: Look }) {
   return (
     <Box aria-hidden sx={{ width: 36, height: 36, flexShrink: 0, borderRadius: '50%', display: 'grid', placeItems: 'center', fontSize: 14, fontWeight: 600,
-      fontFamily: fonts.display, bgcolor: investor ? tokens.ubeSoft : tokens.roseSoft, color: investor ? tokens.ubeDeep : tokens.roseDeep }}>
+      fontFamily: fonts.display, bgcolor: LOOK[look].bg, color: LOOK[look].fg }}>
       {initials(name)}
     </Box>
   )
@@ -188,11 +217,11 @@ function Labels({ labels, center = false }: { labels?: string[]; center?: boolea
 }
 
 /** Someone as a row (on a phone): their initials, name and what they do; how many are below them. */
-function PersonRow({ person: p, under = 0, investor = false, onOpen }: { person: AdminPerson; under?: number; investor?: boolean; onOpen: () => void }) {
+function PersonRow({ person: p, under = 0, look = 'team', onOpen }: { person: AdminPerson; under?: number; look?: Look; onOpen: () => void }) {
   return (
     <ButtonBase onClick={onOpen} aria-label={t('Open {name}', { name: p.name })}
-      sx={{ ...face(investor), width: '100%', display: 'flex', alignItems: 'center', gap: 1.25, p: '8px 12px 8px 8px', textAlign: 'left', justifyContent: 'flex-start' }}>
-      <Initials name={p.name} investor={investor} />
+      sx={{ ...face(look), width: '100%', display: 'flex', alignItems: 'center', gap: 1.25, p: '8px 12px 8px 8px', textAlign: 'left', justifyContent: 'flex-start' }}>
+      <Initials name={p.name} look={look} />
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.3, overflowWrap: 'anywhere' }}>{p.name}</Typography>
         {p.role && <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', lineHeight: 1.3, overflowWrap: 'anywhere' }}>{p.role}</Typography>}
@@ -203,11 +232,11 @@ function PersonRow({ person: p, under = 0, investor = false, onOpen }: { person:
   )
 }
 
-function PersonCard({ person: p, under = 0, investor = false, onOpen }: { person: AdminPerson; under?: number; investor?: boolean; onOpen: () => void }) {
+function PersonCard({ person: p, under = 0, look = 'team', onOpen }: { person: AdminPerson; under?: number; look?: Look; onOpen: () => void }) {
   return (
     <ButtonBase onClick={onOpen} aria-label={t('Open {name}', { name: p.name })}
-      sx={{ ...face(investor), width: 148, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5, p: 1.25, textAlign: 'center' }}>
-      <Initials name={p.name} investor={investor} />
+      sx={{ ...face(look), width: 148, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5, p: 1.25, textAlign: 'center' }}>
+      <Initials name={p.name} look={look} />
       <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.3, overflowWrap: 'anywhere' }}>{p.name}</Typography>
       {p.role && <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1.3, overflowWrap: 'anywhere' }}>{p.role}</Typography>}
       <Labels labels={p.labels} center />
@@ -216,7 +245,7 @@ function PersonCard({ person: p, under = 0, investor = false, onOpen }: { person
   )
 }
 
-/** Someone added or changed: their name, what they do, on the team (whom they report to) or an investor; or taken off. */
+/** Someone added or changed: their name, what they do, on the team (whom they report to), on the bench or an investor; or taken off. */
 function PersonDialog({ start, people, onClose }: { start: PersonInput; people: AdminPerson[]; onClose: () => void }) {
   const { api } = useApp()
   const { token } = useAdmin()
@@ -225,11 +254,11 @@ function PersonDialog({ start, people, onClose }: { start: PersonInput; people: 
   const set = (patch: PersonInput) => setP(x => ({ ...x, ...patch }))
   // Whom they can report to: someone on the team who isn't them, nor below them.
   const bosses = people.filter(x => x.kind === 'team' && x.id !== p.id && !(p.id && reportsInACircle(people, p.id, x.id)))
-  const investor = p.kind === 'investor'
+  const beside = (p.kind ?? 'team') !== 'team'
   // Labels already in use, to pick from; or a new one typed.
   const used = [...new Set(people.flatMap(x => x.labels ?? []))].sort((a, b) => a.localeCompare(b))
   const save = async () => {
-    const sent: PersonInput = { id: p.id, name: p.name, role: p.role ?? null, kind: p.kind ?? 'team', reports_to: investor ? null : p.reports_to ?? null,
+    const sent: PersonInput = { id: p.id, name: p.name, role: p.role ?? null, kind: p.kind ?? 'team', reports_to: beside ? null : p.reports_to ?? null,
       labels: p.labels ?? [] }
     if (await run(() => api.saveAdminPerson(token, sent), p.id ? t('{name} saved', { name: p.name?.trim() ?? '' }) : t('{name} is on the chart', { name: p.name?.trim() ?? '' }))) onClose()
   }
@@ -246,11 +275,12 @@ function PersonDialog({ start, people, onClose }: { start: PersonInput; people: 
           <Autocomplete multiple freeSolo options={used} value={p.labels ?? []} onChange={(_, v) => set({ labels: v.map(x => x.trim()).filter(Boolean) })}
             renderValue={(v, getItemProps) => v.map((x, i) => { const { key, ...rest } = getItemProps({ index: i }); return <Chip key={key} size="small" label={x} {...rest} /> })}
             renderInput={params => <TextField {...params} label={t('Labels')} helperText={t('Type a label and press Enter, as C TWO')} />} />
-          <ToggleButtonGroup exclusive size="small" value={p.kind ?? 'team'} onChange={(_, v: PersonKind | null) => v && set({ kind: v })} aria-label={t('On the team or an investor')}>
+          <ToggleButtonGroup exclusive size="small" value={p.kind ?? 'team'} onChange={(_, v: PersonKind | null) => v && set({ kind: v })} aria-label={t('On the team, on the bench or an investor')}>
             <ToggleButton value="team">{t('On the team')}</ToggleButton>
+            <ToggleButton value="bench">{t('On the bench')}</ToggleButton>
             <ToggleButton value="investor">{t('Investor')}</ToggleButton>
           </ToggleButtonGroup>
-          {!investor && (
+          {!beside && (
             <TextField select label={t('Reports to')} value={p.reports_to ?? ''} onChange={e => set({ reports_to: e.target.value || null })}>
               <MenuItem value="">{t('Nobody: the top')}</MenuItem>
               {bosses.map(x => <MenuItem key={x.id} value={x.id}>{x.role ? `${x.name} · ${x.role}` : x.name}</MenuItem>)}
@@ -258,7 +288,7 @@ function PersonDialog({ start, people, onClose }: { start: PersonInput; people: 
           )}
           {p.id && (
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              {investor ? t('An investor is beside the team: whoever reported to them reports to whom they reported to.')
+              {beside ? t('The bench and the investors are beside the team: whoever reported to them reports to whom they reported to.')
                 : t('Taken off the chart, whoever reported to them reports to whom they reported to.')}
             </Typography>
           )}

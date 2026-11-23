@@ -204,9 +204,10 @@ built-in **AI connector** so owners can run it by talking to Claude.
 - Admin area, more of it: each contact on **Sales** is a kind of business (a café, restaurant, barber, garage, financial
   firm or something else), and the board is shown by kind as well. The **Team** tab is now **Sales team**. **People** is a
   chart of everyone involved, from the CEO down (who reports to whom, with labels of their own such as C TWO), with the
-  investors above it, linked by their investment; on a phone it's an indented list. Someone is added, changed or taken off
-  there (whoever reported to them then reports to whom they reported to; nobody reports to an investor, or round in a
-  circle). The **To-do** list is dragged into order within each group, by a job's handle or the keyboard, using the To-do
+  investors above it, linked by their investment, and the substitutes bench below it (ready to step in; like the investors,
+  beside the team, reporting to nobody); on a phone it's an indented list. Someone is added, changed or taken off
+  there (whoever reported to them then reports to whom they reported to; nobody reports to the bench, an investor, or
+  round in a circle). The **To-do** list is dragged into order within each group, by a job's handle or the keyboard, using the To-do
   page's own order (`todos.position`); a new job goes at the top. All HQ's rows (the `admin_area_people` migration; a new
   database runs `select public.start_admin_area_people();` after `start_admin_area_sections()`).
 - Staff kitty (Team section): a share of each month's profit (5% to start; a month with a loss puts nothing

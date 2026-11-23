@@ -3,8 +3,8 @@
 -- 1. Each contact on the sales board is a kind of business: a café, a restaurant, a barber, a garage, a
 --    financial firm or something else, so the board can be shown by kind. Every card so far is a café's (the board was cafés only); a
 --    business that signs up with a salesperson's code gets the kind it signed up as.
--- 2. People: everyone involved in The Business Agent, who reports to whom, and its investors; each with
---    labels of their own ("C TWO").
+-- 2. People: everyone involved in The Business Agent, who reports to whom, its substitutes bench and its
+--    investors; each with labels of their own ("C TWO").
 -- 3. HQ's to start: the people, Ryan, Mark, Mum and Aron on the sales team (a lane and a code each), the
 --    contacts they're talking to, and a job on HQ's to-do list. (The admin area's to-do list is dragged
 --    into order with todos.position, the To-do page's own order: nothing new for it here.)
@@ -59,15 +59,16 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
--- 2. People: who reports to whom, and the investors
+-- 2. People: who reports to whom, the substitutes bench and the investors
 -- ---------------------------------------------------------------------------
 create table public.admin_people (
   id         uuid primary key default gen_random_uuid(),
   name       text not null check (char_length(btrim(name)) between 1 and 80),
   -- What they do: "CEO", "Café Salesperson".
   role       text check (char_length(role) <= 80),
-  -- On the team, or an investor (beside the team, not in it: an investor reports to nobody).
-  kind       text not null default 'team' check (kind in ('team', 'investor')),
+  -- On the team, on the substitutes bench (ready to step in), or an investor. The bench and the
+  -- investors are beside the team, not in it: they report to nobody, and nobody to them.
+  kind       text not null default 'team' check (kind in ('team', 'bench', 'investor')),
   -- Whom they report to (none: the top, as the CEO). Checked when the change is saved, so someone who
   -- leaves can first pass whoever reported to them up (below).
   reports_to uuid references public.admin_people deferrable initially deferred,
@@ -83,7 +84,7 @@ create index admin_people_reports_to_idx on public.admin_people (reports_to);
 alter table public.admin_people enable row level security;
 revoke all on public.admin_people from anon, authenticated;
 
--- Tidied; someone reports to someone on the team in the same business, never to an investor or to
+-- Tidied; someone reports to someone on the team in the same business, never to the bench, an investor or to
 -- someone who (in the end) reports to them. Whatever writes the row (the Worker, the SQL editor).
 create or replace function public.admin_people_rules() returns trigger
 language plpgsql set search_path = ''
@@ -95,7 +96,7 @@ begin
       select distinct on (lower(l)) l, n from unnest(new.labels) with ordinality u(raw, n)
         cross join lateral (select left(btrim(regexp_replace(raw, '\s+', ' ', 'g')), 40) as l) x
        where l <> '' order by lower(l), n) d), '{}');
-  if new.kind = 'investor' then new.reports_to := null; end if;
+  if new.kind <> 'team' then new.reports_to := null; end if;
   if new.reports_to is not null then
     if not exists (select 1 from public.admin_people where id = new.reports_to and business_id = new.business_id and kind = 'team') then
       raise exception 'Choose someone on the team to report to' using errcode = 'check_violation';
@@ -138,12 +139,13 @@ end $$;
 create trigger admin_people_leaves after delete on public.admin_people
   referencing old table as gone for each statement execute function public.admin_people_move_up();
 
--- Someone on the team who becomes an investor: whoever reported to them reports to whom they reported to.
+-- Someone on the team who goes to the bench or becomes an investor: whoever reported to them reports to whom
+-- they reported to.
 create or replace function public.admin_people_invest() returns trigger
 language plpgsql set search_path = ''
 as $$
 begin
-  if new.kind = 'investor' and old.kind = 'team' then
+  if new.kind <> 'team' and old.kind = 'team' then
     update public.admin_people set reports_to = old.reports_to where reports_to = new.id and business_id = new.business_id;
   end if;
   return null;
@@ -181,7 +183,11 @@ begin
         (7, 'Kim', 'Head of Marketing', 'team', 'Aron', '{C TWO}'),
         (8, 'Zoe', 'Engineer', 'team', 'Aron', '{}'),
         (9, 'Giorgos', 'Investor', 'investor', null, '{}'),
-        (10, 'Ollie', 'Investor', 'investor', null, '{}')) p(n, name, role, kind, boss, labels)
+        (10, 'Ollie', 'Investor', 'investor', null, '{}'),
+        (11, 'Adrian Goulding', 'Sales Manager', 'bench', null, '{C TWO}'),
+        (12, 'Jesus Maria Herruzo Luque', 'Engineer', 'bench', null, '{C TWO}'),
+        (13, 'Antonio Trupac', 'Engineer / AI Guru', 'bench', null, '{C TWO}'),
+        (14, 'Cathrine Naess', 'Head of People, organises everything', 'bench', null, '{C TWO}')) p(n, name, role, kind, boss, labels)
       order by p.n
     loop
       insert into public.admin_people (business_id, name, role, kind, position, labels, reports_to)

@@ -140,6 +140,9 @@ export function demoAdminArea(now: () => string): AdminArea {
     person(4, 'Mark', 'Salesperson', 2), person(5, 'Julio', 'Café Salesperson', 2), person(6, 'Maria', 'Café Salesperson', 2),
     person(7, 'Kim', 'Head of Marketing', 1, 'team', ['C TWO']), person(8, 'Zoe', 'Engineer', 1),
     person(9, 'Giorgos', 'Investor', null, 'investor'), person(10, 'Ollie', 'Investor', null, 'investor'),
+    person(11, 'Adrian Goulding', 'Sales Manager', null, 'bench', ['C TWO']), person(12, 'Jesus Maria Herruzo Luque', 'Engineer', null, 'bench', ['C TWO']),
+    person(13, 'Antonio Trupac', 'Engineer / AI Guru', null, 'bench', ['C TWO']),
+    person(14, 'Cathrine Naess', 'Head of People, organises everything', null, 'bench', ['C TWO']),
   ]
 
   const clone = <T,>(x: T): T => structuredClone(x)
@@ -315,7 +318,7 @@ export function demoAdminArea(now: () => string): AdminArea {
       const row = clean.row as Partial<AdminPerson>
       const before = pid ? people.find(p => p.id === pid) : undefined
       if (pid && !before) throw new Error('No such person')
-      if (row.kind === 'investor' || (before?.kind === 'investor' && row.kind !== 'team')) row.reports_to = null
+      if ((row.kind ?? before?.kind ?? 'team') !== 'team') row.reports_to = null
       if (row.reports_to) {
         if (!people.some(p => p.id === row.reports_to && p.kind === 'team')) throw new Error('Choose someone on the team to report to')
         if (pid && reportsInACircle(people, pid, row.reports_to)) throw new Error('They can’t report to someone who reports to them')
@@ -323,8 +326,8 @@ export function demoAdminArea(now: () => string): AdminArea {
       if (before) {
         const boss = before.reports_to
         Object.assign(before, row)
-        // An investor now: whoever reported to them reports to whom they reported to.
-        if (row.kind === 'investor') people = people.map(p => (p.reports_to === pid ? { ...p, reports_to: boss } : p))
+        // On the bench or an investor now: whoever reported to them reports to whom they reported to.
+        if (row.kind && row.kind !== 'team') people = people.map(p => (p.reports_to === pid ? { ...p, reports_to: boss } : p))
         return clone(people.find(p => p.id === pid)!)
       }
       const p: AdminPerson = { id: crypto.randomUUID(), name: '', role: null, kind: 'team', reports_to: null, labels: [],

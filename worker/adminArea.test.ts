@@ -330,6 +330,8 @@ describe('people', () => {
     expect(db.tables.admin_people.at(-1)).toMatchObject({ business_id: HQ })
     res = await send('POST', '/api/admin-area/people', { name: 'Ollie', role: 'Investor', kind: 'investor', reports_to: ARON })
     expect(await res.json()).toMatchObject({ name: 'Ollie', kind: 'investor', reports_to: null })
+    res = await send('POST', '/api/admin-area/people', { name: 'Adrian Goulding', role: 'Sales Manager', kind: 'bench', reports_to: ARON, labels: ['C TWO'] })
+    expect(await res.json()).toMatchObject({ name: 'Adrian Goulding', kind: 'bench', reports_to: null, labels: ['C TWO'] })
     // Not to an investor, nor to another business's person.
     for (const boss of [GIORGOS, '0b0e2f6c-6666-4c2d-8e3f-000000000099']) {
       res = await send('POST', '/api/admin-area/people', { name: 'Kim', reports_to: boss })

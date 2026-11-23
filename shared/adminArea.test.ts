@@ -110,15 +110,17 @@ describe('people', () => {
   const people = [
     person('aron', null, 1), person('alejandro', 'aron', 2), person('ryan', 'alejandro', 3), person('mark', 'alejandro', 4),
     person('kim', 'aron', 7), person('zoe', 'aron', 8), person('giorgos', null, 9, 'investor'), person('ollie', null, 10, 'investor'),
+    person('cathrine', null, 14, 'bench'), person('adrian', null, 11, 'bench'),
   ]
 
-  it('the team from the top down, each one’s reports in order; the investors beside it', () => {
+  it('the team from the top down, each one’s reports in order; the bench and the investors beside it', () => {
     const chart = orgChart(people)
     expect(chart.team.map(n => n.person.id)).toEqual(['aron'])
     expect(chart.team[0].reports.map(n => n.person.id)).toEqual(['alejandro', 'kim', 'zoe'])
     expect(chart.team[0].reports[0].reports.map(n => n.person.id)).toEqual(['ryan', 'mark'])
     expect(teamUnder(chart.team[0])).toBe(5)
     expect(chart.investors.map(p => p.id)).toEqual(['giorgos', 'ollie'])
+    expect(chart.bench.map(p => p.id)).toEqual(['adrian', 'cathrine'])
   })
 
   it('someone whose boss has gone, or who’d go round in a circle, is at the top', () => {
@@ -135,7 +137,8 @@ describe('people', () => {
     expect(cleanPerson({ kind: 'investor', reports_to: '0b0e2f6c-1111-4c2d-8e3f-000000000001' }, false)).toEqual({ row: { kind: 'investor', reports_to: null } })
     expect(cleanPerson({ role: '' }, false)).toEqual({ row: { role: null } })
     expect(cleanPerson({ name: ' ' }, true)).toEqual({ error: 'Give them a name' })
-    expect(cleanPerson({ name: 'X', kind: 'advisor' }, true)).toEqual({ error: 'Someone is on the team or an investor' })
+    expect(cleanPerson({ name: 'X', kind: 'advisor' }, true)).toEqual({ error: 'Someone is on the team, on the bench or an investor' })
+    expect(cleanPerson({ kind: 'bench', reports_to: '0b0e2f6c-1111-4c2d-8e3f-000000000001' }, false)).toEqual({ row: { kind: 'bench', reports_to: null } })
     expect(cleanPerson({ reports_to: 'aron' }, false)).toEqual({ error: 'Choose someone on the team to report to' })
     // Labels: tidied, each once.
     expect(cleanPerson({ labels: [' C  TWO ', 'c two', '', 'Board'] }, false)).toEqual({ row: { labels: ['C TWO', 'Board'] } })

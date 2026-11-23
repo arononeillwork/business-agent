@@ -13190,7 +13190,7 @@ test.describe('admin area', () => {
     await expect(page.getByRole('dialog', { name: 'The DPF Centre' })).toContainText('Garage')
   })
 
-  test('admin area: people from the CEO down, the investors above; someone moved, and someone taken off', async ({ page }) => {
+  test('admin area: people from the CEO down, the investors above and the bench below; someone moved, and someone taken off', async ({ page }) => {
     await openAdmin(page, 'People')
     await expect(page).toHaveURL(/\/admin\/people/)
     const names = (list: string) => page.getByRole('list', { name: list, exact: true }).locator(':scope > li').evaluateAll(els => els.map(e => e.getAttribute('aria-label')))
@@ -13202,6 +13202,9 @@ test.describe('admin area', () => {
     expect(await names('Reporting to Aron')).toEqual(['Alejandro', 'Kim', 'Zoe'])
     expect(await names('Reporting to Alejandro')).toEqual(['Ryan', 'Mark', 'Julio', 'Maria'])
     expect(await names('Investors')).toEqual(['Giorgos', 'Ollie'])
+    expect(await names('Substitutes bench')).toEqual(['Adrian Goulding', 'Jesus Maria Herruzo Luque', 'Antonio Trupac', 'Cathrine Naess'])
+    await expect(page.getByRole('button', { name: 'Open Antonio Trupac' })).toContainText(/Engineer \/ AI Guru.*C TWO/)
+    await expect(page.getByText('8 people on the team · 4 on the bench · 2 investors.', { exact: false })).toBeVisible()
     await expect(page.getByText('Investment', { exact: true })).toBeVisible()
 
     // Zoe moves under Alejandro, labelled C TWO too (picked from the labels in use).
@@ -13221,6 +13224,7 @@ test.describe('admin area', () => {
     await dialog.getByLabel('Reports to').click()
     await expect(page.getByRole('option', { name: /^Kim/ })).toBeVisible()
     await expect(page.getByRole('option', { name: /^Ryan/ })).toHaveCount(0)
+    await expect(page.getByRole('option', { name: /^Adrian Goulding/ })).toHaveCount(0)
     await page.keyboard.press('Escape')
     await dialog.getByRole('button', { name: 'Take off' }).click()
     await toast(page, 'Alejandro is off the chart')

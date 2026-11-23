@@ -32,10 +32,12 @@ begin
   assert (select string_agg(p.name || '>' || coalesce(b.name, '-') || ':' || p.kind, ', ' order by p.position)
             from public.admin_people p left join public.admin_people b on b.id = p.reports_to where p.business_id = v_hq)
     = 'Aron>-:team, Alejandro>Aron:team, Ryan>Alejandro:team, Mark>Alejandro:team, Julio>Alejandro:team, Maria>Alejandro:team, '
-      'Kim>Aron:team, Zoe>Aron:team, Giorgos>-:investor, Ollie>-:investor', 'everyone, once, reporting to the right person';
+      'Kim>Aron:team, Zoe>Aron:team, Giorgos>-:investor, Ollie>-:investor, Adrian Goulding>-:bench, Jesus Maria Herruzo Luque>-:bench, '
+      'Antonio Trupac>-:bench, Cathrine Naess>-:bench', 'everyone, once, reporting to the right person';
   assert (select role from public.admin_people where business_id = v_hq and name = 'Alejandro') = 'Head of Product / Sales Manager', 'with what they do';
-  assert (select string_agg(name, ', ' order by position) from public.admin_people where business_id = v_hq and labels = '{C TWO}') = 'Alejandro, Kim',
-    'Alejandro and Kim labelled C TWO';
+  assert (select string_agg(name, ', ' order by position) from public.admin_people where business_id = v_hq and labels = '{C TWO}')
+    = 'Alejandro, Kim, Adrian Goulding, Jesus Maria Herruzo Luque, Antonio Trupac, Cathrine Naess', 'Alejandro, Kim and the bench labelled C TWO';
+  assert (select role from public.admin_people where business_id = v_hq and name = 'Cathrine Naess') = 'Head of People, organises everything', 'the bench with what they do';
 
   -- Ryan, Mark, Mum and Aron on the sales team after Maria and Julio, each with a code of their own.
   assert (select string_agg(m.name, ', ' order by m.position) from public.sales_team m where m.business_id = v_hq)
@@ -106,6 +108,7 @@ declare
   v_alejandro uuid := (select id from public.admin_people where business_id = v_hq and name = 'Alejandro');
   v_ryan      uuid := (select id from public.admin_people where business_id = v_hq and name = 'Ryan');
   v_giorgos   uuid := (select id from public.admin_people where business_id = v_hq and name = 'Giorgos');
+  v_adrian    uuid := (select id from public.admin_people where business_id = v_hq and name = 'Adrian Goulding');
   v_lola      uuid;
   v_ana       uuid;
 begin
@@ -119,6 +122,13 @@ begin
     assert false, 'not to an investor';
   exception when check_violation then null;
   end;
+  begin
+    insert into public.admin_people (name, reports_to) values ('X', v_adrian);
+    assert false, 'not to someone on the bench';
+  exception when check_violation then null;
+  end;
+  update public.admin_people set reports_to = v_aron where id = v_adrian;
+  assert (select reports_to is null from public.admin_people where id = v_adrian), 'the bench reports to nobody';
   begin
     update public.admin_people set reports_to = v_lola where id = v_alejandro;
     assert false, 'not round in a circle';
@@ -134,11 +144,11 @@ begin
   insert into public.admin_people (name, kind, reports_to) values ('Ana', 'investor', v_aron) returning id into v_ana;
   assert (select reports_to is null from public.admin_people where id = v_ana), 'an investor reports to nobody';
 
-  -- Ryan leaves: Lola reports to Alejandro. Alejandro becomes an investor: whoever reported to him, to Aron.
+  -- Ryan leaves: Lola reports to Alejandro. Alejandro goes to the bench: whoever reported to him, to Aron.
   delete from public.admin_people where id = v_ryan;
   assert (select reports_to = v_alejandro from public.admin_people where id = v_lola), 'up to whom Ryan reported to';
-  update public.admin_people set kind = 'investor' where id = v_alejandro;
-  assert (select reports_to is null from public.admin_people where id = v_alejandro), 'an investor now, reporting to nobody';
+  update public.admin_people set kind = 'bench' where id = v_alejandro;
+  assert (select reports_to is null from public.admin_people where id = v_alejandro), 'on the bench now, reporting to nobody';
   assert not exists (select 1 from public.admin_people where reports_to = v_alejandro), 'and nobody reports to him';
   assert (select reports_to = v_aron from public.admin_people where id = v_lola), 'Lola reports to Aron';
 end $$;
