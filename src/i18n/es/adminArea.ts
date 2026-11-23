@@ -131,6 +131,10 @@ export default {
   'Garage': 'Taller',
   'Garages': 'Talleres',
   'Financial': 'Finanzas',
+  'Bakeries': 'Panaderías',
+  'Pubs': 'Pubs',
+  'Construction': 'Construcción',
+  'Transport': 'Transporte',
   'Labels': 'Etiquetas',
   'Type a label and press Enter, as C TWO': 'Escribe una etiqueta y pulsa Intro, como C TWO',
   // Sales team, and People: who reports to whom, and the investors.

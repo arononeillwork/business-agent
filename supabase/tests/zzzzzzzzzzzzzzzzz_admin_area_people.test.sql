@@ -73,8 +73,8 @@ select pg_temp.as_worker(current_setting('test.hq')::int);
 do $$
 begin
   begin
-    insert into public.sales_prospects (name, phone, business_type) values ('Panadería X', '+34 600 000 002', 'bakery');
-    assert false, 'a bakery isn''t one of the kinds';
+    insert into public.sales_prospects (name, phone, business_type) values ('Floristería X', '+34 600 000 002', 'florist');
+    assert false, 'a florist isn''t one of the kinds';
   exception when check_violation then null;
   end;
 end $$;
@@ -94,7 +94,7 @@ begin
   insert into public.rep_introductions (rep_id, introduced, code, name, kind) select v_mark, v_free[2], code, 'Salón Nuevo', 'salon' from public.sales_reps where id = v_mark;
   assert (select string_agg(p.name || ':' || p.business_type || '@' || m.name, ', ' order by p.name)
             from public.sales_prospects p join public.sales_team m on m.id = p.member_id where p.business_id = v_hq and p.name in ('Bar Nuevo', 'Salón Nuevo'))
-    = 'Bar Nuevo:restaurant@Mark, Salón Nuevo:other@Mark', 'a pub with the restaurants, a salon something else, in Mark''s lane';
+    = 'Bar Nuevo:pub@Mark, Salón Nuevo:other@Mark', 'a pub with the pubs (the more_kinds_of_business migration), a salon something else, in Mark''s lane';
   delete from public.rep_introductions where business_id = v_hq and introduced = any (v_free);
   delete from public.sales_prospects where business_id = v_hq and name in ('Bar Nuevo', 'Salón Nuevo');
 end $$;

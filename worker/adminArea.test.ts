@@ -147,7 +147,7 @@ describe('the sales team’s board', () => {
     expect(await res.json()).toMatchObject({ name: 'Thedpfcentre', business_type: 'garage' })
     res = await send('PATCH', `/api/admin-area/sales/prospects/${BOOTES}`, { business_type: 'barber' })
     expect(await res.json()).toMatchObject({ name: 'The Bootes Cafe', business_type: 'barber' })
-    res = await send('PATCH', `/api/admin-area/sales/prospects/${BOOTES}`, { business_type: 'bakery' })
+    res = await send('PATCH', `/api/admin-area/sales/prospects/${BOOTES}`, { business_type: 'florist' })
     expect(res.status).toBe(400)
     expect(await res.json()).toEqual({ error: 'Choose what kind of business it is' })
   })

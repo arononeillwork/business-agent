@@ -28,10 +28,12 @@ export const PROSPECT_KINDS: { id: ProspectKind; label: string }[] = [{ id: 'cus
 export const isProspectKind = (v: unknown): v is ProspectKind => v === 'customer' || v === 'partner'
 
 /** The kind of business a contact is, to show the board by (the admin_area_people migration). */
-export type BusinessType = 'cafe' | 'restaurant' | 'barber' | 'garage' | 'financial' | 'other'
+export type BusinessType = 'cafe' | 'restaurant' | 'barber' | 'garage' | 'financial' | 'other' | 'bakery' | 'pub' | 'construction' | 'transport'
 export const BUSINESS_TYPES: { id: BusinessType; label: string; many: string }[] = [
   { id: 'cafe', label: msg('Café'), many: msg('Cafés') }, { id: 'restaurant', label: msg('Restaurant'), many: msg('Restaurants') },
+  { id: 'bakery', label: msg('Bakery'), many: msg('Bakeries') }, { id: 'pub', label: msg('Pub'), many: msg('Pubs') },
   { id: 'barber', label: msg('Barber'), many: msg('Barbers') }, { id: 'garage', label: msg('Garage'), many: msg('Garages') },
+  { id: 'construction', label: msg('Construction'), many: msg('Construction') }, { id: 'transport', label: msg('Transport'), many: msg('Transport') },
   { id: 'financial', label: msg('Financial'), many: msg('Financial') }, { id: 'other', label: msg('Something else'), many: msg('Something else') },
 ]
 export const isBusinessType = (v: unknown): v is BusinessType => BUSINESS_TYPES.some(x => x.id === v)
