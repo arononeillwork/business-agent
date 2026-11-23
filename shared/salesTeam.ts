@@ -5,6 +5,7 @@
 import { msg } from './i18n'
 import { cleanInstagram } from './reps'
 import { EMAIL, cleanPhone } from './customers'
+import { COUNTRY_CODES, type Country } from './country'
 
 export type ProspectStage = 'to_contact' | 'contacted' | 'demo' | 'trial' | 'won' | 'lost'
 
@@ -56,6 +57,8 @@ export interface Prospect {
   email: string | null
   website: string | null
   town: string | null
+  /** Spain or Ireland, for the board shown by country (the sales_contacts_by_country migration); null: not said. */
+  country?: Country | null
   notes: string | null
   follow_up_on: string | null
   created_at: string
@@ -188,6 +191,11 @@ export function cleanProspect(input: Record<string, unknown>, isNew: boolean): {
     row.business_type = input.business_type
   }
   if (has('town')) row.town = text(input.town, 80)
+  if (has('country')) {
+    const c: unknown = input.country
+    if (c != null && c !== '' && !COUNTRY_CODES.includes(c as Country)) return { error: 'Choose Ireland or Spain' }
+    row.country = (c || null) as Country | null
+  }
   if (has('notes')) row.notes = text(input.notes, 2000)
   if (has('follow_up_on')) {
     const d = input.follow_up_on
@@ -226,4 +234,23 @@ export function prospectError(message: string): string {
   if (/sales_team_name_key/.test(message)) return 'Someone on the sales team has that name already'
   if (/check constraint|invalid input syntax/i.test(message)) return 'Something there isn’t right. Check it and try again.'
   return message
+}
+
+/**
+ * The tree view: each salesperson (in the board's order, then nobody's), the kinds of business they're
+ * talking to (in the order of the kinds), and the businesses of each kind in the order of the board's stages.
+ */
+export function salesTree(board: SalesBoard): { member: SalesMember | null; total: number; kinds: { type: BusinessType; prospects: Prospect[] }[] }[] {
+  return lanes(board).map(({ member, byStage, total }) => {
+    const mine = PROSPECT_STAGES.flatMap(s => byStage[s.id])
+    const kinds = BUSINESS_TYPES.map(b => ({ type: b.id, prospects: mine.filter(p => businessTypeOf(p) === b.id) })).filter(k => k.prospects.length > 0)
+    return { member, total, kinds }
+  })
+}
+
+/** The country most of a salesperson's businesses are in (a new one for them starts there); null when none has one. */
+export function usualCountry(prospects: Pick<Prospect, 'member_id' | 'country'>[], memberId: string | null | undefined): Country | null {
+  const count = new Map<Country, number>()
+  for (const p of prospects) if (p.country && (p.member_id ?? null) === (memberId ?? null)) count.set(p.country, (count.get(p.country) ?? 0) + 1)
+  return [...count].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
 }

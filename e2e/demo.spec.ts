@@ -13192,15 +13192,24 @@ test.describe('admin area', () => {
     await toast(page, 'That Instagram is on the board already')
   })
 
-  test('admin area: the board shown by customers or partners and by town', async ({ page }) => {
+  test('admin area: the board shown by customers or partners and by country', async ({ page }) => {
     await openAdmin(page, 'Sales')
     await page.getByRole('group', { name: 'Show' }).getByRole('button', { name: 'Partners' }).click()
     await expect(page.getByRole('article')).toHaveText([/Santa Roaster/, /Roasted Spain/])
     await page.getByRole('group', { name: 'Show' }).getByRole('button', { name: 'Customers' }).click()
     await expect(page.getByRole('article', { name: 'Santa Roaster' })).toHaveCount(0)
-    await page.getByLabel('Town').click()
-    await page.getByRole('option', { name: 'Marbella' }).click()
-    await expect(page.getByRole('article')).toHaveText([/Panadería Sol/, /Keki Marbella/])
+    await page.getByLabel('Country').click()
+    await expect(page.getByRole('option')).toHaveText(['Every country', 'Ireland', 'Spain'])
+    await page.getByRole('option', { name: 'Ireland' }).click()
+    await expect(page.getByRole('article')).toHaveText([/The DPF Centre/])
+    // A contact added while showing Ireland is in Ireland.
+    await page.getByRole('button', { name: 'Add a contact', exact: true }).click()
+    await expect(page.getByRole('dialog').getByLabel('Country')).toHaveText('Ireland')
+    await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click()
+    await page.getByLabel('Country').click()
+    await page.getByRole('option', { name: 'Spain' }).click()
+    await expect(page.getByRole('article', { name: 'The DPF Centre' })).toHaveCount(0)
+    await expect(page.getByRole('article', { name: 'Keki Marbella' })).toBeVisible()
     // A partner is marked as one when it's added.
     await page.getByRole('group', { name: 'Show' }).getByRole('button', { name: 'Everyone' }).click()
     await page.getByRole('button', { name: 'More for Keki Marbella' }).click()
@@ -13209,6 +13218,30 @@ test.describe('admin area', () => {
     await page.getByRole('dialog').getByRole('button', { name: 'Save' }).click()
     await toast(page, 'Keki Marbella saved')
     await expect(page.getByRole('article', { name: 'Keki Marbella' })).toContainText('Partner')
+  })
+
+  test('admin area: the board as a tree, each salesperson, their kinds of business and the businesses of each', async ({ page }) => {
+    await openAdmin(page, 'Sales')
+    await page.getByRole('group', { name: 'View' }).getByRole('button', { name: 'Tree' }).click()
+    await expect(page.getByRole('region', { name: 'Mark', exact: true })).toHaveCount(0)
+    const tree = page.getByRole('list', { name: 'Sales team, by kind of business' })
+    const mark = tree.getByRole('listitem', { name: 'Mark', exact: true })
+    await expect(mark.getByRole('heading')).toHaveText(/Mark.*1 business/)
+    await expect(mark.getByRole('listitem', { name: 'Garages' }).getByRole('button')).toHaveText([/The DPF Centre.*To contact.*Ireland/])
+    const julio = tree.getByRole('listitem', { name: 'Julio Cesar' })
+    await expect(julio.getByRole('listitem', { name: 'Cafés' }).getByRole('button')).toHaveText([/Keki Marbella/, /Roasted Spain.*Partner/, /Café Lola.*Paying/])
+    // Folded away, and open again.
+    await mark.getByRole('button', { name: /Mark/ }).click()
+    await expect(mark.getByRole('button', { name: /Mark/ })).toHaveAttribute('aria-expanded', 'false')
+    await expect(mark.getByRole('listitem', { name: 'Garages' })).toHaveCount(0)
+    await mark.getByRole('button', { name: /Mark/ }).click()
+    // Shown by country, and a business opens to its history.
+    await page.getByLabel('Country').click()
+    await page.getByRole('option', { name: 'Ireland' }).click()
+    await expect(tree.getByRole('button', { name: /^Open / })).toHaveText([/The DPF Centre/])
+    await expect(julio.getByText('Nobody here yet.')).toBeVisible()
+    await tree.getByRole('button', { name: 'Open The DPF Centre' }).click()
+    await expect(page.getByRole('dialog')).toContainText('The DPF Centre')
   })
 
   test('admin area: the board shown by kind of business; a contact added while showing barbers is a barber', async ({ page }) => {

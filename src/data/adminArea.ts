@@ -82,9 +82,9 @@ export function demoAdminArea(now: () => string): AdminArea {
     { id: uid(0, 3), name: 'Mark', position: 3, rep_id: reps[2].id },
   ]
   const blank = { phone: null, email: null, website: null, town: null, notes: null, follow_up_on: null, introduction_id: null, kind: 'customer' as const,
-    business_type: 'cafe' as const }
+    business_type: 'cafe' as const, country: null }
   const card = (n: number, member: SalesMember, name: string, more: Partial<Prospect>): Prospect => ({
-    id: uid(1, n), member_id: member.id, name, stage: 'to_contact', instagram: null, ...blank, created_at: stamp(-6), updated_at: stamp(-6), ...more,
+    id: uid(1, n), member_id: member.id, name, stage: 'to_contact', instagram: null, ...blank, country: 'ES', created_at: stamp(-6), updated_at: stamp(-6), ...more,
   })
   let prospects: Prospect[] = [
     card(1, team[0], 'The Bootes Cafe', { instagram: 'the_bootes_cafe', town: 'San Pedro', follow_up_on: day(0), stage: 'contacted', updated_at: stamp(-2) }),
@@ -93,7 +93,7 @@ export function demoAdminArea(now: () => string): AdminArea {
     card(4, team[1], 'Roasted Spain', { instagram: 'roasted.spain', kind: 'partner' }),
     card(5, team[1], 'Café Lola', { stage: 'won', phone: '+34 611 222 333', town: 'San Pedro', introduction_id: 'intro-lola', created_at: stamp(-45), updated_at: stamp(-10) }),
     card(6, team[0], 'Panadería Sol', { stage: 'trial', town: 'Marbella', introduction_id: 'intro-sol', created_at: stamp(-5), updated_at: stamp(-5) }),
-    card(7, team[2], 'The DPF Centre', { instagram: 'thedpfcentre', business_type: 'garage' }),
+    card(7, team[2], 'The DPF Centre', { instagram: 'thedpfcentre', business_type: 'garage', country: 'IE' }),
   ]
   const introductions: RepIntroduction[] = [
     { id: 'intro-bea', rep_id: reps[1].id, name: 'Bar Bea', kind: 'restaurant', code: 'JULIO27', set_up_at: stamp(-1), plan: 'free', status: 'active',
