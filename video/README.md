@@ -200,6 +200,32 @@ npm run music:regulars
 npm run render:regulars && npm run web:regulars
 ```
 
+## What does a flat white really cost?
+
+The ninth video (`public/video/costing.mp4`, 94 seconds, `CostingVideo` in `src/costing/`), played on the Sales page's
+"Prices set by feel" card (`/sell/cafes`): prices set on real costs, with Menu costing, Stock and the Business advisor.
+Easy Beans in demo mode, the till (Square) connected off camera as the owner video has it.
+
+| Time | Scene | What it shows |
+|---|---|---|
+| 0:00 | The title | "What does a flat white really cost?" |
+| 0:04 | Prices by feel | The chalkboard menu, the owner's guesses at the costs on a sticky note; then the roaster's email: the house blend from €18,50 to €21,00 a kilo |
+| 0:16 | 1 What it costs | Menu costing's margins at a glance; a flat white from what goes in (espresso €0,33, milk €0,14, cup €0,08, lid €0,04): €0,61 to make, €2,30 to the café (78,9%); with oat milk, €0,69 |
+| 0:36 | 2 When costs move | On Stock, the house blend's new price typed once; on Menu costing, the coffees recosted (the flat white €0,66) and the average margin with them |
+| 0:54 | 3 Thin margins | The advisor's "Some prices don't reach your margin"; Pain au chocolat at €2,90, 60% and on target |
+| 1:14 | Every price, on real costs | The board again, each price with what it costs and makes (the croissant still below target), and what the owner gets |
+| 1:26 | The close | The brand |
+
+The app's scenes are recorded by `capture/costing.mjs`; the beans' new price and Pain au chocolat's are typed on camera,
+each in its own recording. The chalkboard, the sticky note and the roaster's email are drawn, with the demo's prices.
+Its music is `music/costing.py`.
+
+```bash
+npm run capture:costing              # the app's scenes for it (the dev server running)
+npm run music:costing
+npm run render:costing && npm run web:costing
+```
+
 Everything is made here from scratch, so it can be made again whenever the app changes, and in Spanish.
 
 ## How it's made
