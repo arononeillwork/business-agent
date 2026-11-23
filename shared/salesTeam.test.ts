@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { cleanProspect, cleanWebsite, followUpDue, lanes, nameFromHandle, prospectError, readContact, type Prospect, type SalesBoard } from './salesTeam'
+import {
+  businessTypeOf, cleanProspect, cleanWebsite, followUpDue, lanes, nameFromHandle, prospectError, readContact, type Prospect, type SalesBoard,
+} from './salesTeam'
 
 describe('a contact pasted into one box', () => {
   it('an Instagram link or @name is their Instagram name', () => {
@@ -69,6 +71,14 @@ describe('what’s sent for a business', () => {
     expect(cleanProspect({ member_id: 'maria' }, false)).toEqual({ error: 'Choose someone on the sales team' })
     expect(cleanProspect({ follow_up_on: 'tomorrow' }, false)).toEqual({ error: 'That isn’t a date' })
     expect(cleanProspect({ phone: '600111222' }, true)).toEqual({ error: 'Give the business a name, or its Instagram' })
+  })
+
+  it('a kind of business: a café, a restaurant, a barber, a garage or something else (a café, from before there were kinds)', () => {
+    expect(cleanProspect({ business_type: 'garage' }, false)).toEqual({ row: { business_type: 'garage' } })
+    expect(cleanProspect({ instagram: 'charliebyb', business_type: 'barber' }, true)).toMatchObject({ row: { business_type: 'barber' } })
+    expect(cleanProspect({ business_type: 'bakery' }, false)).toEqual({ error: 'Choose what kind of business it is' })
+    expect(businessTypeOf({})).toBe('cafe')
+    expect(businessTypeOf({ business_type: 'restaurant' })).toBe('restaurant')
   })
 
   it('the database’s refusals in plain words', () => {

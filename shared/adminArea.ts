@@ -51,11 +51,13 @@ export interface AdminTodo {
   category_id: string | null
   /** The contact it's about, on the sales board. */
   sales_prospect_id: string | null
+  /** The list's own order, dragged (the To-do page's too): lowest first. */
+  position?: number
   created_at: string
 }
 export interface TodoCategory { id: string; name: string; colour: string }
 export interface AdminTodos { todos: AdminTodo[]; categories: TodoCategory[] }
-export type TodoInput = Partial<Pick<AdminTodo, 'title' | 'done' | 'planned_on' | 'category_id' | 'sales_prospect_id'>> & { id?: string }
+export type TodoInput = Partial<Pick<AdminTodo, 'title' | 'done' | 'planned_on' | 'category_id' | 'sales_prospect_id' | 'position'>> & { id?: string }
 
 export type TodoGroup = 'overdue' | 'today' | 'soon' | 'later' | 'done'
 export const TODO_GROUPS: { id: TodoGroup; label: string }[] = [
@@ -68,14 +70,35 @@ export function todoGroup(t: Pick<AdminTodo, 'done' | 'planned_on'>, today: stri
   if (!t.planned_on) return 'later'
   return t.planned_on < today ? 'overdue' : t.planned_on === today ? 'today' : 'soon'
 }
-/** The list in its groups: the earliest day first within each, done most recent first. */
+/** The list in its groups: in the order they were dragged into within each (the earliest day first, for those never moved), done most recent first. */
 export function groupTodos(todos: AdminTodo[], today: string): Record<TodoGroup, AdminTodo[]> {
   const out = Object.fromEntries(TODO_GROUPS.map(g => [g.id, [] as AdminTodo[]])) as Record<TodoGroup, AdminTodo[]>
   for (const t of todos) out[todoGroup(t, today)].push(t)
-  const byDay = (a: AdminTodo, b: AdminTodo) => (a.planned_on ?? '').localeCompare(b.planned_on ?? '') || a.created_at.localeCompare(b.created_at)
+  const byDay = (a: AdminTodo, b: AdminTodo) => (a.position ?? 0) - (b.position ?? 0) || (a.planned_on ?? '').localeCompare(b.planned_on ?? '')
+    || a.created_at.localeCompare(b.created_at)
   for (const g of ['overdue', 'today', 'soon', 'later'] as const) out[g].sort(byDay)
   out.done.sort((a, b) => (b.done_at ?? '').localeCompare(a.done_at ?? ''))
   return out
+}
+
+/**
+ * A job dragged within its group, from one place to another: it goes between its new neighbours (only
+ * it is saved), or, when they're level (jobs never moved are all at 0), the group is numbered afresh in
+ * its new order. What to save: each job whose place changes.
+ */
+export function reorderTodos(list: Pick<AdminTodo, 'id' | 'position'>[], from: number, to: number): { id: string; position: number }[] {
+  if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) return []
+  const moved = [...list]
+  const [job] = moved.splice(from, 1)
+  moved.splice(to, 0, job)
+  const at = (i: number) => moved[i].position ?? 0
+  const before = to > 0 ? at(to - 1) : null
+  const after = to < moved.length - 1 ? at(to + 1) : null
+  if (before === null && after !== null) return [{ id: job.id, position: after - 1 }]
+  if (after === null && before !== null) return [{ id: job.id, position: before + 1 }]
+  if (before !== null && after !== null && before < after) return [{ id: job.id, position: (before + after) / 2 }]
+  const start = Math.min(...list.map(j => j.position ?? 0))
+  return moved.map((j, i) => ({ id: j.id, position: start + i })).filter((c, i) => c.position !== (moved[i].position ?? 0))
 }
 
 /** A job as sent: its title, a day, done or not, a category and a contact; `{ error }` when something isn't right. */
@@ -95,6 +118,10 @@ export function cleanTodo(input: Record<string, unknown>, isNew: boolean): { row
     const d = input.planned_on
     if (d !== null && d !== '' && (typeof d !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(d))) return { error: 'That isn’t a date' }
     row.planned_on = d || null
+  }
+  if ('position' in input) {
+    if (typeof input.position !== 'number' || !Number.isFinite(input.position)) return { error: 'That isn’t a place in the order' }
+    row.position = input.position
   }
   for (const k of ['category_id', 'sales_prospect_id'] as const) {
     if (!(k in input)) continue
@@ -169,3 +196,113 @@ export function todayList(prospects: Prospect[], todos: AdminTodo[], introductio
   }
 }
 export const nothingToday = (t: Today) => !t.followUps.length && !t.todos.length && !t.newSignUps.length && !t.needHelp.length
+
+// ---------------------------------------------------------------------------------------------
+// People: everyone involved, who reports to whom, the substitutes bench and the investors (the
+// admin_area_people migration)
+// ---------------------------------------------------------------------------------------------
+export type PersonKind = 'team' | 'bench' | 'investor'
+export interface AdminPerson {
+  id: string
+  name: string
+  /** What they do: "CEO", "Café Salesperson". */
+  role: string | null
+  /** On the team, on the substitutes bench, or an investor (the bench and investors are beside the team: they report to nobody, and nobody to them). */
+  kind: PersonKind
+  /** Whom they report to; none: the top. */
+  reports_to: string | null
+  /** Their order among those reporting to the same person. */
+  position: number
+  /** Labels of their own, as typed ("C TWO"). */
+  labels?: string[]
+}
+export type PersonInput = Partial<Pick<AdminPerson, 'name' | 'role' | 'kind' | 'reports_to' | 'position' | 'labels'>> & { id?: string }
+
+/** Labels as kept: each tidied, at most 40 characters, once (whatever the capitals), at most 10. */
+export function cleanLabels(v: unknown): string[] | null {
+  if (!Array.isArray(v) || v.some(x => typeof x !== 'string')) return null
+  const out: string[] = []
+  for (const raw of v as string[]) {
+    const l = raw.trim().replace(/\s+/g, ' ').slice(0, 40)
+    if (l && !out.some(x => x.toLowerCase() === l.toLowerCase())) out.push(l)
+  }
+  return out.length <= 10 ? out : null
+}
+export const isPersonKind = (v: unknown): v is PersonKind => v === 'team' || v === 'bench' || v === 'investor'
+
+/** Someone as sent: a name, what they do, team, bench or investor, whom they report to; `{ error }` when something isn't right. */
+export function cleanPerson(input: Record<string, unknown>, isNew: boolean): { row: Record<string, unknown> } | { error: string } {
+  const row: Record<string, unknown> = {}
+  if ('name' in input || isNew) {
+    const name = typeof input.name === 'string' ? input.name.trim().replace(/\s+/g, ' ').slice(0, 80) : ''
+    if (!name) return { error: 'Give them a name' }
+    row.name = name
+  }
+  if ('role' in input) {
+    if (input.role !== null && typeof input.role !== 'string') return { error: 'Say what they do' }
+    row.role = typeof input.role === 'string' ? input.role.trim().replace(/\s+/g, ' ').slice(0, 80) || null : null
+  }
+  if ('kind' in input || isNew) {
+    const kind = input.kind ?? 'team'
+    if (!isPersonKind(kind)) return { error: 'Someone is on the team, on the bench or an investor' }
+    row.kind = kind
+  }
+  if ('reports_to' in input) {
+    const r = input.reports_to
+    if (r !== null && (typeof r !== 'string' || !/^[0-9a-f-]{36}$/i.test(r))) return { error: 'Choose someone on the team to report to' }
+    row.reports_to = r
+  }
+  if (row.kind && row.kind !== 'team') row.reports_to = null
+  if ('labels' in input) {
+    const labels = cleanLabels(input.labels)
+    if (!labels) return { error: 'Up to 10 labels' }
+    row.labels = labels
+  }
+  if ('position' in input) {
+    if (!Number.isInteger(input.position)) return { error: 'That isn’t a place in the order' }
+    row.position = input.position
+  }
+  return { row }
+}
+
+/** Whether `id` reporting to `boss` would go round in a circle (the boss is them, or reports to them in the end). */
+export function reportsInACircle(people: Pick<AdminPerson, 'id' | 'reports_to'>[], id: string, boss: string | null): boolean {
+  const up = new Map(people.map(p => [p.id, p.reports_to]))
+  const seen = new Set<string>()
+  for (let at = boss; at; at = up.get(at) ?? null) {
+    if (at === id) return true
+    if (seen.has(at)) return true
+    seen.add(at)
+  }
+  return false
+}
+
+export interface PersonNode { person: AdminPerson; reports: PersonNode[] }
+export interface OrgChart {
+  /** The top of the team (the CEO), each with who reports to them, all the way down. */
+  team: PersonNode[]
+  /** The substitutes bench: ready to step in. */
+  bench: AdminPerson[]
+  investors: AdminPerson[]
+}
+const byOrder = (a: AdminPerson, b: AdminPerson) => a.position - b.position || a.name.localeCompare(b.name)
+
+/**
+ * The chart: the team from the top down, each person's reports in their order, and the bench and the investors beside
+ * it. Someone whose boss isn't there any more (or who would go round in a circle) is at the top.
+ */
+export function orgChart(people: AdminPerson[]): OrgChart {
+  const team = people.filter(p => (p.kind ?? 'team') === 'team')
+  const ids = new Set(team.map(p => p.id))
+  const top = (p: AdminPerson) => !p.reports_to || !ids.has(p.reports_to) || reportsInACircle(team, p.id, p.reports_to)
+  const placed = new Set<string>()
+  const node = (p: AdminPerson): PersonNode => {
+    placed.add(p.id)
+    return { person: p, reports: team.filter(x => x.reports_to === p.id && !placed.has(x.id) && !top(x)).sort(byOrder).map(node) }
+  }
+  return { team: team.filter(top).sort(byOrder).map(node), bench: people.filter(p => p.kind === 'bench').sort(byOrder),
+    investors: people.filter(p => p.kind === 'investor').sort(byOrder) }
+}
+
+/** Everyone who reports to someone, however far down. */
+export const teamUnder = (n: PersonNode): number => n.reports.reduce((a, r) => a + 1 + teamUnder(r), 0)

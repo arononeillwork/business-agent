@@ -11,7 +11,7 @@ import { useApp } from '../../app/AppContext'
 import { useAction, useNotify } from '../../app/Notify'
 import { ErrorBox, Loading, Tag } from '../../components/common'
 import { formatLocal } from '../../../shared/time'
-import { PROSPECT_KINDS, prospectStageLabel, type Prospect, type SalesMember } from '../../../shared/salesTeam'
+import { PROSPECT_KINDS, businessTypeLabel, businessTypeOf, prospectStageLabel, type Prospect, type SalesMember } from '../../../shared/salesTeam'
 import {
   LOGGED_KINDS, activityLabel, emailLink, fillTemplate, instagramMessageLink, whatsAppMessageLink, type ActivityKind, type SalesActivity,
 } from '../../../shared/adminArea'
@@ -61,6 +61,7 @@ export function ContactDialog({ prospect: p, team, onClose, onEdit }: { prospect
         <Stack direction="row" spacing={0.75} useFlexGap sx={{ flexWrap: 'wrap', mb: 2 }}>
           <Tag>{t(prospectStageLabel(p.stage))}</Tag>
           <Tag fg={tokens.ubeDeep} bg={tokens.ubeSoft}>{t(PROSPECT_KINDS.find(k => k.id === (p.kind ?? 'customer'))!.label)}</Tag>
+          <Tag>{t(businessTypeLabel(businessTypeOf(p)))}</Tag>
           <Tag>{member ? member.name : t('Nobody’s yet')}</Tag>
           {p.town && <Tag>{p.town}</Tag>}
         </Stack>

@@ -12,18 +12,20 @@ import { ErrorBox, Loading, StatGrid, StatTile } from '../../components/common'
 import { SalesTeamBoard, type Spot } from '../../components/SalesTeamBoard'
 import { today } from '../../../shared/time'
 import {
-  PROSPECT_KINDS, PROSPECT_STAGES, followUpDue, nameFromHandle, nameFromWebsite, prospectStageLabel, readContact,
-  type ContactKind, type Prospect, type ProspectInput, type ProspectKind, type SalesBoard, type SalesMember,
+  BUSINESS_TYPES, PROSPECT_KINDS, PROSPECT_STAGES, businessTypeOf, followUpDue, nameFromHandle, nameFromWebsite, prospectStageLabel, readContact,
+  type BusinessType, type ContactKind, type Prospect, type ProspectInput, type ProspectKind, type SalesBoard, type SalesMember,
 } from '../../../shared/salesTeam'
 import { ContactDialog } from './ContactDialog'
 import { useAdmin, useAdminQuery } from './shared'
 import { t } from '../../i18n'
 
 type Show = 'all' | ProspectKind
+type ShowType = 'all' | BusinessType
 
 /**
  * Sales: a swimlane per salesperson, a column per stage, a card per business (a café to sign up, or a
- * partner who could bring cafés). Shown by town and by customers or partners; each card opens to its
+ * partner who could bring cafés). Shown by kind of business (cafés, restaurants, garages), by town and by
+ * customers or partners; each card opens to its
  * history and the messages to send. A café that signs up with a salesperson's code moves by itself.
  */
 export function SalesTab() {
@@ -36,14 +38,16 @@ export function SalesTab() {
   const [removing, setRemoving] = useState<Prospect | null>(null)
   const [town, setTown] = useState('')
   const [show, setShow] = useState<Show>('all')
+  const [type, setType] = useState<ShowType>('all')
   const navigate = useNavigate()
   const now = today('Europe/Madrid')
   const data = board.data
   const towns = useMemo(() => [...new Set((data?.prospects ?? []).map(p => p.town).filter((x): x is string => !!x))].sort(), [data])
   const shown = useMemo<SalesBoard | undefined>(() => data && {
     team: data.team,
-    prospects: data.prospects.filter(p => (!town || p.town === town) && (show === 'all' || (p.kind ?? 'customer') === show)),
-  }, [data, town, show])
+    prospects: data.prospects.filter(p => (!town || p.town === town) && (show === 'all' || (p.kind ?? 'customer') === show)
+      && (type === 'all' || businessTypeOf(p) === type)),
+  }, [data, town, show, type])
 
   const move = (p: Prospect, to: Spot) => {
     const who = data?.team.find(m => m.id === to.member_id)?.name
@@ -51,7 +55,9 @@ export function SalesTab() {
       to.member_id !== p.member_id && who ? t('{name} is {who}’s now', { name: p.name, who })
         : t('{name}: {stage}', { name: p.name, stage: t(prospectStageLabel(to.stage)) }))
   }
-  const blank = (member: SalesMember | null): ProspectInput => ({ member_id: member?.id ?? data?.team[0]?.id ?? null, stage: 'to_contact', kind: 'customer' })
+  // A new contact is the kind of business the board is showing (a café, when it's showing them all).
+  const blank = (member: SalesMember | null): ProspectInput => ({ member_id: member?.id ?? data?.team[0]?.id ?? null, stage: 'to_contact', kind: 'customer',
+    business_type: type === 'all' ? 'cafe' : type })
 
   return (
     <>
@@ -64,6 +70,11 @@ export function SalesTab() {
             <ToggleButtonGroup exclusive size="small" value={show} onChange={(_, v: Show | null) => v && setShow(v)} aria-label={t('Show')}>
               <ToggleButton value="all">{t('Everyone')}</ToggleButton>
               {PROSPECT_KINDS.map(k => <ToggleButton key={k.id} value={k.id}>{t(k.id === 'customer' ? 'Customers' : 'Partners')}</ToggleButton>)}
+            </ToggleButtonGroup>
+            <ToggleButtonGroup exclusive size="small" value={type} onChange={(_, v: ShowType | null) => v && setType(v)} aria-label={t('Kind of business')}
+              sx={{ flexWrap: 'wrap' }}>
+              <ToggleButton value="all">{t('All')}</ToggleButton>
+              {BUSINESS_TYPES.map(b => <ToggleButton key={b.id} value={b.id}>{t(b.many)}</ToggleButton>)}
             </ToggleButtonGroup>
             {towns.length > 0 && (
               <TextField select size="small" label={t('Town')} value={town} onChange={e => setTown(e.target.value)} fullWidth={false} sx={{ width: 200 }}>
@@ -172,9 +183,15 @@ export function ProspectDialog({ start, team, onClose }: { start: ProspectInput;
               {PROSPECT_STAGES.map(s => <MenuItem key={s.id} value={s.id}>{t(s.label)}</MenuItem>)}
             </TextField>
           </Row>
-          <ToggleButtonGroup exclusive size="small" value={p.kind ?? 'customer'} onChange={(_, v) => v && set({ kind: v })} aria-label={t('Customer or partner')}>
-            {PROSPECT_KINDS.map(k => <ToggleButton key={k.id} value={k.id}>{t(k.label)}</ToggleButton>)}
-          </ToggleButtonGroup>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'center' } }}>
+            <TextField label={t('Kind of business')} select value={businessTypeOf(p)} onChange={e => set({ business_type: e.target.value as BusinessType })}
+              sx={{ minWidth: 200 }}>
+              {BUSINESS_TYPES.map(b => <MenuItem key={b.id} value={b.id}>{t(b.label)}</MenuItem>)}
+            </TextField>
+            <ToggleButtonGroup exclusive size="small" value={p.kind ?? 'customer'} onChange={(_, v) => v && set({ kind: v })} aria-label={t('Customer or partner')}>
+              {PROSPECT_KINDS.map(k => <ToggleButton key={k.id} value={k.id}>{t(k.label)}</ToggleButton>)}
+            </ToggleButtonGroup>
+          </Stack>
           <Row>
             <TextField label={'Instagram'} value={str(p.instagram)} onChange={e => set({ instagram: e.target.value })} fullWidth
               slotProps={{ input: { startAdornment: <InputAdornment position="start">@</InputAdornment> } }} />

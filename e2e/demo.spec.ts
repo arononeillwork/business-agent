@@ -13057,17 +13057,17 @@ test.describe('admin area', () => {
     // Nobody signs in for it, and nothing shows before the code.
     await expect(page.getByRole('heading', { name: 'Sign in' })).toHaveCount(0)
     await expect(page.getByRole('navigation', { name: 'Main' })).toHaveCount(0)
-    await expect(page.getByRole('tab', { name: 'Sales' })).toHaveCount(0)
+    await expect(page.getByRole('tab', { name: 'Sales', exact: true })).toHaveCount(0)
     await page.getByLabel('PIN', { exact: true }).fill('1234')
     await page.getByRole('button', { name: 'Open', exact: true }).click()
     await expect(page.getByText('That isn’t the PIN')).toBeVisible()
-    await expect(page.getByRole('tab', { name: 'Sales' })).toHaveCount(0)
+    await expect(page.getByRole('tab', { name: 'Sales', exact: true })).toHaveCount(0)
     await page.getByLabel('PIN', { exact: true }).fill('0000')
     await page.getByRole('button', { name: 'Open', exact: true }).click()
 
     // Today first; the board on Sales, at its own address.
     await expect(page.getByRole('tab', { name: 'Today' })).toHaveAttribute('aria-selected', 'true')
-    await page.getByRole('tab', { name: 'Sales' }).click()
+    await page.getByRole('tab', { name: 'Sales', exact: true }).click()
     await expect(page).toHaveURL(/\/admin\/sales/)
     const maria = page.getByRole('region', { name: 'Maria Cortes' })
     const julio = page.getByRole('region', { name: 'Julio Cesar' })
@@ -13112,7 +13112,7 @@ test.describe('admin area', () => {
     await expect(card.getByRole('link', { name: 'Open @cafe.nube_ on Instagram' })).toBeVisible()
     await expect(card.getByRole('link', { name: 'Call Café Nube' })).toHaveAttribute('href', 'tel:+34600111222')
     await expect(card.getByRole('link', { name: 'WhatsApp Café Nube' })).toHaveAttribute('href', 'https://wa.me/34600111222')
-    await expect(page.getByRole('listitem').filter({ hasText: 'Being talked to' })).toContainText('5')
+    await expect(page.getByRole('listitem').filter({ hasText: 'Being talked to' })).toContainText('6')
 
     // Along the stages from its menu, and over to Maria.
     await card.getByRole('button', { name: 'More for Café Nube' }).click()
@@ -13162,6 +13162,73 @@ test.describe('admin area', () => {
     await page.getByRole('dialog').getByRole('button', { name: 'Save' }).click()
     await toast(page, 'Keki Marbella saved')
     await expect(page.getByRole('article', { name: 'Keki Marbella' })).toContainText('Partner')
+  })
+
+  test('admin area: the board shown by kind of business; a contact added while showing barbers is a barber', async ({ page }) => {
+    await openAdmin(page, 'Sales')
+    const kinds = page.getByRole('group', { name: 'Kind of business' })
+    await kinds.getByRole('button', { name: 'Garages' }).click()
+    await expect(page.getByRole('article')).toHaveText([/The DPF Centre.*Garage.*@thedpfcentre/])
+    await kinds.getByRole('button', { name: 'Cafés' }).click()
+    await expect(page.getByRole('article', { name: 'The DPF Centre' })).toHaveCount(0)
+    await expect(page.getByRole('article', { name: 'Keki Marbella' })).toBeVisible()
+    await kinds.getByRole('button', { name: 'Barbers' }).click()
+    await expect(page.getByRole('article')).toHaveCount(0)
+    const mark = page.getByRole('region', { name: 'Mark', exact: true })
+    await mark.getByRole('button', { name: 'Add a contact for Mark' }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByLabel('Instagram link, phone number, email or website').fill('https://www.instagram.com/charliebyb/')
+    await dialog.getByLabel('Instagram link, phone number, email or website').press('Enter')
+    await expect(dialog.getByLabel('Kind of business')).toHaveText('Barber')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Charliebyb is on the board')
+    await expect(mark.getByRole('article')).toHaveText([/Charliebyb.*Barber.*@charliebyb/])
+    // Opened, it says what it is.
+    await kinds.getByRole('button', { name: 'All' }).click()
+    await mark.getByRole('button', { name: 'More for The DPF Centre' }).click()
+    await page.getByRole('menuitem', { name: 'Open The DPF Centre: history and messages' }).click()
+    await expect(page.getByRole('dialog', { name: 'The DPF Centre' })).toContainText('Garage')
+  })
+
+  test('admin area: people from the CEO down, the investors above and the bench below; someone moved, and someone taken off', async ({ page }) => {
+    await openAdmin(page, 'People')
+    await expect(page).toHaveURL(/\/admin\/people/)
+    const names = (list: string) => page.getByRole('list', { name: list, exact: true }).locator(':scope > li').evaluateAll(els => els.map(e => e.getAttribute('aria-label')))
+    expect(await names('The team')).toEqual(['Aron'])
+    await expect(page.getByRole('button', { name: 'Open Aron' })).toContainText('CEO')
+    await expect(page.getByRole('button', { name: 'Open Alejandro' })).toContainText('C TWO')
+    await expect(page.getByRole('button', { name: 'Open Kim' })).toContainText('C TWO')
+    await expect(page.getByRole('button', { name: 'Open Zoe' })).not.toContainText('C TWO')
+    expect(await names('Reporting to Aron')).toEqual(['Alejandro', 'Kim', 'Zoe'])
+    expect(await names('Reporting to Alejandro')).toEqual(['Ryan', 'Mark', 'Julio', 'Maria'])
+    expect(await names('Investors')).toEqual(['Giorgos', 'Ollie'])
+    expect(await names('Substitutes bench')).toEqual(['Adrian Goulding', 'Jesus Maria Herruzo Luque', 'Antonio Trupac', 'Cathrine Naess'])
+    await expect(page.getByRole('button', { name: 'Open Antonio Trupac' })).toContainText(/Engineer \/ AI Guru.*C TWO/)
+    await expect(page.getByText('8 people on the team · 4 on the bench · 2 investors.', { exact: false })).toBeVisible()
+    await expect(page.getByText('Investment', { exact: true })).toBeVisible()
+
+    // Zoe moves under Alejandro, labelled C TWO too (picked from the labels in use).
+    await page.getByRole('button', { name: 'Open Zoe' }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByLabel('Reports to').click()
+    await page.getByRole('option', { name: /^Alejandro/ }).click()
+    await dialog.getByLabel('Labels').click()
+    await page.getByRole('option', { name: 'C TWO' }).click()
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Zoe saved')
+    await expect.poll(() => names('Reporting to Alejandro')).toEqual(['Ryan', 'Mark', 'Julio', 'Maria', 'Zoe'])
+    await expect(page.getByRole('button', { name: 'Open Zoe' })).toContainText('C TWO')
+
+    // Nobody reports to someone below them; taken off, their people report to whom they reported to.
+    await page.getByRole('button', { name: 'Open Alejandro' }).click()
+    await dialog.getByLabel('Reports to').click()
+    await expect(page.getByRole('option', { name: /^Kim/ })).toBeVisible()
+    await expect(page.getByRole('option', { name: /^Ryan/ })).toHaveCount(0)
+    await expect(page.getByRole('option', { name: /^Adrian Goulding/ })).toHaveCount(0)
+    await page.keyboard.press('Escape')
+    await dialog.getByRole('button', { name: 'Take off' }).click()
+    await toast(page, 'Alejandro is off the chart')
+    await expect.poll(() => names('Reporting to Aron')).toEqual(['Ryan', 'Mark', 'Julio', 'Maria', 'Kim', 'Zoe'])
   })
 
   test('admin area: a contact opens to a ready message with the salesperson’s code, and to what happened', async ({ page }) => {
@@ -13219,6 +13286,28 @@ test.describe('admin area', () => {
     await expect(page.getByRole('region', { name: 'Overdue' }).getByRole('listitem')).toHaveText([/Send Santa Roaster the partner deal/])
   })
 
+  test('admin area: the to-do list dragged into order, and it stays', async ({ page }) => {
+    await openAdmin(page, 'To-do')
+    const whenever = page.getByRole('region', { name: 'Whenever' })
+    await expect(whenever.getByRole('listitem')).toHaveText([/Renew the domain/, /Register a tax-free residency/])
+    // By its handle, with the keyboard.
+    await whenever.getByRole('button', { name: 'Drag Register a tax-free residency' }).focus()
+    await page.keyboard.press('Space')
+    await page.keyboard.press('ArrowUp')
+    // Over Renew the domain (its id in the demo) before it's dropped.
+    await expect(page.getByRole('status').filter({ hasText: 'over droppable area d0c5a1e5-0005-4000-8000-000000000003' })).toHaveCount(1)
+    await page.keyboard.press('Space')
+    await expect(whenever.getByRole('listitem')).toHaveText([/Register a tax-free residency/, /Renew the domain/])
+    await page.getByRole('tab', { name: 'Today' }).click()
+    await page.getByRole('tab', { name: 'To-do' }).click()
+    await expect(page.getByRole('region', { name: 'Whenever' }).getByRole('listitem')).toHaveText([/Register a tax-free residency/, /Renew the domain/])
+    // A new job goes at the top of its group; done ones aren't dragged.
+    await page.getByLabel('A job').fill('Book the accountant')
+    await page.getByRole('button', { name: 'Add', exact: true }).click()
+    await expect(page.getByRole('region', { name: 'Whenever' }).getByRole('listitem')).toHaveText([/Book the accountant/, /Register a tax-free residency/, /Renew the domain/])
+    await expect(page.getByRole('region', { name: 'Done' }).getByRole('button', { name: /^Drag / })).toHaveCount(0)
+  })
+
   test('admin area: onboarding lists the businesses that signed up with a code, and those that need a hand', async ({ page }) => {
     await openAdmin(page, 'Onboarding')
     const table = page.getByRole('table', { name: 'Businesses that signed up with a code' })
@@ -13229,7 +13318,7 @@ test.describe('admin area', () => {
   })
 
   test('admin area: each salesperson’s code, sign-up link and commission', async ({ page }) => {
-    await openAdmin(page, 'Team')
+    await openAdmin(page, 'Sales team')
     const julio = page.getByRole('region', { name: 'Julio Cesar' })
     await expect(julio).toContainText('JULIO27')
     await expect(julio).toContainText('/?ref=JULIO27')
@@ -13251,7 +13340,7 @@ test.describe('admin area', () => {
     await toast(page, 'Julio Cesar is off the sales team')
     await dialog.getByRole('button', { name: 'Done' }).click()
 
-    await page.getByRole('tab', { name: 'Sales' }).click()
+    await page.getByRole('tab', { name: 'Sales', exact: true }).click()
     await expect(page.getByRole('region', { name: 'Lola Pérez' })).toBeVisible()
     await expect(page.getByRole('region', { name: 'Julio Cesar' })).toHaveCount(0)
     const nobody = page.getByRole('region', { name: 'Nobody’s yet' })
@@ -13270,7 +13359,7 @@ test.describe('admin area', () => {
     await dialog.getByRole('button', { name: 'Save' }).click()
     await toast(page, 'Christmas saved')
     await expect(page.getByRole('list', { name: 'Messages to send' }).getByRole('listitem')).toHaveCount(5)
-    await page.getByRole('tab', { name: 'Sales' }).click()
+    await page.getByRole('tab', { name: 'Sales', exact: true }).click()
     await page.getByRole('button', { name: 'More for Keki Marbella' }).click()
     await page.getByRole('menuitem', { name: 'Open Keki Marbella: history and messages' }).click()
     await page.getByRole('dialog').getByLabel('Message', { exact: true }).click()
@@ -13302,6 +13391,10 @@ test.describe('admin area', () => {
   test('@phone admin area: the tabs and the board scroll inside themselves, not the page', async ({ page }) => {
     await openAdmin(page, 'Sales')
     await expect(page.getByRole('region', { name: 'Maria Cortes' })).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0)
+    // The people chart too.
+    await page.getByRole('tab', { name: 'People' }).click()
+    await expect(page.getByRole('button', { name: 'Open Aron' })).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0)
   })
 })

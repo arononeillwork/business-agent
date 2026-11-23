@@ -13,6 +13,7 @@ import { SalesTab } from './admin/SalesTab'
 import { TodoTab } from './admin/TodoTab'
 import { OnboardingTab } from './admin/OnboardingTab'
 import { TeamTab } from './admin/TeamTab'
+import { PeopleTab } from './admin/PeopleTab'
 import { SettingsTab } from './admin/SettingsTab'
 import { fonts } from '../theme'
 import { msg, t } from '../i18n'
@@ -35,14 +36,16 @@ const TABS: { path: string; label: string; page: ComponentType }[] = [
   { path: 'sales', label: msg('Sales'), page: SalesTab },
   { path: 'todo', label: msg('To-do'), page: TodoTab },
   { path: 'onboarding', label: msg('Onboarding'), page: OnboardingTab },
-  { path: 'team', label: msg('Team'), page: TeamTab },
+  { path: 'team', label: msg('Sales team'), page: TeamTab },
+  { path: 'people', label: msg('People'), page: PeopleTab },
   { path: 'settings', label: msg('Settings'), page: SettingsTab },
 ]
 
 /**
  * The admin area (/admin): The Business Agent's own back room, for running The Business Agent rather
  * than a café. No sign-in; it opens with its PIN (checked by the Worker, never here), and stays open on
- * this device for 12 hours or until Lock. Today first, then Sales, To-do, Onboarding, Team and Settings.
+ * this device for 12 hours or until Lock. Today first, then Sales, To-do, Onboarding, Sales team, People
+ * (who reports to whom, and the investors) and Settings.
  */
 export function AdminPage() {
   const [session, setSession] = useState<AdminSession | null>(keptSession)

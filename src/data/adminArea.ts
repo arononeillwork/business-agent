@@ -5,14 +5,15 @@ import {
   AdminLocked, cleanMemberName, cleanProspect, isAdminPin, type AdminSession, type Prospect, type ProspectInput, type SalesBoard, type SalesMember,
 } from '../../shared/salesTeam'
 import {
-  cleanTodo, isLoggedKind, type AdminTodo, type Earnings, type HqRep, type SalesActivity, type SalesTemplate, type TodoCategory,
+  cleanPerson, cleanTodo, isLoggedKind, reportsInACircle, type AdminPerson, type AdminTodo, type Earnings, type HqRep, type SalesActivity, type SalesTemplate,
+  type TodoCategory,
 } from '../../shared/adminArea'
 import type { RepIntroduction } from '../../shared/hqReps'
 import { addDays, today as todayIn } from '../../shared/time'
 
 type AdminArea = Pick<Api, 'adminUnlock' | 'adminLock' | 'adminChangePin' | 'salesBoard' | 'addSalesMember' | 'updateSalesMember' |
   'deleteSalesMember' | 'saveProspect' | 'deleteProspect' | 'prospectActivity' | 'logActivity' | 'salesTemplates' | 'saveSalesTemplate' |
-  'deleteSalesTemplate' | 'adminTodos' | 'saveAdminTodo' | 'deleteAdminTodo' | 'adminHq'>
+  'deleteSalesTemplate' | 'adminTodos' | 'saveAdminTodo' | 'deleteAdminTodo' | 'adminHq' | 'adminPeople' | 'saveAdminPerson' | 'deleteAdminPerson'>
 const id = encodeURIComponent
 
 async function call<T>(path: string, token: string | null, method = 'GET', body?: unknown): Promise<T> {
@@ -55,6 +56,12 @@ export const liveAdminArea: AdminArea = {
   },
   async deleteAdminTodo(token, tid) { await call(`/todos/${id(tid)}`, token, 'DELETE', {}) },
   adminHq: token => call('/hq', token),
+  adminPeople: token => call<AdminPerson[]>('/people', token),
+  saveAdminPerson(token, p) {
+    const { id: pid, ...rest } = p
+    return pid ? call<AdminPerson>(`/people/${id(pid)}`, token, 'PATCH', rest) : call<AdminPerson>('/people', token, 'POST', rest)
+  },
+  async deleteAdminPerson(token, pid) { await call(`/people/${id(pid)}`, token, 'DELETE', {}) },
 }
 
 /** The demo's PIN: shown on the demo's own PIN screen. */
@@ -68,11 +75,14 @@ export function demoAdminArea(now: () => string): AdminArea {
   const uid = (group: number, n: number) => `d0c5a1e5-${String(group).padStart(4, '0')}-4000-8000-${String(n).padStart(12, '0')}`
   const reps: HqRep[] = [
     { id: uid(9, 1), name: 'Maria Cortes', code: 'MARIA27', active: true }, { id: uid(9, 2), name: 'Julio', code: 'JULIO27', active: true },
+    { id: uid(9, 3), name: 'Mark', code: 'MARK27', active: true },
   ]
   const team: SalesMember[] = [
     { id: uid(0, 1), name: 'Maria Cortes', position: 1, rep_id: reps[0].id }, { id: uid(0, 2), name: 'Julio Cesar', position: 2, rep_id: reps[1].id },
+    { id: uid(0, 3), name: 'Mark', position: 3, rep_id: reps[2].id },
   ]
-  const blank = { phone: null, email: null, website: null, town: null, notes: null, follow_up_on: null, introduction_id: null, kind: 'customer' as const }
+  const blank = { phone: null, email: null, website: null, town: null, notes: null, follow_up_on: null, introduction_id: null, kind: 'customer' as const,
+    business_type: 'cafe' as const }
   const card = (n: number, member: SalesMember, name: string, more: Partial<Prospect>): Prospect => ({
     id: uid(1, n), member_id: member.id, name, stage: 'to_contact', instagram: null, ...blank, created_at: stamp(-6), updated_at: stamp(-6), ...more,
   })
@@ -83,6 +93,7 @@ export function demoAdminArea(now: () => string): AdminArea {
     card(4, team[1], 'Roasted Spain', { instagram: 'roasted.spain', kind: 'partner' }),
     card(5, team[1], 'Café Lola', { stage: 'won', phone: '+34 611 222 333', town: 'San Pedro', introduction_id: 'intro-lola', created_at: stamp(-45), updated_at: stamp(-10) }),
     card(6, team[0], 'Panadería Sol', { stage: 'trial', town: 'Marbella', introduction_id: 'intro-sol', created_at: stamp(-5), updated_at: stamp(-5) }),
+    card(7, team[2], 'The DPF Centre', { instagram: 'thedpfcentre', business_type: 'garage' }),
   ]
   const introductions: RepIntroduction[] = [
     { id: 'intro-bea', rep_id: reps[1].id, name: 'Bar Bea', kind: 'restaurant', code: 'JULIO27', set_up_at: stamp(-1), plan: 'free', status: 'active',
@@ -95,6 +106,7 @@ export function demoAdminArea(now: () => string): AdminArea {
   const earnings: Record<string, Earnings> = {
     [reps[0].id]: { earned: 0, waiting: 0, paid: 0, owed: 0 },
     [reps[1].id]: { earned: 65.8, waiting: 15.8, paid: 40, owed: 25.8 },
+    [reps[2].id]: { earned: 0, waiting: 0, paid: 0, owed: 0 },
   }
   let activity: SalesActivity[] = [
     ...prospects.map((p, i) => ({ id: uid(2, i + 1), prospect_id: p.id, kind: 'added' as const, stage: 'to_contact' as const, note: null, at: p.created_at })),
@@ -114,9 +126,23 @@ export function demoAdminArea(now: () => string): AdminArea {
   let todos: AdminTodo[] = [
     { id: uid(5, 1), title: 'Print rep cards for Maria', done: false, done_at: null, planned_on: day(0), category_id: categories[0].id, sales_prospect_id: null, created_at: stamp(-3) },
     { id: uid(5, 2), title: 'Send Santa Roaster the partner deal', done: false, done_at: null, planned_on: day(-1), category_id: categories[0].id, sales_prospect_id: uid(1, 2), created_at: stamp(-4) },
+    { id: uid(5, 6), title: 'Register a tax-free residency', done: false, done_at: null, planned_on: null, category_id: categories[1].id, sales_prospect_id: null, created_at: stamp(-1) },
     { id: uid(5, 3), title: 'Renew the domain', done: false, done_at: null, planned_on: null, category_id: categories[1].id, sales_prospect_id: null, created_at: stamp(-8) },
     { id: uid(5, 4), title: 'Film the 2-minute demo video', done: false, done_at: null, planned_on: day(3), category_id: null, sales_prospect_id: null, created_at: stamp(-2) },
     { id: uid(5, 5), title: 'Post the café video', done: true, done_at: stamp(-1), planned_on: day(-1), category_id: null, sales_prospect_id: null, created_at: stamp(-6) },
+  ]
+
+  // People: as the admin_area_people migration starts HQ's.
+  const person = (n: number, name: string, role: string, reports_to: number | null, kind: AdminPerson['kind'] = 'team', labels: string[] = []): AdminPerson =>
+    ({ id: uid(6, n), name, role, kind, reports_to: reports_to ? uid(6, reports_to) : null, position: n, labels })
+  let people: AdminPerson[] = [
+    person(1, 'Aron', 'CEO', null), person(2, 'Alejandro', 'Head of Product / Sales Manager', 1, 'team', ['C TWO']), person(3, 'Ryan', 'Salesperson', 2),
+    person(4, 'Mark', 'Salesperson', 2), person(5, 'Julio', 'Café Salesperson', 2), person(6, 'Maria', 'Café Salesperson', 2),
+    person(7, 'Kim', 'Head of Marketing', 1, 'team', ['C TWO']), person(8, 'Zoe', 'Engineer', 1),
+    person(9, 'Giorgos', 'Investor', null, 'investor'), person(10, 'Ollie', 'Investor', null, 'investor'),
+    person(11, 'Adrian Goulding', 'Sales Manager', null, 'bench', ['C TWO']), person(12, 'Jesus Maria Herruzo Luque', 'Engineer', null, 'bench', ['C TWO']),
+    person(13, 'Antonio Trupac', 'Engineer / AI Guru', null, 'bench', ['C TWO']),
+    person(14, 'Cathrine Naess', 'Head of People, organises everything', null, 'bench', ['C TWO']),
   ]
 
   const clone = <T,>(x: T): T => structuredClone(x)
@@ -265,7 +291,10 @@ export function demoAdminArea(now: () => string): AdminArea {
         todos[i] = { ...todos[i], ...row }
         return clone(todos[i])
       }
-      const t: AdminTodo = { id: crypto.randomUUID(), title: '', done: false, done_at: null, planned_on: null, category_id: null, sales_prospect_id: null, ...row, created_at: now() }
+      // A new job goes at the top, as on the To-do page.
+      const top = Math.min(0, ...todos.map(x => x.position ?? 0)) - 1
+      const t: AdminTodo = { id: crypto.randomUUID(), title: '', done: false, done_at: null, planned_on: null, category_id: null, sales_prospect_id: null,
+        position: top, ...row, created_at: now() }
       todos.push(t)
       return clone(t)
     },
@@ -276,6 +305,40 @@ export function demoAdminArea(now: () => string): AdminArea {
     async adminHq(token) {
       open(token)
       return clone({ introductions, reps, earnings })
+    },
+    async adminPeople(token) {
+      open(token)
+      return clone([...people].sort((a, b) => a.position - b.position || a.name.localeCompare(b.name)))
+    },
+    async saveAdminPerson(token, input) {
+      open(token)
+      const { id: pid, ...rest } = input
+      const clean = cleanPerson(rest, !pid)
+      if ('error' in clean) throw new Error(clean.error)
+      const row = clean.row as Partial<AdminPerson>
+      const before = pid ? people.find(p => p.id === pid) : undefined
+      if (pid && !before) throw new Error('No such person')
+      if ((row.kind ?? before?.kind ?? 'team') !== 'team') row.reports_to = null
+      if (row.reports_to) {
+        if (!people.some(p => p.id === row.reports_to && p.kind === 'team')) throw new Error('Choose someone on the team to report to')
+        if (pid && reportsInACircle(people, pid, row.reports_to)) throw new Error('They can’t report to someone who reports to them')
+      }
+      if (before) {
+        const boss = before.reports_to
+        Object.assign(before, row)
+        // On the bench or an investor now: whoever reported to them reports to whom they reported to.
+        if (row.kind && row.kind !== 'team') people = people.map(p => (p.reports_to === pid ? { ...p, reports_to: boss } : p))
+        return clone(people.find(p => p.id === pid)!)
+      }
+      const p: AdminPerson = { id: crypto.randomUUID(), name: '', role: null, kind: 'team', reports_to: null, labels: [],
+        position: Math.max(0, ...people.map(x => x.position)) + 1, ...row }
+      people.push(p)
+      return clone(p)
+    },
+    async deleteAdminPerson(token, pid) {
+      open(token)
+      const gone = people.find(p => p.id === pid)
+      people = people.filter(p => p.id !== pid).map(p => (p.reports_to === pid ? { ...p, reports_to: gone?.reports_to ?? null } : p))
     },
   }
 }
