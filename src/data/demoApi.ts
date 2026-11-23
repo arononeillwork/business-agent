@@ -5235,7 +5235,9 @@ export function createDemoApi(): Api {
       requireAdmin()
       if (!mediaStorage()) throw new Error('Connect Google Drive or OneDrive on the Connections page to add photos and videos. They’re kept in its The Business Agent folder.')
       void folder
-      return { url: URL.createObjectURL(file), type: file.type.startsWith('video/') ? 'video' : 'image' }
+      // Its kind at the end of the address, as the Worker's addresses have it (TikTok takes only a .jpg).
+      const ext = file.type === 'video/quicktime' ? 'mov' : file.type.startsWith('video/') ? 'mp4' : file.type.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg'
+      return { url: `${URL.createObjectURL(file)}#upload.${ext}`, type: file.type.startsWith('video/') ? 'video' : 'image' }
     },
     async musicTracks() {
       requireAdmin()

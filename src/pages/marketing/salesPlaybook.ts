@@ -106,6 +106,7 @@ const CAFES: PainPoint[] = [
     fix: msg('A list of ideas for posts the whole team can see. Anyone makes the photo or video on their phone and hands it in, and the owner turns it into a scheduled post in one press.'),
     result: msg('A café that’s always posting, without the owner writing every caption.'),
     video: msg('From an idea to a scheduled post'),
+    film: { src: '/video/social.mp4', poster: '/video/social.jpg' },
   },
   {
     id: 'rota', wins: ['time'], pages: [msg('Rota'), msg('Time off'), msg('Team')],
