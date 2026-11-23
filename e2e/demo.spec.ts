@@ -3578,6 +3578,8 @@ test.describe('social planner', () => {
   })
 
   test('employees get the planner’s ideas for posts only: pick one up, add the photo, hand it in; an admin makes the post from it', async ({ page }) => {
+    // Three sign-ins and the baristas' role given the Social planner on the way: past 30 s on CI.
+    test.setTimeout(60_000)
     await open(page, '/connections')
     await connectDrive(page)
     const ideas = page.getByRole('region', { name: 'Ideas for posts' })
@@ -8107,6 +8109,8 @@ test.describe('sales reps and rewards', () => {
 
 test.describe('leaderboard', () => {
   test('leaderboard: on time, streaks and hours from the timecards; who sold most from Square, amounts for owners only', async ({ page }) => {
+    // The baristas' role given the Leaderboard on the way, before Julio looks: near 30 s on CI.
+    test.setTimeout(60_000)
     await open(page, '/')
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Leaderboard' }).click()
     await expect(page.getByRole('heading', { name: 'Leaderboard', level: 1 })).toBeVisible()
