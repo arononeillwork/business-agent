@@ -7937,6 +7937,7 @@ test.describe('sales reps and rewards', () => {
     await toast(page, /Credit used/)
 
     // The team sees it's off; only an admin switches it.
+    await giveBaristas(page, 'Reps & rewards', 'Read', true) // a barista's role hides Reps & rewards
     await signInAs(page, 'maria@example.com')
     await page.getByRole('navigation', { name: 'Main' }).getByRole('region', { name: 'Sales' }).getByRole('link', { name: 'Reps & rewards' }).click()
     await expect(block).toContainText('Switched off: no new cashback.')
