@@ -18,6 +18,8 @@ import { CostingVideo } from './costing/CostingVideo'
 import { COSTING_TOTAL } from './costing/timeline'
 import { SocialVideo } from './social/SocialVideo'
 import { SOCIAL_TOTAL } from './social/timeline'
+import { RotaVideo } from './rota/RotaVideo'
+import { ROTA_TOTAL } from './rota/timeline'
 import { FPS, TOTAL } from './timeline'
 
 export const Root = () => (
@@ -32,5 +34,6 @@ export const Root = () => (
     <Composition id="RegularsVideo" component={RegularsVideo} durationInFrames={REGULARS_TOTAL} fps={FPS} width={1920} height={1080} />
     <Composition id="CostingVideo" component={CostingVideo} durationInFrames={COSTING_TOTAL} fps={FPS} width={1920} height={1080} />
     <Composition id="SocialVideo" component={SocialVideo} durationInFrames={SOCIAL_TOTAL} fps={FPS} width={1920} height={1080} />
+    <Composition id="RotaVideo" component={RotaVideo} durationInFrames={ROTA_TOTAL} fps={FPS} width={1920} height={1080} />
   </>
 )

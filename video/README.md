@@ -253,6 +253,35 @@ npm run music:social
 npm run render:social && npm run web:social
 ```
 
+## One rota. Everyone on the same page.
+
+The eleventh video (`public/video/rota.mp4`, 96 seconds, `RotaVideo` in `src/rota/`), played on the Sales page's
+"A shared rota, so everyone is on the same page" card (`/sell/cafes`): the rota as the one place the whole team looks,
+and on WhatsApp too, if you like. Easy Beans in demo mode; its team member Julio is shown as Sam throughout.
+
+| Time | Scene | What it shows |
+|---|---|---|
+| 0:00 | The title | "One rota. Everyone on the same page." |
+| 0:04 | The group chat | A photo of a paper rota, "v3 FINAL", in the team's group chat; "is this the new one?", "who's on Saturday?", again |
+| 0:16 | 1 One rota | The week's rota; Sam's Saturday added once, straight in his row, and there for everyone |
+| 0:34 | 2 Every phone | On Maria's phone the same rota, Sam's new Saturday on it; Sunday's open shift taken with a tap |
+| 0:50 | 3 WhatsApp too | Back at the computer, all of it on the one rota; "Send on WhatsApp" (each person their own shifts) and "Share to a WhatsApp group" (the whole week) |
+| 1:04 | WhatsApp, if you like | Sam's own shifts from the café's number, as Easy Beans' Spanish template words them; and the week in the team's group, the message the app wrote |
+| 1:18 | One rota, every phone | The rota with the team's phones round it, and what the owner gets |
+| 1:28 | The close | The brand |
+
+The app's scenes are recorded by `capture/rota.mjs`; as the demo starts afresh each time, the earlier changes are made
+again off camera with the demo's "View as". Julio's name is swapped for Sam on screen while recording (the demo has no
+way to rename him), and in the group's message. "Share to a WhatsApp group" opens WhatsApp's own share link; the capture
+catches it and keeps its message (`public/clips/rota-group.json`) for the drawn group. The group chat, the two
+WhatsApp chats and the rota with its phones are drawn. Its music is `music/rota.py`.
+
+```bash
+npm run capture:rota                 # the app's scenes for it (the dev server running)
+npm run music:rota
+npm run render:rota && npm run web:rota
+```
+
 Everything is made here from scratch, so it can be made again whenever the app changes, and in Spanish.
 
 ## How it's made

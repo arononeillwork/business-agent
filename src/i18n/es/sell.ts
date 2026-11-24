@@ -108,14 +108,14 @@ export default {
   'From an idea to a scheduled post': 'De una idea a una publicación programada',
 
   // Cafés: the rota
-  'The rota lives on WhatsApp': 'El cuadrante vive en WhatsApp',
+  'A shared rota, so everyone is on the same page': 'Un cuadrante compartido, para que todo el equipo esté al tanto',
   '“Every week I rebuild the rota, and someone still doesn’t see the change.”':
     '«Cada semana rehago el cuadrante y siempre hay alguien que no ve el cambio.»',
-  'One rota the whole team sees on their phone, with time off requests and team messages in the same place, instead of a rota rebuilt in a chat every week.':
-    'Un cuadrante que todo el equipo ve en el móvil, con las solicitudes de días libres y los mensajes del equipo en el mismo sitio, en vez de rehacerlo en un chat cada semana.',
+  'One rota in one place, on everyone’s phone, with time off requests and team messages alongside. Change it once and the whole team sees it. And if you like, send each person their shifts on WhatsApp, or share the week to the team’s WhatsApp group.':
+    'Un cuadrante en un solo sitio, en el móvil de todos, con las solicitudes de días libres y los mensajes del equipo al lado. Lo cambias una vez y todo el equipo lo ve. Y, si quieres, envías a cada uno sus turnos por WhatsApp o compartes la semana en el grupo de WhatsApp del equipo.',
   'The rota goes out in minutes, and “who’s in on Saturday?” stops being a question.':
     'El cuadrante sale en minutos, y «¿quién viene el sábado?» deja de ser una pregunta.',
-  'A week’s rota in five minutes': 'El cuadrante de la semana en cinco minutos',
+  'One rota, everyone on the same page': 'Un cuadrante, todo el equipo al tanto',
 
   // Cafés: hours and tips
   'Adding up hours and tips': 'Sumar horas y propinas',
