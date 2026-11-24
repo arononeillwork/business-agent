@@ -496,6 +496,31 @@ export const ALL_TOOLS: ToolDef[] = [
       return { ok: true }
     },
   }),
+  tool({
+    name: 'repeat_rota_week',
+    title: 'Repeat week',
+    description: 'Admins: copy a week of the rota (any day in it; default this week) onto the weeks after it, as Repeat week on the Rota page: for `weeks` weeks (1 = next week only), or continuous: true to keep it going as the continuous rota, filled every night to the end of the fourth week after this one. Shifts already on those days are replaced unless they have started; nobody is put on a day they have approved time off. stop: true stops the continuous rota instead (the weeks it filled keep their shifts). It replaces shifts: tell the user what will change and ask them to confirm first, then call with confirm: true.',
+    admin: true,
+    destructive: true,
+    input: z.object({
+      week: date.optional().describe('Any day of the week to copy; default this week'),
+      weeks: z.number().int().min(1).max(12).default(1).describe('How many weeks after it; ignored when continuous'),
+      continuous: z.boolean().default(false).describe('Keep repeating it every week from now on'),
+      stop: z.boolean().default(false).describe('Stop the continuous rota instead'),
+      confirm: z.literal(true),
+    }),
+    async run({ sb }, a) {
+      if (a.stop) {
+        check(await sb.rpc('stop_repeating_rota'))
+        return { ok: true, repeating: false }
+      }
+      const done = check(await sb.rpc('repeat_rota_week', {
+        p_week: a.week ?? weekStart(today()), p_weeks: a.continuous ? null : a.weeks, p_continuous: a.continuous,
+      })) as { added: number; removed: number; away: number; until: string }
+      return { ok: true, continuous: a.continuous, shifts_added: done.added, shifts_replaced: done.removed,
+        left_out_for_time_off: done.away, filled_until: done.until }
+    },
+  }),
 
   // ---------------- Time tracking ----------------
   tool({

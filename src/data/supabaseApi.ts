@@ -442,6 +442,15 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
     async takeOpenShift(id) {
       check(await sb.rpc('take_open_shift', { p_shift_id: id }))
     },
+    async rotaRepeat() {
+      return check(await sb.from('rota_repeat').select('source_week, filled_until, updated_at').maybeSingle())
+    },
+    async repeatRotaWeek(monday, weeks) {
+      return check(await sb.rpc('repeat_rota_week', { p_week: monday, p_weeks: weeks, p_continuous: weeks === null }))
+    },
+    async stopRepeatingRota() {
+      check(await sb.rpc('stop_repeating_rota'))
+    },
 
     async saveEvent(event) {
       const { id, ...rest } = event

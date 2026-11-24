@@ -660,6 +660,12 @@ built-in **AI connector** so owners can run it by talking to Claude.
 - Off the rota (Team): an admin switches someone off the rota on their Team panel (an owner, the
   business's own login). They still sign in; the rota gives them no row and doesn't offer them for a
   shift, unless they already have one that week.
+- Repeat week (Rota): whoever edits the rota copies the week on show onto the weeks after it, next week only
+  or up to 12 weeks, or ticks **Continuous rota** to keep it going: its shifts are saved as they are, and every
+  night the rota is filled to the end of the fourth week after this one (`extend_repeating_rota`). Shifts
+  already on those days are replaced unless they've started; nobody is put on a day off, someone off the rota
+  is left out, and a change to one week stays that week's. A note over the rota says what repeats, with
+  **Stop repeating** (the weeks filled keep their shifts). The `repeating_rota` migration, `shared/rotaRepeat.ts`.
 - Contracts (Team page, a tab of its own: `/team?tab=contracts`): each person's employment contract under
   Spanish law (indefinido, a tiempo parcial, fijo discontinuo, temporal por circunstancias de la producción
   or por sustitución, formativo, or autónomo), with its dates, trial period, hours a week, gross salary (an
