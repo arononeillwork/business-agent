@@ -1,4 +1,4 @@
-import type { InboxConversation, InboxMessage, MessageKind, TaggedPost } from '../../shared/messages'
+import type { InboxConversation, InboxMessage, TaggedPost } from '../../shared/messages'
 import type { PostKind, PostMedia } from '../../shared/types'
 import { insightTotals, type InstagramStats, type MetaInsight } from '../../shared/socialAnalytics'
 import type { CollabMedia } from '../../shared/mentions'
@@ -184,20 +184,31 @@ export interface RawMessage {
 }
 interface RawConversation { id: string; updated_time: string; participants?: { data?: RawUser[] }; messages?: { data?: RawMessage[] } }
 
+type StoryLink = { link?: string; url?: string; story?: { link?: string; url?: string } }
+/** The story's picture: `link` as chats are read, `url` as webhooks say it, or inside a `story` of its own. */
+const storyLink = (s: StoryLink) => s.link ?? s.url ?? s.story?.link ?? s.story?.url
+
 /** Story mention or story reply, in either shape Instagram uses ({mention: …} or a list of typed items). */
 function storyOf(story: unknown): { kind: 'story_mention' | 'story_reply'; link?: string } | null {
   if (!story || typeof story !== 'object') return null
   const items = Array.isArray(story) ? story : (story as { data?: unknown[] }).data ?? [story]
-  for (const it of items as Record<string, { link?: string; url?: string } | string | undefined>[]) {
-    const mention = it.mention as { link?: string; url?: string } | undefined
-    const reply = it.reply_to as { link?: string; url?: string } | undefined
-    if (mention) return { kind: 'story_mention', link: mention.link ?? mention.url }
-    if (reply) return { kind: 'story_reply', link: reply.link ?? reply.url }
+  for (const it of items as Record<string, StoryLink | string | undefined>[]) {
+    const mention = it.mention as StoryLink | undefined
+    const reply = it.reply_to as StoryLink | undefined
+    if (mention) return { kind: 'story_mention', link: storyLink(mention) }
+    if (reply) return { kind: 'story_reply', link: storyLink(reply) }
     const type = String(it.type ?? '').toLowerCase()
-    if (type.includes('mention')) return { kind: 'story_mention', link: (it.link ?? it.url) as string | undefined }
-    if (type.includes('reply')) return { kind: 'story_reply', link: (it.link ?? it.url) as string | undefined }
+    if (type.includes('mention')) return { kind: 'story_mention', link: storyLink(it as StoryLink) }
+    if (type.includes('reply')) return { kind: 'story_reply', link: storyLink(it as StoryLink) }
   }
   return null
+}
+
+type RawAttachment = NonNullable<NonNullable<RawMessage['attachments']>['data']>[number]
+/** A photo (a GIF or sticker too), video, voice note or file sent, and its address. */
+function attachmentOf(a: RawAttachment): { kind: 'image' | 'video' | 'audio' | 'file'; url?: string } {
+  const kind = a.video_data ? 'video' : a.image_data ? 'image' : /audio/.test(a.mime_type ?? '') ? 'audio' : 'file'
+  return { kind, url: a.video_data?.preview_url ?? a.video_data?.url ?? a.image_data?.url ?? a.image_data?.preview_url ?? a.file_url }
 }
 
 /** One Instagram message, as the Messages page shows it. */
@@ -208,15 +219,54 @@ export function toInboxMessage(m: RawMessage, me: Me): InboxMessage {
   const extra = reactions.length ? { reactions } : {}
   if (m.is_unsupported) return { ...base, kind: 'unsupported', ...extra }
   const story = storyOf(m.story)
-  if (story) return { ...base, kind: story.kind, mediaUrl: story.link, ...extra }
+  const a = m.attachments?.data?.[0]
+  if (story) {
+    // A reply can be a photo, GIF, sticker or voice note rather than words: that's what they said, before the
+    // story's own picture (gone from Instagram a day after the story anyway).
+    const sent = story.kind === 'story_reply' && a ? attachmentOf(a) : null
+    if (sent?.url) return { ...base, kind: story.kind, mediaUrl: sent.url, attached: sent.kind, ...extra }
+    return { ...base, kind: story.kind, mediaUrl: story.link, ...extra }
+  }
   const share = m.shares?.data?.[0]
   if (share) return { ...base, kind: 'share', link: share.url ?? share.link, mediaUrl: share.image_url, text: base.text || share.name || share.description || '', ...extra }
-  const a = m.attachments?.data?.[0]
   if (a) {
-    const kind: MessageKind = a.video_data ? 'video' : a.image_data ? 'image' : /audio/.test(a.mime_type ?? '') ? 'audio' : 'file'
-    return { ...base, kind, mediaUrl: a.video_data?.preview_url ?? a.video_data?.url ?? a.image_data?.url ?? a.image_data?.preview_url ?? a.file_url, ...extra }
+    const sent = attachmentOf(a)
+    return { ...base, kind: sent.kind, mediaUrl: sent.url, ...extra }
   }
   return { ...base, kind: 'text', ...extra }
+}
+
+/**
+ * What a chat's read gave without what was said: no words and nothing to show, or a story reply without its
+ * words or anything it sent (a reply always sends one or the other: Instagram left it out of the chat's read).
+ */
+export const leftOut = (m: InboxMessage) =>
+  m.kind !== 'unsupported' && !m.text.trim() && (m.kind === 'story_reply' ? !m.attached : !m.mediaUrl && !m.link)
+
+/** How many such messages a chat opened reads again on its own, the newest first. */
+const ALONE_MAX = 6
+
+/**
+ * A message read on its own, as Meta's docs read a message's details: Instagram's own choice of fields, then
+ * the parts of shares and attachments by name. Kept in the Workers' cache for 6 hours, like people.
+ */
+const readAlone = (cfg: InstagramConfig, me: Me, id: string) =>
+  remembered<RawMessage>(`https://instagram-message.cache/${encodeURIComponent(cfg.userId)}/${encodeURIComponent(id)}`, async () => {
+    const plain = await messageById(cfg, id)
+    return leftOut(toInboxMessage(plain, me)) ? messageById(cfg, id, true).catch(() => plain) : plain
+  })
+
+/** The chat's messages with the ones its read left out (`leftOut`) read again on their own, where that gives more. */
+export async function fillLeftOut(cfg: InstagramConfig, me: Me, raw: RawMessage[]): Promise<RawMessage[]> {
+  const out = raw.filter(m => leftOut(toInboxMessage(m, me))).sort((a, b) => b.created_time.localeCompare(a.created_time)).slice(0, ALONE_MAX)
+  if (!out.length) return raw
+  const read = new Map(await Promise.all(out.map(async m => [m.id, await readAlone(cfg, me, m.id)] as const)))
+  return raw.map(m => {
+    const alone = read.get(m.id)
+    if (!alone?.id) return m // Instagram refused it, or it isn't among the chat's 20 latest any more
+    // Its own read over the chat's: who sent it and when stay the chat's, and so does its story if Instagram says it in a shape not known here.
+    return { ...m, ...alone, id: m.id, created_time: m.created_time, from: m.from ?? alone.from, story: storyOf(alone.story) ? alone.story : m.story }
+  })
 }
 
 function toConversation(c: RawConversation, me: Me): InboxConversation {
@@ -297,10 +347,15 @@ export async function conversations(cfg: InstagramConfig, me: Me, lookUp: (c: In
   return chats.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 }
 
-/** One chat with its 20 latest messages (all Instagram shares), oldest first. */
-export async function conversation(cfg: InstagramConfig, me: Me, id: string) {
+/**
+ * One chat with its 20 latest messages (all Instagram shares), oldest first. `fill`: the ones the chat's read
+ * left without what was said (a story reply with neither its words nor its photo, mostly) read again on their own.
+ */
+export async function conversation(cfg: InstagramConfig, me: Me, id: string, fill = false) {
   const c = await detailed<RawConversation>(cfg, f => `${encodeURIComponent(id)}?fields=id,updated_time,participants,messages.limit(20){${f}}`)
-  const chat = await withPerson(cfg, toConversation({ ...c, id }, me))
+  const raw = c.messages?.data ?? []
+  const messages = fill ? await fillLeftOut(cfg, me, raw) : raw
+  const chat = await withPerson(cfg, toConversation({ ...c, id, messages: { data: messages } }, me))
   return { conversation: { ...chat, recent: chat.recent.slice(0, 5) }, messages: [...chat.recent].reverse() }
 }
 

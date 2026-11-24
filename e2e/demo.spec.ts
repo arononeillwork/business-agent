@@ -4368,6 +4368,18 @@ test.describe('messages', () => {
     await page.getByRole('button', { name: 'Back to chats' }).click()
     await expect(page.getByRole('list', { name: 'Chats' })).toBeVisible()
   })
+
+  test('story replies: what was said, a GIF sent instead of words, and one Instagram didn’t share', async ({ page }) => {
+    await open(page, '/messages')
+    await page.getByRole('list', { name: 'Chats' }).getByRole('listitem', { name: '@tom_runs' }).getByRole('button').click()
+    const chat = page.getByRole('region', { name: 'Chat with @tom_runs' })
+    const said = chat.getByRole('listitem', { name: /^Them: Replied to your story/ })
+    await expect(said).toHaveCount(3)
+    await expect(said.nth(0)).toContainText('Instagram didn’t share what they sent. Open Instagram to see it.')
+    await expect(said.nth(1).locator('img')).toHaveCount(1)
+    await expect(said.nth(1)).not.toContainText('Instagram didn’t share')
+    await expect(said.nth(2)).toContainText('Is the matcha iced or hot?')
+  })
 })
 
 test.describe('referrals', () => {
