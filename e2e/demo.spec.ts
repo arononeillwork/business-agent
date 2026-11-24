@@ -10179,6 +10179,8 @@ test.describe('UI round: dashboards, the business advisor and the landing pages'
   })
 
   test('dashboards: the Sales template for a shop manager: who sold at the till and the reps, not the takings; employees aren’t offered it', async ({ page }) => {
+    // The baristas' role given Dashboards, Square connected, four sign-ins and Maria's role changed: past 30 s on CI.
+    test.setTimeout(60_000)
     await giveBaristas(page, 'Dashboards', 'Read')
     await connectSquare(page)
     // An employee: no Sales template, and none of its widgets to add.

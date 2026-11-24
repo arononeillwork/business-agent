@@ -1,6 +1,6 @@
 // The "Instagram and TikTok never get posted" video's two chapters in the app (recorded by video/capture/social.mjs,
 // Easy Beans in demo mode):
-//   1 The team: Julio's phone, the ideas for posts; he takes "The coffees we have now", takes the photo (the camera's
+//   1 The team: Sam's phone (the demo's Julio, shown as Sam), the ideas for posts; he takes "The coffees we have now", takes the photo (the camera's
 //     shutter drawn over the phone), adds it and hands it in.
 //   2 One press: at the computer, the owner makes the post from it, adds a line to the caption, and schedules it for
 //     six o'clock on every account (Instagram, TikTok, LinkedIn, Google Maps), to go out by itself.
@@ -35,7 +35,7 @@ function Shutter() {
 }
 
 // ---------- 1 The team ----------
-const PHONE_SEGS: Segment[] = [{ a: 0.3, b: 15.9, rate: 1 }]
+const PHONE_SEGS: Segment[] = [{ a: 0.3, b: 16.1, rate: 1 }]
 
 export function Team({ len }: { len: number }) {
   const m = PHONE, segs = PHONE_SEGS
@@ -47,7 +47,7 @@ export function Team({ len }: { len: number }) {
   const handin = eventAt(m, 'handin', segs)
   const captions: { from: number; title: ReactNode }[] = [
     { from: 0, title: <>Ideas for posts, <Em>for the whole team.</Em></> },
-    { from: take - 8, title: <>Julio takes one. <Em>On his phone.</Em></> },
+    { from: take - 8, title: <>Sam takes one. <Em>On his phone.</Em></> },
     { from: handin - 10, title: <>Photo taken. <Em>Handed in.</Em></> },
   ]
   return (
@@ -78,10 +78,10 @@ export function Team({ len }: { len: number }) {
 
 // ---------- 2 One press ----------
 const POST_SEGS: Segment[] = [
-  { a: 1.0, b: 9.0, rate: 1.5 },   // the idea handed in, and Make a post
-  { a: 9.0, b: 22.0, rate: 1.9 },  // the post made: the photo, a line added to the caption, every account ticked
-  { a: 22.0, b: 35.0, rate: 1.9 }, // six o'clock, it goes out by itself; Schedule
-  { a: 35.0, b: 40.6, rate: 1.3 }, // in Coming up, today at 18:00
+  { a: 1.0, b: 9.4, rate: 1.5 },   // the idea handed in, and Make a post
+  { a: 9.4, b: 24.0, rate: 2.3 },  // the post made: the photo, a line added to the caption, every account ticked
+  { a: 24.0, b: 37.4, rate: 1.9 }, // six o'clock, it goes out by itself; Schedule
+  { a: 37.4, b: 44.2, rate: 1.4 }, // in Coming up, today at 18:00
 ]
 
 /** The camera on a point of the recording (its own CSS pixels), zoom `s`, settled `lead` frames before a logged moment. */
