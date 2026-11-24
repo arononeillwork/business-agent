@@ -86,6 +86,7 @@ import { DEFAULT_TAX_SETTINGS, cleanFolderName, cleanFolderPath, taxFileProblem,
 import { DEFAULT_VAT_RATE, type PnlLine } from '../../shared/pnl'
 import { cleanAnswers, isDone, type GrantApplication, type GrantProfile } from '../../shared/grants'
 import { adjustProblem, giftCardAmountProblem, type GiftCard, type GiftCardActivity, type LoyaltyEvent, type LoyaltyMember, type LoyaltyProgram } from '../../shared/loyalty'
+import { clubInputProblem, type ClubCoffee, type ClubMember, type CoffeeClubSettings, type CoffeeClubState } from '../../shared/coffeeClub'
 import { isSupplyGroup, type MovementInput, type StockItem, type StockMovement, type StockPrice, type Supplier } from '../../shared/stock'
 import type { Recipe } from '../../shared/recipes'
 import {
@@ -477,6 +478,51 @@ export function createDemoApi(): Api {
     if (!squareOn()) throw new Error('Connect Square on the Connections page to see loyalty and gift cards.')
   }
   const inRange = (at: string, from: string, to: string) => at.slice(0, 10) >= from && at.slice(0, 10) <= to
+  // The coffee club (€10 a month, a coffee a week): not set up until an admin does; then five members and their
+  // last four weeks of coffees, one coffee rung up with nobody added to the sale, and one member whose payment failed.
+  let coffeeClub: CoffeeClubSettings | null = null
+  const clubMembersList: ClubMember[] = []
+  const clubCoffees: ClubCoffee[] = []
+  const clubAt = (date: string, hm: string) => zonedIso(date, hm)
+  function seedCoffeeClub() {
+    const monday = weekStart(today())
+    const people: [string, ClubMember['status'], boolean, string | null, number][] = [
+      ['Lucía García', 'active', true, null, 70], ['Tom Baker', 'active', true, null, 45], ['Carmen Ruiz', 'active', false, null, 33],
+      ['Emma Wilson', 'active', true, addDays(today(), 10), 60], ['Javier López', 'canceled', true, addDays(today(), -12), 90],
+    ]
+    people.forEach(([name, status, paid, ends, joined], i) => {
+      clubMembersList.push({ id: `club-m${i + 1}`, customer_id: `club-c${i + 1}`, name, square_customer_id: `sq-club${i + 1}`, status, started_on: addDays(today(), -joined),
+        ends_on: ends, paid, paid_through: addDays(today(), 30 - (joined % 30)), used_this_week: 0, last_coffee: null, coffees: 0 })
+    })
+    // Their coffees, a week at a time: Lucía every week (this one too), Tom and Emma most weeks, Carmen before her payment failed.
+    const had: [number, number[]][] = [[0, [0, 1, 2, 3]], [1, [1, 2, 3]], [2, [2, 3]], [3, [0, 1, 3]], [4, [3]]]
+    for (const [m, weeks] of had) {
+      for (const w of weeks) {
+        const date = addDays(monday, -7 * w + ((m + w) % 5))
+        if (date > today()) continue
+        clubCoffees.push({ id: `club-k${m}-${w}`, member_id: clubMembersList[m].id, name: clubMembersList[m].name, item: ['Flat White', 'Oat Latte', 'Matcha Latte'][m % 3],
+          quantity: 1, value: [3.8, 4.2, 4.5][m % 3], at: clubAt(date, `${String(8 + m).padStart(2, '0')}:1${w}`), problem: null, sorted_at: null })
+      }
+    }
+    clubCoffees.push({ id: 'club-p1', member_id: null, name: null, item: 'Cappuccino', quantity: 1, value: 3.5, at: clubAt(addDays(today(), -1), '11:42'), problem: 'no_customer', sorted_at: null })
+    clubCoffees.push({ id: 'club-p2', member_id: 'club-m3', name: 'Carmen Ruiz', item: 'Matcha Latte', quantity: 1, value: 4.5, at: clubAt(addDays(today(), -2), '09:05'), problem: 'not_paid', sorted_at: null })
+  }
+  function clubState(): CoffeeClubState {
+    const monday = weekStart(today())
+    if (!coffeeClub) return { status: 'not_set_up', club: null, members: [], coffees: [], week: monday, checked_at: null }
+    const counted = clubCoffees.filter(c => !c.problem)
+    const members = clubMembersList.map(m => {
+      const mine = counted.filter(c => c.member_id === m.id)
+      return { ...m, used_this_week: mine.filter(c => weekStart(localDate(c.at)) === monday).reduce((n, c) => n + c.quantity, 0),
+        coffees: mine.reduce((n, c) => n + c.quantity, 0), last_coffee: mine.map(c => c.at).sort().pop() ?? null }
+    })
+    return { status: 'ok', club: clone(coffeeClub), members: clone(members), coffees: clone([...clubCoffees].sort((a, b) => b.at.localeCompare(a.at))),
+      week: monday, checked_at: nowIso() }
+  }
+  const needClubSquare = () => {
+    if (!isAdmin()) throw new Error('Only an admin can run the coffee club')
+    if (!squareOn()) throw new Error('Connect Square on the Connections page to run a coffee club.')
+  }
 
   // Licences: the café's, one running out soon (insurance) and one already out (the extinguishers' check).
   const licence = (p: Partial<Licence> & { name: string }): Licence => ({ id: uid(), category: 'permit', issuer: null, reference: null, holder: null, starts_on: null,
@@ -3624,6 +3670,38 @@ export function createDemoApi(): Api {
       const gan = giftGans.get(id)
       if (!gan) throw new Error('Choose a gift card from the list')
       return gan
+    },
+    async coffeeClub() {
+      needClubSquare()
+      return clubState()
+    },
+    async saveCoffeeClub(input) {
+      needClubSquare()
+      const problem = clubInputProblem(input)
+      if (problem) throw new Error(problem)
+      const first = !coffeeClub
+      const newLink = !coffeeClub || coffeeClub.price !== input.price || coffeeClub.name !== input.name.trim() || coffeeClub.coffees_per_week !== input.coffees_per_week
+      coffeeClub = { ...input, name: input.name.trim(), currency: 'EUR', set_up_at: coffeeClub?.set_up_at ?? nowIso(),
+        signup_url: input.selling ? (newLink || !coffeeClub?.signup_url ? `https://square.link/u/club${uid().slice(0, 6)}` : coffeeClub.signup_url) : null }
+      if (first) seedCoffeeClub()
+      return clubState()
+    },
+    async syncCoffeeClub() {
+      needClubSquare()
+      return clubState()
+    },
+    async cancelClubMember(id) {
+      needClubSquare()
+      const m = clubMembersList.find(x => x.id === id)
+      if (!m) throw new Error('That member isn’t here any more')
+      if (m.status === 'canceled' || m.status === 'deactivated') throw new Error('That membership has already ended')
+      m.ends_on = m.paid_through ?? addDays(today(), 30)
+    },
+    async sortClubCoffee(id) {
+      needClubSquare()
+      const c = clubCoffees.find(x => x.id === id && x.problem)
+      if (!c) throw new Error('That coffee isn’t on the list any more')
+      c.sorted_at = nowIso()
     },
     async suppliers() { return readStock() ? clone(suppliers).sort((a, b) => a.name.localeCompare(b.name)) : [] },
     async saveSupplier({ id, ...patch }) {

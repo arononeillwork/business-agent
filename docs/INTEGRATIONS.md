@@ -394,6 +394,13 @@ Connections); with it, within seconds.
   log should show `200`. (A different URL in Square needs `SQUARE_WEBHOOK_URL` set to exactly that
   URL: the signature covers it.)
 
+**The coffee club straight away (optional, once):** without this, a coffee given with the club's discount, a new
+member and a month's charge are read every 15 minutes; with it, within seconds. Open the same subscription
+(**Webhooks → Subscriptions**) and tick **order.created**, **order.updated**, **subscription.created**,
+**subscription.updated**, **invoice.payment_made** and **invoice.scheduled_charge_failed** too → Save. The coffee club
+also asks Square for SUBSCRIPTIONS_READ/WRITE, INVOICES_READ, ORDERS_WRITE and PAYMENTS_WRITE (its checkout page): a
+business connected before then presses **Connect Square again** on the Coffee club page.
+
 **Each business:**
 
 6. In the app: **Connections → Payments and sales → Connect Square**, sign in with the Square

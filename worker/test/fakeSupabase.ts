@@ -30,11 +30,12 @@ const KEYS: Record<string, string[]> = {
   instagram_mentions: ['id'], social_follower_days: ['source', 'day'],
   reviews: ['id'],
   instagram_ideas: ['message_id'],
+  coffee_club: ['business_id'], coffee_club_members: ['square_subscription_id'], coffee_club_coffees: ['square_order_id', 'square_line_uid'],
 }
 /** Keyed tables that still get a numeric id of their own (an identity column beside the unique key). */
-const AUTO_ID = new Set(['whatsapp_messages', 'instagram_ideas'])
+const AUTO_ID = new Set(['whatsapp_messages', 'instagram_ideas', 'coffee_club_members', 'coffee_club_coffees'])
 /** Tables whose id is a uuid (the tools check it is one). */
-const UUID_ID = new Set(['competitors', 'competitor_items', 'competitor_prices', 'competitor_notes', 'instagram_ideas'])
+const UUID_ID = new Set(['competitors', 'competitor_items', 'competitor_prices', 'competitor_notes', 'instagram_ideas', 'coffee_club_members', 'coffee_club_coffees'])
 
 /** The business a row is, unless it says (the one business most tests have). */
 export const FIRST_BUSINESS = 1

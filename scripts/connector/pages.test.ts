@@ -22,6 +22,12 @@ describe('connector pages, worked out from the app', () => {
     expect(empty).toEqual([])
   })
 
+  it('finds a page’s live reads written as templates, but not an address built from values', () => {
+    expect(page('loyalty').live).toEqual(['/api/giftcards', '/api/loyalty'])
+    expect(page('coffee-club').live).toEqual(['/api/coffee-club'])
+    expect(pages.flatMap(p => p.live).some(l => l.endsWith('/'))).toBe(false)
+  })
+
   it('reads what the pages read, with their columns', () => {
     expect(table('coffees', 'coffees')).toMatchObject({ writes: true })
     expect(table('coffees', 'coffees')!.columns.split(', ')).toEqual(expect.arrayContaining(['name', 'roaster', 'tasting_notes', 'photo']))

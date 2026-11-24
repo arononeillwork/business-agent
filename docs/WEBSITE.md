@@ -246,6 +246,26 @@ For every one of them:
 - A line's `note` is only the app's own (a post's views and likes, a spend at the till), never the team's;
   a crew bonus says "Crew bonus" without the crew member's name. Never their rep page's link.
 
+**The coffee club.** When the business has one (Sales → Coffee club), the summary also has `club`: what it is,
+how to join, and the person's pass, which they can hold up at the counter so the team finds them by name
+(`SiteClub` in `shared/siteAccount.ts`; worker/coffeeClub.ts). No club, no `club` key.
+
+```jsonc
+"club": {
+  "name": "Coffee club", "price": 10, "currency": "EUR", "coffees_per_week": 1,
+  "join_url": null,                        // Square's checkout page to join; null for a member, or while not taking members
+  "pass": {                                // null: not a member (or it has ended)
+    "standing": "active",                  // active, ending (cancelled, still running), pending, paused, payment_failed
+    "used_this_week": 0, "left_this_week": 1,   // left: 0 unless active and paid
+    "week_start": "2026-11-23",            // a new week's coffees from this Monday
+    "started_on": "2026-11-01", "ends_on": null
+  }
+}
+```
+
+A good pass shows the name large, the club's name and this week's coffee ("ready" or "had, next one Monday"),
+and `join_url` as a button for someone who isn't a member yet.
+
 ### Erase: deleting the account on the website
 
 `{ "email": "…", "email_verified": true }` → `200 { "erased": true, "kept": "ledger" | null, "found": true }`

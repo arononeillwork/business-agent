@@ -54,6 +54,7 @@ import type { EmploymentContract, EmploymentContractInput } from '../../shared/c
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
 import type { GrantApplication, GrantApplicationInput, GrantProfile } from '../../shared/grants'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
+import type { CoffeeClubInput, CoffeeClubState } from '../../shared/coffeeClub'
 import type { MovementInput, StockItem, StockItemInput, StockMovement, Supplier, SupplierInput, StockPrice, WasteEdit } from '../../shared/stock'
 import type { Recipe, RecipeInput } from '../../shared/recipes'
 import type { MenuDesign, MenuDesignInput, MenuImage, MenuImageRequest, MenuItem, MenuItemInput, PricePush, SquarePriceNote } from '../../shared/menu'
@@ -1048,6 +1049,17 @@ export interface Api {
   sellGiftCard(amount: number, customerId: string | null, key: string): Promise<GiftCard>
   /** One gift card's whole number (lists carry the last 4 digits only), for Copy number; read from Square each time. */
   giftCardNumber(id: string): Promise<string>
+  // The coffee club (admins, while Square is the connected till): a monthly membership on Square, its coffees counted
+  // here. `key`: one per time the person saves, so trying again never makes anything in Square twice.
+  coffeeClub(): Promise<CoffeeClubState>
+  /** Set the club up in Square, or change it (a new price is a new checkout page; members keep theirs). */
+  saveCoffeeClub(input: CoffeeClubInput, key: string): Promise<CoffeeClubState>
+  /** Check Square now: members, the sales since the last look, the notes on the till. */
+  syncCoffeeClub(): Promise<CoffeeClubState>
+  /** End a membership: Square stops charging at the end of the month paid for. */
+  cancelClubMember(id: string): Promise<void>
+  /** A coffee that didn't count, dealt with. */
+  sortClubCoffee(id: string): Promise<void>
   // Ads (admins with pay access): Meta Ads and Google Ads, read and changed live on each platform
   /** Spend, clicks and results per day and campaign, from and to inclusive. */
   adsReport(from: string, to: string): Promise<AdsReport>

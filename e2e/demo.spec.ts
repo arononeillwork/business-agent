@@ -5460,6 +5460,75 @@ test.describe('loyalty and gift cards', () => {
   })
 })
 
+test.describe('coffee club', () => {
+  /** Connect Square on Connections, then open the Coffee club from the menu (it only shows once Square is the till). */
+  async function openClub(page: Page) {
+    await open(page, '/connections')
+    await expect(page.getByRole('link', { name: 'Coffee club', exact: true })).toHaveCount(0)
+    const payments = page.getByRole('region', { name: 'Payments and sales' })
+    await payments.getByRole('button', { name: 'Connect Square' }).click()
+    await expect(payments.getByRole('article', { name: 'Square' })).toContainText('Connected')
+    await expect(async () => {
+      await page.getByRole('link', { name: 'Coffee club', exact: true }).first().click()
+      await expect(page.getByRole('heading', { name: 'Coffee club', exact: true })).toBeVisible({ timeout: 2000 })
+    }).toPass()
+  }
+
+  test('set up in Square at €10 a month for a coffee a week: the sign-up page, members and the coffees to look at', async ({ page }) => {
+    await openClub(page)
+    await expect(page.getByRole('region', { name: 'How the coffee club works' })).toBeVisible()
+    const setUp = page.getByRole('region', { name: 'Set up the coffee club' })
+    await expect(setUp.getByRole('textbox', { name: 'Price a month' })).toHaveValue('10')
+    await setUp.getByRole('textbox', { name: 'Price a month' }).fill('0')
+    await expect(setUp.getByRole('button', { name: 'Set up in Square' })).toBeDisabled()
+    await setUp.getByRole('textbox', { name: 'Price a month' }).fill('10')
+    await setUp.getByRole('button', { name: 'Set up in Square' }).click()
+    await toast(page, 'The coffee club is set up in Square')
+
+    const signUp = page.getByRole('region', { name: 'Sign-up page' })
+    await expect(signUp.getByRole('link', { name: /square\.link/ })).toBeVisible()
+    await expect(signUp.getByRole('img', { name: 'QR code for the sign-up page' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'At the till' })).toContainText('Apply the “Coffee club” discount to the drink')
+    await expect(page.getByRole('list', { name: 'At a glance' })).toContainText('Members3')
+
+    // Two coffees that didn't count; one sorted.
+    const toLook = page.getByRole('region', { name: 'Coffees to look at' })
+    await expect(toLook.getByRole('listitem')).toHaveCount(2)
+    await expect(toLook).toContainText('Nobody was added to the sale')
+    await toLook.getByRole('button', { name: 'Sorted' }).first().click()
+    await toast(page, 'Marked sorted')
+    await expect(toLook.getByRole('listitem')).toHaveCount(1)
+
+    // The members: this week's coffee had, a payment failed, a membership ended.
+    const members = page.getByRole('region', { name: 'Members', exact: true })
+    await expect(members.getByRole('row').filter({ hasText: 'Lucía García' })).toContainText('1 of 1')
+    await expect(members.getByRole('row').filter({ hasText: 'Carmen Ruiz' })).toContainText('Payment failed')
+    await expect(members.getByRole('row').filter({ hasText: 'Javier López' })).toContainText('Ended')
+    const tom = members.getByRole('row').filter({ hasText: 'Tom Baker' })
+    await tom.getByRole('button', { name: 'End Tom Baker’s membership' }).click()
+    const dialog = page.getByRole('dialog', { name: 'End Tom Baker’s membership?' })
+    await dialog.getByRole('button', { name: 'End membership' }).click()
+    await toast(page, 'Membership ending')
+    await expect(tom).toContainText('Ending')
+
+    // A new price: a new sign-up page, and a word about members already in.
+    const settings = page.getByRole('region', { name: 'Club settings' })
+    await settings.getByRole('textbox', { name: 'Price a month' }).fill('12')
+    await expect(settings).toContainText('Members who joined already keep paying what they joined at')
+    await settings.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Club settings saved')
+  })
+
+  test('employees don’t get the coffee club', async ({ page }) => {
+    await open(page, '/', 'maria@example.com')
+    await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Coffee club', exact: true })).toHaveCount(0)
+    await page.goto('/coffee-club?demo')
+    await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Coffee club', exact: true })).toHaveCount(0)
+  })
+})
+
 test.describe('stock and suppliers', () => {
   test.describe.configure({ timeout: 60_000 })
   test('low items show, a delivery raises what is in, and the order list offers WhatsApp with the message', async ({ page }) => {

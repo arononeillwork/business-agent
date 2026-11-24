@@ -29,8 +29,8 @@ export interface ConnectorPage {
   live: string[]
 }
 
-/** Live reads the connector never makes: they hand out sign-in tokens or secret links. */
-export const PRIVATE_LIVE = [/picker/, /api-keys/, /push\/key/, /calendar-feed/]
+/** Live reads the connector never makes: they hand out sign-in tokens or secret links, or they're the mailbox (people's correspondence stays on the Email page). */
+export const PRIVATE_LIVE = [/picker/, /api-keys/, /push\/key/, /calendar-feed/, /^\/api\/email\//]
 
 /** Columns never shown, whatever page they're on. */
 export const SECRET_COLUMN = /(^|_)(token|secret|password|passcode|api_key|key_hash|pin|pin_hash|refresh_token|access_token|private_key)(_|$)/i

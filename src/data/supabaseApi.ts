@@ -43,6 +43,7 @@ import type { Contractor, OutsourcedJob } from '../../shared/outsourcing'
 import type { EmploymentContract, SalaryPer } from '../../shared/contracts'
 import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
+import type { CoffeeClubState } from '../../shared/coffeeClub'
 import type { StockItem, StockMovement, Supplier, StockPrice } from '../../shared/stock'
 import type { Recipe } from '../../shared/recipes'
 import type { MenuDesign, MenuImage, MenuItem, SquarePriceNote } from '../../shared/menu'
@@ -1691,6 +1692,15 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
       return (await worker<{ card: GiftCard }>('/api/giftcards', { method: 'POST', body: JSON.stringify({ amount, customer_id: customerId, key }) })).card
     },
     giftCardNumber: async id => (await worker<{ number: string }>(`/api/giftcards/${encodeURIComponent(id)}/number`)).number,
+    coffeeClub: () => worker<CoffeeClubState>('/api/coffee-club'),
+    saveCoffeeClub: (input, key) => worker<CoffeeClubState>('/api/coffee-club', { method: 'POST', body: JSON.stringify({ ...input, key }) }),
+    syncCoffeeClub: () => worker<CoffeeClubState>('/api/coffee-club/sync', { method: 'POST', body: '{}' }),
+    async cancelClubMember(id) {
+      await worker(`/api/coffee-club/members/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: '{}' })
+    },
+    async sortClubCoffee(id) {
+      await worker(`/api/coffee-club/coffees/${encodeURIComponent(id)}/sorted`, { method: 'POST', body: '{}' })
+    },
     async uploadMedia(file, folder) {
       const { url, type } = await worker<{ url: string; type: 'image' | 'video' }>(`/api/integrations/media?folder=${folder}`, {
         method: 'POST', body: file, headers: { 'content-type': file.type } })

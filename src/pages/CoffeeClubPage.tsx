@@ -1,0 +1,366 @@
+import {
+  Alert, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, FormControlLabel, InputAdornment,
+  Link, MenuItem, Stack, Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
+} from '@mui/material'
+import CopyIcon from '@mui/icons-material/ContentCopyOutlined'
+import OpenIcon from '@mui/icons-material/OpenInNew'
+import RefreshIcon from '@mui/icons-material/Refresh'
+import { useState } from 'react'
+import { Navigate } from 'react-router-dom'
+import { useApp } from '../app/AppContext'
+import { useAsync } from '../app/hooks'
+import { useAction, useNotify } from '../app/Notify'
+import { useConnected } from '../app/connected'
+import { DecimalField, Empty, ErrorBox, Loading, PageHeader, SectionTitle, StatGrid, StatTile, Tag } from '../components/common'
+import { QrPicture, useQrLook } from '../components/QrCode'
+import { formatLocal, formatMoney, today } from '../../shared/time'
+import {
+  CLUB_DEFAULTS, clubInputProblem, clubTotals, standing,
+  type ClubCoffee, type ClubMember, type ClubProblem, type CoffeeClubInput, type CoffeeClubState, type Standing,
+} from '../../shared/coffeeClub'
+import { tokens } from '../theme'
+import { currentLanguage, msg, t } from '../i18n'
+
+const STANDING: Record<Standing, { label: string; fg: string; bg: string }> = {
+  active: { label: msg('Active'), fg: tokens.goodFg, bg: tokens.goodBg },
+  ending: { label: msg('Ending'), fg: tokens.infoFg, bg: tokens.infoBg },
+  pending: { label: msg('Starting'), fg: tokens.infoFg, bg: tokens.infoBg },
+  paused: { label: msg('Paused'), fg: tokens.neutralFg, bg: tokens.neutralBg },
+  payment_failed: { label: msg('Payment failed'), fg: tokens.badFg, bg: tokens.badBg },
+  ended: { label: msg('Ended'), fg: tokens.neutralFg, bg: tokens.neutralBg },
+}
+const PROBLEM: Record<ClubProblem, string> = {
+  no_customer: msg('Nobody was added to the sale, so it couldn’t be counted against a member'),
+  not_member: msg('The customer added to the sale isn’t a member'),
+  not_paid: msg('The member’s payment had failed, or the membership wasn’t active'),
+  over_limit: msg('The member had already had this week’s coffees'),
+}
+const day = (date: string | null) => (date ? formatLocal(`${date}T12:00:00Z`, 'd MMM yyyy') : '–')
+const when = (iso: string | null) => (iso ? formatLocal(iso, 'd MMM, HH:mm') : '–')
+const memberName = (m: Pick<ClubMember, 'name'>) => m.name ?? t('A Square customer')
+const NOT_PHONE = { display: { xs: 'none', sm: 'table-cell' } }
+const WIDE = { display: { xs: 'none', md: 'table-cell' } }
+
+/**
+ * The coffee club: a monthly membership customers join on Square's checkout page, worth so many free coffees a
+ * week. Square charges them each month; the app counts each coffee the team gives on the till and keeps a line
+ * on the member's Square customer note saying whether this week's is there to have. Not set up: how it works and
+ * the form that makes it in Square. Set up: the sign-up page and its QR code, what to do at the till, coffees that
+ * didn't count, the members and the settings. Admins only, while Square is connected.
+ */
+export function CoffeeClubPage() {
+  const { api } = useApp()
+  const square = useConnected('square')
+  const run = useAction()
+  const state = useAsync('coffee-club', () => (square ? api.coffeeClub() : Promise.resolve(null)), [square])
+  if (square === null) return <Loading />
+  if (!square) return <Navigate to="/connections" replace />
+  const s = state.data
+  return (
+    <>
+      <PageHeader eyebrow={t('Sales')} title={t('Coffee club')} actions={s?.club ? (
+        <Button startIcon={<RefreshIcon />} onClick={() => void run(() => api.syncCoffeeClub(), t('Checked Square'))}>{t('Check Square now')}</Button>
+      ) : undefined} />
+      <ErrorBox error={state.error} />
+      {s?.status === 'reconnect' && <Reconnect />}
+      {!s ? (state.loading ? <Loading /> : null) : s.club ? <Club state={s} /> : <SetUp />}
+    </>
+  )
+}
+
+function Reconnect() {
+  const { api } = useApp()
+  const run = useAction()
+  return (
+    <Alert severity="warning" sx={{ mb: 3 }}
+      action={<Button color="inherit" onClick={() => void run(() => api.connectApp('square', 'connections'))}>{t('Connect Square again')}</Button>}>
+      {t('Reconnect Square to allow the coffee club. Square was connected before the app asked for subscriptions; nothing else changes.')}
+    </Alert>
+  )
+}
+
+/** How it works, for someone deciding: Square takes the money, the app counts the coffees. */
+function HowItWorks() {
+  return (
+    <Card component="section" aria-label={t('How the coffee club works')} sx={{ mb: 3 }}>
+      <CardContent>
+        <SectionTitle>{t('How it works')}</SectionTitle>
+        <Box component="ol" sx={{ pl: 2.5, m: 0, '& li': { mb: 1 } }}>
+          <li>{t('Customers join on Square’s own checkout page, from your website or a QR code at the counter. Square keeps their card and charges it every month.')}</li>
+          <li>{t('At the till, add the member to the sale and apply the club’s discount to their drink. Their Square note says whether this week’s coffee is still there to have.')}</li>
+          <li>{t('The app counts each coffee, resets the count every Monday and lists any coffee that didn’t count, for you to look at.')}</li>
+        </Box>
+        <Typography variant="body2" sx={{ mt: 1, color: tokens.inkSoft }}>
+          {t('No Square Loyalty or Square Online plan is needed: Square charges only its usual card fee on each month’s payment.')}
+        </Typography>
+      </CardContent>
+    </Card>
+  )
+}
+
+function SetUp() {
+  return (
+    <>
+      <HowItWorks />
+      <ClubForm initial={{ ...CLUB_DEFAULTS, till_language: currentLanguage() === 'es' ? 'es' : 'en' }} first />
+    </>
+  )
+}
+
+/** The club's settings: making it in Square the first time, changing it after. */
+function ClubForm({ initial, first }: { initial: CoffeeClubInput; first?: boolean }) {
+  const { api } = useApp()
+  const run = useAction()
+  const [v, setV] = useState<CoffeeClubInput>(initial)
+  const [busy, setBusy] = useState(false)
+  const set = (patch: Partial<CoffeeClubInput>) => setV(x => ({ ...x, ...patch }))
+  const problem = clubInputProblem(v)
+  const changed = JSON.stringify(v) !== JSON.stringify(initial)
+  const save = async () => {
+    setBusy(true)
+    await run(() => api.saveCoffeeClub(v, crypto.randomUUID()), first ? t('The coffee club is set up in Square') : t('Club settings saved'), { fresh: true })
+    setBusy(false)
+  }
+  return (
+    <Card component="section" aria-label={first ? t('Set up the coffee club') : t('Club settings')} sx={{ mb: 3 }}>
+      <CardContent>
+        <SectionTitle>{first ? t('Set up the coffee club') : t('Club settings')}</SectionTitle>
+        <Stack spacing={2} sx={{ maxWidth: 520 }}>
+          <TextField label={t('Name')} value={v.name} onChange={e => set({ name: e.target.value })} helperText={t('On the checkout page, the discount on the till and the note')} />
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <DecimalField label={t('Price a month')} value={v.price} onNumber={n => set({ price: n ?? 0 })} fullWidth
+              slotProps={{ input: { startAdornment: <InputAdornment position="start">€</InputAdornment> } }} />
+            <TextField select label={t('Coffees a week')} value={v.coffees_per_week} onChange={e => set({ coffees_per_week: Number(e.target.value) })} fullWidth>
+              {Array.from({ length: 14 }, (_, i) => i + 1).map(n => <MenuItem key={n} value={n}>{n}</MenuItem>)}
+            </TextField>
+          </Stack>
+          <DecimalField label={t('Most off one drink')} value={v.max_value} onNumber={n => set({ max_value: n ?? 0 })}
+            helperText={t('The discount makes the drink free, up to this much, so it can’t be used on a lunch')}
+            slotProps={{ input: { startAdornment: <InputAdornment position="start">€</InputAdornment> } }} />
+          <TextField select label={t('Note on the till in')} value={v.till_language} onChange={e => set({ till_language: e.target.value as CoffeeClubInput['till_language'] })}>
+            <MenuItem value="en">{'English'}</MenuItem>
+            <MenuItem value="es">{'Español'}</MenuItem>
+          </TextField>
+          {!first && (
+            <FormControlLabel control={<Switch checked={v.selling} onChange={e => set({ selling: e.target.checked })} />}
+              label={t('Taking new members (the sign-up page is up)')} />
+          )}
+          {!first && v.price !== initial.price && (
+            <Alert severity="info">{t('A new price makes a new sign-up page. Members who joined already keep paying what they joined at.')}</Alert>
+          )}
+          {problem && (changed || first) && <Typography variant="body2" sx={{ color: tokens.badFg }}>{t(problem)}</Typography>}
+          <Box>
+            <Button variant="contained" disabled={!!problem || busy || (!first && !changed)} onClick={() => void save()}>
+              {first ? t('Set up in Square') : t('Save')}
+            </Button>
+          </Box>
+        </Stack>
+      </CardContent>
+    </Card>
+  )
+}
+
+function Club({ state: s }: { state: CoffeeClubState }) {
+  const club = s.club!
+  const totals = clubTotals(s, today().slice(0, 7))
+  const problems = s.coffees.filter(c => c.problem && !c.sorted_at)
+  return (
+    <>
+      <StatGrid>
+        <StatTile label={t('Members')} value={totals.members} note={t('{money} a month', { money: formatMoney(totals.monthly) })} />
+        <StatTile label={t('Coffees this week')} value={totals.week} note={t('{n} a week each', { n: club.coffees_per_week })} />
+        <StatTile label={t('Coffees this month')} value={totals.month_coffees} note={t('{money} at till prices', { money: formatMoney(totals.month_value) })} />
+      </StatGrid>
+      {problems.length > 0 && <Problems coffees={problems} />}
+      <SignUp url={club.signup_url} />
+      <AtTheTill name={club.name} />
+      <Members members={s.members} perWeek={club.coffees_per_week} />
+      <Latest coffees={s.coffees.filter(c => !c.problem || c.sorted_at).slice(0, 15)} />
+      <ClubForm key={JSON.stringify(club)} initial={{
+        name: club.name, price: club.price, coffees_per_week: club.coffees_per_week, max_value: club.max_value, till_language: club.till_language, selling: club.selling,
+      }} />
+    </>
+  )
+}
+
+/** Coffees given with the club's discount that didn't count, for an admin to look at and mark sorted. */
+function Problems({ coffees }: { coffees: ClubCoffee[] }) {
+  const { api } = useApp()
+  const run = useAction()
+  return (
+    <Card component="section" aria-label={t('Coffees to look at')} sx={{ mb: 3, borderColor: tokens.badFg }}>
+      <CardContent>
+        <SectionTitle>{t('Coffees to look at')}</SectionTitle>
+        <Typography variant="body2" sx={{ mb: 2, color: tokens.inkSoft }}>
+          {t('The club’s discount was used on these, but they couldn’t be counted as a member’s coffee. Check with the team, then mark each one sorted.')}
+        </Typography>
+        <Stack spacing={1.5} component="ul" sx={{ listStyle: 'none', p: 0, m: 0 }}>
+          {coffees.map(c => (
+            <Box component="li" key={c.id} sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+              <Box sx={{ flex: '1 1 240px', minWidth: 0 }}>
+                <Typography sx={{ fontWeight: 600 }}>{[when(c.at), c.item, c.name].filter(Boolean).join(' · ')}</Typography>
+                <Typography variant="body2" sx={{ color: tokens.inkSoft }}>{t(PROBLEM[c.problem!])}</Typography>
+              </Box>
+              <Button size="small" onClick={() => void run(() => api.sortClubCoffee(c.id), t('Marked sorted'))}>{t('Sorted')}</Button>
+            </Box>
+          ))}
+        </Stack>
+      </CardContent>
+    </Card>
+  )
+}
+
+/** The sign-up page: its link to copy or open, and its QR code for the counter. */
+function SignUp({ url }: { url: string | null }) {
+  const notify = useNotify()
+  const look = useQrLook()
+  return (
+    <Card component="section" aria-label={t('Sign-up page')} sx={{ mb: 3 }}>
+      <CardContent>
+        <SectionTitle>{t('Sign-up page')}</SectionTitle>
+        {url ? (
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3} sx={{ alignItems: { sm: 'center' } }}>
+            <Box sx={{ flexShrink: 0 }}>
+              <QrPicture payload={url} look={look({ dark_colour: null, light_colour: null, logo: true })} size={140} label={t('QR code for the sign-up page')} />
+            </Box>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ mb: 1 }}>{t('Customers join here and pay the first month; Square charges them every month after. Link to it from your website and print the QR code for the counter.')}</Typography>
+              <Link href={url} target="_blank" rel="noopener" sx={{ wordBreak: 'break-all' }}>{url}</Link>
+              <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
+                <Button size="small" startIcon={<CopyIcon />} onClick={() => void navigator.clipboard?.writeText(url).then(() => notify(t('Link copied'), 'success'))}>{t('Copy link')}</Button>
+                <Button size="small" startIcon={<OpenIcon />} href={url} target="_blank" rel="noopener">{t('Open')}</Button>
+              </Stack>
+            </Box>
+          </Stack>
+        ) : (
+          <Typography>{t('Not taking new members: the sign-up page is down. Members stay members. Switch it back on in the club settings below.')}</Typography>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+/** What the team does on the Square till, to show them. */
+function AtTheTill({ name }: { name: string }) {
+  return (
+    <Card component="section" aria-label={t('At the till')} sx={{ mb: 3 }}>
+      <CardContent>
+        <SectionTitle>{t('At the till')}</SectionTitle>
+        <Box component="ol" sx={{ pl: 2.5, m: 0, '& li': { mb: 0.75 } }}>
+          <li>{t('Ring up the order as usual.')}</li>
+          <li>{t('Tap Add customer and find the member by name (they can show their pass on your website, with their name on it).')}</li>
+          <li>{t('Read the first line of their note: it says whether this week’s coffee is still there to have.')}</li>
+          <li>{t('Apply the “{name}” discount to the drink, and charge anything else as usual.', { name })}</li>
+        </Box>
+        <Typography variant="body2" sx={{ mt: 1, color: tokens.inkSoft }}>
+          {t('The note changes within a minute of the sale, and every Monday for the new week.')}
+        </Typography>
+      </CardContent>
+    </Card>
+  )
+}
+
+function Members({ members, perWeek }: { members: ClubMember[]; perWeek: number }) {
+  const { api } = useApp()
+  const run = useAction()
+  const [ending, setEnding] = useState<ClubMember | null>(null)
+  const order: Standing[] = ['payment_failed', 'active', 'ending', 'pending', 'paused', 'ended']
+  const sorted = [...members].sort((a, b) => order.indexOf(standing(a)) - order.indexOf(standing(b)) || memberName(a).localeCompare(memberName(b)))
+  return (
+    <Card component="section" aria-label={t('Members')} sx={{ mb: 3 }}>
+      <CardContent>
+        <SectionTitle>{t('Members')}</SectionTitle>
+        {!members.length ? <Empty>{t('No members yet. Share the sign-up page: whoever joins shows here within a few minutes.')}</Empty> : (
+          <Box sx={{ overflowX: 'auto' }}>
+            <Table size="small" aria-label={t('Members')}>
+              <TableHead>
+                <TableRow>
+                  <TableCell>{t('Member')}</TableCell>
+                  <TableCell>{t('This week')}</TableCell>
+                  <TableCell sx={NOT_PHONE}>{t('Last coffee')}</TableCell>
+                  <TableCell sx={WIDE}>{t('Since')}</TableCell>
+                  <TableCell sx={WIDE}>{t('Coffees')}</TableCell>
+                  <TableCell />
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {sorted.map(m => {
+                  const st = standing(m), look = STANDING[st]
+                  return (
+                    <TableRow key={m.id}>
+                      <TableCell>
+                        <Typography sx={{ fontWeight: 600 }}>{memberName(m)}</Typography>
+                        <Stack direction="row" spacing={1} sx={{ mt: 0.5, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <Tag fg={look.fg} bg={look.bg}>{t(look.label)}</Tag>
+                          {st === 'ending' && <Typography variant="caption">{t('until {date}', { date: day(m.ends_on) })}</Typography>}
+                          {st === 'pending' && <Typography variant="caption">{t('from {date}', { date: day(m.started_on) })}</Typography>}
+                        </Stack>
+                      </TableCell>
+                      <TableCell>{st === 'ended' ? '–' : t('{used} of {n}', { used: m.used_this_week, n: perWeek })}</TableCell>
+                      <TableCell sx={NOT_PHONE}>{when(m.last_coffee)}</TableCell>
+                      <TableCell sx={WIDE}>{day(m.started_on)}</TableCell>
+                      <TableCell sx={WIDE}>{m.coffees}</TableCell>
+                      <TableCell align="right">
+                        {(st !== 'ended' && st !== 'ending') && (
+                          <Button size="small" color="error" onClick={() => setEnding(m)} aria-label={t('End {name}’s membership', { name: memberName(m) })}>{t('End')}</Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </Box>
+        )}
+      </CardContent>
+      <Dialog open={!!ending} onClose={() => setEnding(null)}>
+        <DialogTitle>{t('End {name}’s membership?', { name: ending ? memberName(ending) : '' })}</DialogTitle>
+        <DialogContent>
+          <DialogContentText>{t('Square stops charging them at the end of the month they’ve paid for, and their coffees count until then.')}</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEnding(null)}>{t('Keep it')}</Button>
+          <Button color="error" variant="contained" onClick={() => {
+            const m = ending!
+            setEnding(null)
+            void run(() => api.cancelClubMember(m.id), t('Membership ending'))
+          }}>{t('End membership')}</Button>
+        </DialogActions>
+      </Dialog>
+    </Card>
+  )
+}
+
+/** The latest coffees counted, newest first. */
+function Latest({ coffees }: { coffees: ClubCoffee[] }) {
+  if (!coffees.length) return null
+  return (
+    <Card component="section" aria-label={t('Latest coffees')} sx={{ mb: 3 }}>
+      <CardContent>
+        <SectionTitle>{t('Latest coffees')}</SectionTitle>
+        <Box sx={{ overflowX: 'auto' }}>
+          <Table size="small" aria-label={t('Latest coffees')}>
+            <TableHead>
+              <TableRow>
+                <TableCell>{t('When')}</TableCell>
+                <TableCell>{t('Member')}</TableCell>
+                <TableCell sx={NOT_PHONE}>{t('Drink')}</TableCell>
+                <TableCell align="right" sx={NOT_PHONE}>{t('Value')}</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {coffees.map(c => (
+                <TableRow key={c.id}>
+                  <TableCell>{when(c.at)}</TableCell>
+                  <TableCell>{c.name ?? '–'}</TableCell>
+                  <TableCell sx={NOT_PHONE}>{c.item ?? '–'}{c.quantity > 1 ? ` × ${c.quantity}` : ''}</TableCell>
+                  <TableCell align="right" sx={NOT_PHONE}>{formatMoney(c.value)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Box>
+      </CardContent>
+    </Card>
+  )
+}
