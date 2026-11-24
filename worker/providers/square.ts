@@ -15,7 +15,9 @@ import type { MemberTips } from '../../shared/tips'
 import { hmacBase64, safeEqual } from '../crypto'
 
 export const SQUARE_SCOPES = ['MERCHANT_PROFILE_READ', 'PAYMENTS_READ', 'ORDERS_READ', 'CUSTOMERS_READ', 'CUSTOMERS_WRITE',
-  'LOYALTY_READ', 'LOYALTY_WRITE', 'GIFTCARDS_READ', 'GIFTCARDS_WRITE', 'ITEMS_READ', 'EMPLOYEES_READ', 'EMPLOYEES_WRITE', 'ITEMS_WRITE']
+  'LOYALTY_READ', 'LOYALTY_WRITE', 'GIFTCARDS_READ', 'GIFTCARDS_WRITE', 'ITEMS_READ', 'EMPLOYEES_READ', 'EMPLOYEES_WRITE', 'ITEMS_WRITE',
+  // The coffee club (worker/providers/squareClub.ts): its subscriptions and their invoices, and the checkout page people join on.
+  'SUBSCRIPTIONS_READ', 'SUBSCRIPTIONS_WRITE', 'INVOICES_READ', 'ORDERS_WRITE', 'PAYMENTS_WRITE']
 const VERSION = '2025-01-23'
 
 export interface SquareOAuthConfig { appId: string; appSecret: string; redirectUri: string; sandbox: boolean }
@@ -47,9 +49,9 @@ export const refreshAccess = (cfg: SquareOAuthConfig, refreshToken: string) => t
 /** A Square API error; `code` is Square's (e.g. INSUFFICIENT_SCOPES), `status` the HTTP status. */
 export class SquareError extends Error { constructor(message: string, readonly code?: string, readonly status?: number) { super(message) } }
 
-async function api<T>(sandbox: boolean, accessToken: string, path: string, body?: unknown): Promise<T> {
+async function api<T>(sandbox: boolean, accessToken: string, path: string, body?: unknown, verb?: 'PUT' | 'DELETE'): Promise<T> {
   const res = await fetch(`${base(sandbox)}${path}`, {
-    method: body ? 'POST' : 'GET',
+    method: verb ?? (body ? 'POST' : 'GET'),
     headers: { authorization: `Bearer ${accessToken}`, 'Square-Version': VERSION, accept: 'application/json', ...(body ? { 'content-type': 'application/json' } : {}) },
     ...(body ? { body: JSON.stringify(body) } : {}),
   })
@@ -61,7 +63,7 @@ async function api<T>(sandbox: boolean, accessToken: string, path: string, body?
   return json
 }
 
-/** Square's API for the other Square modules (loyalty and gift cards): GET, or POST with a body. */
+/** Square's API for the other Square modules (loyalty and gift cards, the coffee club): GET, or POST with a body (PUT or DELETE when said). */
 export const squareApi = api
 
 /**

@@ -325,6 +325,21 @@ export class FakeProviders {
       { closed_at: '2026-09-28T12:00:00Z', line_items: [{ name: 'Flat White', variation_name: 'Regular', quantity: '1', gross_sales_money: { amount: 320 } }] },
       { closed_at: '2026-10-02T12:00:00Z', line_items: [{ name: 'Açaí Bowl', quantity: '1', gross_sales_money: { amount: 850 } }] },
     ],
+    /**
+     * The coffee club (worker/coffeeClub.ts). `clubScope: false` is a connection made before subscriptions were asked
+     * for. What the app made in the catalog (by id, with the idempotency keys seen), its checkout pages, the club's
+     * subscriptions and their invoices, sales with the club's discount (by id, and in the sales search) and
+     * customers' notes (with how often one was written).
+     */
+    clubScope: true,
+    catalogObjects: [] as { id: string; type: string; version: number; [k: string]: unknown }[],
+    catalogKeys: new Map<string, string>(),
+    links: [] as { id: string; url: string; deleted: boolean; request: Record<string, unknown> }[],
+    subscriptions: [] as { id: string; [k: string]: unknown }[],
+    invoices: [] as { id: string; [k: string]: unknown }[],
+    clubOrders: [] as { id: string; closed_at: string; [k: string]: unknown }[],
+    notes: new Map<string, { note: string; version: number }>(),
+    noteWrites: 0,
   }
   stripe = {
     revoked: false,
@@ -383,6 +398,87 @@ export class FakeProviders {
   /** Every call, as "METHOD host/path". */
   calls: string[] = []
   private nextId = 1
+
+  /** Square's catalog, checkout pages, subscriptions, invoices, single orders and customer notes, for the coffee club. */
+  private squareClub(url: URL, method: string, body: () => Record<string, unknown>): Response | null {
+    const sq = this.square
+    const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'content-type': 'application/json' } })
+    const notFound = (what: string) => json({ errors: [{ category: 'INVALID_REQUEST_ERROR', code: 'NOT_FOUND', detail: `${what} not found` }] }, 404)
+    const scopeless = () => json({ errors: [{ category: 'AUTHENTICATION_ERROR', code: 'INSUFFICIENT_SCOPES', detail: 'The merchant has not granted SUBSCRIPTIONS_READ' }] }, 403)
+    const p = url.pathname
+    const clubPath = p === '/v2/catalog/object' || p.startsWith('/v2/catalog/object/') || p.startsWith('/v2/online-checkout/') || p.startsWith('/v2/subscriptions') || p === '/v2/invoices'
+    if (clubPath && !sq.clubScope) return scopeless()
+    if (p === '/v2/catalog/object' && method === 'POST') {
+      const b = body() as { idempotency_key: string; object: { id: string; type: string; version?: number; [k: string]: unknown } }
+      const seen = sq.catalogKeys.get(b.idempotency_key)
+      if (seen) return json({ catalog_object: sq.catalogObjects.find(o => o.id === seen) })
+      let o = sq.catalogObjects.find(x => x.id === b.object.id)
+      if (o) {
+        if (b.object.version !== o.version) return json({ errors: [{ category: 'INVALID_REQUEST_ERROR', code: 'VERSION_MISMATCH', detail: 'Object version does not match' }] }, 400)
+        Object.assign(o, b.object, { version: o.version + 1 })
+      } else {
+        o = { ...b.object, id: `CAT-${this.nextId++}`, version: 1 }
+        sq.catalogObjects.push(o)
+      }
+      sq.catalogKeys.set(b.idempotency_key, o.id)
+      return json({ catalog_object: o })
+    }
+    const object = p.match(/^\/v2\/catalog\/object\/([^/]+)$/)
+    if (object && method === 'GET') {
+      const o = sq.catalogObjects.find(x => x.id === decodeURIComponent(object[1]))
+      return o ? json({ object: o }) : notFound('Catalog object')
+    }
+    if (p === '/v2/online-checkout/payment-links' && method === 'POST') {
+      const b = body() as { idempotency_key: string }
+      const kept = sq.links.find(l => l.request.idempotency_key === b.idempotency_key)
+      const link = kept ?? { id: `PL-${this.nextId++}`, url: `https://square.link/u/club${this.nextId}`, deleted: false, request: b }
+      if (!kept) sq.links.push(link)
+      return json({ payment_link: { id: link.id, url: link.url } })
+    }
+    const link = p.match(/^\/v2\/online-checkout\/payment-links\/([^/]+)$/)
+    if (link && method === 'DELETE') {
+      const l = sq.links.find(x => x.id === decodeURIComponent(link[1]) && !x.deleted)
+      if (!l) return notFound('Payment link')
+      l.deleted = true
+      return json({ id: l.id })
+    }
+    if (p === '/v2/subscriptions/search' && method === 'POST') {
+      const ids = (body() as { query?: { filter?: { location_ids?: string[] } } }).query?.filter?.location_ids
+      return json({ subscriptions: sq.subscriptions.filter(x => !ids || ids.includes(String(x.location_id))) })
+    }
+    const sub = p.match(/^\/v2\/subscriptions\/([^/]+)(\/cancel)?$/)
+    if (sub) {
+      const x = sq.subscriptions.find(y => y.id === decodeURIComponent(sub[1]))
+      if (!x) return notFound('Subscription')
+      if (sub[2] && method === 'POST') x.canceled_date = x.charged_through_date ?? '2026-12-01'
+      return json({ subscription: x })
+    }
+    if (p === '/v2/invoices' && method === 'GET') return json({ invoices: sq.invoices.filter(i => i.location_id === url.searchParams.get('location_id')) })
+    if (p === '/v2/orders/search' && method === 'POST' && sq.clubOrders.length) {
+      const { start_at, end_at } = (body() as { query: { filter: { date_time_filter: { closed_at: { start_at: string; end_at: string } } } } }).query.filter.date_time_filter.closed_at
+      return json({ orders: [...sq.orders, ...sq.clubOrders].filter(o => o.closed_at >= start_at && o.closed_at < end_at) })
+    }
+    const order = p.match(/^\/v2\/orders\/([^/]+)$/)
+    if (order && method === 'GET' && order[1] !== 'search') {
+      const o = sq.clubOrders.find(x => x.id === decodeURIComponent(order[1]))
+      return o ? json({ order: o }) : notFound('Order')
+    }
+    const customer = p.match(/^\/v2\/customers\/([^/]+)$/)
+    if (customer && (method === 'GET' || method === 'PUT') && customer[1] !== 'search') {
+      const id = decodeURIComponent(customer[1])
+      const known = sq.customers.find(c => c.id === id)
+      const kept = sq.notes.get(id) ?? (known ? { note: known.note ?? '', version: 1 } : null)
+      if (!kept) return notFound('Customer')
+      if (method === 'PUT') {
+        const b = body() as { note: string; version?: number }
+        if (b.version !== undefined && b.version !== kept.version) return json({ errors: [{ category: 'INVALID_REQUEST_ERROR', code: 'CONFLICT', detail: 'Version mismatch' }] }, 409)
+        sq.noteWrites++
+        sq.notes.set(id, { note: b.note, version: kept.version + 1 })
+      } else sq.notes.set(id, kept)
+      return json({ customer: { ...known, id, note: sq.notes.get(id)!.note, version: sq.notes.get(id)!.version } })
+    }
+    return null
+  }
 
   handle(input: string, init: RequestInit = {}): Response | null {
     const url = new URL(input)
@@ -1198,6 +1294,9 @@ export class FakeProviders {
           return m ? json({ team_member: m }) : json({ errors: [{ category: 'INVALID_REQUEST_ERROR', code: 'NOT_FOUND', detail: 'Team member not found' }] }, 404)
         }
       }
+      // The coffee club's Square (worker/providers/squareClub.ts).
+      const club = this.squareClub(url, method, body)
+      if (club) return club
       if (url.pathname === '/v2/orders/search' && method === 'POST') {
         if (!this.square.ordersScope) return json({ errors: [{ category: 'AUTHENTICATION_ERROR', code: 'INSUFFICIENT_SCOPES', detail: 'The merchant has not granted ORDERS_READ' }] }, 403)
         const q = body() as { query: { filter: { date_time_filter: { closed_at: { start_at: string; end_at: string } } } } }

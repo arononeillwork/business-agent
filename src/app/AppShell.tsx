@@ -11,6 +11,7 @@ import PeopleIcon from '@mui/icons-material/AccountTreeOutlined'
 import BusinessIcon from '@mui/icons-material/StorefrontOutlined'
 import CustomersIcon from '@mui/icons-material/ContactsOutlined'
 import LoyaltyIcon from '@mui/icons-material/LoyaltyOutlined'
+import CoffeeClubIcon from '@mui/icons-material/CardMembershipOutlined'
 import StockIcon from '@mui/icons-material/Inventory2Outlined'
 import SuppliersIcon from '@mui/icons-material/LocalShippingOutlined'
 import WholesaleIcon from '@mui/icons-material/WarehouseOutlined'
@@ -170,6 +171,7 @@ export const SECTIONS: NavSection[] = [
     { key: 'customers', to: '/customers', label: msg('Customers'), icon: <CustomersIcon />, who: 'admin' },
     { key: 'leads', to: '/leads', label: msg('Leads & enquiries'), short: msg('Leads'), icon: <LeadsIcon />, who: 'admin' },
     { key: 'loyalty', to: '/loyalty', label: msg('Loyalty & gift cards'), short: msg('Loyalty'), icon: <LoyaltyIcon />, who: 'admin', needs: 'square' },
+    ...(FEATURES.coffeeClub ? [{ key: 'coffee-club', to: '/coffee-club', label: msg('Coffee club'), short: msg('Club'), icon: <CoffeeClubIcon />, who: 'admin' as const, needs: 'square' as const }] : []),
     { key: 'reps', to: '/sales-reps', label: msg('Reps & rewards'), short: msg('Reps'), icon: <RepsIcon /> },
   ] },
   // The menu as customers see it (everyone reads it; admins design the printed and screen menus),

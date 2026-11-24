@@ -34,6 +34,7 @@ import { reports } from './reports'
 import { sendDueReports } from './reportSchedules'
 import { serveVideo } from './video'
 import { loyaltyRoutes } from './loyalty'
+import { coffeeClubRoutes, syncCoffeeClub } from './coffeeClub'
 import { leaderboard } from './leaderboard'
 import { squarePins } from './squarePins'
 import { assistant } from './assistant'
@@ -313,6 +314,8 @@ app.route('/', email)
 app.route('/', reports)
 // Square loyalty (the stamp card) and gift cards, for the Loyalty page.
 app.route('/', loyaltyRoutes)
+// The coffee club: a monthly membership on Square, its coffees counted here (Coffee club page).
+app.route('/', coffeeClubRoutes)
 // Leaderboard: who sold most at the till (Square), and each person's own Square login (Team page).
 app.route('/', leaderboard)
 // Square PINs on the Leaderboard: owners see everyone's, everyone else only their own.
@@ -579,6 +582,9 @@ export default {
         // Every 15 minutes: customers' credit (Sales reps & rewards) onto their gift card on Square, and what
         // they spent with it at the till back (worker/squareReps.ts).
         if (now.has('reps')) await syncRepsToSquare(env, b).catch(failed('square reps', id))
+        // Every 15 minutes: the coffee club's members and the sales its discount was used on, in case Square's
+        // webhook was missed, and what's left this week onto members' notes on the till (worker/coffeeClub.ts).
+        if (now.has('club')) await syncCoffeeClub(env, b).catch(failed('coffee club', id))
         // Every hour (or as the business chose): the menu from the Square item library, when that's where it
         // comes from, in case a webhook from Square was missed.
         if (now.has('menu')) await syncSquareMenuIfChosen(env, b)

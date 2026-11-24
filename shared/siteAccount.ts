@@ -4,6 +4,7 @@
 // page (the site_accounts migration's site_account_summary()); how a post earns cashback is the café's
 // rates (shared/cashback.ts). The contract only grows: fields are added, never renamed or removed.
 import { earnsCredit, reachMultiplier, reachTier, type ReachTierId, type RepKind, type RewardStatus } from './reps'
+import type { Standing } from './coffeeClub'
 
 /** POST /account/sync: who they are here. */
 export interface SiteAccountSync {
@@ -69,6 +70,34 @@ export interface SiteAccountSummary {
   credit?: SiteCredit | null
   cashback?: SiteCashback | null
   rep?: SiteRep | null
+  /** Only when the business has a coffee club. */
+  club?: SiteClub
+}
+
+/**
+ * The coffee club on someone's account page (shared/coffeeClub.ts): what it is, how to join, and their pass, which
+ * they can show at the counter.
+ */
+export interface SiteClub {
+  name: string
+  /** A month. */
+  price: number
+  currency: string
+  coffees_per_week: number
+  /** Square's checkout page to join; null when they're a member already, or the business isn't taking members. */
+  join_url: string | null
+  /** Their membership (null: not a member, or it has ended). */
+  pass: {
+    standing: Exclude<Standing, 'ended'>
+    used_this_week: number
+    /** Coffees still to have this week; 0 unless the membership is active and paid. */
+    left_this_week: number
+    /** This week's Monday: a new week's coffees start then. */
+    week_start: string
+    started_on: string | null
+    /** The last day a cancelled membership runs. */
+    ends_on: string | null
+  } | null
 }
 
 /** POST /account/erase. kept: "ledger" when their ledger lines stay (blanked), null when they're gone. */
@@ -86,7 +115,7 @@ export interface SummaryRow {
 const num = (v: unknown) => Math.round(Number(v ?? 0) * 100) / 100
 
 /** The summary the website gets: the database's, with the points and the rep's reach step in words. Never the Square id. */
-export function siteSummary(row: SummaryRow, points: SitePoints | null): SiteAccountSummary {
+export function siteSummary(row: SummaryRow, points: SitePoints | null, club?: SiteClub): SiteAccountSummary {
   if (!row.customer) return { customer: null }
   const credit = row.credit ? {
     balance: num(row.credit.balance), pending: num(row.credit.pending), gift_card_linked: !!row.credit.gift_card_linked,
@@ -103,5 +132,5 @@ export function siteSummary(row: SummaryRow, points: SitePoints | null): SiteAcc
     reach_step: step.label, reach_step_id: step.id, multiplier: r.boost_by_reach ? reachMultiplier(r.reach) : 1,
     crew: { leads: Number(r.crew_members) > 0, members: Number(r.crew_members ?? 0) }, this_month: num(r.this_month),
   } : null
-  return { customer: { id: row.customer.id, first_name: row.customer.first_name ?? null }, points, credit, cashback, rep }
+  return { customer: { id: row.customer.id, first_name: row.customer.first_name ?? null }, points, credit, cashback, rep, ...(club ? { club } : {}) }
 }

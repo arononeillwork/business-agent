@@ -73,6 +73,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'to do', files: [/TodoPage/, /TodoBoard/, /shared\/todo/], tests: String.raw`To Do|job|categor` },
   { name: 'customers', files: [/CustomersPage/, /shared\/customers/], tests: String.raw`customers|leads` },
   { name: 'loyalty', files: [/LoyaltyPage/, /shared\/loyalty/, /app\/connected/], tests: String.raw`loyalty|stamp|gift card` },
+  { name: 'coffee club', files: [/CoffeeClubPage/, /shared\/coffeeClub/, /i18n\/es\/coffeeClub/], tests: String.raw`coffee club` },
   { name: 'stock', files: [/(Stock|Suppliers|Wholesale)Page/, /shared\/stock/], tests: String.raw`stock|supplier|order list|wholesale|price list` },
   { name: 'recipes', files: [/(Recipes|Waste)Page/, /shared\/recipes/], tests: String.raw`recipe|margin|waste` },
   { name: 'menu and screens', files: [/(Menu|MenuPrint|Screens|Display)Page/, /pages\/menu\//, /components\/(MenuBoard|ScreenPlayer|AiImages)/, /lib\/googleFont/,

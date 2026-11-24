@@ -78,6 +78,7 @@ const TodoPage = page(() => import('./pages/TodoPage'), 'TodoPage')
 const IdeasPage = page(() => import('./pages/IdeasPage'), 'IdeasPage')
 const CustomersPage = page(() => import('./pages/CustomersPage'), 'CustomersPage')
 const LoyaltyPage = page(() => import('./pages/LoyaltyPage'), 'LoyaltyPage')
+const CoffeeClubPage = page(() => import('./pages/CoffeeClubPage'), 'CoffeeClubPage')
 const SalesRepsPage = page(() => import('./pages/SalesRepsPage'), 'SalesRepsPage')
 const RepCardsPage = page(() => import('./pages/RepCardsPage'), 'RepCardsPage')
 const KittyPage = page(() => import('./pages/KittyPage'), 'KittyPage')
@@ -251,6 +252,7 @@ function Routed() {
         <Route path="suggestions" element={<SuggestionsPage />} />
         {/* Only while Square is the till: the page itself goes to Connections otherwise. */}
         <Route path="loyalty" element={isAdmin ? <LoyaltyPage /> : <Navigate to="/" />} />
+        {FEATURES.coffeeClub && <Route path="coffee-club" element={isAdmin ? <CoffeeClubPage /> : <Navigate to="/" />} />}
         <Route path="sales-reps" element={<SalesRepsPage />} />
         <Route path="stock" element={<StockPage />} />
         <Route path="wholesale" element={isAdmin ? <WholesalePage /> : <Navigate to="/" />} />

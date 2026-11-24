@@ -13,6 +13,8 @@ export const FEATURES = {
   square: true,
   /** Tips (Team): shares of the tips by hours worked. */
   tips: true,
+  /** The coffee club (Sales): a monthly membership on Square worth free coffees a week, counted by the app (worker/coffeeClub.ts). */
+  coffeeClub: true,
   /** Music on stories and reels (Social planner), AI tracks paid per use, the brand's sound and the assistant's music tools. Waits for the ElevenLabs key and the render service (docs/SOCIAL_MUSIC_PLAN.md). */
   music: false,
   /** The demo video on the landing page (video/). */

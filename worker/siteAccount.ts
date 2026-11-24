@@ -1,7 +1,7 @@
 // Accounts & rewards on the business's own website (docs/WEBSITE.md → Accounts & rewards). Someone who
 // signs in there is a customer here, and the website's account page reads what they have from the app:
 //   POST /api/site/<business>/account/sync      find or make the customer (as the Square sync matches)
-//   POST /api/site/<business>/account/summary   their points (Square Loyalty, read here), credit, cashback, rep
+//   POST /api/site/<business>/account/summary   their points (Square Loyalty, read here), credit, cashback, rep, coffee club pass
 //   POST /api/site/<business>/account/erase     erase them (GDPR), from the website's "delete my account"
 // The work is in the site_accounts migration's functions; this checks who's asking and adds the points.
 //
@@ -22,7 +22,8 @@ import * as loyalty from './providers/squareLoyalty'
 import { reportError } from './errors'
 import { cleanPhone } from '../shared/customers'
 import { splitName } from '../shared/newsletter'
-import { siteSummary, type SiteAccountErase, type SiteAccountSync, type SitePoints, type SummaryRow } from '../shared/siteAccount'
+import { siteSummary, type SiteAccountErase, type SiteAccountSync, type SiteClub, type SitePoints, type SummaryRow } from '../shared/siteAccount'
+import { siteClub } from './coffeeClub'
 import type { LoyaltyProgram } from '../shared/loyalty'
 
 export const siteAccount = new Hono<{ Bindings: Env }>()
@@ -167,7 +168,15 @@ siteAccount.post('/api/site/:business/account/summary', async c => {
     await failed(c.env, g.business, 'points', e)
     return c.json(UNAVAILABLE, 503, HEADERS)
   }
-  return c.json(siteSummary(row, points), 200, HEADERS)
+  // Their coffee club pass, when the business has a club (worker/coffeeClub.ts).
+  let club: SiteClub | undefined
+  try {
+    club = await siteClub(g.db, row.customer.id, row.square_customer_id ?? null)
+  } catch (e) {
+    await failed(c.env, g.business, 'coffee club', e)
+    return c.json(UNAVAILABLE, 503, HEADERS)
+  }
+  return c.json(siteSummary(row, points, club), 200, HEADERS)
 })
 
 // Erase them: from the website's "delete my account".

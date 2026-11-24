@@ -1040,6 +1040,28 @@ the ones that can be spent, with what's still owed on them (a liability) at the 
 asks Square for that one card's whole number when pressed (`GET /api/giftcards/:id/number`); lists
 and `provider_cache` only ever hold the last 4 digits (`worker/loyalty.ts`, `worker/providers/squareLoyalty.ts`).
 
+## Coffee club
+
+**Coffee club** (Sales, admins, with Square as the till) sells a monthly membership worth so many free coffees a
+week, €10 a month for one a week to start with. Square takes the money and the app counts the coffees, so it needs
+neither Square Loyalty nor Square Online:
+
+- **Set up** makes it in Square: a subscription plan at one flat monthly price, the club's discount on the till
+  (the whole drink, up to the most set) and Square's checkout page people join on, shown with a QR code for the
+  counter. A new price makes a new checkout page; members keep the price they joined at.
+- **At the till** the team adds the member to the sale and applies the club's discount to the drink. The app reads
+  the sale (Square's order webhook, and every 15 minutes in case one was missed), counts it against the member's
+  week (Monday to Sunday) and writes the first line of their Square customer note, which the till shows: "this
+  week's coffee is ready", "used", or "the last payment failed". The team's own note lines stay.
+- **Coffees to look at** lists any the discount was used on that couldn't count: nobody added to the sale, not a
+  member, a payment that failed, or the week's coffees already had. **Members** shows each one's week, and ends a
+  membership (Square stops at the end of the month paid for).
+- Members see their pass on the business's website (`club` in the account summary, docs/WEBSITE.md).
+
+`worker/coffeeClub.ts`, `worker/providers/squareClub.ts`, `shared/coffeeClub.ts`, the coffee_club migration. It
+needs Square's subscriptions, invoices and checkout permissions: a business connected before them connects Square
+again (the page says so).
+
 ## Use it from any AI
 
 The app is an MCP server at `https://<worker-url>/mcp`. Each person connects their own AI and it

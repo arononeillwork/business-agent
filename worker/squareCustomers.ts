@@ -13,6 +13,7 @@ import * as square from './providers/square'
 import { setIntegration, squareSession } from './connections'
 import { EMAIL, cleanDate, cleanPhone } from '../shared/customers'
 import type { Customer, CustomerInput } from '../shared/types'
+import { withoutNoteLine } from '../shared/coffeeClub'
 
 type Row = Pick<Customer, 'id' | 'first_name' | 'last_name' | 'email' | 'phone' | 'company' | 'birthday' | 'notes' | 'instagram' | 'source'> & { square_id: string | null }
 type Incoming = CustomerInput & { square_id: string }
@@ -44,7 +45,8 @@ export function fromSquare(c: square.SquareCustomer): Incoming | null {
     phone: c.phone_number ? cleanPhone(c.phone_number) : null,
     // "0000-05-14": Square wasn't told the year, and a birthday here needs one.
     birthday: c.birthday ? cleanDate(c.birthday) : null,
-    notes: text(c.note, 2000),
+    // Without the coffee club's line, which the app writes there for the till (worker/coffeeClub.ts).
+    notes: text(withoutNoteLine(c.note), 2000),
   }
   return r.first_name || r.last_name || r.email || r.phone ? r : null
 }
@@ -132,4 +134,10 @@ export async function squareCustomerEvent(db: SupabaseClient, event: square.Squa
   if (row?.status !== 'connected' || (row.external as { merchant_id?: string } | null)?.merchant_id !== event.merchant_id) return false
   const one = fromSquare(customer)
   return one ? (await save(db, [one])) > 0 : false
+}
+
+/** One Square customer into Customers now (a coffee club member who just joined): added, or their gaps filled. */
+export async function importSquareCustomer(db: SupabaseClient, customer: square.SquareCustomer) {
+  const one = fromSquare(customer)
+  return one ? save(db, [one]) : 0
 }

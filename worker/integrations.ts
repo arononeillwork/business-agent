@@ -17,6 +17,7 @@ import * as facebook from './providers/facebook'
 import * as tiktok from './providers/tiktok'
 import * as square from './providers/square'
 import { squareCustomerEvent, syncSquareCustomers } from './squareCustomers'
+import { CLUB_EVENTS, coffeeClubEvent, type SquareClubEvent } from './coffeeClub'
 import { syncSquareMenuIfChosen } from './menu'
 import { cached, oldest } from './cache'
 import * as stripe from './providers/stripe'
@@ -1625,6 +1626,7 @@ integrations.get('/media/*', async c => {
 // Square webhook: a customer added or changed in Square comes into Customers straight away, and a
 // change to the item library (catalog.version.updated) is read into the menu straight away, so the
 // website, the screens and Google Maps follow it (for a business whose menu comes from Square).
+// The coffee club's events (sales, subscriptions, their invoices) go to worker/coffeeClub.ts.
 // Signed with the subscription's signature key over the notification URL as registered in Square.
 integrations.post('/api/webhooks/square', async c => {
   const raw = await c.req.text()
@@ -1641,6 +1643,8 @@ integrations.post('/api/webhooks/square', async c => {
     for (const r of rows ?? []) {
       const db = businessDb(c.env, r.business_id as number)
       if (event.type === square.CATALOG_UPDATED) await syncSquareMenuIfChosen(c.env, db)
+      // The coffee club: a sale its discount was used on, a member joining or changing, a month's charge.
+      else if (CLUB_EVENTS.includes(event.type ?? '')) await coffeeClubEvent(c.env, db, event as SquareClubEvent)
       else await squareCustomerEvent(db, event)
     }
   })().catch(e => console.error('square webhook failed', event.type, e)))
