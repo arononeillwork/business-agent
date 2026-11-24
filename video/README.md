@@ -286,6 +286,37 @@ npm run render:rota && npm run web:rota
 
 Everything is made here from scratch, so it can be made again whenever the app changes, and in Spanish.
 
+## Month end without the spreadsheet.
+
+The twelfth video (`public/video/hours.mp4`, 96 seconds, `HoursVideo` in `src/hours/`), played on the Sales page's
+"Adding up hours and tips" card (`/sell/cafes`): staff clock in on their phone, the hours add themselves up, and the tips
+left at the till come in from Square and are shared out by hours worked. Easy Beans in demo mode, the last week of
+November 2026; its team member Julio is shown as Sam throughout.
+
+| Time | Scene | What it shows |
+|---|---|---|
+| 0:00 | The title | "Month end without the spreadsheet." |
+| 0:04 | Month end by hand | A paper timesheet added up and its totals crossed out; the tip jar, "€64,80 in the jar", "+ the card tips?", "÷ hours??" |
+| 0:16 | 1 Clock in | Maria's phone on Thursday morning: clocked in; after her shift, clocked out, and the day's hours |
+| 0:30 | 2 The hours | Sunday evening, the week's Timecards added up; Maria's correction approved in one press, her week with it; the week approved and saved to Google Drive for payroll |
+| 0:52 | 3 The tips | Monday morning, last week's card tips in from Square by who took each payment; "Share out tips": the jar's cash, the till's card tips in one press, shared out by hours worked |
+| 1:16 | Already done | Maria's share on her phone, as the app's bell words it, and what the owner gets |
+| 1:28 | The close | The brand |
+
+The app's scenes are recorded by `capture/hours.mjs`, each at its own moment of that week (the demo makes its timecards
+from the rota for last week and this one). Square and Google Drive are connected off camera; for the tips, the demo's
+own ready-made tips for that week are taken off first and "Only tips from days above breakeven" switched off, so the
+film shares them out from the start. Between clocking in and out the page's clock is moved on five hours (a cut in the
+film). The capture keeps the shares the app worked out (`public/clips/hours-shares.json`) for the drawn phone at the
+end. Julio's name is swapped for Sam on screen while recording. The timesheet, the tip jar and the phone at the end are
+drawn. Its music is `music/hours.py`.
+
+```bash
+npm run capture:hours                # the app's scenes for it (the dev server running)
+npm run music:hours
+npm run render:hours && npm run web:hours
+```
+
 ## How it's made
 
 1. **Recordings** (`capture/`): Playwright drives the app in demo mode (the Easy Beans sample data, the

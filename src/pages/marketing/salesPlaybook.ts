@@ -124,6 +124,7 @@ const CAFES: PainPoint[] = [
     fix: msg('Staff clock in on their phone. The hours add themselves up, and the tips left at the till come in from Square and are shared by hours worked.'),
     result: msg('Payroll hours ready at month end, and no arguments about the tips.'),
     video: msg('Month end without the spreadsheet'),
+    film: { src: '/video/hours.mp4', poster: '/video/hours.jpg' },
   },
   {
     id: 'registro', wins: ['legal', 'time'], pages: [msg('Timecards')],
