@@ -23,7 +23,7 @@ const branch = {
   '& > li:last-of-type::after': { bottom: 'auto', height: '1.1em' },
 } as const
 
-export function SalesTree({ board, today, onOpen }: { board: SalesBoard; today: string; onOpen: (p: Prospect) => void }) {
+export function SalesTree({ board, today, onOpen, busyOnly = false }: { board: SalesBoard; today: string; onOpen: (p: Prospect) => void; busyOnly?: boolean }) {
   // Everyone starts open; a salesperson folds away with a press on their name.
   const [closed, setClosed] = useState<Set<string>>(new Set())
   const toggle = (key: string) => setClosed(x => {
@@ -33,7 +33,7 @@ export function SalesTree({ board, today, onOpen }: { board: SalesBoard; today: 
   })
   return (
     <Box component="ul" aria-label={t('Sales team, by kind of business')} sx={{ listStyle: 'none', p: 0, m: 0, display: 'grid', gap: 1.5 }}>
-      {salesTree(board).map(({ member, total, kinds }) => {
+      {salesTree(board, busyOnly).map(({ member, total, kinds }) => {
         const key = member?.id ?? 'nobody'
         const name = member ? member.name : t('Nobody’s yet')
         const open = !closed.has(key)

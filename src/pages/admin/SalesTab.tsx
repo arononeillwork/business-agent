@@ -55,6 +55,8 @@ export function SalesTab() {
     prospects: data.prospects.filter(p => (!country || p.country === country) && (show === 'all' || (p.kind ?? 'customer') === show)
       && (type === 'all' || businessTypeOf(p) === type)),
   }, [data, country, show, type])
+  // Filtered, the board shows only the salespeople with a business there.
+  const filtered = !!country || show !== 'all' || type !== 'all'
 
   const move = (p: Prospect, to: Spot) => {
     const who = data?.team.find(m => m.id === to.member_id)?.name
@@ -99,10 +101,12 @@ export function SalesTab() {
           </Stack>
           {data.team.length === 0 && data.prospects.length === 0
             ? <Alert severity="info" action={<Button onClick={() => navigate('/admin/settings')}>{t('Add someone')}</Button>}>{t('Nobody on the sales team yet.')}</Alert>
+            : filtered && shown.prospects.length === 0
+              ? <Alert severity="info">{t('No businesses on the board for that.')}</Alert>
             : view === 'tree'
-              ? <SalesTree board={shown} today={now} onOpen={setOpened} />
+              ? <SalesTree board={shown} today={now} onOpen={setOpened} busyOnly={filtered} />
               : <SalesTeamBoard board={shown} today={now} onMove={(p, to) => void move(p, to)} onEdit={p => setEditing(p)} onOpen={setOpened}
-                  onAdd={m => setEditing(blank(m))} onRemove={setRemoving} />}
+                  onAdd={m => setEditing(blank(m))} onRemove={setRemoving} busyOnly={filtered} />}
         </>
       )}
       {editing && data && <ProspectDialog start={editing} team={data.team} onClose={() => setEditing(null)} />}

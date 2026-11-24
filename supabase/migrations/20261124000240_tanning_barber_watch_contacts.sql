@@ -1,7 +1,7 @@
 -- More businesses on HQ's sales board (the admin area's Sales, /admin), each in its salesperson's lane, as
 -- the more_sales_contacts migration added others:
 --
---   Mark: The Tanning Suite in Marbella (something else: a tanning salon), Luna Watch (something else: a watch shop)
+--   Mark: The Tanning Suite in Marbella (random: a tanning salon), Luna Watch in Spain (random: a watch shop)
 --   Ryan: Uppercuts Barbers in Marbella (a barber)
 --
 -- Only rows, Business Agent HQ's own: nothing the live code reads differently. A contact already on the
@@ -20,7 +20,7 @@ begin
   for r in select * from (values
       ('Mark', 'The Tanning Suite', 'the_tanning_suite_marbella', 'Marbella', 'other', 'ES'),
       ('Ryan', 'Uppercuts Barbers', 'uppercutsbarbersmarbella', 'Marbella', 'barber', 'ES'),
-      ('Mark', 'Luna Watch', 'lunawatchstr', null, 'other', null)) c(who, name, instagram, town, business_type, country)
+      ('Mark', 'Luna Watch', 'lunawatchstr', null, 'other', 'ES')) c(who, name, instagram, town, business_type, country)
   loop
     if not exists (select 1 from public.sales_prospects
                     where business_id = v_hq and (instagram = r.instagram or public.sales_name_key(name) = public.sales_name_key(r.name))) then

@@ -35,7 +35,7 @@ export const BUSINESS_TYPES: { id: BusinessType; label: string; many: string }[]
   { id: 'bakery', label: msg('Bakery'), many: msg('Bakeries') }, { id: 'pub', label: msg('Pub'), many: msg('Pubs') },
   { id: 'barber', label: msg('Barber'), many: msg('Barbers') }, { id: 'garage', label: msg('Garage'), many: msg('Garages') },
   { id: 'construction', label: msg('Construction'), many: msg('Construction') }, { id: 'transport', label: msg('Transport'), many: msg('Transport') },
-  { id: 'financial', label: msg('Financial'), many: msg('Financial') }, { id: 'other', label: msg('Something else'), many: msg('Something else') },
+  { id: 'financial', label: msg('Financial'), many: msg('Financial') }, { id: 'other', label: msg('Random'), many: msg('Random') },
 ]
 export const isBusinessType = (v: unknown): v is BusinessType => BUSINESS_TYPES.some(x => x.id === v)
 /** A contact's kind of business (a café, when it was added before there were kinds). */
@@ -209,8 +209,9 @@ export function cleanProspect(input: Record<string, unknown>, isNew: boolean): {
 /** A salesperson's name, tidied; null when there isn't one. */
 export const cleanMemberName = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim().replace(/\s+/g, ' ').slice(0, 80) : null)
 
-/** The board's rows: a lane per salesperson in their order, then nobody's (only when it has any), a column per stage. */
-export function lanes(board: SalesBoard): { member: SalesMember | null; byStage: Record<ProspectStage, Prospect[]>; total: number }[] {
+/** The board's rows: a lane per salesperson in their order, then nobody's (only when it has any), a column per stage.
+ *  busyOnly: only the salespeople with a business there (when the board is filtered). */
+export function lanes(board: SalesBoard, busyOnly = false): { member: SalesMember | null; byStage: Record<ProspectStage, Prospect[]>; total: number }[] {
   const team = [...board.team].sort((a, b) => a.position - b.position || a.name.localeCompare(b.name))
   const known = new Set(team.map(m => m.id))
   const of = (id: string | null) => board.prospects.filter(p => (id === null ? !p.member_id || !known.has(p.member_id) : p.member_id === id))
@@ -220,7 +221,7 @@ export function lanes(board: SalesBoard): { member: SalesMember | null; byStage:
       mine.filter(p => p.stage === s.id).sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.name.localeCompare(b.name))])) as Record<ProspectStage, Prospect[]>
     return { member, byStage, total: mine.length }
   }
-  const out = team.map(lane)
+  const out = team.map(lane).filter(l => !busyOnly || l.total > 0)
   const nobody = lane(null)
   return nobody.total ? [...out, nobody] : out
 }
@@ -240,8 +241,8 @@ export function prospectError(message: string): string {
  * The tree view: each salesperson (in the board's order, then nobody's), the kinds of business they're
  * talking to (in the order of the kinds), and the businesses of each kind in the order of the board's stages.
  */
-export function salesTree(board: SalesBoard): { member: SalesMember | null; total: number; kinds: { type: BusinessType; prospects: Prospect[] }[] }[] {
-  return lanes(board).map(({ member, byStage, total }) => {
+export function salesTree(board: SalesBoard, busyOnly = false): { member: SalesMember | null; total: number; kinds: { type: BusinessType; prospects: Prospect[] }[] }[] {
+  return lanes(board, busyOnly).map(({ member, byStage, total }) => {
     const mine = PROSPECT_STAGES.flatMap(s => byStage[s.id])
     const kinds = BUSINESS_TYPES.map(b => ({ type: b.id, prospects: mine.filter(p => businessTypeOf(p) === b.id) })).filter(k => k.prospects.length > 0)
     return { member, total, kinds }

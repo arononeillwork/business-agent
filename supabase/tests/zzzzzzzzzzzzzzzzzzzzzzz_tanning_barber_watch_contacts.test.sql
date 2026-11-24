@@ -11,6 +11,6 @@ begin
                             ', ' order by p.name)
             from public.sales_prospects p join public.sales_team m on m.id = p.member_id
            where p.business_id = v_hq and p.instagram in ('the_tanning_suite_marbella', 'uppercutsbarbersmarbella', 'lunawatchstr'))
-    = 'Luna Watch@Mark:other:customer:-:-, The Tanning Suite@Mark:other:customer:Marbella:ES, Uppercuts Barbers@Ryan:barber:customer:Marbella:ES',
+    = 'Luna Watch@Mark:other:customer:-:ES, The Tanning Suite@Mark:other:customer:Marbella:ES, Uppercuts Barbers@Ryan:barber:customer:Marbella:ES',
     'the contacts, once each, in the right lanes';
 end $$;
