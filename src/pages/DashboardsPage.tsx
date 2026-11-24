@@ -13,6 +13,7 @@ import ExecIcon from '@mui/icons-material/InsightsOutlined'
 import ManagerIcon from '@mui/icons-material/StorefrontOutlined'
 import BlankIcon from '@mui/icons-material/DashboardCustomizeOutlined'
 import AccountantIcon from '@mui/icons-material/CalculateOutlined'
+import SalesIcon from '@mui/icons-material/PointOfSaleOutlined'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
@@ -35,7 +36,7 @@ const SPAN: Record<WidgetSize, Record<string, string>> = {
   large: { xs: 'span 12' },
 }
 const SIZES: { id: WidgetSize; label: string }[] = [{ id: 'small', label: msg('Small') }, { id: 'medium', label: msg('Medium') }, { id: 'large', label: msg('Wide') }]
-const TEMPLATE_ICON = { executive: <ExecIcon />, manager: <ManagerIcon />, accountant: <AccountantIcon />, blank: <BlankIcon /> }
+const TEMPLATE_ICON = { executive: <ExecIcon />, manager: <ManagerIcon />, sales: <SalesIcon />, accountant: <AccountantIcon />, blank: <BlankIcon /> }
 
 /**
  * Dashboards (Insights): each person's own reports, made of widgets over a period (today, this
@@ -46,6 +47,8 @@ const TEMPLATE_ICON = { executive: <ExecIcon />, manager: <ManagerIcon />, accou
  * One row of tabs: Reports pinned first (admins), then each dashboard.
  * The Accountant template is the gestoría's view, by the month or the quarter (its own period, kept on
  * the dashboard); a gestoría given the finances area opens Dashboards for it too.
+ * The Sales template is for whoever runs the selling: the till's figures, where the period is heading,
+ * what sells, who sold it and the reps who bring people in (shared/salesDashboard.ts).
  */
 export function DashboardsPage() {
   const { api, me, refresh, isAdmin, isPartner, canSeePay, canSeeFinances } = useApp()
@@ -157,7 +160,7 @@ export function DashboardsPage() {
         ) : (
           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(12, minmax(0, 1fr))', gap: 2 }}>
             {shown.map((w, i) => (
-              <WidgetCard key={w.id} w={w} editing={editing} first={i === 0} last={i === shown.length - 1} range={range}
+              <WidgetCard key={w.id} w={w} editing={editing} first={i === 0} last={i === shown.length - 1} range={range} period={period}
                 onMove={by => change(moveWidget(board, w.id, by))} onSize={s => change(resizeWidget(board, w.id, s))} onRemove={() => change(removeWidget(board, w.id))} />
             ))}
           </Box>
@@ -180,7 +183,7 @@ function TemplatePicker({ can, onPick }: { can: (k: WidgetKind) => boolean; onPi
       <Typography sx={{ color: 'text.secondary', mb: 2.5, maxWidth: 760 }}>
         {t('Make your own reports from the figures in the app: start from a template and change it, or choose every widget yourself.')}
       </Typography>
-      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' } }}>
+      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))', xl: 'repeat(5, minmax(0, 1fr))' } }}>
         {[...templatesFor(can).map(x => ({ ...x, widgets: x.widgets.filter(w => can(w.kind)) })),
           { id: 'blank' as const, name: msg('Blank'), hint: msg('An empty dashboard: add the widgets you want, in the order you want.'), widgets: [] }].map(x => (
           <Card key={x.id} sx={{ display: 'flex' }}>
@@ -201,8 +204,8 @@ function TemplatePicker({ can, onPick }: { can: (k: WidgetKind) => boolean; onPi
 }
 
 /** One widget: its title, what it shows, and (while editing) move, resize and remove. */
-function WidgetCard({ w, editing, first, last, range, onMove, onSize, onRemove }: {
-  w: Widget; editing: boolean; first: boolean; last: boolean; range: ReturnType<typeof dashRange>
+function WidgetCard({ w, editing, first, last, range, period, onMove, onSize, onRemove }: {
+  w: Widget; editing: boolean; first: boolean; last: boolean; range: ReturnType<typeof dashRange>; period: DashPeriod
   onMove: (by: -1 | 1) => void; onSize: (s: WidgetSize) => void; onRemove: () => void
 }) {
   const info = widgetInfo(w.kind)
@@ -220,7 +223,7 @@ function WidgetCard({ w, editing, first, last, range, onMove, onSize, onRemove }
             <Tooltip title={t('Remove')}><IconButton size="small" onClick={onRemove} aria-label={t('Remove {name}', { name: t(info.label) })}><CloseIcon fontSize="small" /></IconButton></Tooltip>
           </Stack>
         )}>{t(info.label)}</SectionTitle>
-        <WidgetBody kind={w.kind} range={range} />
+        <WidgetBody kind={w.kind} range={range} period={period} />
       </CardContent>
     </Card>
   )

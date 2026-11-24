@@ -120,7 +120,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'cv pool', files: [/components\/CvPool/, /i18n\/es\/hiring/], tests: String.raw`hiring|applicant|CV pool` },
   { name: 'food safety and allergens', files: [/(FoodSafety|Allergens)Page/, /shared\/(foodSafety|allergens)/], tests: String.raw`food safety|allergen` },
   { name: 'tips', files: [/TipsPage/, /shared\/tips/], tests: String.raw`tips` },
-  { name: 'insights', files: [/(Dashboards|Advisor)Page/, /dashboardWidgets/, /app\/insightsData/, /shared\/(insights|dashboards)/, /shared\/accountant/, /i18n\/es\/accountantDashboard/], tests: String.raw`dashboard|advisor|Today` },
+  { name: 'insights', files: [/(Dashboards|Advisor)Page/, /dashboardWidgets/, /app\/insightsData/, /shared\/(insights|dashboards)/, /shared\/accountant/, /i18n\/es\/accountantDashboard/, /shared\/salesDashboard/, /i18n\/es\/salesDashboard/], tests: String.raw`dashboard|advisor|Today` },
   { name: 'brand documents', files: [/shared\/brandDocs/], tests: String.raw`brand` },
   { name: 'usual allergens', files: [/shared\/allergenGuide/], tests: String.raw`allergen` },
   { name: 'cameras', files: [/CamerasPage/, /shared\/cameras/], tests: String.raw`camera` },

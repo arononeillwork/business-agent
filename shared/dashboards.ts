@@ -4,6 +4,8 @@
 // the busy hours, what's low, the jobs). Kept in the person's preferences, so nobody else's changes.
 // A third, Accountant, is what the gestoría or accountant asks for, over whole months and quarters
 // (its figures: shared/accountant.ts).
+// A fourth, Sales, is for whoever runs the selling: the takings and where the period is heading, the best
+// days and hours, what sells most, who sold it at the till, the reps who bring people in (shared/salesDashboard.ts).
 import { msg } from './i18n'
 import { addDays, weekStart } from './time'
 
@@ -13,6 +15,7 @@ export type WidgetKind =
   | 'low_stock' | 'stock_value' | 'waste' | 'margins'
   | 'reviews' | 'area_prices' | 'todo' | 'advice'
   | 'net_takings' | 'vat' | 'pnl' | 'wages' | 'tax_due' | 'invoices' | 'claims' | 'running_costs' | 'credit_debit'
+  | 'sales_pace' | 'items_sold' | 'team_sales' | 'top_reps' | 'tips' | 'refunds'
 
 export type WidgetSize = 'small' | 'medium' | 'large'
 /**
@@ -39,6 +42,12 @@ export const WIDGETS: WidgetInfo[] = [
   { kind: 'weekday_takings', group: 'sales', label: msg('Takings by day of the week'), hint: msg('An average day of each, over the last eight weeks'), size: 'medium', needs: ['sales'] },
   { kind: 'best_sellers', group: 'sales', label: msg('Best sellers'), hint: msg('What sold most (Square)'), size: 'medium', needs: ['sales'] },
   { kind: 'payment_methods', group: 'sales', label: msg('How people paid'), hint: msg('Card, phone, cash'), size: 'medium', needs: ['sales'] },
+  { kind: 'sales_pace', group: 'sales', label: msg('On course for'), hint: msg('Where the period is heading: so far, and a usual day for each day left'), size: 'small', needs: ['sales'] },
+  { kind: 'items_sold', group: 'sales', label: msg('Most sold'), hint: msg('By how many sold, not the money (Square)'), size: 'medium', needs: ['sales'] },
+  { kind: 'team_sales', group: 'sales', label: msg('Sales by person'), hint: msg('Who took the payments at the till (Square)'), size: 'medium', needs: ['admin'] },
+  { kind: 'top_reps', group: 'sales', label: msg('Reps who brought most'), hint: msg('From Sales reps & rewards: what each earned in the period'), size: 'medium', needs: ['admin'] },
+  { kind: 'tips', group: 'sales', label: msg('Tips'), hint: msg('What customers left, against the period before'), size: 'small', needs: ['sales'] },
+  { kind: 'refunds', group: 'sales', label: msg('Refunds'), hint: msg('What was given back, and its share of the takings'), size: 'small', needs: ['sales'] },
   { kind: 'team_cost', group: 'team', label: msg('Team cost'), hint: msg('Hours worked × pay, with Social Security'), size: 'small', needs: ['admin', 'pay'] },
   { kind: 'labour_share', group: 'team', label: msg('Team cost against takings'), hint: msg('Cafés usually aim for 25–35%'), size: 'small', needs: ['admin', 'sales'] },
   { kind: 'hours_worked', group: 'team', label: msg('Hours worked'), hint: msg('From the timecards, by person'), size: 'medium', needs: ['admin'] },
@@ -66,7 +75,7 @@ export const widgetInfo = (k: WidgetKind) => WIDGETS.find(w => w.kind === k)!
 export const isWidgetKind = (k: unknown): k is WidgetKind => WIDGETS.some(w => w.kind === k)
 
 export interface Widget { id: string; kind: WidgetKind; size: WidgetSize }
-export type DashTemplate = 'executive' | 'manager' | 'accountant' | 'blank'
+export type DashTemplate = 'executive' | 'manager' | 'sales' | 'accountant' | 'blank'
 /** `period`: its own, when its template has periods of its own (the Accountant's); the others share SavedDashboards' period. */
 export interface Dashboard { id: string; name: string; template: DashTemplate; widgets: Widget[]; period?: DashPeriod }
 /** Kept in the person's preferences. */
@@ -81,6 +90,9 @@ export const TEMPLATES: { id: Exclude<DashTemplate, 'blank'>; name: string; hint
   { id: 'manager', name: msg('Shop manager'), hint: msg('The day to day: today’s takings and team, the busy hours, what’s running low, waste and the jobs to do.'),
     widgets: [w('takings'), w('payments'), w('waste'), w('average_sale'), w('on_today'), w('busiest_hours'), w('low_stock'), w('todo'),
       w('best_sellers'), w('hours_worked'), w('late_starts')] },
+  { id: 'sales', name: msg('Sales'), hint: msg('For whoever runs the selling: the takings, how many sales and the average, where the period is heading, the busiest days and hours, what sells most, who sold it at the till, the reps who bring people in, tips and refunds.'),
+    widgets: [w('takings'), w('payments'), w('average_sale'), w('sales_pace'), w('takings_by_day'), w('best_sellers'), w('items_sold'), w('busiest_hours'),
+      w('weekday_takings'), w('team_sales'), w('top_reps'), w('payment_methods'), w('tips'), w('refunds')] },
   { id: 'accountant', name: msg('Accountant'), hint: msg('For the gestoría or accountant, by the month or the quarter: takings net of refunds and how people paid, the profit and loss, VAT, the next tax returns, invoices to pay, expenses to pay back, the monthly costs and what’s owed.'),
     widgets: [w('net_takings'), w('wages'), w('running_costs'), w('credit_debit'), w('pnl'), w('vat'), w('payment_methods'), w('tax_due'),
       w('invoices'), w('claims')] },
@@ -156,6 +168,19 @@ export function boardPeriod(d: Pick<Dashboard, 'template' | 'period'> | null, sh
 }
 
 export interface DashRange { from: string; to: string; prevFrom: string; prevTo: string }
+
+/**
+ * The last day of a period still going on `day` (today: itself; this week, month or quarter: its last day), or
+ * null for one that isn't (the last 30 days, last month, last quarter). On course for goes by it; the period
+ * before ends at periodEnd(p, prevFrom).
+ */
+export function periodEnd(p: DashPeriod, day: string): string | null {
+  if (p === 'today') return day
+  if (p === 'week') return addDays(weekStart(day), 6)
+  if (p === 'month') return addDays(monthStart(addDays(monthStart(day), 32)), -1)
+  if (p === 'quarter') return addDays(quarterStart(addDays(quarterStart(day), 95)), -1)
+  return null
+}
 
 const monthStart = (day: string) => `${day.slice(0, 8)}01`
 const quarterStart = (day: string) => `${day.slice(0, 5)}${String(Math.floor((Number(day.slice(5, 7)) - 1) / 3) * 3 + 1).padStart(2, '0')}-01`

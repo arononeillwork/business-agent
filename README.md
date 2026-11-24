@@ -705,6 +705,15 @@ built-in **AI connector** so owners can run it by talking to Claude.
   see it (`canHave` in `shared/dashboards.ts`): admins with pay access get all of it, a gestoría given the
   finances area opens Dashboards for the finances (not the till's takings or anyone's pay), and the
   templates offered are the ones with something the person can see.
+- Dashboards → the **Sales** template: for whoever runs the selling, over today, this week, this month or the
+  last 30 days, each against the period before: the takings, how many sales and the average sale, **On course
+  for** (where a period still going is heading: what's been taken so far, and a usual day of each kind from the
+  last eight weeks for the days left, against the whole period before), takings by day, the busiest hours and
+  days of the week, best sellers by the money and **Most sold** by how many (Square), **Sales by person** (who
+  took the payments in Square, as the Leaderboard counts them; how much each took only for the owners), the
+  **Reps who brought most** in the period (Sales reps & rewards), how people paid, tips and refunds
+  (`shared/salesDashboard.ts`). Owners get all of it; a shop manager gets the sales by person and the reps, not
+  the takings; employees and partners aren't offered it.
 - Dashboards → Reports (admins): pick reports (takings and breakeven, best sellers, team hours, low on
   stock, waste, freshly made, jobs) and a period, pick who gets them (people on the team, the business's
   contacts for owners, any address), see the email, and send it from the connected Gmail or Outlook, one
