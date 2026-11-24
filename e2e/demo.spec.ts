@@ -2822,7 +2822,7 @@ test.describe('billing', () => {
     await nav.getByRole('region', { name: 'Sales' }).getByRole('link', { name: 'Sales' }).click()
     await expect(page).toHaveURL(/\/sales$/)
     await expect(page.getByRole('heading', { name: 'Sales', level: 1 })).toBeVisible()
-    await expect(nav.getByRole('region', { name: 'Sales' }).getByRole('link')).toHaveText(['Sales', 'Customers', 'Leads & enquiries', 'Customer suggestions', 'Reps & rewards'])
+    await expect(nav.getByRole('region', { name: 'Sales' }).getByRole('link')).toHaveText(['Sales', 'Customers', 'Leads & enquiries', 'Reps & rewards'])
     await expect(nav.getByRole('region', { name: 'Marketing' }).getByRole('link')).toHaveText(['Social planner', 'Content', 'Offers & specials', 'Competitions', 'Campaigns', 'Ads', 'Analytics', 'Reviews', 'Website & SEO', 'Competitors'])
     await nav.getByRole('region', { name: 'Marketing' }).getByRole('link', { name: 'Analytics' }).click()
     await expect(page.getByRole('heading', { name: 'Analytics', level: 1 })).toBeVisible()
@@ -8454,8 +8454,8 @@ test.describe('customer suggestions', () => {
     // An employee has it in the menu: three sections, the most asked for first, and three ideas not sorted yet.
     await open(page, '/', 'maria@example.com')
     const nav = page.getByRole('navigation', { name: 'Main' })
-    await nav.getByRole('region', { name: 'Sales' }).getByRole('link', { name: 'Customer suggestions' }).click()
-    await expect(page.getByRole('heading', { name: 'Customer suggestions', level: 1 })).toBeVisible()
+    await nav.getByRole('region', { name: 'Business' }).getByRole('link', { name: 'Suggestions', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Suggestions', level: 1 })).toBeVisible()
     const sections = page.getByRole('list', { name: 'Sections' })
     const section = (name: string) => sections.getByRole('listitem', { name })
     const counter = (name: string) => section(name).getByTestId('counter')
@@ -8534,7 +8534,7 @@ test.describe('customer suggestions', () => {
 
     // An owner deletes an idea.
     await signInAs(page, 'aron@example.com')
-    await nav.getByRole('region', { name: 'Sales' }).getByRole('link', { name: 'Customer suggestions' }).click()
+    await nav.getByRole('region', { name: 'Business' }).getByRole('link', { name: 'Suggestions', exact: true }).click()
     await unsorted.getByRole('button', { name: 'More for Water bowl for dogs by the door' }).click()
     await page.getByRole('menuitem', { name: 'Delete' }).click()
     await toast(page, /^Deleted$/)
