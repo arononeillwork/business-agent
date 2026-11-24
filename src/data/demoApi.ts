@@ -492,7 +492,9 @@ export function createDemoApi(): Api {
     ]
     people.forEach(([name, status, paid, ends, joined], i) => {
       clubMembersList.push({ id: `club-m${i + 1}`, customer_id: `club-c${i + 1}`, name, square_customer_id: `sq-club${i + 1}`, status, started_on: addDays(today(), -joined),
-        ends_on: ends, paid, paid_through: addDays(today(), 30 - (joined % 30)), used_this_week: 0, last_coffee: null, coffees: 0 })
+        ends_on: ends, paid, paid_through: addDays(today(), 30 - (joined % 30)), used_this_week: 0, last_coffee: null, coffees: 0,
+        // Lucía and Carmen have joined the Square Loyalty programme, so they can tap their iPhone's pass at the till.
+        card_code: ['7Q2K9XMB', 'H4TR8WNC', 'P3LD6YKA', 'Z9EF2MQS', 'B5VG7JRU'][i], loyalty: i === 0 || i === 2 })
     })
     // Their coffees, a week at a time: Lucía every week (this one too), Tom and Emma most weeks, Carmen before her payment failed.
     const had: [number, number[]][] = [[0, [0, 1, 2, 3]], [1, [1, 2, 3]], [2, [2, 3]], [3, [0, 1, 3]], [4, [3]]]
@@ -509,7 +511,7 @@ export function createDemoApi(): Api {
   }
   function clubState(): CoffeeClubState {
     const monday = weekStart(today())
-    if (!coffeeClub) return { status: 'not_set_up', club: null, members: [], coffees: [], week: monday, checked_at: null }
+    if (!coffeeClub) return { status: 'not_set_up', club: null, members: [], coffees: [], week: monday, checked_at: null, loyalty_program: null }
     const counted = clubCoffees.filter(c => !c.problem)
     const members = clubMembersList.map(m => {
       const mine = counted.filter(c => c.member_id === m.id)
@@ -517,7 +519,7 @@ export function createDemoApi(): Api {
         coffees: mine.reduce((n, c) => n + c.quantity, 0), last_coffee: mine.map(c => c.at).sort().pop() ?? null }
     })
     return { status: 'ok', club: clone(coffeeClub), members: clone(members), coffees: clone([...clubCoffees].sort((a, b) => b.at.localeCompare(a.at))),
-      week: monday, checked_at: nowIso() }
+      week: monday, checked_at: nowIso(), loyalty_program: true }
   }
   const needClubSquare = () => {
     if (!isAdmin()) throw new Error('Only an admin can run the coffee club')

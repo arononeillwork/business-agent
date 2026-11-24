@@ -51,8 +51,22 @@ export default {
   'Not taking new members: the sign-up page is down. Members stay members. Switch it back on in the club settings below.':
     'No se admiten socios nuevos: la página de alta está desactivada. Los socios siguen siéndolo. Vuelve a activarla en los ajustes del club, más abajo.',
   'Ring up the order as usual.': 'Marca el pedido como siempre.',
-  'Tap Add customer and find the member by name (they can show their pass on your website, with their name on it).':
-    'Toca Añadir cliente y busca al socio por su nombre (puede enseñarte su tarjeta en tu web, con su nombre).',
+  'Add the member to the sale: they tap their iPhone on the customer display (their Square Loyalty pass), or tap Add customer and find them by name (their pass on your website shows it).':
+    'Añade al socio a la venta: acerca su iPhone a la pantalla del cliente (su tarjeta de Square Fidelización), o toca Añadir cliente y búscalo por su nombre (su tarjeta en tu web lo muestra).',
+  'Can tap to check in': 'Puede identificarse con el móvil',
+  'Code {code}': 'Código {code}',
+  'Tap to check in': 'Identificarse con el móvil',
+  '{joined} of {members} members can tap their iPhone on the customer display to be added to the sale.':
+    '{joined} de {members} socios pueden acercar su iPhone a la pantalla del cliente para añadirse a la venta.',
+  'A member joins your loyalty programme once, by typing their phone number on the customer display when they pay. Square texts them a link, and on an iPhone they’re offered the pass for Apple Wallet.':
+    'El socio se apunta una vez a tu programa de fidelización escribiendo su teléfono en la pantalla del cliente al pagar. Square le envía un SMS con un enlace y, en un iPhone, le ofrece la tarjeta para Apple Wallet.',
+  'With Square Loyalty (a paid Square add-on), members can keep a pass in Apple Wallet and tap their iPhone on the customer display: Square adds them to the sale, so their club line shows without anyone saying a name.':
+    'Con Square Fidelización (un complemento de pago de Square), los socios pueden llevar una tarjeta en Apple Wallet y acercar su iPhone a la pantalla del cliente: Square los añade a la venta y su línea del club aparece sin que nadie diga un nombre.',
+  'In the Square Dashboard, open Loyalty, subscribe and create a programme (a stamp a visit works well for a café).':
+    'En el panel de Square, abre Fidelización, suscríbete y crea un programa (un sello por visita funciona bien en una cafetería).',
+  'In Loyalty’s Settings, turn on the digital pass (Apple Wallet).': 'En los Ajustes de Fidelización, activa la tarjeta digital (Apple Wallet).',
+  'On the Square Register: Settings → Loyalty, turn on Enable Loyalty and Show check-in screen at start of transaction; turn off Skip receipt screen and Automatically print receipts.':
+    'En el Square Register: Ajustes → Fidelización, activa Habilitar fidelización y Mostrar la pantalla de registro al iniciar la transacción; desactiva Omitir pantalla de recibo e Imprimir recibos automáticamente.',
   'Read the first line of their note: it says whether this week’s coffee is still there to have.':
     'Lee la primera línea de su nota: dice si aún le queda el café de esta semana.',
   'Apply the “{name}” discount to the drink, and charge anything else as usual.':

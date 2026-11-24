@@ -15,9 +15,10 @@ import { DecimalField, Empty, ErrorBox, Loading, PageHeader, SectionTitle, StatG
 import { QrPicture, useQrLook } from '../components/QrCode'
 import { formatLocal, formatMoney, today } from '../../shared/time'
 import {
-  CLUB_DEFAULTS, clubInputProblem, clubTotals, standing,
+  CLUB_DEFAULTS, cardCodeText, clubInputProblem, clubTotals, standing,
   type ClubCoffee, type ClubMember, type ClubProblem, type CoffeeClubInput, type CoffeeClubState, type Standing,
 } from '../../shared/coffeeClub'
+import { SQUARE_LOYALTY_SETUP } from '../../shared/loyalty'
 import { tokens } from '../theme'
 import { currentLanguage, msg, t } from '../i18n'
 
@@ -174,6 +175,7 @@ function Club({ state: s }: { state: CoffeeClubState }) {
       {problems.length > 0 && <Problems coffees={problems} />}
       <SignUp url={club.signup_url} />
       <AtTheTill name={club.name} />
+      <TapToCheckIn program={s.loyalty_program} members={s.members} />
       <Members members={s.members} perWeek={club.coffees_per_week} />
       <Latest coffees={s.coffees.filter(c => !c.problem || c.sorted_at).slice(0, 15)} />
       <ClubForm key={JSON.stringify(club)} initial={{
@@ -248,13 +250,53 @@ function AtTheTill({ name }: { name: string }) {
         <SectionTitle>{t('At the till')}</SectionTitle>
         <Box component="ol" sx={{ pl: 2.5, m: 0, '& li': { mb: 0.75 } }}>
           <li>{t('Ring up the order as usual.')}</li>
-          <li>{t('Tap Add customer and find the member by name (they can show their pass on your website, with their name on it).')}</li>
+          <li>{t('Add the member to the sale: they tap their iPhone on the customer display (their Square Loyalty pass), or tap Add customer and find them by name (their pass on your website shows it).')}</li>
           <li>{t('Read the first line of their note: it says whether this week’s coffee is still there to have.')}</li>
           <li>{t('Apply the “{name}” discount to the drink, and charge anything else as usual.', { name })}</li>
         </Box>
         <Typography variant="body2" sx={{ mt: 1, color: tokens.inkSoft }}>
           {t('The note changes within a minute of the sale, and every Monday for the new week.')}
         </Typography>
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
+ * Square Loyalty's Apple Wallet pass: a member who has joined the programme taps their iPhone on the till's customer
+ * display and Square adds them to the sale, so their club line shows without a name said. Without a programme, how to
+ * set one up in Square (a paid add-on); with one, how many members have joined it. Nothing when Square can't say.
+ */
+function TapToCheckIn({ program, members }: { program: boolean | null; members: ClubMember[] }) {
+  if (program === null) return null
+  const live = members.filter(m => standing(m) !== 'ended')
+  const joined = live.filter(m => m.loyalty).length
+  return (
+    <Card component="section" aria-label={t('Tap to check in')} sx={{ mb: 3 }}>
+      <CardContent>
+        <SectionTitle>{t('Tap to check in')}</SectionTitle>
+        {program ? (
+          <>
+            <Typography sx={{ mb: 1.5 }}>
+              {t('{joined} of {members} members can tap their iPhone on the customer display to be added to the sale.', { joined, members: live.length })}
+            </Typography>
+            <Typography variant="body2" sx={{ color: tokens.inkSoft }}>
+              {t('A member joins your loyalty programme once, by typing their phone number on the customer display when they pay. Square texts them a link, and on an iPhone they’re offered the pass for Apple Wallet.')}
+            </Typography>
+          </>
+        ) : (
+          <>
+            <Typography sx={{ mb: 1.5 }}>
+              {t('With Square Loyalty (a paid Square add-on), members can keep a pass in Apple Wallet and tap their iPhone on the customer display: Square adds them to the sale, so their club line shows without anyone saying a name.')}
+            </Typography>
+            <Box component="ol" sx={{ pl: 2.5, m: 0, mb: 2, '& li': { mb: 0.75 } }}>
+              <li>{t('In the Square Dashboard, open Loyalty, subscribe and create a programme (a stamp a visit works well for a café).')}</li>
+              <li>{t('In Loyalty’s Settings, turn on the digital pass (Apple Wallet).')}</li>
+              <li>{t('On the Square Register: Settings → Loyalty, turn on Enable Loyalty and Show check-in screen at start of transaction; turn off Skip receipt screen and Automatically print receipts.')}</li>
+            </Box>
+            <Button variant="outlined" endIcon={<OpenIcon />} href={SQUARE_LOYALTY_SETUP} target="_blank" rel="noopener">{t('Open Square Loyalty')}</Button>
+          </>
+        )}
       </CardContent>
     </Card>
   )
@@ -292,8 +334,10 @@ function Members({ members, perWeek }: { members: ClubMember[]; perWeek: number 
                         <Typography sx={{ fontWeight: 600 }}>{memberName(m)}</Typography>
                         <Stack direction="row" spacing={1} sx={{ mt: 0.5, alignItems: 'center', flexWrap: 'wrap' }}>
                           <Tag fg={look.fg} bg={look.bg}>{t(look.label)}</Tag>
+                          {m.loyalty && st !== 'ended' && <Tag fg={tokens.infoFg} bg={tokens.infoBg}>{t('Can tap to check in')}</Tag>}
                           {st === 'ending' && <Typography variant="caption">{t('until {date}', { date: day(m.ends_on) })}</Typography>}
                           {st === 'pending' && <Typography variant="caption">{t('from {date}', { date: day(m.started_on) })}</Typography>}
+                          {m.card_code && st !== 'ended' && <Typography variant="caption" sx={{ color: tokens.inkSoft }}>{t('Code {code}', { code: cardCodeText(m.card_code) })}</Typography>}
                         </Stack>
                       </TableCell>
                       <TableCell>{st === 'ended' ? '–' : t('{used} of {n}', { used: m.used_this_week, n: perWeek })}</TableCell>

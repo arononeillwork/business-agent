@@ -5499,9 +5499,14 @@ test.describe('coffee club', () => {
     await toast(page, 'Marked sorted')
     await expect(toLook.getByRole('listitem')).toHaveCount(1)
 
+    // Square Loyalty is on in the demo: two members have joined it and can tap their iPhone at the till.
+    await expect(page.getByRole('region', { name: 'Tap to check in', exact: true })).toContainText('2 of 4 members can tap their iPhone')
+
     // The members: this week's coffee had, a payment failed, a membership ended.
     const members = page.getByRole('region', { name: 'Members', exact: true })
     await expect(members.getByRole('row').filter({ hasText: 'Lucía García' })).toContainText('1 of 1')
+    await expect(members.getByRole('row').filter({ hasText: 'Lucía García' })).toContainText('Can tap to check in')
+    await expect(members.getByRole('row').filter({ hasText: 'Lucía García' })).toContainText('Code 7Q2K 9XMB')
     await expect(members.getByRole('row').filter({ hasText: 'Carmen Ruiz' })).toContainText('Payment failed')
     await expect(members.getByRole('row').filter({ hasText: 'Javier López' })).toContainText('Ended')
     const tom = members.getByRole('row').filter({ hasText: 'Tom Baker' })
