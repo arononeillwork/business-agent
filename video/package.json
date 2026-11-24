@@ -15,6 +15,7 @@
     "capture:costing": "node capture/costing.mjs",
     "capture:social": "node capture/social.mjs",
     "capture:rota": "node capture/rota.mjs",
+    "capture:hours": "node capture/hours.mjs",
     "music": "python3 music/compose.py",
     "music:day": "python3 music/day.py",
     "music:owner": "python3 music/owner.py",
@@ -26,6 +27,7 @@
     "music:costing": "python3 music/costing.py",
     "music:social": "python3 music/social.py",
     "music:rota": "python3 music/rota.py",
+    "music:hours": "python3 music/hours.py",
     "studio": "remotion studio src/index.ts",
     "render": "remotion render src/index.ts LandingVideo out/landing-master.mp4 --codec=h264 --crf=16 --audio-bitrate=192k",
     "render:day": "remotion render src/index.ts DayVideo out/day-master.mp4 --codec=h264 --crf=16 --audio-bitrate=192k",
@@ -38,6 +40,7 @@
     "render:costing": "remotion render src/index.ts CostingVideo out/costing-master.mp4 --codec=h264 --crf=16 --audio-bitrate=192k",
     "render:social": "remotion render src/index.ts SocialVideo out/social-master.mp4 --codec=h264 --crf=16 --audio-bitrate=192k",
     "render:rota": "remotion render src/index.ts RotaVideo out/rota-master.mp4 --codec=h264 --crf=16 --audio-bitrate=192k",
+    "render:hours": "remotion render src/index.ts HoursVideo out/hours-master.mp4 --codec=h264 --crf=16 --audio-bitrate=192k",
     "web": "node web.mjs landing",
     "web:day": "node web.mjs day",
     "web:owner": "node web.mjs owner",
@@ -49,6 +52,7 @@
     "web:costing": "node web.mjs costing",
     "web:social": "node web.mjs social",
     "web:rota": "node web.mjs rota",
+    "web:hours": "node web.mjs hours",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
