@@ -168,6 +168,9 @@ export function methodUses(bodies = methodBodies()): Map<string, MethodUse> {
     }
     // Live reads through the Worker: worker('/api/x') with no method, or fetch('/api/x') likewise.
     for (const m of body.matchAll(/(?:worker(?:<[^>]*>)?|fetch)\('(\/api\/[\w/-]+)'(\s*,\s*\{[^}]*method:)?/g)) if (!m[2]) use.live.add(m[1])
+    // And a template whose address is whole before its query (`/api/loyalty?from=${from}`); not one built from values
+    // (`/api/giftcards/${id}/number`), which needs them.
+    for (const m of body.matchAll(/(?:worker(?:<[^>]*>)?|fetch)\(`(\/api\/[\w/-]+)(?:\?[^`]*)?`(\s*,\s*\{[^}]*method:)?/g)) if (!m[2]) use.live.add(m[1])
     out.set(name, use)
   }
   return out
