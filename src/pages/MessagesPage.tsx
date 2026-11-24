@@ -428,6 +428,13 @@ function Bubble({ m, who, showAvatar, platform }: { m: InboxMessage; who?: Inbox
   const mine = m.fromMe
   const label = LABEL[m.kind] && t(LABEL[m.kind]!)
   const said = `${label ?? ''}${label && m.text ? ' · ' : ''}${m.text}`
+  // A story's picture is gone from Instagram a day after the story: a picture that won't load isn't shown.
+  const [broken, setBroken] = useState(false)
+  const media = broken ? undefined : m.mediaUrl
+  // What a story reply sent: its photo, GIF, sticker or voice note (`attached`) is shown as such.
+  const as = m.attached ?? m.kind
+  // A story reply Instagram gave neither the words nor anything sent of, even read on its own.
+  const unshared = m.kind === 'story_reply' && !m.text.trim() && !m.attached
   return (
     <Box component="li" aria-label={mine ? t('You: {text}', { text: said }) : t('Them: {text}', { text: said })}
       sx={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '82%', display: 'flex', gap: 1, alignItems: 'flex-end' }}>
@@ -437,14 +444,16 @@ function Bubble({ m, who, showAvatar, platform }: { m: InboxMessage; who?: Inbox
       <Box sx={{ minWidth: 0 }}>
         <Box sx={{ px: 1.5, py: 1, borderRadius: '16px', bgcolor: mine ? tokens.rose : tokens.surface, color: mine ? '#2B2522' : 'text.primary',
           border: mine ? 'none' : `1px solid ${tokens.line}` }}>
-          {label && <Typography variant="caption" component="p" sx={{ fontWeight: 600, mb: m.text || m.mediaUrl ? 0.5 : 0 }}>{label}</Typography>}
-          {m.mediaUrl && (m.kind === 'audio'
-            ? <Box component="audio" controls src={m.mediaUrl} sx={{ display: 'block', maxWidth: 240 }} />
-            : m.kind === 'video' && platform === 'whatsapp'
-              ? <Box component="video" controls src={m.mediaUrl} sx={{ display: 'block', width: 220, maxWidth: '100%', borderRadius: '10px', mb: m.text ? 0.75 : 0 }} />
-            : m.kind === 'file'
-              ? <MuiLink href={m.mediaUrl} target="_blank" rel="noreferrer">{t('Open file')}</MuiLink>
-              : <Box component="img" src={m.mediaUrl} alt="" sx={{ display: 'block', width: 160, maxWidth: '100%', borderRadius: '10px', mb: m.text ? 0.75 : 0 }} />)}
+          {label && <Typography variant="caption" component="p" sx={{ fontWeight: 600, mb: m.text || media || unshared ? 0.5 : 0 }}>{label}</Typography>}
+          {media && (as === 'audio'
+            ? <Box component="audio" controls src={media} sx={{ display: 'block', maxWidth: 240 }} />
+            : as === 'video' && platform === 'whatsapp'
+              ? <Box component="video" controls src={media} sx={{ display: 'block', width: 220, maxWidth: '100%', borderRadius: '10px', mb: m.text ? 0.75 : 0 }} />
+            : as === 'file'
+              ? <MuiLink href={media} target="_blank" rel="noreferrer">{t('Open file')}</MuiLink>
+              : <Box component="img" src={media} alt="" onError={() => setBroken(true)}
+                sx={{ display: 'block', width: 160, maxWidth: '100%', borderRadius: '10px', mb: m.text || unshared ? 0.75 : 0 }} />)}
+          {unshared && <Typography variant="body2" sx={{ fontStyle: 'italic' }}>{t('Instagram didn’t share what they sent. Open Instagram to see it.')}</Typography>}
           {m.kind === 'unsupported'
             ? <Typography variant="body2" sx={{ fontStyle: 'italic' }}>{t('A message Instagram doesn’t share with other apps. Open Instagram to see it.')}</Typography>
             : m.kind === 'other'

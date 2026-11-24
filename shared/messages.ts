@@ -20,6 +20,8 @@ export interface InboxMessage {
   kind: MessageKind
   /** Photo, video, voice note or file; the story or post for mentions, story replies and shares. */
   mediaUrl?: string
+  /** A story reply that sent a photo, GIF, sticker, video, voice note or file: what `mediaUrl` is (rather than the story's picture). */
+  attached?: 'image' | 'video' | 'audio' | 'file'
   /** Where to open it (a shared post or reel). */
   link?: string
   reactions?: string[]

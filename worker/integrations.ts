@@ -1428,7 +1428,8 @@ integrations.post('/api/integrations/posts/photo', async c => {
 integrations.get('/api/integrations/instagram/inbox/:id', async c => {
   try {
     const { cfg, me } = await instagramInbox(c)
-    return c.json(await instagram.conversation(cfg, me, c.req.param('id')))
+    // Opened on the Messages page: what the chat's read left out is read again on its own.
+    return c.json(await instagram.conversation(cfg, me, c.req.param('id'), true))
   } catch (e) {
     return c.json({ error: inboxError(e, true) }, 400)
   }

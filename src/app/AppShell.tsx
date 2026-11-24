@@ -144,6 +144,8 @@ export const SECTIONS: NavSection[] = [
     { key: 'todo', to: '/todo', label: msg('To Do List'), short: msg('To do'), icon: <TodoIcon /> },
     // Posts and reels sent to the Instagram Ideas chat (worker/instagramIdeas.ts).
     { key: 'ideas', to: '/ideas', label: msg('Ideas'), icon: <IdeasIcon /> },
+    // Ideas customers give, sorted into sections of the same idea with a counter each; mostly added through the AI (worker/suggestionTools.ts).
+    { key: 'suggestions', to: '/suggestions', label: msg('Suggestions'), icon: <SuggestionsIcon /> },
     // Opening up at the start of the day and closing at the end: the whole team ticks things off.
     { key: 'checklists', to: '/checklists', label: msg('Daily checklists'), short: msg('Checklists'), icon: <ChecklistsIcon /> },
     { key: 'hours', to: '/opening-hours', label: msg('Opening hours'), icon: <HoursIcon />, partner: 'any' },
@@ -167,8 +169,6 @@ export const SECTIONS: NavSection[] = [
     { key: 'sales', to: '/sales', label: msg('Sales'), icon: <SalesIcon />, who: 'pay' },
     { key: 'customers', to: '/customers', label: msg('Customers'), icon: <CustomersIcon />, who: 'admin' },
     { key: 'leads', to: '/leads', label: msg('Leads & enquiries'), short: msg('Leads'), icon: <LeadsIcon />, who: 'admin' },
-    // Ideas customers give, sorted into sections of the same idea with a counter each; mostly added through the AI (worker/suggestionTools.ts).
-    { key: 'suggestions', to: '/suggestions', label: msg('Customer suggestions'), short: msg('Suggestions'), icon: <SuggestionsIcon /> },
     { key: 'loyalty', to: '/loyalty', label: msg('Loyalty & gift cards'), short: msg('Loyalty'), icon: <LoyaltyIcon />, who: 'admin', needs: 'square' },
     { key: 'reps', to: '/sales-reps', label: msg('Reps & rewards'), short: msg('Reps'), icon: <RepsIcon /> },
   ] },

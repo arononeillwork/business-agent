@@ -41,7 +41,7 @@ const collisions: CollisionDetection = args => {
 }
 
 /**
- * Customer suggestions: the ideas customers give the business, for the team only (they're mostly added
+ * Suggestions (Business section, next to Ideas): the ideas customers give the business, for the team only (they're mostly added
  * through the business's AI assistant). Ideas that say the same thing are dragged into one section, whose
  * counter shows how many times customers asked; an idea dropped on one not sorted yet starts a section with
  * both. On a phone, or from the keyboard, an idea's menu moves it.
@@ -107,7 +107,7 @@ export function SuggestionsPage() {
 
   return (
     <>
-      <PageHeader eyebrow={t('Sales')} title={t('Customer suggestions')} actions={<>
+      <PageHeader eyebrow={t('Business')} title={t('Suggestions')} actions={<>
         <Button startIcon={<NewSectionIcon />} onClick={() => setNaming({ name: '' })}>{t('New section')}</Button>
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => setForm({ text: '' })}>{t('Add a suggestion')}</Button>
       </>} />

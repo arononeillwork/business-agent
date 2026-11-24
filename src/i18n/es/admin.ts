@@ -123,6 +123,7 @@ export default {
   'Them: {text}': 'Ellos: {text}',
   'Open file': 'Abrir archivo',
   'A message Instagram doesn’t share with other apps. Open Instagram to see it.': 'Un mensaje que Instagram no comparte con otras apps. Abre Instagram para verlo.',
+  'Instagram didn’t share what they sent. Open Instagram to see it.': 'Instagram no ha compartido lo que han enviado. Abre Instagram para verlo.',
   'Open on Instagram': 'Abrir en Instagram',
   'Posts you’re tagged in': 'Publicaciones en las que te etiquetan',
   'No one has tagged you in a post lately.': 'Nadie te ha etiquetado en una publicación últimamente.',

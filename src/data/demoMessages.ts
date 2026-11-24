@@ -30,6 +30,9 @@ export function demoInbox() {
       msg(94, false, 'Best flat white in San Pedro ☕ tagged you!'),
     ], FACE('#DDE8D5', '#C98F6B', '#2F3B2A')),
     chat('c3', 'tom_runs', 'Tom', [
+      // A story reply Instagram shared nothing of, and one that sent a GIF rather than words.
+      msg(340, false, '', { kind: 'story_reply' }),
+      msg(320, false, '', { kind: 'story_reply', mediaUrl: PIC('#F6E7C8', '#A86B2D', 'GIF'), attached: 'image' }),
       msg(300, false, 'Is the matcha iced or hot?', { kind: 'story_reply', mediaUrl: PIC('#DDE8D5', '#4F6B45', 'matcha') }),
     ]),
     chat('c4', 'marta.g', 'Marta', [

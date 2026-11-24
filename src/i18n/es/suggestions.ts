@@ -1,6 +1,5 @@
-// Spanish for Customer suggestions (the page, and shared/suggestions.ts).
+// Spanish for Suggestions (the page, and shared/suggestions.ts).
 export default {
-  'Customer suggestions': 'Sugerencias de clientes',
   'New section: {name}': 'Nueva sección: {name}',
   'Moved to {name}': 'Movida a {name}',
   'Moved to Not sorted yet': 'Movida a Sin ordenar',

@@ -341,7 +341,7 @@ built-in **AI connector** so owners can run it by talking to Claude.
   add, change and delete contacts; shop managers, employees, partners and the café tablet see none. Easy Beans
   starts with its lawyer, its BBVA bank advisor and its plumber & electrician, on WhatsApp
   (`shared/contacts.ts`, the `business_contacts` migration).
-- Customer suggestions (Sales section, after Leads & enquiries): the ideas customers give the business, kept
+- Suggestions (Business section, after Ideas): the ideas customers give the business, kept
   for the team and never shown to customers, mostly added through the business's AI assistant. Ideas that say
   the same thing are dragged into one section, whose counter shows how many times customers asked; sections
   show the most asked for first, and new ideas wait in "Not sorted yet". Dropping one idea on another that's

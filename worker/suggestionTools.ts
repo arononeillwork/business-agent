@@ -2,7 +2,7 @@
 // add through their AI ("a customer suggested free oat milk"). An idea goes in the section that already
 // says the same thing, so its counter goes up; a new idea starts a section, or waits in "not sorted yet".
 // Same rules as the app (the `customer_suggestions` migration): the team reads, adds and sorts them; only
-// admins delete one (through delete_page_record on the Customer suggestions page).
+// admins delete one (through delete_page_record on the Suggestions page).
 import { z } from 'zod'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ToolDef } from './tools'
@@ -89,7 +89,7 @@ export const SUGGESTION_TOOLS: ToolDef[] = [
       const { groups } = await readAll(sb)
       const placed = a.section?.trim() ? await sectionFor(sb, groups, a.section) : null
       const saved = check(await sb.from('customer_suggestions').insert({ ...row, group_id: placed?.group.id ?? null }).select(IDEA_COLUMNS).single()) as CustomerSuggestion
-      if (!placed) return { added: describeIdea(saved), section: null, note: 'It waits in "not sorted yet" on the Customer suggestions page' }
+      if (!placed) return { added: describeIdea(saved), section: null, note: 'It waits in "not sorted yet" on the Suggestions page' }
       const { count } = await sb.from('customer_suggestions').select('id', { count: 'exact', head: true }).eq('group_id', placed.group.id)
       return { added: describeIdea(saved), section: placed.group.name, started_section: placed.started || undefined, section_count: count ?? undefined }
     },

@@ -1,4 +1,4 @@
-// Customer suggestions (Sales section): the ideas customers give the business ("oat milk at no extra cost",
+// Customer suggestions (the Suggestions page, Business section next to Ideas): the ideas customers give the business ("oat milk at no extra cost",
 // "open earlier on Saturdays"), kept for the team, not shown to customers. They're mostly added through
 // the business's AI assistant (worker/suggestionTools.ts) and sorted on the page by dragging ideas that
 // say the same thing into one section; a section's counter is how many times customers asked for it.
