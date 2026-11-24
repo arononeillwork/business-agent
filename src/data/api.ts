@@ -10,6 +10,7 @@ import type { ReferralOpen, RepIntroduction } from '../../shared/hqReps'
 import type { HqFunnelRow } from '../../shared/hqFunnel'
 import type { ClientErrorReport } from '../../shared/appErrors'
 import type { HqSupportTicket, SupportDraft, SupportStatus, SupportTicket } from '../../shared/supportTickets'
+import type { RepeatResult, RotaRepeat } from '../../shared/rotaRepeat'
 import type { KindInfo } from '../../shared/social'
 import type { InstagramMention } from '../../shared/mentions'
 import type { IdeasCheck, IdeasStatus, InstagramIdea } from '../../shared/instagramIdeas'
@@ -285,6 +286,13 @@ export interface Api {
   saveShift(shift: ShiftInput): Promise<void>
   deleteShift(id: string): Promise<void>
   takeOpenShift(id: string): Promise<void>
+  /** The continuous rota, while there is one (shared/rotaRepeat.ts); whoever edits the rota sees it. */
+  rotaRepeat(): Promise<RotaRepeat | null>
+  /** Copy the week starting `monday` onto the `weeks` weeks after it, replacing what hasn't started; with
+   *  `weeks` null, keep it going as the continuous rota. */
+  repeatRotaWeek(monday: string, weeks: number | null): Promise<RepeatResult>
+  /** Stop the continuous rota; the weeks it filled keep their shifts. */
+  stopRepeatingRota(): Promise<void>
 
   // calendar
   saveEvent(event: EventInput): Promise<void>

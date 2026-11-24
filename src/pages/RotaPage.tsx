@@ -3,6 +3,7 @@ import {
   TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
+import RepeatIcon from '@mui/icons-material/Repeat'
 import TableRowsIcon from '@mui/icons-material/TableRowsOutlined'
 import ViewColumnIcon from '@mui/icons-material/ViewColumnOutlined'
 import WarningIcon from '@mui/icons-material/WarningAmberRounded'
@@ -13,6 +14,7 @@ import { usePayRates } from '../app/dailyCost'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
 import { ErrorBox, PageHeader, PersonAvatar, WeekNav } from '../components/common'
+import { RepeatRotaDialog, RotaRepeatBanner } from '../components/RotaRepeat'
 import { fonts, tokens } from '../theme'
 import type { ShiftInput } from '../data/api'
 import { dayCoverage, holidayOn, shiftPaidMinutes, shiftWarnings, weeklyCheck, type ShiftContext } from '../../shared/rules'
@@ -78,6 +80,9 @@ export function RotaPage() {
     ])
     return { shifts, events, timeOff }
   }, [monday])
+  // Repeat week: the dialog, and the continuous rota while there is one (components/RotaRepeat.tsx).
+  const [repeating, setRepeating] = useState(false)
+  const repeat = useAsync('rota-repeat', async () => (canEdit ? api.rotaRepeat() : null), [canEdit])
 
   // Open shifts, and the team's (not the shifts of anyone the app leaves out, like the live tests' accounts).
   const allShifts = (data.data?.shifts ?? []).filter(s => !s.profile_id || profiles.some(p => p.id === s.profile_id))
@@ -450,6 +455,7 @@ export function RotaPage() {
     <>
       <PageHeader eyebrow={t('Team')} title={t('Rota')}
         actions={canEdit && <>
+          <Button variant="outlined" startIcon={<RepeatIcon />} onClick={() => setRepeating(true)}>{t('Repeat week')}</Button>
           <Button variant="outlined" onClick={() => run(async () => {
             const n = await api.sendRota(monday)
             if (!n) throw new Error(t('Nobody to send to: staff turn on WhatsApp under My account'))
@@ -457,6 +463,7 @@ export function RotaPage() {
           <Button startIcon={<AddIcon />} variant="contained" onClick={() => openDraft(null, view === 'day' ? day : days[0])}>{t('Add shift')}</Button>
         </>} />
       <ErrorBox error={data.error} />
+      {canEdit && repeat.data && <RotaRepeatBanner repeat={repeat.data} />}
       {showCosts && (
         <Alert severity="info" sx={{ mb: 2 }} action={<Button component={RouterLink} to="/finances" size="small">{t('Back to Finances')}</Button>}>
           {t('What the rota costs: {cost} this week for {hours} of shifts, each day’s cost under its date.', { cost: formatMoney(cost(visible)), hours: formatDuration(mins(visible.filter(s => s.profile_id))) })}
@@ -603,6 +610,10 @@ export function RotaPage() {
           }, t('Shift saved'))}>{t('Save')}</Button>
         </DialogActions>
       </Dialog>
+      {canEdit && (
+        <RepeatRotaDialog open={repeating} monday={monday} shifts={weekShifts.length} current={repeat.data ?? null}
+          onClose={() => setRepeating(false)} />
+      )}
     </>
   )
 }

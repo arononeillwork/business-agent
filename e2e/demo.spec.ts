@@ -502,6 +502,51 @@ test('the rota turns round, people across the top and the days or the hours down
   expect(maria.x).toBeGreaterThan(julio.x + julio.width)
 })
 
+test('the rota’s week repeats: next week only, or kept going as a continuous rota until it’s stopped', async ({ page }) => {
+  await open(page, '/rota')
+  // A shift this week (an open one on Monday evening) that the weeks after don't have.
+  await page.getByRole('button', { name: 'Add shift' }).click()
+  const add = page.getByRole('dialog', { name: 'Add shift' })
+  await add.getByLabel('Start').fill('16:00')
+  await add.getByLabel('End').fill('20:00')
+  await add.getByRole('button', { name: 'Save' }).click()
+  await toast(page, 'Shift saved')
+  const evening = page.getByText('16:00–20:00')
+  await expect(evening).toHaveCount(1)
+
+  // Next week only: it goes onto next week, and no further.
+  await page.getByRole('button', { name: 'Repeat week' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Repeat this week' })
+  await expect(dialog).toContainText(/The week of Mon 28 Sep \(\d+ shifts\) goes onto the weeks after it/)
+  await expect(dialog.getByText('Goes onto Mon 5 Oct to Sun 11 Oct.')).toBeVisible()
+  await dialog.getByRole('button', { name: 'Repeat' }).click()
+  await toast(page, /shifts added, to Sun 11 Oct\./)
+  await page.getByRole('button', { name: 'Next week' }).click()
+  await expect(evening).toHaveCount(1)
+  await page.getByRole('button', { name: 'Next week' }).click()
+  await expect(evening).toHaveCount(0)
+
+  // Kept going: ticked, it fills to the end of the fourth week after this one, and says so over the rota.
+  await page.getByRole('button', { name: 'This week' }).click()
+  await page.getByRole('button', { name: 'Repeat week' }).click()
+  await dialog.getByRole('checkbox', { name: 'Continuous rota: repeat it every week from now on' }).check()
+  await expect(dialog.getByRole('combobox', { name: 'How long' })).toHaveAttribute('aria-disabled', 'true')
+  await expect(dialog.getByText('Goes onto Mon 5 Oct to Sun 1 Nov, then on every week.')).toBeVisible()
+  await dialog.getByRole('button', { name: 'Repeat' }).click()
+  await toast(page, /It now repeats every week\./)
+  const banner = page.getByRole('alert').filter({ hasText: 'Continuous rota: every week repeats the week of Mon 28 Sep, filled to Sun 1 Nov.' })
+  await expect(banner).toBeVisible()
+  await page.getByRole('button', { name: 'Next week' }).click()
+  await page.getByRole('button', { name: 'Next week' }).click()
+  await expect(evening).toHaveCount(1)
+
+  // Stopped: nothing repeats any more, and the weeks it filled keep their shifts.
+  await banner.getByRole('button', { name: 'Stop repeating' }).click()
+  await toast(page, 'The rota no longer repeats')
+  await expect(banner).toHaveCount(0)
+  await expect(evening).toHaveCount(1)
+})
+
 test('@phone the rota’s day turns round too: a column each and the hours down the side, inside the screen', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await open(page, '/rota')

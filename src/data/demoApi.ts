@@ -68,6 +68,7 @@ import { demoChecklistApi } from './demoChecklists'
 import { demoCompanyValuesApi } from './demoCompanyValues'
 import { demoContactsApi } from './demoContacts'
 import { demoSuggestionsApi } from './demoSuggestions'
+import { demoRotaRepeatApi } from './demoRotaRepeat'
 import { demoLeaderboardApi } from './demoLeaderboard'
 import { demoSquarePinsApi } from './demoSquarePins'
 import { demoContentApi } from './demoContent'
@@ -2904,6 +2905,9 @@ export function createDemoApi(): Api {
     ...demoContactsApi({ isOwner: () => isAdmin() && !!me()?.active && !!me()?.can_see_pay, uid }),
     // Customer suggestions (Sales): oat milk, opening earlier and shade, and a few not sorted yet, as the `customer_suggestions` migration.
     ...demoSuggestionsApi({ isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, uid, nowIso }),
+    // Repeating the rota (Rota → Repeat week): a week copied on, or kept going, as the `repeating_rota` migration.
+    ...demoRotaRepeatApi({ shifts, profiles, timeOff, events, canEdit: () => canUpdate('rota'), uid, nowIso,
+      closedOnHolidays: () => !!integ.integrations.find(i => i.provider === 'google_business')?.external.closed_on_holidays }),
     // Leaderboard (Team) and each person's Square login: the demo's timecards and till, as the `team_leaderboard` migration and worker/leaderboard.ts.
     ...demoLeaderboardApi({
       isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, canSeePay: () => isAdmin() && !!me()?.can_see_pay,

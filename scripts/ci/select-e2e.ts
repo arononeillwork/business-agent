@@ -26,6 +26,7 @@ const NO_UI = [/^worker\//, /^supabase\//, /^docs\//, /^video\//, /^\.claude\//,
 /** Areas of the app: the files that make them, and the test titles that cover them. */
 export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'rota', files: [/RotaPage/], tests: String.raw`rota|shift` },
+  { name: 'repeating rota', files: [/[Rr]otaRepeat/], tests: String.raw`rota|shift` },
   { name: 'hours', files: [/(Timecards|Kiosk|Today|Registro)Page/, /ClockRules/, /CafeSpeaker/], tests: String.raw`clock|timecard|registro|correction|hours|Today` },
   { name: 'calendar', files: [/CalendarPage/, /CalendarFeed/], tests: String.raw`calendar|event` },
   { name: 'notifications', files: [/NotificationsPage/, /Notification(Bell|Settings)/, /shared\/notify/, /app\/push/], tests: String.raw`notification|holiday|mention` },

@@ -529,6 +529,8 @@ export default {
           await addNationalHolidays(b).catch(failed('national holidays', id))
           // In Spain, its town's two local holidays: admins are told once when a year's aren't in yet.
           await remindTownHolidays(b).catch(failed('town holiday reminder', id))
+          // A continuous rota (Rota → Repeat week): filled on to the end of the fourth week after this one.
+          await Promise.resolve(b.rpc('extend_repeating_rota')).then(({ error }) => (error ? failed('repeating rota', id)(error.message) : undefined))
         })
       })())
       return
