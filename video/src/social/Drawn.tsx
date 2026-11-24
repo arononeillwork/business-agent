@@ -9,9 +9,9 @@ import { Caption, Cream, Em, Logo, Phone, Sfx, Tick, useEnter } from '../kit'
 import { BA, display, hand, text } from '../theme'
 
 const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const
-/** The photo Julio took (drawn by video/capture/socialPhotos.mjs). */
-export const PHOTO = 'stills/social/coffees-bags.jpg'
-const CAPTION = 'The coffees we have now: Ethiopia, Brazil and a decaf Colombia. Which one’s yours? ☕'
+/** The photo Sam took: the café's coffee selection (Easy Beans' own image). */
+export const PHOTO = 'brand/coffee-selection.jpg'
+const CAPTION = 'The coffees we have now: Fazenda Boa Vista, Oro Fino and a decaf Colombia. Which one’s yours? ☕'
 
 function Word({ children, at, italic }: { children: string; at: number; italic?: boolean }) {
   const p = useEnter(at, 16)

@@ -1,9 +1,10 @@
 // Records the app scenes of the "Instagram and TikTok never get posted" video ("Never short of a post.",
-// video/src/social/): Easy Beans Coffee in the real app in demo mode. Julio, on his phone, picks up the owner's idea
+// video/src/social/): Easy Beans Coffee in the real app in demo mode. Sam, on his phone, picks up the owner's idea
 // "The coffees we have now", adds the photo he took and hands it in; then the owner, at the computer (TikTok and
-// Google Drive connected off camera, and Julio's hand-in made again off camera, as the demo starts afresh each time),
+// Google Drive connected off camera, and Sam's hand-in made again off camera, as the demo starts afresh each time),
 // makes the post from it in one press, adds a line to the caption and schedules it for six o'clock on Instagram,
-// TikTok and the café's other accounts. The photo is drawn (./socialPhotos.mjs). Into video/public/clips (social-*.mp4 + .json).
+// TikTok and the café's other accounts. The photo is the café's own coffee selection (video/public/brand). The demo's
+// Julio is shown as Sam throughout, his name kept out of the film. Into video/public/clips (social-*.mp4 + .json).
 //   npm run dev  (in the repo root, http://127.0.0.1:5173)
 //   node video/capture/social.mjs [scene …]      (no scene: all of them)
 import { chromium } from '@playwright/test'
@@ -11,7 +12,6 @@ import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { APP, Recorder, go, openDemo, prepare } from './lib.mjs'
-import { drawPhotos } from './socialPhotos.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const OUT = join(HERE, '..', 'public', 'clips')
@@ -27,8 +27,21 @@ const browser = await chromium.launch({
   args: ['--lang=en-GB', `--force-device-scale-factor=${SCALE}`],
   env: { ...process.env, LANG: 'en_GB.UTF-8', LC_ALL: 'en_GB.UTF-8', LANGUAGE: 'en_GB' },
 })
-// The photo Julio takes: the three bags and a cup of each (drawn, kept with the stills).
-const [PHOTO] = await drawPhotos(browser, join(HERE, '..', 'public', 'stills', 'social'))
+// The photo Sam takes: the café's coffee selection, the three bags with a cup of each (Easy Beans' own image).
+const PHOTO = join(HERE, '..', 'public', 'brand', 'coffee-selection.jpg')
+
+/** The demo's Julio shown as Sam on screen (his name and his avatar's letter), so his name isn't in the film. */
+const RENAME = `(() => {
+  const swap = n => {
+    if (n.nodeType === 3) {
+      if (n.nodeValue.includes('Julio')) n.nodeValue = n.nodeValue.split('Julio').join('Sam')
+      if (n.nodeValue === 'J' && n.parentElement && n.parentElement.closest('.MuiAvatar-root')) n.nodeValue = 'S'
+    } else n.childNodes.forEach(swap)
+  }
+  new MutationObserver(ms => ms.forEach(m => { if (m.type === 'characterData') swap(m.target); else m.addedNodes.forEach(swap) }))
+    .observe(document, { childList: true, subtree: true, characterData: true })
+  addEventListener('DOMContentLoaded', () => swap(document.documentElement))
+})()`
 
 const toast = (page, text) => page.getByRole('alert').filter({ hasText: text }).first().waitFor()
 
@@ -58,24 +71,38 @@ async function connect(page) {
   await files.getByRole('article', { name: 'Google Drive' }).filter({ hasText: 'Connected' }).waitFor()
 }
 
+/** Off camera, as the owner: the Social planner opened to the baristas' role (Sam's), which hides it until it's given. */
+async function openPlanner(page) {
+  await go(page, '/roles?tab=permissions')
+  const cell = page.getByRole('table', { name: 'Each role' }).getByRole('combobox', { name: 'Barista / Bartender: Social planner' })
+  await cell.click()
+  await page.getByRole('option', { name: 'Read', exact: true }).click()
+  await page.waitForFunction(el => el.textContent === 'Read', await cell.elementHandle())
+}
+
 /** The demo's "View as": someone else on the team, without leaving the page. */
 async function viewAs(page, who) {
   await page.getByLabel('View as').click()
   await page.getByRole('option', { name: new RegExp(who) }).click()
   await page.waitForTimeout(1000)
+  // Switching person goes to their home page: back to the planner.
+  await go(page, '/social')
+  await page.getByRole('heading', { name: 'Social planner' }).waitFor()
 }
 
 const SCENES = {
-  /** Julio's phone: the ideas for posts; he takes the coffees one, adds his photo and hands it in. */
+  /** Sam's phone: the ideas for posts; he takes the coffees one, adds his photo and hands it in. */
   async phone() {
     const ctx = await browser.newContext({ viewport: PHONE, deviceScaleFactor: SCALE, isMobile: true, hasTouch: true, locale: 'en-GB', timezoneId: 'Europe/Madrid' })
     await prepare(ctx, { banner: true })
-    // Off camera: the owner connects Google Drive (where the team's photos are kept); then it's Julio's phone.
+    await ctx.addInitScript(RENAME)
+    // Off camera: the owner connects Google Drive (where the team's photos are kept); then it's Sam's phone.
     const page = await openDemo(ctx, { time: TIME, path: '/connections' })
     await connect(page)
+    await openPlanner(page)
     await go(page, '/social')
     await page.getByRole('heading', { name: 'Social planner' }).waitFor()
-    await viewAs(page, 'Julio')
+    await viewAs(page, 'Julio|Sam')
     await hideBanner(page)
     await page.evaluate(() => scrollTo(0, 0))
     await page.waitForTimeout(2500)
@@ -104,12 +131,14 @@ const SCENES = {
   async post() {
     const ctx = await browser.newContext({ viewport: DESKTOP, deviceScaleFactor: SCALE, locale: 'en-GB', timezoneId: 'Europe/Madrid' })
     await prepare(ctx, { banner: true })
+    await ctx.addInitScript(RENAME)
     const page = await openDemo(ctx, { time: TIME, path: '/connections' })
-    // Off camera: TikTok and Google Drive connected, and Julio's hand-in, as he made it on his phone.
+    // Off camera: TikTok and Google Drive connected, and Sam's hand-in, as he made it on his phone.
     await connect(page)
+    await openPlanner(page)
     await go(page, '/social')
     await page.getByRole('heading', { name: 'Social planner' }).waitFor()
-    await viewAs(page, 'Julio')
+    await viewAs(page, 'Julio|Sam')
     const his = page.getByRole('article', { name: IDEA })
     await his.getByRole('button', { name: 'I’ll make it' }).click()
     await addPhoto(page, () => his.getByRole('button', { name: /^Add photos/ }).click())
@@ -134,7 +163,7 @@ const SCENES = {
     const caption = dialog.locator('textarea').first()
     await r.click(caption, { label: 'caption', dx: 0.9, ms: 600, after: 300 })
     await page.keyboard.press('ControlOrMeta+End')
-    await caption.pressSequentially(': Ethiopia, Brazil and a decaf Colombia. Which one’s yours? ☕', { delay: 45 })
+    await caption.pressSequentially(': Fazenda Boa Vista, Oro Fino and a decaf Colombia. Which one’s yours? ☕', { delay: 45 })
     await r.pause(900)
     // Every account that takes a photo post is ticked already: Instagram and TikTok among them.
     await r.focus(dialog.getByText('Post to'), 'targets', { move: true }); await r.pause(1600)

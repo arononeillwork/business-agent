@@ -1,6 +1,6 @@
 // "From an idea to a scheduled post.": Business Agent and the posts that never get made, for the Sales page's card
 // "Instagram and TikTok never get posted". The café's last post, six weeks ago, and "post on Insta" crossed off week
-// after week. Then the app: on Julio's phone the team's ideas for posts, one taken, the photo added and handed in; at
+// after week. Then the app: on Sam's phone the team's ideas for posts, one taken, the photo added and handed in; at
 // the computer the owner makes the post in one press, adds a line, and schedules it for six on every account. Six
 // o'clock: the post on Instagram and on TikTok, and the brand. 76 seconds over video/music/social.py.
 import { Audio } from '@remotion/media'
