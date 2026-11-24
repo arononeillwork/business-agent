@@ -1062,6 +1062,15 @@ neither Square Loyalty nor Square Online:
 needs Square's subscriptions, invoices and checkout permissions: a business connected before them connects Square
 again (the page says so).
 
+**Tapping in, and member codes.** With a Square Loyalty programme (a paid Square add-on) and its digital pass on,
+a member who has joined it keeps a pass in Apple Wallet and taps their iPhone on the till's customer display:
+Square adds them to the sale, so their club line shows without a name said. **Tap to check in** on the Coffee club
+page says how to switch it on in Square, or how many members can tap (read from Square Loyalty every 30 minutes,
+and on **Check Square now**). Members join the programme themselves, by typing their phone number on the customer
+display (Square texts them the pass); the app never signs them up. Each member also has a code of their own (the
+club_member_codes migration), for a barcode on their pass on the website (docs/WEBSITE.md), ready for scanning at
+the till later.
+
 ## Use it from any AI
 
 The app is an MCP server at `https://<worker-url>/mcp`. Each person connects their own AI and it

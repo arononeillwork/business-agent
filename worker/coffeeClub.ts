@@ -16,6 +16,9 @@ import { Hono, type MiddlewareHandler } from 'hono'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { bearer, requestDb, type Env } from './supabase'
 import { connectedOf, explain, lasting, markBroken, squareSession } from './connections'
+import { cached, forget } from './cache'
+import { minutesFor } from './refresh'
+import * as loyalty from './providers/squareLoyalty'
 import { SquareError } from './providers/square'
 import type { SquareCustomer } from './providers/square'
 import * as square from './providers/squareClub'
@@ -53,8 +56,9 @@ interface ClubRow {
 interface MemberRow {
   id: string; square_subscription_id: string; square_customer_id: string; square_variation_id: string | null; customer_id: string | null
   status: ClubStatus; started_on: string | null; ends_on: string | null; paid: boolean; paid_through: string | null; note_line: string | null
+  card_code: string | null
 }
-const MEMBER_COLUMNS = 'id, square_subscription_id, square_customer_id, square_variation_id, customer_id, status, started_on, ends_on, paid, paid_through, note_line'
+const MEMBER_COLUMNS = 'id, square_subscription_id, square_customer_id, square_variation_id, customer_id, status, started_on, ends_on, paid, paid_through, note_line, card_code'
 
 const missingScope = (e: unknown) => e instanceof SquareError && e.code === 'INSUFFICIENT_SCOPES'
 const check = <T>(r: { data: T; error: { message: string } | null }) => { if (r.error) throw new Error(r.error.message); return r.data }
@@ -319,12 +323,27 @@ const settingsOf = (c: ClubRow): CoffeeClubSettings => ({
   till_language: c.till_language, selling: c.selling, signup_url: c.signup_url, set_up_at: c.set_up_at,
 })
 
-/** What the page shows: the club, its members with their week, and the last 60 days' coffees. */
-export async function clubState(db: SupabaseClient, status: CoffeeClubState['status'] = 'ok'): Promise<CoffeeClubState> {
+/** Square Loyalty's programme and the Square customers in it, read now and then (provider_cache); null when Square can't say. */
+export const LOYALTY_KEY = 'club-loyalty'
+async function loyaltyOf(env: Env, db: SupabaseClient): Promise<{ program: boolean; customers: Set<string> } | null> {
+  try {
+    const { data } = await cached(db, LOYALTY_KEY, minutesFor(db, 'loyalty'), async () => {
+      const s = await squareSession(env, db)
+      if (!await loyalty.program(s.sandbox, s.token)) return { program: false, customers: [] as string[] }
+      return { program: true, customers: (await loyalty.accounts(s.sandbox, s.token)).map(a => a.customer_id).filter((x): x is string => !!x) }
+    })
+    return { program: data.program, customers: new Set(data.customers) }
+  } catch {
+    return null
+  }
+}
+
+/** What the page shows: the club, its members with their week and whether they're in Square Loyalty, and the last 60 days' coffees. */
+export async function clubState(db: SupabaseClient, status: CoffeeClubState['status'] = 'ok', env?: Env): Promise<CoffeeClubState> {
   const tz = await zoneOf(db)
   const week = weekStart(today(tz))
   const c = await loadClub(db)
-  if (!c) return { status: status === 'reconnect' ? 'reconnect' : 'not_set_up', club: null, members: [], coffees: [], week, checked_at: null }
+  if (!c) return { status: status === 'reconnect' ? 'reconnect' : 'not_set_up', club: null, members: [], coffees: [], week, checked_at: null, loyalty_program: null }
   const since = `${addDays(today(tz), -60)}T00:00:00Z`
   const [members, recent, counted] = await Promise.all([
     db.from('coffee_club_members').select(MEMBER_COLUMNS).order('created_at', { ascending: false }).then(check) as Promise<MemberRow[]>,
@@ -347,12 +366,14 @@ export async function clubState(db: SupabaseClient, status: CoffeeClubState['sta
     stats.set(r.member_id, st)
   }
   const memberName = new Map(members.map(m => [m.id, (m.customer_id && names.get(m.customer_id)) || null]))
+  const loyal = env ? await loyaltyOf(env, db) : null
   return {
-    status, club: settingsOf(c), week, checked_at: c.orders_checked_at,
+    status, club: settingsOf(c), week, checked_at: c.orders_checked_at, loyalty_program: loyal ? loyal.program : null,
     members: members.map((m): ClubMember => ({
       id: m.id, customer_id: m.customer_id, name: memberName.get(m.id) ?? null, square_customer_id: m.square_customer_id,
       status: m.status, started_on: m.started_on, ends_on: m.ends_on, paid: m.paid, paid_through: m.paid_through,
       used_this_week: stats.get(m.id)?.week ?? 0, last_coffee: stats.get(m.id)?.last ?? null, coffees: stats.get(m.id)?.all ?? 0,
+      card_code: m.card_code ?? null, loyalty: loyal ? loyal.customers.has(m.square_customer_id) : null,
     })),
     coffees: recent.map(r => ({ ...r, value: Number(r.value), name: r.member_id ? memberName.get(r.member_id) ?? null : null })),
   }
@@ -361,7 +382,7 @@ export async function clubState(db: SupabaseClient, status: CoffeeClubState['sta
 coffeeClubRoutes.get('/api/coffee-club', async c => {
   const db = await requestDb(c)
   try {
-    return c.json(await clubState(db))
+    return c.json(await clubState(db, 'ok', c.env))
   } catch (e) {
     return c.json({ error: await failure(db, e) }, 400)
   }
@@ -433,7 +454,7 @@ coffeeClubRoutes.post('/api/coffee-club', async c => {
     if (was && (was.coffees_per_week !== per || was.name !== input.name || was.till_language !== lang)) {
       check(await db.from('coffee_club_members').update({ note_line: null }).neq('status', 'canceled'))
     }
-    return c.json(await clubState(db))
+    return c.json(await clubState(db, 'ok', c.env))
   } catch (e) {
     if (missingScope(e)) return c.json(await clubState(db, 'reconnect'))
     return c.json({ error: await failure(db, e) }, 400)
@@ -444,8 +465,10 @@ coffeeClubRoutes.post('/api/coffee-club', async c => {
 coffeeClubRoutes.post('/api/coffee-club/sync', async c => {
   const db = await requestDb(c)
   try {
+    // Who has joined Square Loyalty since, too.
+    await forget(db, LOYALTY_KEY)
     const r = await syncCoffeeClub(c.env, db)
-    return c.json(await clubState(db, r === 'reconnect' ? 'reconnect' : 'ok'))
+    return c.json(await clubState(db, r === 'reconnect' ? 'reconnect' : 'ok', c.env))
   } catch (e) {
     return c.json({ error: await failure(db, e) }, 400)
   }
@@ -512,7 +535,7 @@ export async function siteClub(db: SupabaseClient, customerId: string, squareCus
     join_url: !m && c.selling ? c.signup_url : null,
     pass: m && st && st !== 'ended' ? {
       standing: st, used_this_week: used, left_this_week: inGoodStanding(m) ? Math.max(0, c.coffees_per_week - used) : 0,
-      week_start: week, started_on: m.started_on, ends_on: m.ends_on,
+      week_start: week, started_on: m.started_on, ends_on: m.ends_on, card_code: m.card_code ?? null,
     } : null,
   }
 }

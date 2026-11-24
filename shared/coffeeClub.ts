@@ -48,6 +48,10 @@ export interface ClubMember {
   last_coffee: string | null
   /** Every coffee counted since they joined. */
   coffees: number
+  /** Their member code: a barcode on their pass on the website (the club_member_codes migration). */
+  card_code: string | null
+  /** In the business's Square Loyalty programme, so they can tap their iPhone's pass at the till; null: not known. */
+  loyalty: boolean | null
 }
 
 export interface ClubCoffee {
@@ -76,6 +80,11 @@ export interface CoffeeClubState {
   week: string
   /** When Square's sales were last looked through. */
   checked_at: string | null
+  /**
+   * Whether the business has a Square Loyalty programme, whose Apple Wallet pass lets a member tap their iPhone on the
+   * till's customer display to be added to the sale. Null: not known (Square couldn't be asked just then).
+   */
+  loyalty_program: boolean | null
 }
 
 /** What an admin sets: the rest (Square's plan, the discount, the sign-up page) the Worker makes. */
@@ -137,6 +146,9 @@ export function clubProblem(customerId: string | null, member: Pick<ClubMember, 
   if (!inGoodStanding(member)) return 'not_paid'
   return used + quantity > perWeek ? 'over_limit' : null
 }
+
+/** A member code as it's shown under the barcode: "7Q2K 9XMB". */
+export const cardCodeText = (code: string) => `${code.slice(0, 4)} ${code.slice(4)}`
 
 /** Each note line the app writes starts with this, so it finds and replaces its own and leaves the team's alone. */
 export const NOTE_MARK = '☕ '

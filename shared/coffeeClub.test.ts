@@ -69,8 +69,8 @@ describe('The coffee club', () => {
       club: { name: 'Coffee club', price: 10, currency: 'EUR', coffees_per_week: 1, max_value: 5, till_language: 'en', selling: true, signup_url: null, set_up_at: '' },
       week: '2026-11-23',
       members: [
-        { id: 'a', customer_id: null, name: 'A', square_customer_id: 'x', status: 'active', started_on: null, ends_on: null, paid: true, paid_through: null, used_this_week: 1, last_coffee: null, coffees: 3 },
-        { id: 'b', customer_id: null, name: 'B', square_customer_id: 'y', status: 'active', started_on: null, ends_on: null, paid: false, paid_through: null, used_this_week: 0, last_coffee: null, coffees: 1 },
+        { id: 'a', customer_id: null, name: 'A', square_customer_id: 'x', status: 'active', started_on: null, ends_on: null, paid: true, paid_through: null, used_this_week: 1, last_coffee: null, coffees: 3, card_code: null, loyalty: null },
+        { id: 'b', customer_id: null, name: 'B', square_customer_id: 'y', status: 'active', started_on: null, ends_on: null, paid: false, paid_through: null, used_this_week: 0, last_coffee: null, coffees: 1, card_code: null, loyalty: null },
       ],
       coffees: [
         { id: '1', member_id: 'a', name: 'A', item: 'Flat White', quantity: 1, value: 3.8, at: '2026-11-24T09:00:00Z', problem: null, sorted_at: null },

@@ -97,6 +97,8 @@ export interface SiteClub {
     started_on: string | null
     /** The last day a cancelled membership runs. */
     ends_on: string | null
+    /** Their member code, for a barcode (Code 128) on the pass: 8 letters and digits, the same while they're a member. */
+    card_code: string | null
   } | null
 }
 

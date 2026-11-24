@@ -59,6 +59,18 @@ select pg_temp.expect_error($$update public.coffee_club set price = 0$$, 'coffee
 update public.coffee_club set set_up_at = '2020-01-01', price = 12;
 do $$ begin assert (select set_up_at > '2026-01-01' and price = 12 from public.coffee_club), 'set up when it was'; end $$;
 
+-- Each member has a code of their own (the club_member_codes migration), which never changes.
+insert into public.coffee_club_members (square_subscription_id, square_customer_id, status) values ('cc-S3', 'cc-SQC3', 'active');
+do $$ begin
+  assert (select bool_and(card_code ~ '^[A-HJ-NP-Z2-9]{8}$') from public.coffee_club_members where square_subscription_id like 'cc-%'), 'a code each, readable';
+  assert (select count(distinct card_code) = 2 from public.coffee_club_members where square_subscription_id in ('cc-S1', 'cc-S3')), 'their own';
+end $$;
+update public.coffee_club_members set card_code = 'AAAA2222', paid = false where square_subscription_id = 'cc-S3';
+do $$ begin
+  assert (select card_code <> 'AAAA2222' and not paid from public.coffee_club_members where square_subscription_id = 'cc-S3'), 'the code stays';
+end $$;
+delete from public.coffee_club_members where square_subscription_id = 'cc-S3';
+
 -- 3. Admins read it all; an employee sees none; nobody changes it from the app.
 select pg_temp.act_as('cc-owner@test');
 do $$ begin

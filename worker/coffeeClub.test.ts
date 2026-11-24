@@ -135,6 +135,31 @@ describe('The coffee club page', () => {
   })
 })
 
+describe('Square Loyalty, for tapping in', () => {
+  it('without a programme the page says so; Square failing leaves it unknown, and the page still opens', async () => {
+    const { variation } = await setUp()
+    apis.square.subscriptions = [sub('S1', 'SQC1', variation)]
+    await syncCoffeeClub(env, b1())
+    apis.square.program = null
+    db.tables.provider_cache = []
+    expect(await state()).toMatchObject({ loyalty_program: false, members: [{ loyalty: false }] })
+    db.tables.provider_cache = []
+    apis.square.loyaltyScope = false
+    expect(await state()).toMatchObject({ status: 'ok', loyalty_program: null, members: [{ loyalty: null }] })
+  })
+
+  it('who has joined is kept a while; Check Square now asks again', async () => {
+    const { variation } = await setUp()
+    apis.square.subscriptions = [sub('S1', 'SQC2', variation)]
+    await syncCoffeeClub(env, b1())
+    expect((await state()).members[0].loyalty).toBe(false)
+    apis.square.loyaltyAccounts.push({ id: 'LA3', customer_id: 'SQC2', balance: 0, lifetime_points: 0, enrolled_at: '2026-11-25T09:00:00Z' })
+    expect((await state()).members[0].loyalty).toBe(false)
+    const now = await (await post('/api/coffee-club/sync')).json() as CoffeeClubState
+    expect(now.members[0].loyalty).toBe(true)
+  })
+})
+
 describe('Members and their coffees', () => {
   it('members from Square, linked to Customers (brought in when new), with whether the month was paid', async () => {
     const { variation } = await setUp()
@@ -150,6 +175,9 @@ describe('Members and their coffees', () => {
     expect(tom).toMatchObject({ first_name: 'Tom', notes: 'Oat flat white' })
     const s = await state()
     expect(s.members.map(m => [m.name, m.status, m.paid]).sort()).toEqual([['Lucía García', 'active', true], ['Tom', 'active', false]])
+    // Lucía is in the Square Loyalty programme, so she can tap her iPhone's pass at the till; Tom isn't.
+    expect(s.loyalty_program).toBe(true)
+    expect(s.members.map(m => [m.name, m.loyalty]).sort()).toEqual([['Lucía García', true], ['Tom', false]])
     // Their notes on the till: the club's line first, Tom's own line kept.
     expect(apis.square.notes.get('SQC1')!.note).toBe('☕ Coffee club: this week’s coffee is ready')
     expect(apis.square.notes.get('SQC2')!.note).toBe('☕ Coffee club: the last payment failed. Charge as normal\nOat flat white')
@@ -250,9 +278,11 @@ describe('Members and their coffees', () => {
     await syncCoffeeClub(env, b1())
     apis.square.clubOrders = [sale('O1', 'SQC1', discount)]
     await coffeeClubEvent(env, b1(), completed('O1'))
+    // The database gives each member a code (the club_member_codes migration).
+    db.tables.coffee_club_members[0].card_code = '7Q2K9XMB'
     expect(await siteClub(b1(), 'c-lucia', 'SQC1')).toEqual({
       name: 'Coffee club', price: 10, currency: 'EUR', coffees_per_week: 1, join_url: null,
-      pass: { standing: 'active', used_this_week: 1, left_this_week: 0, week_start: '2026-11-23', started_on: '2026-11-01', ends_on: null },
+      pass: { standing: 'active', used_this_week: 1, left_this_week: 0, week_start: '2026-11-23', started_on: '2026-11-01', ends_on: null, card_code: '7Q2K9XMB' },
     })
     expect(await siteClub(b1(), 'c-someone', null)).toMatchObject({ join_url: db.tables.coffee_club[0].signup_url, pass: null })
     db.tables.coffee_club = []

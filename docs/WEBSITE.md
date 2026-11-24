@@ -258,13 +258,21 @@ how to join, and the person's pass, which they can hold up at the counter so the
     "standing": "active",                  // active, ending (cancelled, still running), pending, paused, payment_failed
     "used_this_week": 0, "left_this_week": 1,   // left: 0 unless active and paid
     "week_start": "2026-11-23",            // a new week's coffees from this Monday
-    "started_on": "2026-11-01", "ends_on": null
+    "started_on": "2026-11-01", "ends_on": null,
+    "card_code": "7Q2K9XMB"                // their member code (8 letters and digits, the same while they're a member)
   }
 }
 ```
 
 A good pass shows the name large, the club's name and this week's coffee ("ready" or "had, next one Monday"),
 and `join_url` as a button for someone who isn't a member yet.
+
+The member code goes on the pass as a **Code 128 barcode** with the code printed under it in two groups
+(`7Q2K 9XMB`), so it can be read out or typed if a scan fails. Make it big enough to scan from a phone held up
+(at least 4 cm wide) on a white background, and keep the screen's brightness in mind (no dark mode behind it).
+The till can't scan it yet: for now the team adds the member by the name on the pass, or the member taps their
+iPhone's Square Loyalty pass (Sales → Coffee club → Tap to check in). When scanning comes, the code will be the
+member's item code in Square.
 
 ### Erase: deleting the account on the website
 
