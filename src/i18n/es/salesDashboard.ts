@@ -1,0 +1,32 @@
+// Spanish for the Sales dashboard (Dashboards): its template, its widgets and what they say.
+export default {
+  'For whoever runs the selling: the takings, how many sales and the average, where the period is heading, the busiest days and hours, what sells most, who sold it at the till, the reps who bring people in, tips and refunds.':
+    'Para quien lleva las ventas: los ingresos, cuántas ventas y la venta media, hacia dónde va el periodo, los días y las horas de más movimiento, lo que más se vende, quién lo cobró en caja, los comerciales que traen clientes, las propinas y las devoluciones.',
+  'On course for': 'Previsión',
+  'Where the period is heading: so far, and a usual day for each day left': 'Hacia dónde va el periodo: lo que va, y un día normal por cada día que queda',
+  'Most sold': 'Más vendido en unidades',
+  'By how many sold, not the money (Square)': 'Por unidades vendidas, no por dinero (Square)',
+  'Sales by person': 'Ventas por persona',
+  'Who took the payments at the till (Square)': 'Quién cobró en caja (Square)',
+  'Reps who brought most': 'Comerciales que más traen',
+  'From Sales reps & rewards: what each earned in the period': 'De Comerciales y recompensas: lo que ganó cada uno en el periodo',
+  'What customers left, against the period before': 'Lo que dejaron los clientes, frente al periodo anterior',
+  'What was given back, and its share of the takings': 'Lo que se devolvió, y qué parte de los ingresos es',
+  'For a period still going: today, this week or this month.': 'Para un periodo que aún no ha terminado: hoy, esta semana o este mes.',
+  '{money} taken so far': '{money} cobrados hasta ahora',
+  '{n} day to go': 'queda {n} día',
+  '{n} days to go': 'quedan {n} días',
+  'Against the whole period before. What’s left counts as a usual day of each kind, from the last eight weeks.':
+    'Frente al periodo anterior entero. Lo que queda cuenta como un día normal de cada tipo, según las últimas ocho semanas.',
+  '{n} sold': '{n} uds.',
+  'Connect Square to see who sold most: each payment in Square says who took it.': 'Conecta Square para ver quién vende más: cada cobro en Square dice quién lo hizo.',
+  'Open the Leaderboard': 'Abrir la Clasificación',
+  '{n} sale': '{n} venta',
+  'No sales taken in Square in this period yet.': 'Aún no hay ventas cobradas en Square en este periodo.',
+  'Open Reps & rewards': 'Abrir Comerciales y recompensas',
+  'No rewards earned in this period yet.': 'Aún no se han ganado recompensas en este periodo.',
+  'and {n} more rep': 'y {n} comercial más',
+  'and {n} more reps': 'y {n} comerciales más',
+  'Nothing refunded in this period': 'Nada devuelto en este periodo',
+  '{pct}% of the takings': '{pct}% de los ingresos',
+}

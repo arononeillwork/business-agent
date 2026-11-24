@@ -10102,6 +10102,76 @@ test.describe('UI round: dashboards, the business advisor and the landing pages'
     await expect(page.getByRole('tab', { name: 'Reports' })).toHaveCount(0)
   })
 
+  test('dashboards: the Sales template: where the period is heading, what sells, who sold it at the till, the reps who bring people in, tips and refunds', async ({ page }) => {
+    await open(page, '/')
+    await connectSquare(page)
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Dashboards' }).click()
+    await page.getByRole('button', { name: 'Start from Sales' }).click()
+    await toast(page, 'Added Sales')
+    await expect(page.getByRole('main').getByRole('tab')).toHaveText(['Reports', 'Sales'])
+    // The usual periods, this week to start (Monday 28 September to today, Wednesday).
+    const periods = page.getByRole('group', { name: 'Period' })
+    await expect(periods.getByRole('button', { name: 'This week' })).toHaveAttribute('aria-pressed', 'true')
+    const pace = page.getByRole('region', { name: 'On course for' })
+    await expect(pace).toContainText(/€[\d.,]+ taken so far · 4 days to go/)
+    await expect(pace).toContainText('Against the whole period before.')
+    for (const name of ['Takings', 'Payments', 'Average sale']) await expect(page.getByRole('region', { name, exact: true })).toContainText(/[\d]/)
+    // Most sold goes by how many, Best sellers by the money.
+    await expect(page.getByRole('region', { name: 'Most sold' }).getByRole('listitem').first()).toContainText('Flat White')
+    await expect(page.getByRole('region', { name: 'Best sellers' }).getByRole('listitem').first()).toContainText('Iced Matcha Latte')
+    // Who took the payments in Square: Julio, Maria and Aron on weekdays; the owner sees how much each took.
+    const people = page.getByRole('region', { name: 'Sales by person' })
+    await expect(people.getByRole('listitem')).toHaveCount(3)
+    await expect(people.getByRole('listitem').first()).toContainText(/Julio€/)
+    await expect(people).not.toContainText('not linked to anyone here')
+    await expect(page.getByRole('region', { name: 'Tips', exact: true })).toContainText('4% of the takings')
+    await expect(page.getByRole('region', { name: 'Refunds', exact: true })).toContainText('€')
+
+    // This month: the reps (Marco's hotel meeting, still waiting, counts), and the weekend's sales by Mark and Sofía, who aren't linked.
+    await periods.getByRole('button', { name: 'This month' }).click()
+    await expect(page.getByRole('region', { name: 'Reps who brought most' }).getByRole('listitem').first()).toContainText('Marco Bellini2 rewards€48,00')
+    await expect(people).toContainText('sales were taken in Square by someone not linked to anyone here.')
+    // Today: what's left of today; the last 30 days aren't heading anywhere.
+    await periods.getByRole('button', { name: 'Today' }).click()
+    await expect(pace).toContainText(/€[\d.,]+ taken so far/)
+    await expect(pace).not.toContainText('to go')
+    await periods.getByRole('button', { name: 'Last 30 days' }).click()
+    await expect(pace).toContainText('For a period still going: today, this week or this month.')
+  })
+
+  test('dashboards: the Sales template for a shop manager: who sold at the till and the reps, not the takings; employees aren’t offered it', async ({ page }) => {
+    await giveBaristas(page, 'Dashboards', 'Read')
+    await connectSquare(page)
+    // An employee: no Sales template, and none of its widgets to add.
+    await signInAs(page, 'maria@example.com')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Dashboards' }).click()
+    await expect(page.getByRole('button', { name: 'Start from Executive' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Start from Sales' })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Start from Blank' }).click()
+    await page.getByRole('button', { name: 'Add a widget' }).first().click()
+    const add = page.getByRole('dialog', { name: 'Add a widget' })
+    await expect(add.getByRole('button', { name: 'Add Low on stock' })).toBeVisible()
+    for (const name of ['On course for', 'Most sold', 'Sales by person', 'Reps who brought most', 'Tips', 'Refunds']) await expect(add.getByRole('button', { name: `Add ${name}`, exact: true })).toHaveCount(0)
+    await add.getByRole('button', { name: 'Done' }).click()
+
+    // Made shop manager (no pay access): the Sales template, with how many sales each person took and the reps, not the takings.
+    await signInAs(page, 'aron@example.com')
+    await page.getByRole('link', { name: 'Team', exact: true }).first().click()
+    await page.getByRole('row', { name: /Maria/ }).click()
+    const panel = page.getByRole('dialog', { name: 'Maria' })
+    await panel.getByLabel('Role').click()
+    await page.getByRole('option', { name: 'Shop manager' }).click()
+    await toast(page, 'Role updated')
+    await panel.getByRole('button', { name: 'Close' }).click()
+    await signInAs(page, 'maria@example.com')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Dashboards' }).click()
+    await page.getByRole('button', { name: 'New dashboard' }).click()
+    await page.getByRole('menuitem', { name: /Sales template/ }).click()
+    await expect(page.getByRole('region', { name: 'Sales by person' }).getByRole('listitem').first()).toContainText(/Julio[\d.,]+ sales/)
+    await expect(page.getByRole('region', { name: 'Reps who brought most' })).toBeVisible()
+    for (const name of ['Takings', 'On course for', 'Most sold', 'Tips', 'Refunds']) await expect(page.getByRole('region', { name, exact: true })).toHaveCount(0)
+  })
+
   test('business advisor: findings from the takings, the menu, the team and the waste; employees can’t open it', async ({ page }) => {
     await open(page, '/')
     await connectSquare(page)

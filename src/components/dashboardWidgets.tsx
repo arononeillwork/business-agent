@@ -18,6 +18,9 @@ import { BarChart, ShareBars, type BarPoint } from './charts'
 import { PersonAvatar } from './common'
 import { tillsOf } from './till'
 import type { DashRange, WidgetKind } from '../../shared/dashboards'
+import { periodEnd, type DashPeriod } from '../../shared/dashboards'
+import { mostSold, percentOf, repsBetween, salesPace } from '../../shared/salesDashboard'
+import { RECONNECT_TEAM } from '../../shared/squareTeam'
 import { change, hourTotals, hoursByPerson, lateStarts, salesTotals, weekdayAverages, between } from '../../shared/insights'
 import { analyse } from '../../shared/localCompetitors'
 import { costing } from '../../shared/recipes'
@@ -642,8 +645,115 @@ function CreditDebitFigure() {
     sums.comingIn ? t('{money} to come in', { money: formatMoney(sums.comingIn) }) : ''].filter(Boolean).join(' · ')} />
 }
 
-/** The widget's body, for the period picked. */
-export function WidgetBody({ kind, range }: { kind: WidgetKind; range: DashRange }) {
+// ---------------- The Sales template's (shared/salesDashboard.ts works the figures out) ----------------
+
+/** Where a period still going is heading: so far, and a usual day of each kind (the last eight weeks) for the days left. */
+function SalesPaceFigure({ r, period }: { r: DashRange; period?: DashPeriod }) {
+  const { api } = useApp()
+  const { on, ready } = useTakings()
+  const sales = useSales(r)
+  const day = today()
+  // The same eight weeks Takings by day of the week reads.
+  const history = useAsync('advisor-sales', () => (on ? api.sales(addDays(day, -55), day) : Promise.resolve(null)), [on, day])
+  const end = period ? periodEnd(period, day) : null
+  if (!ready) return <Note>{t('Loading…')}</Note>
+  if (!on) return <NeedsTill />
+  if (!end || !period) return <Note>{t('For a period still going: today, this week or this month.')}</Note>
+  if (!sales.data || !history.data) return <Note>{sales.error ?? history.error ?? t('Loading…')}</Note>
+  const pace = salesPace(sales.data.days, history.data.days, r.from, end, day)
+  const before = salesTotals(between(sales.data.days, r.prevFrom, periodEnd(period, r.prevFrom) ?? r.prevTo)).gross
+  return (
+    <Box>
+      <Figure value={formatMoney(pace.total)} now={pace.total} before={before}
+        note={[t('{money} taken so far', { money: formatMoney(pace.soFar) }), pace.daysLeft ? tn(pace.daysLeft, '{n} day to go', '{n} days to go') : ''].filter(Boolean).join(' · ')} />
+      <Typography variant="caption" component="p" sx={{ color: 'text.secondary', m: 0, mt: 0.75 }}>
+        {t('Against the whole period before. What’s left counts as a usual day of each kind, from the last eight weeks.')}
+      </Typography>
+    </Box>
+  )
+}
+
+/** What sold most by how many (Square's items): the counterpart of Best sellers, which goes by the money. */
+function MostSold({ r }: { r: DashRange }) {
+  const { api } = useApp()
+  const { on } = useTakings()
+  const items = useAsync('dash-items', () => (on ? api.salesItems(r.from, r.to) : Promise.resolve(null)), [on, r.from, r.to])
+  if (!on) return <NeedsTill />
+  if (!items.data) return <Note>{items.error ?? t('Loading…')}</Note>
+  if (!items.data.items) return <Note>{t('Best sellers come from Square: Stripe and SumUp send payments only.')}</Note>
+  const top = mostSold(items.data.items)
+  return top.length ? <ShareBars rows={top.map(i => ({ name: i.name, value: i.quantity }))} format={n => tn(n, '{n} sold', '{n} sold', { n: formatNumber(n) })} label={t('Most sold')} />
+    : <Note>{t('Nothing sold yet.')}</Note>
+}
+
+/** Who took the payments in Square, as the Leaderboard counts them (how much each took only for the owners). */
+function SalesByPerson({ r }: { r: DashRange }) {
+  const { api, profiles } = useApp()
+  const till = useAsync('leaderboard-till', () => api.leaderboardTill(r.from, r.to), [r.from, r.to])
+  if (!till.data) return <Note>{till.error ?? t('Loading…')}</Note>
+  const b = till.data
+  if (b.status === 'plan') return <Note>{t('Sales by person come with takings, on the Pro plan and up.')}</Note>
+  if (b.status === 'not_connected') return <Note to="/connections" action={t('Connect a till')}>{t('Connect Square to see who sold most: each payment in Square says who took it.')}</Note>
+  if (b.status === 'reconnect') return <Note to="/connections" action={t('Open Connections')}>{t(RECONNECT_TEAM)}</Note>
+  if (b.status === 'no_links') return <Note to="/leaderboard" action={t('Open the Leaderboard')}>{t('Link each person to their own Square login to see who sold most.')}</Note>
+  const money = b.people.some(p => p.gross !== null)
+  const rows = b.people.map(p => ({ name: profiles.find(x => x.id === p.profile_id)?.full_name ?? t('Someone on the team'), value: money ? p.gross ?? 0 : p.sales }))
+    .filter(x => x.value > 0).sort((a, b) => b.value - a.value)
+  return (
+    <Box>
+      {rows.length ? <ShareBars rows={rows} format={money ? formatMoney : n => tn(n, '{n} sale', '{n} sales')} label={t('Sales by person')} />
+        : <Note>{t('No sales taken in Square in this period yet.')}</Note>}
+      <From to="/leaderboard" action={t('Open the Leaderboard')}>
+        {b.unlinked.sales > 0 ? tn(b.unlinked.sales, '1 sale was taken in Square by someone not linked to anyone here.', '{n} sales were taken in Square by someone not linked to anyone here.') : undefined}
+      </From>
+    </Box>
+  )
+}
+
+/** The reps who brought most in the period (Sales reps & rewards): what each earned, and how many times. */
+function TopReps({ r }: { r: DashRange }) {
+  const { api } = useApp()
+  const reps = useAsync('sales-reps', () => api.salesReps(), [])
+  const rewards = useAsync('rep-rewards', () => api.repRewards(), [])
+  if (!reps.data || !rewards.data) return <Note>{reps.error ?? rewards.error ?? t('Loading…')}</Note>
+  const top = repsBetween(reps.data, rewards.data, r.from, r.to)
+  if (!top.length) return <Note to="/sales-reps" action={t('Open Reps & rewards')}>{t('No rewards earned in this period yet.')}</Note>
+  return (
+    <Box>
+      <Stack component="ol" aria-label={t('Reps who brought most')} spacing={0.75} sx={{ listStyle: 'none', m: 0, p: 0 }}>
+        {top.slice(0, 5).map(s => (
+          <Stack component="li" key={s.rep.id} direction="row" sx={{ justifyContent: 'space-between', gap: 1 }}>
+            <Typography variant="body2" noWrap sx={{ minWidth: 0 }}>{s.rep.name}</Typography>
+            <Stack direction="row" spacing={1.5} sx={{ flexShrink: 0 }}>
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>{tn(s.rewards, '{n} reward', '{n} rewards')}</Typography>
+              <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>{formatMoney(s.earned)}</Typography>
+            </Stack>
+          </Stack>
+        ))}
+      </Stack>
+      <From to="/sales-reps" action={t('Open Reps & rewards')}>
+        {top.length > 5 ? tn(top.length - 5, 'and {n} more rep', 'and {n} more reps') : undefined}
+      </From>
+    </Box>
+  )
+}
+
+/** Tips or refunds in the period, against the period before, with their share of the takings. */
+function TipsOrRefunds({ r, pick }: { r: DashRange; pick: 'tips' | 'refunds' }) {
+  const { on, ready } = useTakings()
+  const sales = useSales(r)
+  if (!ready || (on && !sales.data && !sales.error)) return <Note>{t('Loading…')}</Note>
+  if (!on) return <NeedsTill />
+  if (sales.error) return <Note>{sales.error}</Note>
+  const now = salesTotals(between(sales.data!.days, r.from, r.to)), before = salesTotals(between(sales.data!.days, r.prevFrom, r.prevTo))
+  const pct = percentOf(now[pick], now.gross)
+  if (pick === 'refunds' && !now.refunds) return <Figure value={formatMoney(0)} note={t('Nothing refunded in this period')} />
+  return <Figure value={formatMoney(now[pick])} now={now[pick]} before={before[pick]} upIsGood={pick === 'tips'}
+    note={pct !== null ? t('{pct}% of the takings', { pct }) : undefined} />
+}
+
+/** The widget's body, for the period picked (`period`: what On course for goes by). */
+export function WidgetBody({ kind, range, period }: { kind: WidgetKind; range: DashRange; period?: DashPeriod }) {
   switch (kind) {
     case 'takings': return <SalesFigure r={range} pick="gross" />
     case 'payments': return <SalesFigure r={range} pick="payments" />
@@ -675,6 +785,12 @@ export function WidgetBody({ kind, range }: { kind: WidgetKind; range: DashRange
     case 'claims': return <ClaimsToPayBack r={range} />
     case 'running_costs': return <MonthlyCosts />
     case 'credit_debit': return <CreditDebitFigure />
+    case 'sales_pace': return <SalesPaceFigure r={range} period={period} />
+    case 'items_sold': return <MostSold r={range} />
+    case 'team_sales': return <SalesByPerson r={range} />
+    case 'top_reps': return <TopReps r={range} />
+    case 'tips': return <TipsOrRefunds r={range} pick="tips" />
+    case 'refunds': return <TipsOrRefunds r={range} pick="refunds" />
   }
 }
 

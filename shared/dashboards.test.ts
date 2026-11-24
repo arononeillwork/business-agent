@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  ACCOUNTANT_PERIODS, DASH_PERIODS, TEMPLATES, WIDGETS, boardPeriod, canHave, dashRange, newDashboard, ownPeriod, periodsOf, readSaved, templatesFor,
+  ACCOUNTANT_PERIODS, DASH_PERIODS, TEMPLATES, WIDGETS, boardPeriod, canHave, dashRange, newDashboard, ownPeriod, periodEnd, periodsOf, readSaved, templatesFor,
   widgetInfo, type Viewer, type WidgetKind,
 } from './dashboards'
 
@@ -34,7 +34,7 @@ describe('dashboards: who sees what', () => {
 
   it('offers the templates with something to see: employees not the Accountant, the gestoría only it', () => {
     const offered = (v: Viewer) => templatesFor(k => canHave(widgetInfo(k).needs, v)).map(x => x.id)
-    expect(offered(owner)).toEqual(['executive', 'manager', 'accountant'])
+    expect(offered(owner)).toEqual(['executive', 'manager', 'sales', 'accountant'])
     expect(offered(employee)).toEqual(['executive', 'manager'])
     expect(offered(gestoria)).toEqual(['accountant'])
     expect(offered(payroll)).toEqual([])
@@ -48,6 +48,28 @@ describe('dashboards: who sees what', () => {
   it('a new Accountant dashboard has only the widgets its person can see', () => {
     const d = newDashboard('accountant', 'Accountant', k => canHave(widgetInfo(k).needs, gestoria))
     expect(d.widgets.map(w => w.kind)).toEqual(['running_costs', 'credit_debit', 'tax_due', 'invoices', 'claims'])
+  })
+})
+
+describe('dashboards: the Sales template', () => {
+  const sales = TEMPLATES.find(x => x.id === 'sales')!
+  const salesKinds = (v: Viewer) => sales.widgets.map(w => w.kind).filter(k => canHave(widgetInfo(k).needs, v))
+
+  it('is all the Sales group’s widgets, each once, in the order it opens with', () => {
+    expect(sales.widgets.every(w => widgetInfo(w.kind).group === 'sales')).toBe(true)
+    expect(sales.widgets.map(w => w.kind).sort()).toEqual(WIDGETS.filter(w => w.group === 'sales').map(w => w.kind).sort())
+    expect(sales.widgets.slice(0, 4).map(w => w.kind)).toEqual(['takings', 'payments', 'average_sale', 'sales_pace'])
+  })
+
+  it('the owner gets all of it; a shop manager (no pay access) who sold at the till and the reps, not the takings', () => {
+    expect(salesKinds(owner)).toEqual(sales.widgets.map(w => w.kind))
+    expect(salesKinds(manager)).toEqual(['team_sales', 'top_reps'])
+    const offered = (v: Viewer) => templatesFor(k => canHave(widgetInfo(k).needs, v)).map(x => x.id)
+    expect(offered(manager)).toEqual(['executive', 'manager', 'sales'])
+  })
+
+  it('isn’t offered to an employee or a partner: the till’s takings, the team’s sales and the reps’ earnings aren’t theirs', () => {
+    for (const v of [employee, gestoria, payroll]) expect(salesKinds(v)).toEqual([])
   })
 })
 
@@ -87,6 +109,22 @@ describe('dashboards: periods', () => {
     expect(boardPeriod({ template: 'manager', period: 'quarter' }, 'today')).toBe('today')
     expect(boardPeriod({ template: 'manager' }, undefined)).toBe('week')
     expect(boardPeriod(null, 'month')).toBe('month')
+  })
+
+  it('the end of a period still going, for On course for; none for the last 30 days or one that’s over', () => {
+    expect(periodEnd('today', day)).toBe(day)
+    expect(periodEnd('week', day)).toBe('2026-10-04')
+    expect(periodEnd('week', '2026-10-04')).toBe('2026-10-04')
+    expect(periodEnd('month', day)).toBe('2026-09-30')
+    expect(periodEnd('month', '2026-02-03')).toBe('2026-02-28')
+    expect(periodEnd('month', '2026-12-31')).toBe('2026-12-31')
+    expect(periodEnd('quarter', '2026-11-24')).toBe('2026-12-31')
+    expect(periodEnd('quarter', '2026-01-01')).toBe('2026-03-31')
+    expect(periodEnd('quarter', '2026-05-31')).toBe('2026-06-30')
+    for (const p of ['30', 'last_month', 'last_quarter'] as const) expect(periodEnd(p, day)).toBeNull()
+    // The period before ends at its own end: last week's Sunday, last month's last day.
+    expect(periodEnd('week', dashRange('week', day).prevFrom)).toBe('2026-09-27')
+    expect(periodEnd('month', dashRange('month', day).prevFrom)).toBe('2026-08-31')
   })
 
   it('keeps a dashboard’s own period when read back', () => {
