@@ -46,6 +46,11 @@ insert into public.shifts (profile_id, starts_at, ends_at, break_minutes, note) 
   (pg_temp.person('rr-ana@test'), pg_temp.at(pg_temp.w() + 7, '08:30'), pg_temp.at(pg_temp.w() + 7, '14:00'), 15, 'Opening');
 insert into public.time_off (profile_id, starts_on, ends_on, status)
   values (pg_temp.person('rr-ben@test'), pg_temp.w() + 17, pg_temp.w() + 17, 'approved');
+-- The café is closed on the Saturday after that (a closure on its Calendar); a public holiday on a Monday
+-- later on doesn't close it, as it doesn't close on public holidays.
+insert into public.calendar_events (starts_on, title, category) values
+  (pg_temp.w() + 19, 'Closed for the day', 'business'),
+  (pg_temp.w() + 28, 'RR test holiday', 'national');
 
 -- 1. An employee can't repeat the rota, stop it, or see what repeats.
 select pg_temp.act_as('rr-ana@test');
@@ -61,13 +66,16 @@ select pg_temp.expect_error($q$select public.repeat_rota_week(pg_temp.w(), 0)$q$
 select pg_temp.expect_error($q$select public.repeat_rota_week(pg_temp.w(), 13)$q$, '1 to 12 weeks');
 
 -- 3. The next 2 weeks (from any day of the week): what was there goes, the week's four shifts go onto
---    each at the same times, the night shift ending the next day, all but Ben's Thursday off.
+--    each at the same times, the night shift ending the next day, all but Ben's Thursday off and the
+--    Saturday the café is closed.
 do $$
 declare
   w date := pg_temp.w();
   r jsonb := public.repeat_rota_week(pg_temp.w() + 2, 2);
 begin
-  assert r = jsonb_build_object('added', 7, 'removed', 2, 'away', 1, 'until', w + 20), format('two weeks: %s', r);
+  assert r = jsonb_build_object('added', 6, 'removed', 2, 'away', 1, 'closed', 1, 'until', w + 20), format('two weeks: %s', r);
+  assert not exists (select 1 from public.shifts where starts_at >= pg_temp.at(w + 19, '00:00') and starts_at < pg_temp.at(w + 20, '00:00')),
+    'nobody on the day the café is closed';
   assert (select count(*) from public.shifts where starts_at >= pg_temp.at(w + 7, '00:00') and starts_at < pg_temp.at(w + 14, '00:00')) = 4,
     'the week after has the four, and nothing else';
   assert exists (select 1 from public.shifts where profile_id = pg_temp.person('rr-ana@test') and starts_at = pg_temp.at(w + 7, '08:30')
@@ -91,7 +99,7 @@ declare
   w date := pg_temp.w();
   r jsonb := public.repeat_rota_week(pg_temp.w(), null, true);
 begin
-  assert r = jsonb_build_object('added', 4, 'removed', 4, 'away', 0, 'until', w + 13), format('continuous: %s', r);
+  assert r = jsonb_build_object('added', 4, 'removed', 4, 'away', 0, 'closed', 0, 'until', w + 13), format('continuous: %s', r);
   assert (select count(*) from public.rota_repeat where source_week = w and filled_until = w + 13 and updated_by = auth.uid()) = 1, 'saved';
   assert (select count(*) from public.rota_repeat_shifts) = 4, 'the week''s four shifts';
   assert exists (select 1 from public.rota_repeat_shifts where weekday = 7 and starts = '22:00' and ends = '02:00'
@@ -103,16 +111,19 @@ do $$ begin
 end $$;
 
 -- 5. The nightly job, a few days on: filled to the end of the fourth week after that one. The first new
---    week already has its shifts (from 3), so it gains none; the next three gain four each, Monday still
---    at 08:30 after the clocks go forward. Run again, nothing more.
+--    week already has its shifts (from 3), so it gains none (not even on the day it's closed); the next
+--    three gain four each, the public holiday too, Monday still at 08:30 after the clocks go forward. Run
+--    again, nothing more.
 reset role; select set_config('request.jwt.claim.sub', '', false);
 do $$
 declare w date := pg_temp.w();
 begin
   assert public.extend_repeating_rota(pg_temp.at(w + 10, '03:00')) = 12, 'three new weeks of four';
   assert (select filled_until from public.rota_repeat) = w + 41, 'filled to the end of the fourth week after';
-  assert (select count(*) from public.shifts where starts_at >= pg_temp.at(w + 14, '00:00') and starts_at < pg_temp.at(w + 21, '00:00')) = 3,
+  assert (select count(*) from public.shifts where starts_at >= pg_temp.at(w + 14, '00:00') and starts_at < pg_temp.at(w + 21, '00:00')) = 2,
     'the week filled by hand isn''t filled twice';
+  assert exists (select 1 from public.shifts where profile_id = pg_temp.person('rr-ana@test') and starts_at = pg_temp.at(w + 28, '08:30')),
+    'a public holiday doesn''t close a café that opens on them';
   assert exists (select 1 from public.shifts where profile_id = pg_temp.person('rr-ana@test') and starts_at = pg_temp.at(w + 21, '08:30')
                    and extract(hour from starts_at at time zone 'UTC') = 6), '08:30 in summer time';
   assert extract(hour from pg_temp.at(w, '08:30') at time zone 'UTC') = 7, 'and 08:30 in winter';
@@ -144,4 +155,5 @@ do $$ begin
 end $$;
 
 delete from public.shifts where starts_at >= pg_temp.at(pg_temp.w() - 7, '00:00') and starts_at < pg_temp.at(pg_temp.w() + 60, '00:00');
+delete from public.calendar_events where title in ('Closed for the day', 'RR test holiday');
 delete from auth.users where email in ('rr-admin@test', 'rr-ana@test', 'rr-ben@test');

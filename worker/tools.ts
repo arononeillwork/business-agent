@@ -499,7 +499,7 @@ export const ALL_TOOLS: ToolDef[] = [
   tool({
     name: 'repeat_rota_week',
     title: 'Repeat week',
-    description: 'Admins: copy a week of the rota (any day in it; default this week) onto the weeks after it, as Repeat week on the Rota page: for `weeks` weeks (1 = next week only), or continuous: true to keep it going as the continuous rota, filled every night to the end of the fourth week after this one. Shifts already on those days are replaced unless they have started; nobody is put on a day they have approved time off. stop: true stops the continuous rota instead (the weeks it filled keep their shifts). It replaces shifts: tell the user what will change and ask them to confirm first, then call with confirm: true.',
+    description: 'Admins: copy a week of the rota (any day in it; default this week) onto the weeks after it, as Repeat week on the Rota page: for `weeks` weeks (1 = next week only), or continuous: true to keep it going as the continuous rota, filled every night to the end of the fourth week after this one. Shifts already on those days are replaced unless they have started; nobody is put on a day they have approved time off, or a day the business is closed (a closure on the Calendar, like "Closed for Christmas"). stop: true stops the continuous rota instead (the weeks it filled keep their shifts). It replaces shifts: tell the user what will change and ask them to confirm first, then call with confirm: true.',
     admin: true,
     destructive: true,
     input: z.object({
@@ -516,9 +516,9 @@ export const ALL_TOOLS: ToolDef[] = [
       }
       const done = check(await sb.rpc('repeat_rota_week', {
         p_week: a.week ?? weekStart(today()), p_weeks: a.continuous ? null : a.weeks, p_continuous: a.continuous,
-      })) as { added: number; removed: number; away: number; until: string }
+      })) as { added: number; removed: number; away: number; closed: number; until: string }
       return { ok: true, continuous: a.continuous, shifts_added: done.added, shifts_replaced: done.removed,
-        left_out_for_time_off: done.away, filled_until: done.until }
+        left_out_for_time_off: done.away, left_out_closed: done.closed, filled_until: done.until }
     },
   }),
 

@@ -2906,7 +2906,8 @@ export function createDemoApi(): Api {
     // Customer suggestions (Sales): oat milk, opening earlier and shade, and a few not sorted yet, as the `customer_suggestions` migration.
     ...demoSuggestionsApi({ isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, uid, nowIso }),
     // Repeating the rota (Rota → Repeat week): a week copied on, or kept going, as the `repeating_rota` migration.
-    ...demoRotaRepeatApi({ shifts, profiles, timeOff, canEdit: () => canUpdate('rota'), uid, nowIso }),
+    ...demoRotaRepeatApi({ shifts, profiles, timeOff, events, canEdit: () => canUpdate('rota'), uid, nowIso,
+      closedOnHolidays: () => !!integ.integrations.find(i => i.provider === 'google_business')?.external.closed_on_holidays }),
     // Leaderboard (Team) and each person's Square login: the demo's timecards and till, as the `team_leaderboard` migration and worker/leaderboard.ts.
     ...demoLeaderboardApi({
       isStaff: () => isStaff() && !!me()?.active, isAdmin: () => isAdmin() && !!me()?.active, canSeePay: () => isAdmin() && !!me()?.can_see_pay,

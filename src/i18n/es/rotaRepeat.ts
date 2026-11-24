@@ -20,11 +20,12 @@ export default {
     'Sustituye al cuadrante continuo que tienes ahora (la semana del {week}).',
   'Goes onto {from} to {until}, then on every week.': 'Se pone del {from} al {until}, y después cada semana.',
   'Goes onto {from} to {until}.': 'Se pone del {from} al {until}.',
-  'Shifts already on those days are replaced, unless they’ve started. Nobody is put on a day they have time off.':
-    'Los turnos que ya haya esos días se sustituyen, salvo los que ya han empezado. No se pone a nadie el día que tiene ausencia.',
+  'Shifts already on those days are replaced, unless they’ve started. Nobody is put on a day they have off, or a day you’re closed (a closure on the Calendar, like “Closed for Christmas”).':
+    'Los turnos que ya haya esos días se sustituyen, salvo los que ya han empezado. No se pone a nadie el día que tiene ausencia, ni un día que cerráis (un cierre en el Calendario, como “Cerrado por Navidad”).',
   '{n} shift added, to {until}.': '{n} turno añadido, hasta el {until}.',
   '{n} shifts added, to {until}.': '{n} turnos añadidos, hasta el {until}.',
   '{n} left out for time off.': '{n} sin poner por ausencias.',
+  '{n} left out for days you’re closed.': '{n} sin poner por días que cerráis.',
   'It now repeats every week.': 'Ahora se repite cada semana.',
   // Over the rota while it repeats.
   'Continuous rota: every week repeats the week of {week}, filled to {until}. A change to one week stays that week’s.':

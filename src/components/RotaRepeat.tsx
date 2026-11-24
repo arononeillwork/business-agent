@@ -33,6 +33,7 @@ export function RepeatRotaDialog({ open, monday, shifts, current, onClose }: {
     notify([
       tn(r.added, '{n} shift added, to {until}.', '{n} shifts added, to {until}.', { until: day(r.until) }),
       r.away ? tn(r.away, '{n} left out for time off.', '{n} left out for time off.') : '',
+      r.closed ? tn(r.closed, '{n} left out for days you’re closed.', '{n} left out for days you’re closed.') : '',
       continuous ? t('It now repeats every week.') : '',
     ].filter(Boolean).join(' '), 'success')
   })
@@ -71,7 +72,7 @@ export function RepeatRotaDialog({ open, monday, shifts, current, onClose }: {
               : t('Goes onto {from} to {until}.', { from: day(addDays(monday, 7)), until: day(until) })}
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            {t('Shifts already on those days are replaced, unless they’ve started. Nobody is put on a day they have time off.')}
+            {t('Shifts already on those days are replaced, unless they’ve started. Nobody is put on a day they have off, or a day you’re closed (a closure on the Calendar, like “Closed for Christmas”).')}
           </Typography>
         </Stack>
       </DialogContent>

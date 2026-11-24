@@ -28,9 +28,10 @@ describe('repeating the rota', () => {
     expect(shiftOn(morning, '2027-04-05').starts_at).toBe(zonedIso('2027-04-05', '08:30'))
   })
 
-  it('leaves out what has started, whoever is off or away, and whoever is on already', () => {
+  it('leaves out what has started, days the café is closed, whoever is off or away, and whoever is on already', () => {
     const c: AddContext = {
       now: zonedIso('2026-11-24', '10:00'),
+      closed: day => day === '2026-12-25',
       shifts: [shift({ profile_id: 'ben', starts_at: zonedIso('2026-11-26', '12:00'), ends_at: zonedIso('2026-11-26', '16:00') }),
         shift({ profile_id: null, starts_at: zonedIso('2026-11-28', '17:00'), ends_at: zonedIso('2026-11-28', '20:00') })],
       onRota: id => id !== 'gone',
@@ -40,6 +41,8 @@ describe('repeating the rota', () => {
       addable({ ...shift({ profile_id }), starts_at: zonedIso(day, from), ends_at: zonedIso(day, to) }, day, c)
     expect(on('ana', '2026-11-24')).toBe('past')
     expect(on('ana', '2026-11-25')).toBe('added')
+    expect(on('ana', '2026-12-25')).toBe('closed')
+    expect(on(null, '2026-12-25', '17:00', '20:00')).toBe('closed')
     expect(on('gone', '2026-11-25')).toBe('off')
     expect(on('ana', '2026-11-27')).toBe('away')
     expect(on('ben', '2026-11-26')).toBe('busy')

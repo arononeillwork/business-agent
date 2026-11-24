@@ -5,13 +5,17 @@ import type { Api } from './api'
 import {
   addable, asWeekShift, filledAhead, isoWeekday, MAX_REPEAT_WEEKS, repeatUntil, shiftOn, type RotaRepeat, type WeekShift,
 } from '../../shared/rotaRepeat'
+import { closingEvents } from '../../shared/closures'
 import { addDays, localDate, today, weekStart } from '../../shared/time'
-import type { Profile, Shift, TimeOff } from '../../shared/types'
+import type { CalendarEvent, Profile, Shift, TimeOff } from '../../shared/types'
 
 interface Demo {
   shifts: Shift[]
   profiles: Profile[]
   timeOff: TimeOff[]
+  events: CalendarEvent[]
+  /** Opening hours → closed on public holidays. */
+  closedOnHolidays: () => boolean
   /** Whoever edits the rota (admins, and roles with Update on the rota). */
   canEdit: () => boolean
   uid: () => string
@@ -29,19 +33,23 @@ export function demoRotaRepeatApi(d: Demo): RotaRepeatApi {
   const fill = (week: WeekShift[], from: string, until: string) => {
     let added = 0
     let away = 0
+    let closed = 0
+    const closures = closingEvents(d.events, from, d.closedOnHolidays())
     for (let day = from; day <= until; day = addDays(day, 1)) {
       for (const w of week.filter(x => x.weekday === isoWeekday(day)).sort((a, b) => a.starts.localeCompare(b.starts))) {
         const s = shiftOn(w, day)
         const did = addable(s, day, {
           now: d.nowIso(), shifts: d.shifts,
+          closed: on => closures.some(e => on >= e.starts_on && on <= (e.ends_on ?? e.starts_on)),
           onRota: id => d.profiles.some(p => p.id === id && p.active && p.on_rota !== false),
           away: (id, on) => d.timeOff.some(t => t.profile_id === id && t.status === 'approved' && on >= t.starts_on && on <= t.ends_on),
         })
         if (did === 'added') { d.shifts.push({ ...s, id: d.uid(), status: 'published' }); added++ }
         if (did === 'away') away++
+        if (did === 'closed') closed++
       }
     }
-    return { added, away }
+    return { added, away, closed }
   }
 
   // The nightly job's part: on to the end of the fourth week after this one.
@@ -76,8 +84,8 @@ export function demoRotaRepeatApi(d: Demo): RotaRepeatApi {
       const now = new Date(d.nowIso())
       const gone = d.shifts.filter(s => onDays(s, from, until) && new Date(s.starts_at) > now)
       for (const s of gone) d.shifts.splice(d.shifts.indexOf(s), 1)
-      const { added, away } = fill(week, from, until)
-      return { added, removed: gone.length, away, until }
+      const { added, away, closed } = fill(week, from, until)
+      return { added, removed: gone.length, away, closed, until }
     },
     async stopRepeatingRota() {
       require()

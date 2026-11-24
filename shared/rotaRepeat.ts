@@ -12,8 +12,9 @@ export const MAX_REPEAT_WEEKS = 12
 
 /** The continuous rota, while there is one: the Monday of the week it repeats, and how far it's filled. */
 export interface RotaRepeat { source_week: string; filled_until: string; updated_at: string }
-/** What a copy did: shifts added and replaced, left off for time off, and the last day it went onto. */
-export interface RepeatResult { added: number; removed: number; away: number; until: string }
+/** What a copy did: shifts added and replaced, left off for time off and for days the business is closed,
+ *  and the last day it went onto. */
+export interface RepeatResult { added: number; removed: number; away: number; closed: number; until: string }
 
 /** A week's shift as a day of the week (1 Monday … 7 Sunday) and times of day. */
 export interface WeekShift {
@@ -55,17 +56,20 @@ export const shiftOn = (w: WeekShift, day: string): Omit<Shift, 'id' | 'status'>
 export interface AddContext {
   now: string
   shifts: Pick<Shift, 'profile_id' | 'starts_at' | 'ends_at'>[]
+  /** The business is closed that day besides its weekly hours (shared/closures.ts). */
+  closed: (day: string) => boolean
   /** Still on the team and on the rota. */
   onRota: (profileId: string) => boolean
   /** Approved time off that day. */
   away: (profileId: string, day: string) => boolean
 }
 
-/** Whether a shift goes onto the rota, as the database decides: not if it would have started already,
- *  its person has left or is off the rota or away that day, or they (or, for an open shift, one at the
- *  same times) are on already then. */
-export function addable(s: Omit<Shift, 'id' | 'status'>, day: string, c: AddContext): 'added' | 'past' | 'off' | 'away' | 'busy' {
+/** Whether a shift goes onto the rota, as the database decides: not if it would have started already, the
+ *  business is closed that day, its person has left or is off the rota or away that day, or they (or, for
+ *  an open shift, one at the same times) are on already then. */
+export function addable(s: Omit<Shift, 'id' | 'status'>, day: string, c: AddContext): 'added' | 'past' | 'closed' | 'off' | 'away' | 'busy' {
   if (new Date(s.starts_at) <= new Date(c.now)) return 'past'
+  if (c.closed(day)) return 'closed'
   const at = (iso: string) => new Date(iso).getTime()
   if (s.profile_id) {
     if (!c.onRota(s.profile_id)) return 'off'

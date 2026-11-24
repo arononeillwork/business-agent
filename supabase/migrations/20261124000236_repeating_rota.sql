@@ -3,7 +3,8 @@
 -- continuous rota the week's shifts are saved here as they were, so changing that week later changes
 -- nothing; the nightly job keeps the rota filled from them to the end of the fourth week after this one.
 -- A change made on one week stays that week's; saving another week as the continuous rota replaces this
--- one. Copying replaces the shifts already on the weeks it goes onto, but never one that has started.
+-- one. Copying replaces the shifts already on the weeks it goes onto, but never one that has started,
+-- and puts nobody on a day the business is closed (a closure on its Calendar) or someone has off.
 -- Who: whoever edits the rota (admins, and roles with Update on the rota); they also see what repeats.
 
 create table public.rota_repeat (
@@ -41,9 +42,11 @@ create policy rota_repeat_read on public.rota_repeat for select to authenticated
 create policy rota_repeat_shifts_read on public.rota_repeat_shifts for select to authenticated
   using ((select public.can_update('rota')));
 
--- One shift onto the rota on a day, unless it would start before p_now, its person has left, is off the
--- rota or has approved time off that day, or they (or, for an open shift, an open shift at the same
--- times) are on already then. Says which: 'added', 'past', 'off', 'away' or 'busy'.
+-- One shift onto the rota on a day, unless it would start before p_now, the business is closed that day
+-- (as shared/closures.ts: a closure on its Calendar, "Closed for Christmas", or a public holiday when it
+-- closes on them), its person has left, is off the rota or has approved time off that day, or they (or,
+-- for an open shift, an open shift at the same times) are on already then. Says which: 'added', 'past',
+-- 'closed', 'off', 'away' or 'busy'.
 create or replace function public._rota_add(p_day date, p_profile uuid, p_position int, p_starts time, p_ends time,
   p_break int, p_note text, p_now timestamptz) returns text
 language plpgsql security definer set search_path = ''
@@ -52,9 +55,17 @@ declare
   v_tz   text := public.business_tz();
   v_from timestamptz := (p_day + p_starts) at time zone v_tz;
   v_to   timestamptz := (p_day + p_ends) at time zone v_tz;
+  v_holidays boolean := coalesce((select (external ->> 'closed_on_holidays')::boolean from public.integrations
+                                   where provider = 'google_business'), false);
 begin
   if p_ends <= p_starts then v_to := ((p_day + 1) + p_ends) at time zone v_tz; end if;
   if v_from <= p_now then return 'past'; end if;
+  if exists (select 1 from public.calendar_events e
+              where e.confirmed and p_day between e.starts_on and coalesce(e.ends_on, e.starts_on)
+                and ((e.category = 'business' and e.title ~* 'closed|cerrad|closure')
+                  or (v_holidays and e.category in ('national', 'regional', 'local')))) then
+    return 'closed';
+  end if;
   if p_profile is not null then
     if not exists (select 1 from public.profiles where id = p_profile and business_id = public.current_business_id()
                      and active and on_rota is not false) then
@@ -79,8 +90,8 @@ revoke execute on function public._rota_add(date, uuid, int, time, time, int, te
 
 -- Copy the week starting p_week (any day of it) onto the weeks after it: p_weeks of them, or, with
 -- p_continuous, to the end of the fourth week after this one and on from there every night. Shifts on
--- those weeks that haven't started are replaced. Returns what it did: { added, removed, away, until }
--- (away: shifts left off for someone's time off).
+-- those weeks that haven't started are replaced. Returns what it did: { added, removed, away, closed,
+-- until } (away: shifts left off for someone's time off; closed: for days the business is closed).
 create or replace function public.repeat_rota_week(p_week date, p_weeks int default 1, p_continuous boolean default false)
 returns jsonb
 language plpgsql security definer set search_path = ''
@@ -95,6 +106,7 @@ declare
   v_removed int;
   v_added   int := 0;
   v_away    int := 0;
+  v_closed  int := 0;
   v_did     text;
   d         date;
   s         record;
@@ -144,10 +156,13 @@ begin
                 and w.starts_at < ((v_week + extract(isodow from d)::int)::timestamp at time zone v_tz)
               order by w.starts_at loop
       v_did := public._rota_add(d, s.profile_id, s.position_id, s.starts, s.ends, s.break_minutes, s.note, v_now);
-      if v_did = 'added' then v_added := v_added + 1; elsif v_did = 'away' then v_away := v_away + 1; end if;
+      if v_did = 'added' then v_added := v_added + 1;
+      elsif v_did = 'away' then v_away := v_away + 1;
+      elsif v_did = 'closed' then v_closed := v_closed + 1;
+      end if;
     end loop;
   end loop;
-  return jsonb_build_object('added', v_added, 'removed', v_removed, 'away', v_away, 'until', v_until);
+  return jsonb_build_object('added', v_added, 'removed', v_removed, 'away', v_away, 'closed', v_closed, 'until', v_until);
 end $$;
 alter function public.repeat_rota_week(date, int, boolean) owner to app_definer;
 revoke execute on function public.repeat_rota_week(date, int, boolean) from public, anon;
