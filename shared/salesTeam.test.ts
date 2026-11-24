@@ -117,6 +117,14 @@ describe('the board', () => {
     expect(lanes({ ...board, prospects: board.prospects.slice(0, 3) }).map(l => l.member?.name)).toEqual(['Maria Cortes', 'Julio Cesar'])
   })
 
+  it('filtered: only the salespeople with a business there, on the board and as a tree', () => {
+    const cafes = { ...board, prospects: board.prospects.slice(0, 2) }
+    expect(lanes(cafes).map(l => l.member?.name)).toEqual(['Maria Cortes', 'Julio Cesar'])
+    expect(lanes(cafes, true).map(l => l.member?.name)).toEqual(['Maria Cortes'])
+    expect(salesTree(cafes, true).map(x => x.member?.name)).toEqual(['Maria Cortes'])
+    expect(lanes({ ...board, prospects: [] }, true)).toEqual([])
+  })
+
   it('a follow-up due while they’re still being talked to', () => {
     expect(followUpDue({ ...p('x', 'm', 'contacted'), follow_up_on: '2026-11-22' }, '2026-11-22')).toBe(true)
     expect(followUpDue({ ...p('x', 'm', 'contacted'), follow_up_on: '2026-11-23' }, '2026-11-22')).toBe(false)

@@ -39,8 +39,10 @@ export type Spot = { member_id: string | null; stage: ProspectStage }
  * a column per stage from To contact to Signed up (and Not now), a card per business with the ways to
  * reach it. Cards are dragged to another stage or someone else's lane, or moved from their menu.
  */
-export function SalesTeamBoard({ board, today, onMove, onEdit, onOpen, onAdd, onRemove }: {
+export function SalesTeamBoard({ board, today, onMove, onEdit, onOpen, onAdd, onRemove, busyOnly = false }: {
   board: SalesBoard; today: string
+  /** Only the salespeople with a business on it (the board filtered); a card still moves to anyone on the team. */
+  busyOnly?: boolean
   onMove: (p: Prospect, to: Spot) => void
   onEdit: (p: Prospect) => void
   /** Its history, and a message to send. */
@@ -52,7 +54,7 @@ export function SalesTeamBoard({ board, today, onMove, onEdit, onOpen, onAdd, on
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }))
   const [dragging, setDragging] = useState<Prospect | null>(null)
-  const rows = lanes(board)
+  const rows = lanes(board, busyOnly)
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     setDragging(null)
     const p = active.data.current?.prospect as Prospect | undefined
