@@ -293,6 +293,8 @@ export interface Api {
   repeatRotaWeek(monday: string, weeks: number | null): Promise<RepeatResult>
   /** Stop the continuous rota; the weeks it filled keep their shifts. */
   stopRepeatingRota(): Promise<void>
+  /** It closes on public holidays (Opening hours → "We close on public holidays"), for whoever sees the rota. */
+  closesOnHolidays(): Promise<boolean>
 
   // calendar
   saveEvent(event: EventInput): Promise<void>

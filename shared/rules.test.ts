@@ -62,6 +62,16 @@ describe('shift warnings', () => {
     expect(codes(shift('2026-10-12', '08:00', '12:00'))).toContain('holiday')
     expect(codes(shift('2026-09-29', '07:30', '15:00', 15))).toEqual([])
   })
+  it('flags a day it closes besides its weekly hours: a closure on the Calendar, or a public holiday it closes on', () => {
+    const closure: CalendarEvent = { ...holidays[0], id: 'c', starts_on: '2026-12-24', ends_on: '2026-12-26', title: 'Closed for Christmas', category: 'business' }
+    const warn = (s: Shift, closesOnHolidays = false) =>
+      shiftWarnings(s, { shifts: [s], openingHours: hours, events: [...holidays, closure], closesOnHolidays })
+    expect(warn(shift('2026-12-24', '08:00', '12:00'))).toMatchObject([{ code: 'closed_day', message: 'The café is closed that day: Closed for Christmas' }])
+    expect(warn(shift('2026-12-28', '08:00', '12:00')).map(w => w.code)).toEqual([])
+    // A public holiday: noted, unless it closes on them; then closed (and noted once).
+    expect(warn(shift('2026-10-12', '08:00', '12:00')).map(w => w.code)).toEqual(['holiday'])
+    expect(warn(shift('2026-10-12', '08:00', '12:00'), true)).toMatchObject([{ code: 'closed_day', message: 'The café is closed that day: Fiesta Nacional' }])
+  })
   it('flags over 9 paid hours', () => {
     expect(codes(shift('2026-09-29', '08:00', '18:00', 30))).toContain('over_daily')
     expect(shiftPaidMinutes(shift('2026-09-29', '08:00', '18:00', 30))).toBe(570)

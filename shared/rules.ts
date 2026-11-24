@@ -4,6 +4,7 @@ import { businessConfig } from './business.config'
 import type { CalendarEvent, OpeningHours, Shift } from './types'
 import { dayKey, hmToMinutes, localDate, localTime, minutesBetween } from './time'
 import { msg } from './i18n'
+import { closureOn } from './closures'
 
 export interface RuleLimits {
   breakAfterHours: number
@@ -46,6 +47,9 @@ export interface ShiftContext {
   events: CalendarEvent[]
   hasPayRate?: (profileId: string) => boolean
   limits?: RuleLimits
+  /** It closes on public holidays (Opening hours → "We close on public holidays"): those days are closed, as
+   *  closures on the Calendar are (shared/closures.ts). */
+  closesOnHolidays?: boolean
 }
 
 export function shiftWarnings(shift: Shift, ctx: ShiftContext): Warning[] {
@@ -82,7 +86,10 @@ export function shiftWarnings(shift: Shift, ctx: ShiftContext): Warning[] {
   }
 
   const hours = ctx.openingHours[dayKey(date)]
-  if (!hours) {
+  const closure = closureOn(date, ctx.events, !!ctx.closesOnHolidays)
+  if (closure) {
+    out.push(warning('closed_day', msg('The café is closed that day: {name}'), { name: closure.title }))
+  } else if (!hours) {
     out.push(warning('closed_day', msg('The café is closed that day')))
   } else {
     const start = hmToMinutes(localTime(shift.starts_at))
@@ -95,7 +102,7 @@ export function shiftWarnings(shift: Shift, ctx: ShiftContext): Warning[] {
   }
 
   const holiday = holidayOn(date, ctx.events)
-  if (holiday) out.push(warning('holiday', msg('Holiday: {name}'), { name: holiday.title }))
+  if (holiday && holiday !== closure) out.push(warning('holiday', msg('Holiday: {name}'), { name: holiday.title }))
 
   return out
 }

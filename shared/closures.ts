@@ -13,3 +13,7 @@ export function closingEvents(events: CalendarEvent[], fromDate: string, closedO
     (e.category === 'business' ? CLOSURE_TITLE.test(e.title)
       : closedOnHolidays && ['national', 'regional', 'local'].includes(e.category)))
 }
+
+/** What closes the business on `date`, if anything does (the Rota shows the day closed and warns of shifts on it). */
+export const closureOn = (date: string, events: CalendarEvent[], closedOnHolidays: boolean): CalendarEvent | undefined =>
+  closingEvents(events, date, closedOnHolidays).find(e => e.starts_on <= date)

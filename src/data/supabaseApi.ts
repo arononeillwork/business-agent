@@ -451,6 +451,9 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
     async stopRepeatingRota() {
       check(await sb.rpc('stop_repeating_rota'))
     },
+    async closesOnHolidays() {
+      return !!check(await sb.rpc('closes_on_holidays'))
+    },
 
     async saveEvent(event) {
       const { id, ...rest } = event

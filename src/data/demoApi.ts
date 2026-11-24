@@ -2553,6 +2553,9 @@ export function createDemoApi(): Api {
       const i = shifts.findIndex(s => s.id === id)
       if (i >= 0) shifts.splice(i, 1)
     },
+    async closesOnHolidays() {
+      return !!integ.integrations.find(i => i.provider === 'google_business')?.external.closed_on_holidays
+    },
     async takeOpenShift(id) {
       if (isPartner()) throw new Error('Not allowed')
       const s = shifts.find(x => x.id === id && !x.profile_id)
