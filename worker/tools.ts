@@ -38,6 +38,7 @@ import { OFFER_TOOLS } from './offerTools'
 import { CONTACT_TOOLS } from './contactTools'
 import { SUGGESTION_TOOLS } from './suggestionTools'
 import { PAGE_TOOLS } from './pageTools'
+import { AGENT_TOOLS, agentsPart } from './agentTools'
 import { getAppFetch } from './appFetch'
 import type { Env } from './supabase'
 import { inTimeZone, zoneOf } from './zone'
@@ -281,14 +282,17 @@ export const ALL_TOOLS: ToolDef[] = [
     input: z.object({}),
     readOnly: true,
     async run({ sb, me }) {
-      const b = check(await sb.from('business').select('name, timezone, country').single()) as { name: string; timezone: string; country?: string }
+      // An owner's agents too (worker/agentTools.ts), so Claude answers as the one that fits.
+      const [business, agents] = await Promise.all([sb.from('business').select('name, timezone, country').single(), agentsPart(sb, me)])
+      const b = check(business) as { name: string; timezone: string; country?: string }
       const numbers = numberFormatOf(me.preferences?.numberFormat, b.country)
       return { name: me.full_name, email: me.email, role: me.role, ...(teamRole(me) ? { team_role: teamRole(me) } : {}), can_see_pay: me.can_see_pay, business: b.name,
         ...(me.role === 'partner' ? { partner_company: me.partner_company, partner_can_see: ['business details', ...(me.partner_access ?? [])],
           partner_note: 'Read-only: you can look but not change anything.' } : {}),
         country: b.country === 'IE' ? 'Ireland' : 'Spain', timezone: b.timezone, today: today(isTimeZone(b.timezone) ? b.timezone : undefined),
         amounts: `${formatMoneyAs(1234.5, numbers)}, with a decimal ${numbers === 'point' ? 'point' : 'comma'}`,
-        note: `Dates are YYYY-MM-DD, times are 24-hour local (${b.timezone}). Write amounts as the app shows them to this person (amounts); the tools give them as plain numbers.` }
+        note: `Dates are YYYY-MM-DD, times are 24-hour local (${b.timezone}). Write amounts as the app shows them to this person (amounts); the tools give them as plain numbers.`,
+        ...agents }
     },
   }),
 
@@ -1788,6 +1792,8 @@ export const ALL_TOOLS: ToolDef[] = [
   ...SUGGESTION_TOOLS,
   // Every page in the menu, worked out from the app's code (worker/pageTools.ts).
   ...PAGE_TOOLS,
+  // The owner's agents: switch the one they view the app as (worker/agentTools.ts).
+  ...AGENT_TOOLS,
 ]
 
 /** The tools on offer (MCP, the REST API and its OpenAPI): not those of a part of the app that's switched off (src/app/features.ts), which stay built and tested. */

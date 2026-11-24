@@ -303,6 +303,11 @@ built-in **AI connector** so owners can run it by talking to Claude.
   way back to everything, and Today leads with the agent's first questions. Each owner's choice is kept on
   their account; the owners turn agents on or off, rename them, pick their pages and add their own on Roles
   & responsibilities → Agents (`shared/agents.ts`; only an owner changes them, the `agent_views` migration).
+- Agents through the AI connector (owners): `whoami` lists the business's agents that are on, with the pages
+  each covers and the questions it asks first, and which one the owner picked in the app. Claude answers as the
+  agent that fits what was asked, or the one named ("finance agent, how did we do this week?"), so speaking to
+  it picks the agent; it says which one is answering. `switch_agent` changes the agent the owner views the app
+  as, the same as the Agents button (`worker/agentTools.ts`).
 - Role ownership (Roles & responsibilities → Ownership, owners): a lane for each owner and one for the roles
   nobody owns yet. Owners drag a role into someone's lane or along it (or move it from its Owner menu, on a
   phone or with the keyboard), and open it to read what it's for, its duties and who's in it, and change who's
