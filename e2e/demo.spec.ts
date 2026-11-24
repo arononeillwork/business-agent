@@ -5464,13 +5464,13 @@ test.describe('coffee club', () => {
   /** Connect Square on Connections, then open the Coffee club from the menu (it only shows once Square is the till). */
   async function openClub(page: Page) {
     await open(page, '/connections')
-    await expect(page.getByRole('link', { name: 'Coffee club' })).toHaveCount(0)
+    await expect(page.getByRole('link', { name: 'Coffee club', exact: true })).toHaveCount(0)
     const payments = page.getByRole('region', { name: 'Payments and sales' })
     await payments.getByRole('button', { name: 'Connect Square' }).click()
     await expect(payments.getByRole('article', { name: 'Square' })).toContainText('Connected')
     await expect(async () => {
-      await page.getByRole('link', { name: 'Coffee club' }).first().click()
-      await expect(page.getByRole('heading', { name: 'Coffee club' })).toBeVisible({ timeout: 2000 })
+      await page.getByRole('link', { name: 'Coffee club', exact: true }).first().click()
+      await expect(page.getByRole('heading', { name: 'Coffee club', exact: true })).toBeVisible({ timeout: 2000 })
     }).toPass()
   }
 
@@ -5500,7 +5500,7 @@ test.describe('coffee club', () => {
     await expect(toLook.getByRole('listitem')).toHaveCount(1)
 
     // The members: this week's coffee had, a payment failed, a membership ended.
-    const members = page.getByRole('region', { name: 'Members' })
+    const members = page.getByRole('region', { name: 'Members', exact: true })
     await expect(members.getByRole('row').filter({ hasText: 'Lucía García' })).toContainText('1 of 1')
     await expect(members.getByRole('row').filter({ hasText: 'Carmen Ruiz' })).toContainText('Payment failed')
     await expect(members.getByRole('row').filter({ hasText: 'Javier López' })).toContainText('Ended')
@@ -5522,10 +5522,10 @@ test.describe('coffee club', () => {
   test('employees don’t get the coffee club', async ({ page }) => {
     await open(page, '/', 'maria@example.com')
     await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Coffee club' })).toHaveCount(0)
+    await expect(page.getByRole('link', { name: 'Coffee club', exact: true })).toHaveCount(0)
     await page.goto('/coffee-club?demo')
     await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Coffee club' })).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'Coffee club', exact: true })).toHaveCount(0)
   })
 })
 
