@@ -239,7 +239,7 @@ export function OpeningHoursPage() {
                   onChange={e => run(async () => { await api.chooseGoogleListing(null, e.target.checked); await google.reload() }, t('Saved'))} />}
                   label={t('We close on public holidays')} />
                 <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
-                  {tr('Google Maps then shows the café closed on the public holidays in the {calendar}.', { calendar: <RouterLink to="/calendar">{t('Calendar')}</RouterLink> })}
+                  {tr('Google Maps, your website and the Rota then show the café closed on the public holidays in the {calendar}, and nobody is put on the rota on them.', { calendar: <RouterLink to="/calendar">{t('Calendar')}</RouterLink> })}
                 </Typography>
               </CardContent>
             </Card>

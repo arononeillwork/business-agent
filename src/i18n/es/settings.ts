@@ -239,7 +239,7 @@ export default {
     'Se mantiene al día solo: los cambios de aquí, y los cierres que añadas en el {calendar}, llegan a tu ficha en menos de un minuto; los que se hagan en Google Maps llegan aquí en menos de 15 minutos.',
   'Last sent {when}.': 'Último envío: {when}.',
   'Choose which of your Google listings is the café’s on {connections}.': 'Elige en {connections} cuál de tus fichas de Google es la de la cafetería.',
-  'Google Maps then shows the café closed on the public holidays in the {calendar}.': 'Google Maps mostrará la cafetería cerrada los festivos del {calendar}.',
+  'Google Maps, your website and the Rota then show the café closed on the public holidays in the {calendar}, and nobody is put on the rota on them.': 'Google Maps, tu web y el Cuadrante mostrarán la cafetería cerrada los festivos del {calendar}, y no se pone a nadie en el cuadrante esos días.',
   'Your opening hours keep this listing up to date by themselves; whether you close on public holidays is on {hours}.':
     'Tu horario mantiene esta ficha al día solo; si cierras los festivos se elige en {hours}.',
   'This Google account manages more than one listing: choose the café’s.': 'Esta cuenta de Google gestiona más de una ficha: elige la de la cafetería.',

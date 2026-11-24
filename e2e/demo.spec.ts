@@ -1671,6 +1671,30 @@ test.describe('opening hours', () => {
     await expect(page.getByRole('region', { name: 'Google Maps' })).toHaveCount(0)
   })
 
+  test('closed on public holidays: the rota shows those days closed, with nothing to cover, and warns of a shift on one', async ({ page }) => {
+    await open(page, '/opening-hours')
+    const maps = page.getByRole('region', { name: 'Google Maps' })
+    await expect(maps).toContainText('and nobody is put on the rota on them')
+    await page.getByRole('link', { name: 'Rota' }).first().click()
+    // 12–18 Oct: Monday is the Fiesta Nacional. Open on it to start with.
+    await page.getByRole('button', { name: 'Next week' }).click()
+    await page.getByRole('button', { name: 'Next week' }).click()
+    const monday = page.locator('.MuiBox-root', { hasText: 'Fiesta Nacional de España' }).last()
+    await expect(monday).toContainText('08:00–18:00')
+    await expect(monday.getByLabel('Coverage')).toHaveCount(1)
+
+    await page.getByRole('link', { name: 'Opening hours' }).first().click()
+    await maps.getByLabel('We close on public holidays').check()
+    await toast(page, /^Saved$/)
+    await page.getByRole('link', { name: 'Rota' }).first().click()
+    await page.getByRole('button', { name: 'Next week' }).click()
+    await page.getByRole('button', { name: 'Next week' }).click()
+    await expect(monday).toContainText('Closed')
+    await expect(monday.getByLabel('Coverage')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Add shift' }).click()
+    await expect(page.getByRole('dialog', { name: 'Add shift' }).getByText('The café is closed that day: Fiesta Nacional de España')).toBeVisible()
+  })
+
   test('@phone the headings once at the top, each day’s four times on a line under them, nothing wider than the screen', async ({ page }) => {
     await open(page, '/opening-hours')
     const week = page.getByRole('region', { name: 'Weekly hours' })

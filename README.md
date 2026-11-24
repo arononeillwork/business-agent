@@ -1015,6 +1015,12 @@ region's, as the Ministry of Labour's yearly resolution in the BOE lists them (`
 2026 and 2027 for now; each October's resolution for the next year is one more table there). A national
 day the region replaced isn't added. The town's two local days the owner adds on the Calendar.
 
+When a business closes on public holidays (Opening hours → **We close on public holidays**, kept with its
+Google Maps connection), the Rota shows those days closed, as it does a closure on the Calendar ("Closed for
+Christmas"): no opening hours and nothing to cover, and a shift on one is flagged. Google Maps and the website
+read the same days (`shared/closures.ts`). The whole team reads the setting through `closes_on_holidays()`,
+while the connection itself stays the admins'.
+
 A business in Spain also says its town (asked when it's added, and on Business next to the region), and an
 admin adds each year's two local holidays (fiestas locales) in one go: Business → Local holidays, or the
 prompt on Today (`shared/townHolidays.ts`, `src/components/TownHolidays.tsx`). Each town hall sets its own

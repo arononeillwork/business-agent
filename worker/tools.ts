@@ -242,7 +242,9 @@ async function describeShifts(sb: SupabaseClient, from: string, to: string) {
   const s = rules.data as Pick<Settings, 'break_after_hours' | 'min_break_minutes' | 'max_daily_hours' | 'max_weekly_hours' | 'min_rest_hours'> | null
   const limits = s ? { breakAfterHours: s.break_after_hours, minBreakMinutes: s.min_break_minutes, maxDailyHours: s.max_daily_hours,
     maxWeeklyHours: s.max_weekly_hours, minRestHours: s.min_rest_hours } : undefined
-  const ctx = { shifts, openingHours: business.opening_hours, events, limits }
+  // Opening hours → "We close on public holidays": those days are closed, as on the Rota.
+  const closesOnHolidays = await (async () => sb.rpc('closes_on_holidays'))().then(r => !r.error && !!r.data, () => false)
+  const ctx = { shifts, openingHours: business.opening_hours, events, limits, closesOnHolidays }
   return shifts.filter(s => localDate(s.starts_at) >= from).map(s => ({
     shift_id: s.id,
     date: localDate(s.starts_at),

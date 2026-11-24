@@ -19,6 +19,7 @@ import { RepeatRotaDialog, RotaRepeatBanner } from '../components/RotaRepeat'
 import { fonts, tokens } from '../theme'
 import type { ShiftInput } from '../data/api'
 import { dayCoverage, holidayOn, shiftPaidMinutes, shiftWarnings, weeklyCheck, type ShiftContext } from '../../shared/rules'
+import { closureOn } from '../../shared/closures'
 import {
   addDays, formatDuration, formatLocal, formatMoney, localDate, localTime, today, weekDates, weekStart, zonedIso,
 } from '../../shared/time'
@@ -85,6 +86,8 @@ export function RotaPage() {
   // Repeat week: the dialog, and the continuous rota while there is one (components/RotaRepeat.tsx).
   const [repeating, setRepeating] = useState(false)
   const repeat = useAsync('rota-repeat', async () => (canEdit ? api.rotaRepeat() : null), [canEdit])
+  // Opening hours → "We close on public holidays": those days show closed, like closures on the Calendar (shared/closures.ts).
+  const closesOnHolidays = useAsync('closes-on-holidays', () => api.closesOnHolidays(), []).data ?? false
 
   // Open shifts, and the team's (not the shifts of anyone the app leaves out, like the live tests' accounts).
   const allShifts = (data.data?.shifts ?? []).filter(s => !s.profile_id || profiles.some(p => p.id === s.profile_id))
@@ -106,7 +109,9 @@ export function RotaPage() {
       maxDailyHours: settings.max_daily_hours, maxWeeklyHours: settings.max_weekly_hours,
       minRestHours: settings.min_rest_hours,
     } : undefined,
-  }), [allShifts, openingHours, events, canSeePay, rates, settings])
+    closesOnHolidays,
+  }), [allShifts, openingHours, events, canSeePay, rates, settings, closesOnHolidays])
+  const closedOn = (date: string) => closureOn(date, events, closesOnHolidays)
 
   const cost = (list: Shift[]) => list.reduce((sum, s) => sum + shiftPaidMinutes(s) / 60 * rate(s.profile_id) * mult, 0)
   const mins = (list: Shift[]) => list.reduce((sum, s) => sum + shiftPaidMinutes(s), 0)
@@ -192,7 +197,7 @@ export function RotaPage() {
   const d = draft ? draftShift(draft) : null
   const draftWarnings = d ? shiftWarnings({ ...d, id: d.id ?? 'new', status: 'published' } as Shift, ctx) : []
   const flagged = weekShifts.filter(s => shiftWarnings(s, ctx).some(w => w.code !== 'holiday')).length
-  const gapDays = days.filter(dt => dayCoverage(dt, weekShifts, openingHours, business?.peak_hours ?? undefined).some(c => c.level === 'none')).length
+  const gapDays = days.filter(dt => !closedOn(dt) && dayCoverage(dt, weekShifts, openingHours, business?.peak_hours ?? undefined).some(c => c.level === 'none')).length
   const openCount = visible.filter(s => !s.profile_id).length
 
   // The open shifts get a row (or a column) when there are some, or for whoever can add them.
@@ -242,7 +247,9 @@ export function RotaPage() {
   const DayHead = ({ date, compact }: { date: string; compact?: boolean }) => {
     const dayShifts = visible.filter(s => localDate(s.starts_at) === date)
     const holiday = holidayOn(date, events)
-    const coverage = dayCoverage(date, weekShifts, openingHours, business?.peak_hours ?? undefined)
+    // A day it's closed (a closure on the Calendar, or a public holiday it closes on) has nothing to cover.
+    const closed = closedOn(date)
+    const coverage = closed ? [] : dayCoverage(date, weekShifts, openingHours, business?.peak_hours ?? undefined)
     const open = openingHours[['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'][days.indexOf(date)] as 'mon']
     const isToday = date === today()
     return (
@@ -257,7 +264,7 @@ export function RotaPage() {
           </Typography>
         </Stack>
         <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', lineHeight: 1.35, mt: 0.5 }}>
-          {open ? hoursLabel(open) : t('Closed')}
+          {open && !closed ? hoursLabel(open) : t('Closed')}
           <br />{formatDuration(mins(dayShifts.filter(s => s.profile_id)))}{canSeePay && !showCosts ? ` · ${formatMoney(cost(dayShifts))}` : ''}
         </Typography>
         {showCosts && (
