@@ -110,11 +110,12 @@ const CAFES: PainPoint[] = [
   },
   {
     id: 'rota', wins: ['time'], pages: [msg('Rota'), msg('Time off'), msg('Team')],
-    title: msg('The rota lives on WhatsApp'),
+    title: msg('A shared rota, so everyone is on the same page'),
     says: msg('“Every week I rebuild the rota, and someone still doesn’t see the change.”'),
-    fix: msg('One rota the whole team sees on their phone, with time off requests and team messages in the same place, instead of a rota rebuilt in a chat every week.'),
+    fix: msg('One rota in one place, on everyone’s phone, with time off requests and team messages alongside. Change it once and the whole team sees it. And if you like, send each person their shifts on WhatsApp, or share the week to the team’s WhatsApp group.'),
     result: msg('The rota goes out in minutes, and “who’s in on Saturday?” stops being a question.'),
-    video: msg('A week’s rota in five minutes'),
+    video: msg('One rota, everyone on the same page'),
+    film: { src: '/video/rota.mp4', poster: '/video/rota.jpg' },
   },
   {
     id: 'hours-pay', wins: ['time'], pages: [msg('Timecards'), msg('Tips')],

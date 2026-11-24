@@ -7,6 +7,7 @@ import RepeatIcon from '@mui/icons-material/Repeat'
 import TableRowsIcon from '@mui/icons-material/TableRowsOutlined'
 import ViewColumnIcon from '@mui/icons-material/ViewColumnOutlined'
 import WarningIcon from '@mui/icons-material/WarningAmberRounded'
+import WhatsAppIcon from '@mui/icons-material/WhatsApp'
 import { useMemo, useState } from 'react'
 import { Link as RouterLink, useSearchParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
@@ -23,6 +24,7 @@ import {
 } from '../../shared/time'
 import type { Shift } from '../../shared/types'
 import { hoursLabel } from '../../shared/openingHours'
+import { rotaMessage, whatsappShareLink } from '../../shared/rotaMessage'
 import { t, tn, tr, tc } from '../i18n'
 
 const OPEN = '__open__'
@@ -451,6 +453,23 @@ export function RotaPage() {
     )
   }
 
+  // The week's published rota as one message for the team's WhatsApp group: WhatsApp opens with it, and you pick the
+  // group (a business number can't post to groups, so it goes from your own WhatsApp; shared/rotaMessage.ts).
+  const shareToGroup = () => run(async () => {
+    const published = weekShifts.filter(s => s.status === 'published')
+    if (!published.length) throw new Error(t('Nothing on this week’s rota to share yet'))
+    const nameOf = (s: Shift) => (s.profile_id ? profiles.find(p => p.id === s.profile_id)?.full_name ?? '' : t('Open shift'))
+    const text = rotaMessage(days.map(date => ({
+      label: formatLocal(`${date}T12:00:00Z`, 'EEE d'),
+      shifts: published.filter(s => localDate(s.starts_at) === date).map(s => ({ who: nameOf(s), from: localTime(s.starts_at), to: localTime(s.ends_at) })),
+    })), {
+      heading: t('{business}: the rota for {week}', { business: business?.name ?? '', week: `${formatLocal(`${days[0]}T12:00:00Z`, 'd MMM')} – ${formatLocal(`${days[6]}T12:00:00Z`, 'd MMM')}` }),
+      nobody: t('Nobody on'),
+      footer: t('See it any time, and any change, in the app: {link}', { link: `${location.origin}/rota` }),
+    })
+    window.open(whatsappShareLink(text), '_blank', 'noopener')
+  }, t('WhatsApp is open: pick the team’s group'))
+
   return (
     <>
       <PageHeader eyebrow={t('Team')} title={t('Rota')}
@@ -460,6 +479,7 @@ export function RotaPage() {
             const n = await api.sendRota(monday)
             if (!n) throw new Error(t('Nobody to send to: staff turn on WhatsApp under My account'))
           }, t('Rota sent on WhatsApp'))}>{t('Send on WhatsApp')}</Button>
+          <Button variant="outlined" startIcon={<WhatsAppIcon />} onClick={() => void shareToGroup()}>{t('Share to a WhatsApp group')}</Button>
           <Button startIcon={<AddIcon />} variant="contained" onClick={() => openDraft(null, view === 'day' ? day : days[0])}>{t('Add shift')}</Button>
         </>} />
       <ErrorBox error={data.error} />

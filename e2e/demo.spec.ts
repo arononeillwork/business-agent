@@ -765,6 +765,16 @@ test.describe('connections', () => {
     await open(page, '/rota')
     await page.getByRole('button', { name: 'Send on WhatsApp' }).click()
     await toast(page, 'Rota sent on WhatsApp')
+    // Or the whole week to the team's group: WhatsApp's share link opens with it written out, to pick the group.
+    await page.context().route('https://wa.me/**', r => r.fulfill({ contentType: 'text/html', body: 'WhatsApp' }))
+    const [whatsapp] = await Promise.all([page.context().waitForEvent('page'), page.getByRole('button', { name: 'Share to a WhatsApp group' }).click()])
+    await whatsapp.waitForLoadState()
+    const shared = new URL(whatsapp.url()).searchParams.get('text') ?? ''
+    expect(shared).toMatch(/^\*Easy Beans Coffee: the rota for /)
+    expect(shared).toMatch(/Julio \d\d:\d\d–\d\d:\d\d/)
+    expect(shared).toContain('/rota')
+    await whatsapp.close()
+    await toast(page, 'WhatsApp is open: pick the team’s group')
     await fromAccountMenu(page, 'My account')
     // No separate WhatsApp switch: picking WhatsApp as the preferred contact is the opt-in.
     await expect(page.getByLabel(/shift reminders and rota updates on WhatsApp/)).toHaveCount(0)
@@ -2664,7 +2674,7 @@ test('sales page: pick a business type, then its pain points with what the app d
   await expect(film).toHaveAttribute('poster', '/video/food-waste.jpg')
   expect((await page.request.get('/video/food-waste.mp4')).ok()).toBe(true)
   await expect(food.getByText('Film coming soon')).toHaveCount(0)
-  await expect(page.getByRole('article', { name: 'The rota lives on WhatsApp' }).getByText('Film coming soon')).toBeVisible()
+  await expect(page.getByRole('article', { name: 'Adding up hours and tips' }).getByText('Film coming soon')).toBeVisible()
   await expect(page.getByRole('article', { name: 'The working-hours record' })).toContainText('Stay legal')
   // Google reviews & opening hours has its film too.
   for (const file of ['public/video/google-listing.mp4', 'public/video/google-listing.jpg']) expect(readFileSync(file).length).toBeGreaterThan(10_000)
@@ -2688,6 +2698,11 @@ test('sales page: pick a business type, then its pain points with what the app d
   for (const file of ['public/video/social.mp4', 'public/video/social.jpg']) expect(readFileSync(file).length).toBeGreaterThan(10_000)
   await expect(page.getByRole('article', { name: 'Instagram and TikTok never get posted' }).getByLabel('From an idea to a scheduled post, video'))
     .toHaveAttribute('src', '/video/social.mp4')
+  // And the shared rota (src/rota), under its new title.
+  for (const file of ['public/video/rota.mp4', 'public/video/rota.jpg']) expect(readFileSync(file).length).toBeGreaterThan(10_000)
+  const rota = page.getByRole('article', { name: 'A shared rota, so everyone is on the same page' })
+  await expect(rota).toContainText('WhatsApp group')
+  await expect(rota.getByLabel('One rota, everyone on the same page, video')).toHaveAttribute('src', '/video/rota.mp4')
   // The cheat sheet at the top lists each problem under what it's mainly about, and links to its card.
   const glance = page.getByRole('region', { name: 'Selling points at a glance' })
   for (const win of ['Make money', 'Save time', 'Cut costs', 'Stay legal']) await expect(glance.getByRole('heading', { name: win })).toBeVisible()
