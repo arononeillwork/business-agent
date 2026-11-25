@@ -83,6 +83,7 @@ export const AREAS: { name: string; files: RegExp[]; tests: string }[] = [
   { name: 'single display', files: [/shared\/singleDisplay/, /i18n\/es\/singleDisplay/], tests: String.raw`screen|single display` },
   { name: 'screen slideshow', files: [/i18n\/es\/screenSlideshow/, /screen_slideshow/], tests: String.raw`screen|slideshow` },
   { name: 'screen own address', files: [/i18n\/es\/screenOwnAddress/], tests: String.raw`screen` },
+  { name: 'screen rotation', files: [/i18n\/es\/screenRotation/, /shared\/screenRotation/, /screen_rotation/], tests: String.raw`screen|Rotate` },
   { name: 'google maps menu', files: [/MenuPage/], tests: String.raw`Google Maps` },
   { name: 'ads', files: [/AdsPage/, /shared\/ads/], tests: String.raw`ads|campaign|UTM` },
   { name: 'reviews', files: [/(Reviews|Website)Page/, /shared\/(seo|reviews)/], tests: String.raw`review|SEO|website` },

@@ -26,6 +26,7 @@ import TvIcon from '@mui/icons-material/TvOutlined'
 import SlideshowIcon from '@mui/icons-material/SlideshowOutlined'
 import LockIcon from '@mui/icons-material/LockOutlined'
 import PlayIcon from '@mui/icons-material/PlayArrowRounded'
+import RotateIcon from '@mui/icons-material/RotateRightRounded'
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link as RouterLink, useSearchParams } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
@@ -33,7 +34,7 @@ import { FEATURES } from '../app/features'
 import { useAsync, useTick } from '../app/hooks'
 import { useAction, useNotify } from '../app/Notify'
 import { Empty, ErrorBox, PageHeader, Tag } from '../components/common'
-import { ScreenPlayer } from '../components/ScreenPlayer'
+import { ScreenPlayer, Turned } from '../components/ScreenPlayer'
 import { offerWhenText } from '../components/OfferBoard'
 import { ago } from '../components/Freshness'
 import { readyPhoto } from '../lib/media'
@@ -42,6 +43,7 @@ import {
   LINK_NAME, LINK_PREFIX, OWN_URL, SECONDS_CHOICES, TRANSITIONS, cleanUrl, embedCode, hasVersion, isOnline, kindLabel, kindOf, linkName, loopSeconds, newScreen, offersSlide,
   screenProblem, shortLinkPath, versionOn, type DisplayFeed, type OfferPicture, type Screen, type ScreenInput, type ScreenKind, type Slide, type SlideKind,
 } from '../../shared/screens'
+import { ROTATION_LABEL, rotateOnce, rotationOf, type Rotation } from '../../shared/screens'
 import type { MenuAllergens } from '../../shared/allergens'
 import { offerState, type Offer, type ScreenOffer } from '../../shared/offers'
 import { qrSvg } from '../../shared/qrCodes'
@@ -246,6 +248,7 @@ function ScreenCard({ screen: s, main, selected, onClick, showing }: {
 }) {
   const { business } = useApp()
   const count = s.slides.filter(x => x.active).length
+  const turn = rotationOf(s)
   return (
     <Card variant="outlined" sx={selected ? { borderColor: tokens.rose, boxShadow: `0 0 0 1px ${tokens.rose}`, bgcolor: tokens.roseWash } : undefined}>
       <CardActionArea onClick={onClick} aria-pressed={selected} aria-label={s.name} sx={{ px: 2, py: 1.75, display: 'block' }}>
@@ -256,7 +259,7 @@ function ScreenCard({ screen: s, main, selected, onClick, showing }: {
           <Box sx={{ minWidth: 0, flex: 1 }}>
             <Typography sx={{ fontWeight: 600, lineHeight: 1.35 }}>{s.name}</Typography>
             <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.25, overflowWrap: 'anywhere' }}>
-              {`${showing ?? (s.kind === 'slideshow' ? tn(count, '{n} picture', '{n} pictures') : tn(count, '{n} slide', '{n} slides'))} · ${s.orientation === 'portrait' ? t('Portrait') : t('Landscape')}`}
+              {`${showing ?? (s.kind === 'slideshow' ? tn(count, '{n} picture', '{n} pictures') : tn(count, '{n} slide', '{n} slides'))} · ${s.orientation === 'portrait' ? t('Portrait') : t('Landscape')}${turn ? ` · ${t(ROTATION_LABEL[turn])}` : ''}`}
             </Typography>
             <Typography variant="caption" noWrap sx={{ color: tokens.roseDeep, display: 'block', fontFamily: 'monospace', fontSize: '0.74rem', mt: 0.25 }}>
               {shortLinkPath(s, business?.id, main)}
@@ -379,7 +382,8 @@ function ScreenEditor({ screen, main, designs, items, allergens, brand, offers, 
           if (!to) void run(() => api.saveScreen({ ...saved, slides: firstOnly(screen.slides), slideshow: false }), t('{screen} shows one thing at a time now', { screen: screen.name }), { fresh: true })
         }} />}
         <LinkPanel screen={screen} main={main} slug={s.slug} onSlug={slug => set({ slug })} own={s.own_url ?? null} onOwn={own_url => set({ own_url })}
-          preview={<Preview s={s} feed={feed} note={t('A silent preview of the changes below, as the screen will play them.')} />} />
+          preview={<Preview s={s} feed={feed} note={t('A silent preview of the changes below, as the screen will play them.')}
+            onRotate={() => set({ rotation: rotateOnce(rotationOf(s)) })} />} />
       </Card>
 
       <input ref={file} type="file" accept="image/*" multiple hidden aria-label={t('Pictures from this device')}
@@ -590,15 +594,21 @@ function UnsavedBar({ onUndo, onSave }: { onUndo: () => void; onSave: () => void
   )
 }
 
-/** The screen as it plays, small and silent, in its shape. */
-function Preview({ s, feed, note }: { s: Pick<ScreenInput, 'orientation'>; feed: DisplayFeed; note: string }) {
+/** The screen as it plays, small and silent, in its shape, turned as the screen turns it: Rotate turns it a quarter more. */
+function Preview({ s, feed, note, onRotate }: { s: Pick<ScreenInput, 'orientation' | 'rotation'>; feed: DisplayFeed; note: string; onRotate: () => void }) {
+  const turn = rotationOf(s)
+  const player = <ScreenPlayer feed={feed} preview />
   return (
     <Box sx={{ display: 'grid', placeItems: 'center', bgcolor: tokens.surfaceAlt, borderRadius: 3, p: { xs: 1.5, md: 2 } }}>
       <Box sx={{ width: '100%', maxWidth: s.orientation === 'portrait' ? 200 : 520 }}>
         <Box role="region" aria-label={t('Preview of the screen')} sx={{ position: 'relative', aspectRatio: s.orientation === 'portrait' ? '9 / 16' : '16 / 9',
-          borderRadius: '10px', overflow: 'hidden', border: '6px solid #111', bgcolor: '#000' }}>
-          <ScreenPlayer feed={feed} preview />
+          borderRadius: '10px', overflow: 'hidden', border: '6px solid #111', bgcolor: '#000', containerType: 'size' }}>
+          {turn ? <Turned turn={turn} units={['cqw', 'cqh']}>{player}</Turned> : player}
         </Box>
+        <Stack direction="row" sx={{ justifyContent: 'center', alignItems: 'center', gap: 1, mt: 1.25, flexWrap: 'wrap' }}>
+          <Button size="small" variant="outlined" startIcon={<RotateIcon />} onClick={onRotate}>{t('Rotate')}</Button>
+          {turn !== 0 && <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t(ROTATION_LABEL[turn])}</Typography>}
+        </Stack>
         <Typography variant="caption" sx={{ display: 'block', textAlign: 'center', color: 'text.secondary', mt: 1 }}>{note}</Typography>
       </Box>
     </Box>
@@ -633,9 +643,13 @@ function SingleDisplayEditor({ screen, main, designs, items, allergens, brand, o
   const file = useRef<HTMLInputElement>(null)
   const slides = pending?.slides ?? screen.slides
   const slideshow = pending?.slideshow ?? screen.slideshow
-  const s: ScreenInput = { ...draft, slides, slideshow }
+  // Rotate turns the picture straight away too, shown turned (`turning`) until the save is back.
+  const [turning, setTurning] = useState<Rotation | null>(null)
+  const turns = useRef(0)
+  const rotation = turning ?? rotationOf(screen)
+  const s: ScreenInput = { ...draft, slides, slideshow, rotation }
   const set: SetScreen = patch => setDraft(x => ({ ...x, ...patch }))
-  const settings = ({ slides: _slides, slideshow: _slideshow, ...rest }: ScreenInput) => JSON.stringify(rest)
+  const settings = ({ slides: _slides, slideshow: _slideshow, rotation: _rotation, ...rest }: ScreenInput) => JSON.stringify(rest)
   const dirty = settings(draft) !== settings(saved)
   const pictures = useMemo(() => offerPicturesFor(screen.id, allOffers), [screen.id, allOffers])
   const feed = useScreenFeed(s, screen, { designs, items, allergens, brand, offers, pictures })
@@ -657,7 +671,7 @@ function SingleDisplayEditor({ screen, main, designs, items, allergens, brand, o
       const problem = screenProblem({ ...saved, slides: next })
       if (problem) throw new Error(t(problem))
       setPending({ slides: next, slideshow: mode })
-      await api.saveScreen({ ...saved, slides: next, slideshow: mode })
+      await api.saveScreen({ ...saved, rotation, slides: next, slideshow: mode })
     }, success, { fresh: true })
     if (turn.current === n) setPending(null)
   }
@@ -666,6 +680,14 @@ function SingleDisplayEditor({ screen, main, designs, items, allergens, brand, o
   turnOn ? picked(nameOf(sl)) : slideshow ? leaves(nameOf(sl)) : t('Saved. The screen shows the changes within a minute.'))
   const move = (sl: Slide, by: -1 | 1) => void put(now => moveInSlideshow(now, sl.id, by), t('Saved. The screen shows the changes within a minute.'))
   const remove = (sl: Slide) => void put(now => now.filter(x => x.id !== sl.id), t('{name}: off the list', { name: nameOf(sl) }))
+  // A quarter turn more, clockwise, with the screen's saved settings: the TV turns within a minute.
+  const rotate = async () => {
+    const to = rotateOnce(rotation)
+    const n = ++turns.current
+    setTurning(to)
+    await run(() => api.saveScreen({ ...saved, slides, slideshow, rotation: to }), t('{screen} turns within a minute', { screen: screen.name }), { fresh: true })
+    if (turns.current === n) setTurning(null)
+  }
   // A slideshow, or back to one thing at a time: the first in the slideshow stays on, the rest wait in the list.
   const setMode = (to: boolean) => {
     if (to === slideshow) return
@@ -735,7 +757,7 @@ function SingleDisplayEditor({ screen, main, designs, items, allergens, brand, o
         </Stack>
         <ScreenModes slideshow={slideshow} onMode={setMode} link={shortLinkPath(screen, business?.id, main)} />
         <LinkPanel screen={screen} main={main} slug={draft.slug} onSlug={slug => set({ slug })} own={draft.own_url ?? null} onOwn={own_url => set({ own_url })}
-          preview={<Preview s={s} feed={feed} note={t('A silent preview of what the screen shows.')} />} />
+          preview={<Preview s={s} feed={feed} note={t('A silent preview of what the screen shows.')} onRotate={() => void rotate()} />} />
       </Card>
 
       <InstagramPosts slides={slides} storage={storage} slideshow={slideshow} onPick={showPost} />

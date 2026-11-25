@@ -531,6 +531,11 @@ built-in **AI connector** so owners can run it by talking to Claude.
   its side) is turned upright, as the café's website did; a tap, or OK or an arrow on the remote, turns it
   the other way and that TV keeps it (`shared/screens.ts`, `src/pages/DisplayPage.tsx`, the
   `screen_own_address` migration).
+- Turning a screen's picture (Screens, admins): **Rotate**, under the preview, turns what the screen shows a
+  quarter clockwise each time (right, upside down, left, then upright again), for a TV hung on its side or
+  upside down. It saves straight away and the screen turns within a minute; the preview and the screen's
+  card show how it's turned. It goes on top of the turn that stands a portrait screen upright on a TV that
+  shows landscape (`shared/screens.ts`, `src/components/ScreenPlayer.tsx`, the `screen_rotation` migration).
 - Offers & specials (Marketing section, admins): a special or an offer for a set time (an hour, until
   the end of the day, 24 hours like a story, a week, or until a time picked), with its price, what it
   usually costs crossed out, details and a photo. It shows on the screens picked from the minute it

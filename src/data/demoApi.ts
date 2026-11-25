@@ -1162,7 +1162,7 @@ export function createDemoApi(): Api {
   // Screens: the counter TV plays the menu board, a photo and the website, with the clock and a running line.
   const newToken = () => crypto.randomUUID().replace(/-/g, '')
   const screenList: Screen[] = [{
-    id: 's-counter', name: 'Counter TV', kind: 'screen', slug: 'counter-tv', token: 'c0ffee00beef00c0ffee00beef00cafe', orientation: 'landscape', seconds: 10,
+    id: 's-counter', name: 'Counter TV', kind: 'screen', slug: 'counter-tv', token: 'c0ffee00beef00c0ffee00beef00cafe', orientation: 'landscape', rotation: 0, seconds: 10,
     transition: 'fade', transition_ms: 800, shuffle: false, fit: 'cover', music_url: null, music_volume: 40, video_sound: false, show_clock: true,
     ticker: 'Today’s special: pumpkin spice latte · Free Wi-Fi: EasyBeans', active: true, slideshow: false, last_seen_at: new Date(Date.now() - 40_000).toISOString(), updated_at: daysAgo(1),
     slides: [
@@ -1174,7 +1174,7 @@ export function createDemoApi(): Api {
     ],
   }, {
     // The window's picture slideshow: the live offers' pictures, then two photos.
-    id: 's-window', name: 'Window slideshow', kind: 'slideshow', slug: 'window', token: 'feed00c0ffee00feed00c0ffee00feed', orientation: 'portrait', seconds: 8,
+    id: 's-window', name: 'Window slideshow', kind: 'slideshow', slug: 'window', token: 'feed00c0ffee00feed00c0ffee00feed', orientation: 'portrait', rotation: 0, seconds: 8,
     transition: 'fade', transition_ms: 800, shuffle: false, fit: 'contain', music_url: null, music_volume: 40, video_sound: false, show_clock: false,
     ticker: null, active: true, slideshow: true, last_seen_at: null, updated_at: daysAgo(2),
     slides: [

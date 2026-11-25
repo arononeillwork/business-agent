@@ -6916,6 +6916,37 @@ test.describe('menu, menu design and screens', () => {
     await expect(page.getByText('Butter croissants')).toBeVisible()
     await expect(page.locator('[data-turned]')).toHaveCount(0)
   })
+
+  test('Rotate turns a screen’s picture a quarter at a time, saved straight away, and the screen turns with it', async ({ page }) => {
+    await open(page, '/screens')
+    const preview = page.getByRole('region', { name: 'Preview of the screen' })
+    const card = page.getByRole('button', { name: 'Counter TV', exact: true })
+    const rotate = page.getByRole('button', { name: 'Rotate', exact: true })
+    await expect(preview.locator('[data-turned]')).toHaveCount(0)
+    // A quarter to the right: nothing waits for Save.
+    await rotate.click()
+    await toast(page, 'Counter TV turns within a minute')
+    await expect(preview.locator('[data-turned]')).toHaveAttribute('data-turned', 'right')
+    await expect(page.getByRole('region', { name: 'The screen and its link' })).toContainText('Turned a quarter to the right')
+    await expect(card).toContainText('Landscape · Turned a quarter to the right')
+    await expect(page.getByText('Unsaved changes')).toHaveCount(0)
+    // Upside down, then the screen plays it so (its link, opened in this same demo).
+    await rotate.click()
+    await expect(preview.locator('[data-turned]')).toHaveAttribute('data-turned', 'around')
+    await expect(card).toContainText('Landscape · Upside down')
+    await page.evaluate(to => { history.pushState({ usr: null, key: to, idx: 1 }, '', to); dispatchEvent(new PopStateEvent('popstate', { state: history.state })) }, '/display-menu')
+    await expect(page.getByRole('heading', { name: 'Screens', level: 1 })).toHaveCount(0)
+    await expect(page.getByRole('img', { name: 'Butter croissants · €1,68' })).toBeVisible()
+    await expect(page.locator('[data-turned]')).toHaveAttribute('data-turned', 'around')
+    // Back on the Screens page: two more and it's upright again.
+    await page.evaluate(to => { history.pushState({ usr: null, key: to, idx: 1 }, '', to); dispatchEvent(new PopStateEvent('popstate', { state: history.state })) }, '/screens')
+    await rotate.click()
+    await expect(preview.locator('[data-turned]')).toHaveAttribute('data-turned', 'left')
+    await rotate.click()
+    await expect(preview.locator('[data-turned]')).toHaveCount(0)
+    await expect(card).not.toContainText('Turned')
+    await expect(card).not.toContainText('Upside down')
+  })
 })
 
 test.describe('offers and specials', () => {
