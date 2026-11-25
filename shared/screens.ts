@@ -90,6 +90,25 @@ export const TRANSITIONS: { id: Transition; label: string }[] = [
   { id: 'none', label: msg('Cut (no effect)') },
 ]
 export type Fit = 'cover' | 'contain'
+
+/** How far a screen's picture is turned, clockwise, in degrees. */
+export type Rotation = 0 | 90 | 180 | 270
+/** A screen's turn: none on one kept on a TV from before there was one. */
+export function rotationOf(s: { rotation?: number | null }): Rotation {
+  const r = (((s.rotation ?? 0) % 360) + 360) % 360
+  return r === 90 || r === 180 || r === 270 ? r : 0
+}
+/** The Rotate button on the Screens page: a quarter turn more, clockwise, and upright again after four. */
+export const rotateOnce = (r: Rotation): Rotation => rotationOf({ rotation: r + 90 })
+/** How it's turned, in words. */
+export const ROTATION_LABEL: Record<Rotation, string> = {
+  0: msg('Upright'), 90: msg('Turned a quarter to the right'), 180: msg('Upside down'), 270: msg('Turned a quarter to the left'),
+}
+/**
+ * How far a TV turns the picture: the screen's own turn, on top of the quarter turn that stands a
+ * portrait screen upright on a TV that shows landscape (`upright`: 90, or 270 when that TV turns it the other way).
+ */
+export const screenTurn = (rotation: Rotation, upright: 0 | 90 | 270 = 0): Rotation => rotationOf({ rotation: rotation + upright })
 /** A screen (a TV or tablet: menus, pictures, videos, pages, music) or a picture slideshow (pictures and the live offers' pictures, kept simple). */
 export type ScreenKind = 'screen' | 'slideshow'
 
@@ -107,6 +126,11 @@ export interface Screen {
    */
   own_url?: string | null
   orientation: 'landscape' | 'portrait'
+  /**
+   * How far the picture is turned on the screen, clockwise, for a TV hung on its side or upside down:
+   * the Rotate button on the Screens page turns it a quarter more each time. 0: as it comes.
+   */
+  rotation: Rotation
   /** How long each slide shows, unless it says otherwise. */
   seconds: number
   transition: Transition
@@ -142,7 +166,7 @@ export const MAX_SLIDES = 100
 export const SECONDS_CHOICES = [5, 8, 10, 15, 20, 30, 45, 60, 120]
 
 export const newScreen = (name: string, kind: ScreenKind = 'screen'): ScreenInput => ({
-  name, kind, slug: '', own_url: null, orientation: 'landscape', seconds: kind === 'slideshow' ? 8 : 10, transition: 'fade', transition_ms: 800, shuffle: false,
+  name, kind, slug: '', own_url: null, orientation: 'landscape', rotation: 0, seconds: kind === 'slideshow' ? 8 : 10, transition: 'fade', transition_ms: 800, shuffle: false,
   fit: kind === 'slideshow' ? 'contain' : 'cover', music_url: null, music_volume: 40, video_sound: false, show_clock: false, ticker: null,
   // A picture slideshow starts with the live offers' pictures, so it has something to show straight away.
   slides: kind === 'slideshow' ? [offersSlide()] : [], active: true, slideshow: false,

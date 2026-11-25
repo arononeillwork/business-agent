@@ -1,5 +1,5 @@
 import { Box, Typography } from '@mui/material'
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { MenuBoard, boardBrand } from './MenuBoard'
 import { OfferBoard } from './OfferBoard'
 import { useTick } from '../app/hooks'
@@ -103,6 +103,19 @@ export function ScreenPlayer({ feed, preview = false, onBlocked }: { feed: Displ
       {s.active && s.ticker && <Ticker text={s.ticker} />}
       {!preview && s.active && s.music_url && <Music url={s.music_url} volume={s.music_volume} paused={!!videoWithSound} onBlocked={onBlocked} />}
     </Box>
+  )
+}
+
+/**
+ * The slides turned clockwise by `turn` degrees, filling their frame: on their side (90, 270) they're
+ * laid out as wide as the frame is high, and as high as it's wide. `units` are the frame's width and
+ * height: the whole window on the TV (vw, vh), the preview's box on the Screens page (cqw, cqh).
+ */
+export function Turned({ turn, units: [w, h], children }: { turn: number; units: [string, string]; children: ReactNode }) {
+  const side = turn % 180 !== 0
+  return (
+    <Box data-turned={turn === 90 ? 'right' : turn === 180 ? 'around' : 'left'} sx={{ position: 'absolute', top: '50%', left: '50%',
+      width: `100${side ? h : w}`, height: `100${side ? w : h}`, transform: `translate(-50%, -50%) rotate(${turn}deg)` }}>{children}</Box>
   )
 }
 

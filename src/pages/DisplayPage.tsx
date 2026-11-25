@@ -3,8 +3,8 @@ import TouchIcon from '@mui/icons-material/TouchAppOutlined'
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
-import { ScreenPlayer } from '../components/ScreenPlayer'
-import { isShortLink, playAs, type DisplayFeed } from '../../shared/screens'
+import { ScreenPlayer, Turned } from '../components/ScreenPlayer'
+import { isShortLink, playAs, rotationOf, screenTurn, type DisplayFeed } from '../../shared/screens'
 import { t } from '../i18n'
 
 const CACHE = (token: string) => `eb-display-${token}`
@@ -95,16 +95,16 @@ export function DisplayPage() {
     return () => window.removeEventListener('keydown', key)
   }, [turned])
 
+  // The screen's own turn (the Rotate button on the Screens page) goes on top, for a TV hung any way round.
+  const turn = feed ? screenTurn(rotationOf(feed.screen), turned ? (other ? 270 : 90) : 0) : 0
+
   // A tap goes full screen (and lets the music start: browsers only allow sound after one).
   const fullScreen = () => { void document.documentElement.requestFullscreen?.().catch(() => {}) }
   const tap = () => { fullScreen(); if (turned) turnAround() }
   const player = feed && <ScreenPlayer feed={feed} onBlocked={setBlocked} />
   return (
     <Box onClick={tap} sx={{ position: 'fixed', inset: 0, bgcolor: '#000', color: '#fff', cursor: idle ? 'none' : 'default', overflow: 'hidden' }}>
-      {feed ? (turned ? (
-        <Box data-turned={other ? 'left' : 'right'} sx={{ position: 'absolute', top: '50%', left: '50%', width: '100vh', height: '100vw',
-          transform: `translate(-50%, -50%) rotate(${other ? -90 : 90}deg)` }}>{player}</Box>
-      ) : player)
+      {feed ? (turn ? <Turned turn={turn} units={['vw', 'vh']}>{player}</Turned> : player)
         : error ? (
           <Box sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', p: 4, textAlign: 'center' }}>
             <Typography sx={{ maxWidth: 560, fontSize: '1.3rem' }}>{error}</Typography>
