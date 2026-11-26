@@ -28,6 +28,10 @@ export interface CoffeeClubSettings {
   /** Square's checkout page for joining (null while not selling). */
   signup_url: string | null
   set_up_at: string
+  /** Square takes the free coffee off by itself for a member who's due one (a pricing rule on a customer group). */
+  auto_discount: boolean
+  /** The Square categories whose drinks it covers (their ids). */
+  auto_category_ids: string[]
 }
 
 export interface ClubMember {
@@ -95,10 +99,18 @@ export interface CoffeeClubInput {
   max_value: number
   till_language: TillLanguage
   selling: boolean
+  /** Square applies the free coffee by itself, to a drink in these categories. */
+  auto_discount: boolean
+  auto_category_ids: string[]
 }
 
+/** A category of the Square item library, for choosing the drinks the automatic discount covers. */
+export interface SquareCategory { id: string; name: string }
+
 /** What's usual to start with: €10 a month, a coffee a week, up to €5 off a drink. */
-export const CLUB_DEFAULTS: CoffeeClubInput = { name: 'Coffee club', price: 10, coffees_per_week: 1, max_value: 5, till_language: 'en', selling: true }
+export const CLUB_DEFAULTS: CoffeeClubInput = {
+  name: 'Coffee club', price: 10, coffees_per_week: 1, max_value: 5, till_language: 'en', selling: true, auto_discount: false, auto_category_ids: [],
+}
 
 const cents = (n: number) => Math.abs(Math.round(n * 100) - n * 100) < 1e-6
 
@@ -116,6 +128,7 @@ export function clubInputProblem(i: Partial<CoffeeClubInput>): string | null {
   if (!Number.isFinite(max) || max < 0.5 || max > 50) return msg('The most off a drink goes from €0.50 to €50')
   if (!cents(max)) return msg('Use euros and cents')
   if (i.till_language !== 'en' && i.till_language !== 'es') return msg('Choose the language of the note on the till')
+  if (i.auto_discount && !(i.auto_category_ids ?? []).length) return msg('Choose the drinks Square takes off by itself')
   return null
 }
 
@@ -128,6 +141,10 @@ export function standing(m: Pick<ClubMember, 'status' | 'paid' | 'ends_on'>): St
   if (!m.paid) return 'payment_failed'
   return m.ends_on ? 'ending' : 'active'
 }
+
+/** Whether a member's Square customer belongs in the group Square's automatic discount follows: due a coffee this week. */
+export const dueACoffee = (m: Pick<ClubMember, 'status' | 'paid' | 'used_this_week'>, perWeek: number) =>
+  m.status === 'active' && m.paid && m.used_this_week < perWeek
 
 /** A member whose coffees count: active in Square, with the latest charge paid. */
 export const inGoodStanding = (m: Pick<ClubMember, 'status' | 'paid'>) => m.status === 'active' && m.paid

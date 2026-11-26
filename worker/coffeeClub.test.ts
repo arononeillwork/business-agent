@@ -135,6 +135,81 @@ describe('The coffee club page', () => {
   })
 })
 
+describe('Square takes the free coffee off by itself', () => {
+  const drinks = () => apis.square.catalog.push(
+    { type: 'CATEGORY', id: 'cat-coffee', category_data: { name: 'Coffee' } }, { type: 'CATEGORY', id: 'cat-matcha', category_data: { name: 'Matcha' } })
+  const auto = (more: Row = {}) => club({ auto_discount: true, auto_category_ids: ['cat-coffee', 'cat-matcha'], key: 'key-auto-1', ...more })
+  const group = () => db.tables.coffee_club[0].square_group_id as string
+  const inGroup = () => [...(apis.square.groupMembers.get(group()) ?? [])].sort()
+
+  it('the drinks are the item library’s categories; switched on without any, it says to choose them', async () => {
+    await setUp()
+    drinks()
+    expect(await (await get('/api/coffee-club/categories')).json()).toEqual({ categories: [{ id: 'cat-coffee', name: 'Coffee' }, { id: 'cat-matcha', name: 'Matcha' }] })
+    expect((await (await post('/api/coffee-club', auto({ auto_category_ids: [] }))).json() as { error: string }).error).toMatch(/Choose the drinks/)
+  })
+
+  it('switched on: a group, a discount of its own, the drinks (one a sale) and a pricing rule for the group; members due a coffee are in it', async () => {
+    const { variation } = await setUp()
+    drinks()
+    apis.square.subscriptions = [sub('S1', 'SQC1', variation), sub('S2', 'SQC2', variation)]
+    apis.square.invoices = [{ id: 'I2', location_id: 'L1', subscription_id: 'S2', status: 'UNPAID', created_at: '2026-11-01T09:00:00Z' }]
+    await syncCoffeeClub(env, b1())
+    const res = await post('/api/coffee-club', auto())
+    expect(res.status).toBe(200)
+    expect((await res.json() as CoffeeClubState).club).toMatchObject({ auto_discount: true, auto_category_ids: ['cat-coffee', 'cat-matcha'] })
+    const row = db.tables.coffee_club[0]
+    expect(apis.square.groups.get(group())).toMatchObject({ name: 'Coffee club: coffee due' })
+    const of = (id: unknown) => apis.square.catalogObjects.find(o => o.id === id)
+    expect(of(row.square_auto_discount_id)).toMatchObject({ type: 'DISCOUNT', discount_data: { percentage: '100', maximum_amount_money: { amount: 500 } } })
+    expect(row.square_auto_discount_id).not.toBe(row.square_discount_id)
+    expect(of(row.square_product_set_id)).toMatchObject({ type: 'PRODUCT_SET', product_set_data: { product_ids_any: ['cat-coffee', 'cat-matcha'], quantity_max: 1 } })
+    expect(of(row.square_pricing_rule_id)).toMatchObject({ type: 'PRICING_RULE', pricing_rule_data: {
+      discount_id: row.square_auto_discount_id, match_products_id: row.square_product_set_id, customer_group_ids_any: [group()] } })
+    // Lucía is due her coffee; Tom's payment failed, so he isn't.
+    expect(inGroup()).toEqual(['SQC1'])
+    // Saved again unchanged: nothing new in Square.
+    const objects = apis.square.catalogObjects.length
+    await post('/api/coffee-club', auto({ key: 'key-auto-2' }))
+    expect(apis.square.catalogObjects.length).toBe(objects)
+  })
+
+  it('a coffee Square took off counts, and the member leaves the group until Monday', async () => {
+    const { variation } = await setUp()
+    drinks()
+    apis.square.subscriptions = [sub('S1', 'SQC1', variation)]
+    await syncCoffeeClub(env, b1())
+    await post('/api/coffee-club', auto())
+    expect(inGroup()).toEqual(['SQC1'])
+    apis.square.clubOrders = [sale('O1', 'SQC1', db.tables.coffee_club[0].square_auto_discount_id as string)]
+    await coffeeClubEvent(env, b1(), completed('O1'))
+    expect(db.tables.coffee_club_coffees).toEqual([expect.objectContaining({ square_order_id: 'O1', problem: null })])
+    expect(inGroup()).toEqual([])
+    expect(apis.square.notes.get('SQC1')!.note).toMatch(/used/)
+    vi.setSystemTime(Date.parse('2026-11-30T07:00:00Z'))
+    await syncCoffeeClub(env, b1())
+    expect(inGroup()).toEqual(['SQC1'])
+  })
+
+  it('switched off: the pricing rule goes and the group empties; the team’s discount stays', async () => {
+    const { variation, discount } = await setUp()
+    drinks()
+    apis.square.subscriptions = [sub('S1', 'SQC1', variation)]
+    await syncCoffeeClub(env, b1())
+    await post('/api/coffee-club', auto())
+    const rule = db.tables.coffee_club[0].square_pricing_rule_id
+    await post('/api/coffee-club', club({ key: 'key-off-1' }))
+    expect(apis.square.catalogObjects.some(o => o.id === rule)).toBe(false)
+    expect(apis.square.catalogObjects.some(o => o.id === discount)).toBe(true)
+    expect(db.tables.coffee_club[0]).toMatchObject({ auto_discount: false, square_pricing_rule_id: null })
+    expect(inGroup()).toEqual([])
+    // On again: a new rule with the same discount and drinks.
+    await post('/api/coffee-club', auto({ key: 'key-on-2' }))
+    expect(db.tables.coffee_club[0].square_pricing_rule_id).toBeTruthy()
+    expect(inGroup()).toEqual(['SQC1'])
+  })
+})
+
 describe('Square Loyalty, for tapping in', () => {
   it('without a programme the page says so; Square failing leaves it unknown, and the page still opens', async () => {
     const { variation } = await setUp()

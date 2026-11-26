@@ -5524,6 +5524,28 @@ test.describe('coffee club', () => {
     await toast(page, 'Club settings saved')
   })
 
+  test('Square takes the free coffee off by itself: switched on with the drinks it covers, the till needs one step fewer', async ({ page }) => {
+    await openClub(page)
+    await page.getByRole('region', { name: 'Set up the coffee club' }).getByRole('button', { name: 'Set up in Square' }).click()
+    await toast(page, 'The coffee club is set up in Square')
+    const till = page.getByRole('region', { name: 'At the till', exact: true })
+    await expect(till).toContainText('Apply the “Coffee club” discount to the drink')
+
+    const settings = page.getByRole('region', { name: 'Club settings' })
+    await settings.getByRole('switch', { name: 'Square takes the free coffee off by itself' }).click()
+    await expect(settings).toContainText('Choose the drinks Square takes off by itself')
+    await expect(settings.getByRole('button', { name: 'Save' })).toBeDisabled()
+    await settings.getByRole('combobox', { name: 'Drinks it covers' }).click()
+    await page.getByRole('option', { name: 'Coffee' }).click()
+    await page.getByRole('option', { name: 'Matcha' }).click()
+    await page.keyboard.press('Escape')
+    await expect(settings.getByRole('combobox', { name: 'Drinks it covers' })).toContainText('Coffee, Matcha')
+    await settings.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Club settings saved')
+    await expect(till).toContainText('Square takes one drink off by itself')
+    await expect(till).not.toContainText('Apply the “Coffee club” discount')
+  })
+
   test('employees don’t get the coffee club', async ({ page }) => {
     await open(page, '/', 'maria@example.com')
     await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()

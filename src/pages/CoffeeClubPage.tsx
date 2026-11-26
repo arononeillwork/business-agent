@@ -146,6 +146,9 @@ function ClubForm({ initial, first }: { initial: CoffeeClubInput; first?: boolea
             <FormControlLabel control={<Switch checked={v.selling} onChange={e => set({ selling: e.target.checked })} />}
               label={t('Taking new members (the sign-up page is up)')} />
           )}
+          <FormControlLabel control={<Switch checked={v.auto_discount} onChange={e => set({ auto_discount: e.target.checked })} />}
+            label={t('Square takes the free coffee off by itself')} />
+          {v.auto_discount && <AutoDrinks chosen={v.auto_category_ids} onChange={ids => set({ auto_category_ids: ids })} />}
           {!first && v.price !== initial.price && (
             <Alert severity="info">{t('A new price makes a new sign-up page. Members who joined already keep paying what they joined at.')}</Alert>
           )}
@@ -158,6 +161,27 @@ function ClubForm({ initial, first }: { initial: CoffeeClubInput; first?: boolea
         </Stack>
       </CardContent>
     </Card>
+  )
+}
+
+/**
+ * The drinks Square takes off by itself: categories of the Square item library, read from Square. One drink a sale,
+ * for a member who's due their coffee, up to the most off a drink.
+ */
+function AutoDrinks({ chosen, onChange }: { chosen: string[]; onChange: (ids: string[]) => void }) {
+  const { api } = useApp()
+  const categories = useAsync('club-categories', () => api.coffeeClubCategories(), [])
+  const names = new Map((categories.data ?? []).map(c => [c.id, c.name]))
+  return (
+    <Box>
+      <TextField select fullWidth label={t('Drinks it covers')} value={chosen}
+        onChange={e => onChange(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value as string[])}
+        helperText={categories.error ?? t('Square makes one of these free by itself when a member who’s due their coffee is added to the sale, up to the most off a drink. The team’s own discount stays, for when it’s needed.')}
+        error={!!categories.error}
+        slotProps={{ select: { multiple: true, renderValue: v => (v as string[]).map(id => names.get(id) ?? id).join(', ') } }}>
+        {(categories.data ?? []).map(c => <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>)}
+      </TextField>
+    </Box>
   )
 }
 
@@ -174,12 +198,13 @@ function Club({ state: s }: { state: CoffeeClubState }) {
       </StatGrid>
       {problems.length > 0 && <Problems coffees={problems} />}
       <SignUp url={club.signup_url} />
-      <AtTheTill name={club.name} />
+      <AtTheTill name={club.name} auto={club.auto_discount} />
       <TapToCheckIn program={s.loyalty_program} members={s.members} />
       <Members members={s.members} perWeek={club.coffees_per_week} />
       <Latest coffees={s.coffees.filter(c => !c.problem || c.sorted_at).slice(0, 15)} />
       <ClubForm key={JSON.stringify(club)} initial={{
         name: club.name, price: club.price, coffees_per_week: club.coffees_per_week, max_value: club.max_value, till_language: club.till_language, selling: club.selling,
+        auto_discount: club.auto_discount, auto_category_ids: club.auto_category_ids,
       }} />
     </>
   )
@@ -242,8 +267,8 @@ function SignUp({ url }: { url: string | null }) {
   )
 }
 
-/** What the team does on the Square till, to show them. */
-function AtTheTill({ name }: { name: string }) {
+/** What the team does on the Square till, to show them: with Square taking the coffee off by itself, one step fewer. */
+function AtTheTill({ name, auto }: { name: string; auto: boolean }) {
   return (
     <Card component="section" aria-label={t('At the till')} sx={{ mb: 3 }}>
       <CardContent>
@@ -251,8 +276,14 @@ function AtTheTill({ name }: { name: string }) {
         <Box component="ol" sx={{ pl: 2.5, m: 0, '& li': { mb: 0.75 } }}>
           <li>{t('Ring up the order as usual.')}</li>
           <li>{t('Add the member to the sale: they tap their iPhone on the customer display (their Square Loyalty pass), or tap Add customer and find them by name (their pass on your website shows it).')}</li>
-          <li>{t('Read the first line of their note: it says whether this week’s coffee is still there to have.')}</li>
-          <li>{t('Apply the “{name}” discount to the drink, and charge anything else as usual.', { name })}</li>
+          {auto ? (
+            <li>{t('If this week’s coffee is due, Square takes one drink off by itself. If it doesn’t, they’ve had it: charge as usual.')}</li>
+          ) : (
+            <>
+              <li>{t('Read the first line of their note: it says whether this week’s coffee is still there to have.')}</li>
+              <li>{t('Apply the “{name}” discount to the drink, and charge anything else as usual.', { name })}</li>
+            </>
+          )}
         </Box>
         <Typography variant="body2" sx={{ mt: 1, color: tokens.inkSoft }}>
           {t('The note changes within a minute of the sale, and every Monday for the new week.')}

@@ -66,7 +66,7 @@ describe('The coffee club', () => {
 
   it('the figures: members in good standing and their month, coffees this week and this month', () => {
     const totals = clubTotals({
-      club: { name: 'Coffee club', price: 10, currency: 'EUR', coffees_per_week: 1, max_value: 5, till_language: 'en', selling: true, signup_url: null, set_up_at: '' },
+      club: { name: 'Coffee club', price: 10, currency: 'EUR', coffees_per_week: 1, max_value: 5, till_language: 'en', selling: true, signup_url: null, set_up_at: '', auto_discount: false, auto_category_ids: [] },
       week: '2026-11-23',
       members: [
         { id: 'a', customer_id: null, name: 'A', square_customer_id: 'x', status: 'active', started_on: null, ends_on: null, paid: true, paid_through: null, used_this_week: 1, last_coffee: null, coffees: 3, card_code: null, loyalty: null },

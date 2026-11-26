@@ -3699,6 +3699,12 @@ export function createDemoApi(): Api {
       if (m.status === 'canceled' || m.status === 'deactivated') throw new Error('That membership has already ended')
       m.ends_on = m.paid_through ?? addDays(today(), 30)
     },
+    async coffeeClubCategories() {
+      needClubSquare()
+      // The demo café's item library, as Square lists its categories.
+      return [{ id: 'cat-bakery', name: 'Bakery' }, { id: 'cat-bowls', name: 'Bowls' }, { id: 'cat-coffee', name: 'Coffee' },
+        { id: 'cat-matcha', name: 'Matcha' }, { id: 'cat-tea', name: 'Tea' }]
+    },
     async sortClubCoffee(id) {
       needClubSquare()
       const c = clubCoffees.find(x => x.id === id && x.problem)

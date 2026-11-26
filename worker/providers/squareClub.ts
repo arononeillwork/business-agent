@@ -209,3 +209,80 @@ export const customer = async (sandbox: boolean, token: string, id: string) =>
 export async function setNote(sandbox: boolean, token: string, id: string, note: string, version?: number) {
   await api(sandbox, token, `/v2/customers/${encodeURIComponent(id)}`, { note, ...(version !== undefined ? { version } : {}) }, 'PUT')
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Square applies the free coffee by itself: a customer group of the members due a coffee, a discount of its own, the
+// drinks it covers (a product set of categories, one drink a sale) and a pricing rule tying them together. Square
+// applies a pricing rule's discount by itself; `customer_group_ids_any` keeps it to customers in the group.
+// ---------------------------------------------------------------------------------------------------------------
+
+/** The item library's categories (for choosing the drinks), by name. */
+export async function categories(sandbox: boolean, token: string): Promise<{ id: string; name: string }[]> {
+  const out: { id: string; name: string }[] = []
+  let cursor: string | undefined
+  for (let page = 0; page < 10; page++) {
+    const r = await api<{ objects?: { id: string; is_deleted?: boolean; category_data?: { name?: string } }[]; cursor?: string }>(sandbox, token,
+      `/v2/catalog/list?types=CATEGORY${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)
+    for (const o of r.objects ?? []) if (!o.is_deleted && o.category_data?.name) out.push({ id: o.id, name: o.category_data.name })
+    cursor = r.cursor
+    if (!cursor) break
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/** A customer group (CUSTOMERS_WRITE). The same key gives back the same group. */
+export async function createGroup(sandbox: boolean, token: string, key: string, name: string) {
+  return (await api<{ group: { id: string } }>(sandbox, token, '/v2/customers/groups', { idempotency_key: key, group: { name } })).group.id
+}
+
+/** Puts a customer in a group, or takes them out (already so is fine). */
+export async function setInGroup(sandbox: boolean, token: string, customerId: string, groupId: string, inGroup: boolean) {
+  const path = `/v2/customers/${encodeURIComponent(customerId)}/groups/${encodeURIComponent(groupId)}`
+  await api(sandbox, token, path, inGroup ? {} : undefined, inGroup ? 'PUT' : 'DELETE')
+}
+
+/** A catalog object's current version, or null when it's gone from Square. */
+async function versionOf(sandbox: boolean, token: string, id: string | null | undefined): Promise<number | null> {
+  if (!id) return null
+  try {
+    return (await api<{ object?: CatalogObject }>(sandbox, token, `/v2/catalog/object/${encodeURIComponent(id)}`)).object?.version ?? null
+  } catch (e) {
+    if (e instanceof SquareError && e.code === 'NOT_FOUND') return null
+    throw e
+  }
+}
+
+/**
+ * The automatic discount, made or brought up to date: its discount (the whole drink, up to `max`), the drinks (the
+ * categories, at most one a sale) and the pricing rule for the group. Each sends Square's current version back, so a
+ * change made in Square meanwhile is refused rather than overwritten; one deleted in Square is made again.
+ */
+export async function saveAutoDiscount(sandbox: boolean, token: string, key: string, a: {
+  discountId?: string | null; productSetId?: string | null; ruleId?: string | null
+  name: string; max: number; currency: string; categoryIds: string[]; groupId: string
+}) {
+  const [dv, sv, rv] = await Promise.all([versionOf(sandbox, token, a.discountId), versionOf(sandbox, token, a.productSetId), versionOf(sandbox, token, a.ruleId)])
+  const keep = (id: string | null | undefined, version: number | null, temp: string) => (id && version !== null ? { id, version } : { id: temp })
+  const discountId = (await upsert(sandbox, token, `${key}:discount`, {
+    type: 'DISCOUNT', ...keep(a.discountId, dv, '#club-auto-discount'),
+    discount_data: { name: a.name, discount_type: 'FIXED_PERCENTAGE', percentage: '100', maximum_amount_money: money(a.max, a.currency), pin_required: false },
+  })).id
+  const productSetId = (await upsert(sandbox, token, `${key}:drinks`, {
+    type: 'PRODUCT_SET', ...keep(a.productSetId, sv, '#club-drinks'),
+    product_set_data: { name: `${a.name}: drinks`, product_ids_any: a.categoryIds, quantity_max: 1 },
+  })).id
+  const ruleId = (await upsert(sandbox, token, `${key}:rule`, {
+    type: 'PRICING_RULE', ...keep(a.ruleId, rv, '#club-rule'),
+    pricing_rule_data: { name: a.name, discount_id: discountId, match_products_id: productSetId, customer_group_ids_any: [a.groupId] },
+  })).id
+  return { discountId, productSetId, ruleId }
+}
+
+/** Removes a catalog object (already gone is fine). */
+export async function deleteCatalogObject(sandbox: boolean, token: string, id: string) {
+  try {
+    await api(sandbox, token, `/v2/catalog/object/${encodeURIComponent(id)}`, undefined, 'DELETE')
+  } catch (e) {
+    if (!(e instanceof SquareError && e.code === 'NOT_FOUND')) throw e
+  }
+}

@@ -1076,6 +1076,14 @@ display (Square texts them the pass); the app never signs them up. Each member a
 club_member_codes migration), for a barcode on their pass on the website (docs/WEBSITE.md), ready for scanning at
 the till later.
 
+**Square takes the free coffee off by itself.** Switched on in the club settings, with the drinks it covers (Square
+categories), the app makes in Square a customer group of the members due their coffee this week, a discount of its
+own (the whole drink, up to the most off), the drinks (one a sale) and a pricing rule for the group, which Square
+applies by itself when one of them is added to a sale. The app keeps the group right: in while a coffee's due, out
+once it's had (straight away with Square's order webhook, else within 15 minutes), back in on Monday; nobody in it
+while it's switched off (the pricing rule goes). The team's own discount stays, for when it's needed (the
+club_automatic_discount migration).
+
 ## Use it from any AI
 
 The app is an MCP server at `https://<worker-url>/mcp`. Each person connects their own AI and it
