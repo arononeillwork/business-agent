@@ -18,6 +18,7 @@ import { siteReviews, type ReviewsInput } from '../shared/websiteReviews'
 import { SITE_POSTS, SITE_POSTS_MINUTES, sitePosts } from '../shared/websitePosts'
 import { cached } from './cache'
 import { latestPosts, type LatestPosts } from './offerPosts'
+import { siteClubFeed } from './coffeeClub'
 
 export const site = new Hono<{ Bindings: Env }>()
 
@@ -170,5 +171,26 @@ site.get('/api/site/:business/posts', async c => {
     if (!kept) return c.json(POSTS_UNAVAILABLE, 503, { ...CORS, 'cache-control': 'no-store' })
     return c.json(sitePosts({ business: who, read: kept.data as LatestPosts, fetchedAt: kept.fetched_at as string }), 200,
       { ...CORS, 'cache-control': 'public, max-age=60' })
+  }
+})
+
+// ---------------------------------------------------------------------------------------------
+// The coffee club, for a page that sells it (no sign-in; worker/coffeeClub.ts): its name, price and coffees a week,
+// whether it's taking members, and Square's checkout page anyone can join on. A business that has set one up shares
+// it; one that hasn't, or a number that's no business, gets the same "not found".
+// ---------------------------------------------------------------------------------------------
+const CLUB_NOT_SHARED = { error: 'This business has no coffee club.' }
+const CLUB_UNAVAILABLE = { error: 'The coffee club couldn’t be read just now. Try again in a minute.' }
+
+site.get('/api/site/:business/club', async c => {
+  const raw = c.req.param('business')
+  if (!/^[1-9]\d{0,8}$/.test(raw)) return c.json(CLUB_NOT_SHARED, 404, CORS)
+  const id = Number(raw)
+  try {
+    const feed = await siteClubFeed(businessDb(c.env, id), id)
+    if (!feed) return c.json(CLUB_NOT_SHARED, 404, { ...CORS, 'cache-control': 'public, max-age=60' })
+    return c.json(feed, 200, { ...CORS, 'cache-control': FRESH })
+  } catch {
+    return c.json(CLUB_UNAVAILABLE, 503, { ...CORS, 'cache-control': 'no-store' })
   }
 })

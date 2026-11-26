@@ -290,6 +290,64 @@ member's item code in Square.
 - `found: false`: nobody with that email (it's still `200`: they aren't here).
 - Square's own customer directory isn't changed: the till's record is the business's to delete there.
 
+## The coffee club
+
+A business with a coffee club (Sales → Coffee club: a monthly membership on Square, worth free coffees a week) can
+sell it on its website. Square takes the money on its own checkout page (card details never touch the website) and
+charges every month after; the website shows the offer, sends people to join, and shows members their pass (the
+account summary's `club`, above).
+
+### What it is: anyone may read it
+
+```
+GET https://businesssagent.com/api/site/<business>/club
+```
+
+No sign-in, open to browsers (CORS), kept a minute (`Cache-Control: public, max-age=60`). `404` when the business has
+no club (or no such business); `503` when it can't be read just then. `SiteClubFeed` in `shared/siteAccount.ts`:
+
+```jsonc
+{
+  "version": 1,
+  "business": { "id": 1, "name": "Easy Beans Coffee" },
+  "club": {
+    "name": "Coffee club", "price": 10, "currency": "EUR", "coffees_per_week": 1,
+    "max_value": 5,                        // the most a free coffee is worth; a dearer drink costs the difference
+    "taking_members": true,                // false: show it, without a way to join
+    "signup_url": "https://square.link/u/…" // the counter's checkout page (anyone, nothing filled in); null while not taking members
+  },
+  "generated_at": "2026-11-26T15:00:00Z"
+}
+```
+
+A change on the Coffee club page (the price, the coffees a week) is on the website a minute or two later.
+
+### Joining: their own checkout page
+
+```
+POST https://businesssagent.com/api/site/<business>/account/club/join
+Authorization: Bearer nl_…            // the website key
+{ "email": "ana@example.com", "email_verified": true,
+  "redirect_url": "https://www.easybeanscoffee.com/en/account?club=joined" }   // optional
+```
+
+`200 { "url": "https://square.link/u/…" }`: send them there. It's Square's checkout page for this club with **their
+email filled in**, so the membership is found on their account page afterwards (it's matched by email), and, with a
+`redirect_url`, it brings them back there once they've paid.
+
+- The same rules as the account calls: the website's server only, the website key, `"email_verified": true`, **Accounts
+  & rewards on your website** switched on (else `404`), no CORS.
+- `redirect_url` must be on the business's own website (its address on Website & SEO, or a subdomain), over https:
+  anything else is `400` with `"fields": ["redirect_url"]`.
+- `409 { "error": "already_a_member" }`: they have a membership running (show their pass instead);
+  `409 { "error": "not_taking_members" }`: the club isn't selling just now.
+- The same person and page get the same link back for a week, so pressing Join twice doesn't make two in Square.
+- A new member shows on the account page within a minute or two of paying (Square tells the agent; every 15 minutes
+  at the latest).
+
+Signing people in before they join (and joining with their account's email) is what makes their pass appear; someone
+who joins on the counter's page with another email is still a member at the till, just not on their account page.
+
 ## The business's details and opening hours
 
 ```
