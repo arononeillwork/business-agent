@@ -27,7 +27,7 @@ import { signInCheck } from './signedIn'
 import { zoneOf } from './zone'
 import type { SiteClub } from '../shared/siteAccount'
 import {
-  clubInputProblem, clubProblem, inGoodStanding, noteLine, standing, weekOf, withNoteLine,
+  clubInputProblem, clubProblem, dueACoffee, inGoodStanding, noteLine, standing, weekOf, withNoteLine,
   type ClubCoffee, type ClubMember, type ClubStatus, type CoffeeClubInput, type CoffeeClubSettings, type CoffeeClubState, type TillLanguage,
 } from '../shared/coffeeClub'
 import { addDays, today, weekStart } from '../shared/time'
@@ -38,6 +38,8 @@ export const RECONNECT = 'Reconnect Square to allow the coffee club: Connections
 const NOT_CONNECTED = 'Connect Square on the Connections page to run a coffee club.'
 /** Notes written on Square customers in one run (two requests each), so a Monday's new week doesn't use up a run. */
 export const NOTES_A_RUN = 4
+/** Members put in or taken out of Square's group straight away when the automatic discount is switched on or off. */
+const AUTO_SWITCH_A_REQUEST = 12
 /** Square customers brought into Customers in one run for members who just joined. */
 const IMPORTS_A_RUN = 3
 /** How far back the catch-up looks at most, and how much it overlaps the last look. */
@@ -52,13 +54,17 @@ interface ClubRow {
   name: string; price: number; currency: string; coffees_per_week: number; max_value: number; till_language: TillLanguage; selling: boolean
   square_location_id: string | null; square_plan_id: string | null; square_variation_id: string | null; square_old_variation_ids: string[] | null
   square_discount_id: string | null; square_link_id: string | null; signup_url: string | null; orders_checked_at: string | null; set_up_at: string
+  auto_discount: boolean; auto_category_ids: string[] | null; square_group_id: string | null
+  square_auto_discount_id: string | null; square_product_set_id: string | null; square_pricing_rule_id: string | null
 }
 interface MemberRow {
   id: string; square_subscription_id: string; square_customer_id: string; square_variation_id: string | null; customer_id: string | null
   status: ClubStatus; started_on: string | null; ends_on: string | null; paid: boolean; paid_through: string | null; note_line: string | null
-  card_code: string | null
+  card_code: string | null; in_square_group: boolean
 }
-const MEMBER_COLUMNS = 'id, square_subscription_id, square_customer_id, square_variation_id, customer_id, status, started_on, ends_on, paid, paid_through, note_line, card_code'
+const MEMBER_COLUMNS = 'id, square_subscription_id, square_customer_id, square_variation_id, customer_id, status, started_on, ends_on, paid, paid_through, note_line, card_code, in_square_group'
+/** The club's discounts on Square: the one the team applies, and the one Square applies by itself. */
+const discountsOf = (c: ClubRow) => [c.square_discount_id, c.square_auto_discount_id].filter((x): x is string => !!x)
 
 const missingScope = (e: unknown) => e instanceof SquareError && e.code === 'INSUFFICIENT_SCOPES'
 const check = <T>(r: { data: T; error: { message: string } | null }) => { if (r.error) throw new Error(r.error.message); return r.data }
@@ -141,8 +147,8 @@ async function syncMembers(db: SupabaseClient, c: ClubRow, s: { sandbox: boolean
  * for the sale's week. Returns the members whose week changed.
  */
 export async function recordOrder(db: SupabaseClient, c: ClubRow, o: square.SquareOrder, tz?: string): Promise<string[]> {
-  if (!c.square_discount_id || o.state !== 'COMPLETED') return []
-  const lines = square.clubLines(o, c.square_discount_id)
+  if (!discountsOf(c).length || o.state !== 'COMPLETED') return []
+  const lines = discountsOf(c).flatMap(id => square.clubLines(o, id))
   if (!lines.length) return []
   const seen = new Set((check(await db.from('coffee_club_coffees').select('square_line_uid').eq('square_order_id', o.id)) as { square_line_uid: string }[]).map(r => r.square_line_uid))
   const fresh = lines.filter(l => !seen.has(l.uid))
@@ -185,7 +191,9 @@ async function catchUp(db: SupabaseClient, c: ClubRow, s: { sandbox: boolean; to
 
 /**
  * The members whose note on Square isn't what it should be now get it (at most `limit`, `only` these if given):
- * the club's line first, the team's own lines as they were. A customer gone from Square is left alone.
+ * the club's line first, the team's own lines as they were. A customer gone from Square is left alone. With Square
+ * applying the free coffee by itself, the same goes for the group its pricing rule follows: a member is in it while
+ * they're due a coffee this week, out once it's had, and every member is out while it's off.
  */
 async function writeNotes(db: SupabaseClient, c: ClubRow, s: { sandbox: boolean; token: string }, tz: string | undefined, limit: number, only?: string[]) {
   let q = db.from('coffee_club_members').select(MEMBER_COLUMNS)
@@ -199,26 +207,43 @@ async function writeNotes(db: SupabaseClient, c: ClubRow, s: { sandbox: boolean;
     if (!kept || (kept.status === 'canceled' || kept.status === 'deactivated')) byCustomer.set(m.square_customer_id, m)
   }
   let written = 0
-  for (const m of members) {
-    // An earlier membership of someone who joined again: the note is the new one's to write.
-    if (byCustomer.get(m.square_customer_id) !== m) {
-      if (m.note_line !== null) check(await db.from('coffee_club_members').update({ note_line: null }).eq('id', m.id))
+  // Earlier memberships first, so a customer taken out of the group for one is put back by their current one.
+  const primary = (m: MemberRow) => byCustomer.get(m.square_customer_id) === m
+  // Customers an earlier membership took out of the group in this run: their current one puts them back if due.
+  const takenOut = new Set<string>()
+  for (const m of [...members].sort((a, b) => Number(primary(a)) - Number(primary(b)))) {
+    const current = primary(m)
+    // An earlier membership of someone who joined again: the note is the current one's to write; this one only leaves
+    // the group (the current one puts the customer back if they're due a coffee).
+    const line = current ? noteLine(c, { ...m, used_this_week: used.get(m.id) ?? 0 }) : null
+    const inGroup = current && !!c.auto_discount && !!c.square_group_id && dueACoffee({ ...m, used_this_week: used.get(m.id) ?? 0 }, c.coffees_per_week)
+    const noteChanges = current && line !== m.note_line
+    const groupChanges = !!c.square_group_id && (inGroup !== m.in_square_group || (inGroup && takenOut.has(m.square_customer_id)))
+    if (!current && m.note_line !== null && !groupChanges) {
+      check(await db.from('coffee_club_members').update({ note_line: null }).eq('id', m.id))
       continue
     }
-    const line = noteLine(c, { ...m, used_this_week: used.get(m.id) ?? 0 })
-    if (line === m.note_line) continue
+    if (!noteChanges && !groupChanges) continue
     if (written >= limit) break
     written++
     let gone = false
     try {
-      const sc = await square.customer(s.sandbox, s.token, m.square_customer_id)
-      const note = withNoteLine(sc.note, line)
-      if (note !== (sc.note ?? '')) await square.setNote(s.sandbox, s.token, m.square_customer_id, note, sc.version)
+      if (groupChanges) {
+        await square.setInGroup(s.sandbox, s.token, m.square_customer_id, c.square_group_id!, inGroup)
+        if (!inGroup) takenOut.add(m.square_customer_id)
+      }
+      if (noteChanges) {
+        const sc = await square.customer(s.sandbox, s.token, m.square_customer_id)
+        const note = withNoteLine(sc.note, line)
+        if (note !== (sc.note ?? '')) await square.setNote(s.sandbox, s.token, m.square_customer_id, note, sc.version)
+      }
     } catch (e) {
       if (!(e instanceof SquareError && e.code === 'NOT_FOUND')) throw e
       gone = true
     }
-    check(await db.from('coffee_club_members').update({ note_line: line, note_written_at: gone ? null : new Date().toISOString() }).eq('id', m.id))
+    check(await db.from('coffee_club_members').update({
+      note_line: line, in_square_group: gone ? false : inGroup, ...(noteChanges ? { note_written_at: gone ? null : new Date().toISOString() } : {}),
+    }).eq('id', m.id))
   }
   return written
 }
@@ -321,6 +346,7 @@ async function failure(db: SupabaseClient, e: unknown) {
 const settingsOf = (c: ClubRow): CoffeeClubSettings => ({
   name: c.name, price: c.price, currency: c.currency, coffees_per_week: c.coffees_per_week, max_value: c.max_value,
   till_language: c.till_language, selling: c.selling, signup_url: c.signup_url, set_up_at: c.set_up_at,
+  auto_discount: !!c.auto_discount, auto_category_ids: c.auto_category_ids ?? [],
 })
 
 /** Square Loyalty's programme and the Square customers in it, read now and then (provider_cache); null when Square can't say. */
@@ -406,7 +432,10 @@ coffeeClubRoutes.post('/api/coffee-club', async c => {
     const input: CoffeeClubInput = {
       name: b.name!.trim().replace(/\s+/g, ' '), price: Number(b.price), coffees_per_week: Number(b.coffees_per_week),
       max_value: Number(b.max_value), till_language: b.till_language!, selling: b.selling !== false,
+      auto_discount: b.auto_discount === true,
+      auto_category_ids: [...new Set((Array.isArray(b.auto_category_ids) ? b.auto_category_ids : []).map(String))],
     }
+    if (input.auto_category_ids.length > 50 || input.auto_category_ids.some(id => !/^[\w-]{1,191}$/.test(id))) throw new ClubError('Choose the drinks from the list')
     const was = await loadClub(db)
     const s = await squareSession(c.env, db)
     const location = was?.square_location_id ?? s.locationIds[0]
@@ -446,13 +475,36 @@ coffeeClubRoutes.post('/api/coffee-club', async c => {
           : `${what} for ${price} a month. Charged monthly; cancel any time.`,
       })
     }
+    // Square applies the free coffee by itself: the group, then its discount, drinks and pricing rule (made again only
+    // when something they hold changed); off, the pricing rule goes and the group is emptied over the next runs.
+    let groupId = was?.square_group_id ?? null
+    let auto = { discountId: was?.square_auto_discount_id ?? null, productSetId: was?.square_product_set_id ?? null, ruleId: was?.square_pricing_rule_id ?? null }
+    if (input.auto_discount) {
+      groupId ??= await square.createGroup(s.sandbox, s.token, `club-group:${b.key}`,
+        lang === 'es' ? `${input.name}: café pendiente` : `${input.name}: coffee due`)
+      const sameDrinks = [...(was?.auto_category_ids ?? [])].sort().join() === [...input.auto_category_ids].sort().join()
+      if (!was?.auto_discount || !auto.ruleId || !sameDrinks || was.name !== input.name || was.max_value !== input.max_value) {
+        auto = await square.saveAutoDiscount(s.sandbox, s.token, `club-auto:${b.key}`, {
+          ...auto, name: input.name, max: input.max_value, currency, categoryIds: input.auto_category_ids, groupId,
+        })
+      }
+    } else if (auto.ruleId) {
+      await square.deleteCatalogObject(s.sandbox, s.token, auto.ruleId)
+      auto = { ...auto, ruleId: null }
+    }
     check(await db.from('coffee_club').upsert({
       id: 1, ...input, currency, ...(was ? {} : { set_up_at: new Date().toISOString() }), square_location_id: location, square_plan_id: planId, square_variation_id: variationId,
       square_old_variation_ids: old, square_discount_id: discountId, square_link_id: link?.id ?? null, signup_url: link?.url ?? null,
+      square_group_id: groupId, square_auto_discount_id: auto.discountId, square_product_set_id: auto.productSetId, square_pricing_rule_id: auto.ruleId,
     }, { onConflict: 'business_id' }))
     // The new week's allowance or wording on every member's note, over the next runs.
     if (was && (was.coffees_per_week !== per || was.name !== input.name || was.till_language !== lang)) {
       check(await db.from('coffee_club_members').update({ note_line: null }).neq('status', 'canceled'))
+    }
+    // Square's automatic discount switched on or off: the group filled or emptied now, as far as one request goes.
+    if (was && !!was.auto_discount !== input.auto_discount) {
+      const now = await loadClub(db)
+      if (now) await writeNotes(db, now, s, await zoneOf(db), AUTO_SWITCH_A_REQUEST)
     }
     return c.json(await clubState(db, 'ok', c.env))
   } catch (e) {
@@ -469,6 +521,20 @@ coffeeClubRoutes.post('/api/coffee-club/sync', async c => {
     await forget(db, LOYALTY_KEY)
     const r = await syncCoffeeClub(c.env, db)
     return c.json(await clubState(db, r === 'reconnect' ? 'reconnect' : 'ok', c.env))
+  } catch (e) {
+    return c.json({ error: await failure(db, e) }, 400)
+  }
+})
+
+// The item library's categories, to choose the drinks Square takes off by itself (kept 30 minutes).
+coffeeClubRoutes.get('/api/coffee-club/categories', async c => {
+  const db = await requestDb(c)
+  try {
+    const { data } = await cached(db, 'club-categories', 30, async () => {
+      const s = await squareSession(c.env, db)
+      return square.categories(s.sandbox, s.token)
+    })
+    return c.json({ categories: data })
   } catch (e) {
     return c.json({ error: await failure(db, e) }, 400)
   }

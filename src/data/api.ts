@@ -54,7 +54,7 @@ import type { EmploymentContract, EmploymentContractInput } from '../../shared/c
 import type { PnlLine, PnlLineInput, PnlSettings } from '../../shared/pnl'
 import type { GrantApplication, GrantApplicationInput, GrantProfile } from '../../shared/grants'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
-import type { CoffeeClubInput, CoffeeClubState } from '../../shared/coffeeClub'
+import type { CoffeeClubInput, CoffeeClubState, SquareCategory } from '../../shared/coffeeClub'
 import type { MovementInput, StockItem, StockItemInput, StockMovement, Supplier, SupplierInput, StockPrice, WasteEdit } from '../../shared/stock'
 import type { Recipe, RecipeInput } from '../../shared/recipes'
 import type { MenuDesign, MenuDesignInput, MenuImage, MenuImageRequest, MenuItem, MenuItemInput, PricePush, SquarePriceNote } from '../../shared/menu'
@@ -1060,6 +1060,8 @@ export interface Api {
   cancelClubMember(id: string): Promise<void>
   /** A coffee that didn't count, dealt with. */
   sortClubCoffee(id: string): Promise<void>
+  /** The Square item library's categories, to choose the drinks Square takes off by itself. */
+  coffeeClubCategories(): Promise<SquareCategory[]>
   // Ads (admins with pay access): Meta Ads and Google Ads, read and changed live on each platform
   /** Spend, clicks and results per day and campaign, from and to inclusive. */
   adsReport(from: string, to: string): Promise<AdsReport>

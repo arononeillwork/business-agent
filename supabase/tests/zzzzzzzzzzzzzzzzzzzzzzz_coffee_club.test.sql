@@ -55,6 +55,15 @@ select pg_temp.expect_error($$insert into public.coffee_club_members (square_sub
 select pg_temp.expect_error($$update public.coffee_club set signup_url = null$$, 'coffee_club_link');
 select pg_temp.expect_error($$update public.coffee_club set name = '   '$$, 'Give the club a name');
 select pg_temp.expect_error($$update public.coffee_club set price = 0$$, 'coffee_club_price_check');
+-- Square applying the free coffee by itself needs the drinks it covers (the club_automatic_discount migration).
+select pg_temp.expect_error($$update public.coffee_club set auto_discount = true$$, 'coffee_club_auto_drinks');
+update public.coffee_club set auto_discount = true, auto_category_ids = '{CAT1}', square_group_id = 'G1';
+do $$ begin
+  assert (select auto_discount and auto_category_ids = '{CAT1}' from public.coffee_club), 'on, with its drinks';
+  assert (select not in_square_group from public.coffee_club_members where square_subscription_id = 'cc-S1'), 'nobody in the group until the Worker puts them there';
+end $$;
+update public.coffee_club set auto_discount = false;
+
 -- When it was set up stays.
 update public.coffee_club set set_up_at = '2020-01-01', price = 12;
 do $$ begin assert (select set_up_at > '2026-01-01' and price = 12 from public.coffee_club), 'set up when it was'; end $$;

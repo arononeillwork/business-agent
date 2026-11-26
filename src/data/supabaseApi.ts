@@ -43,7 +43,7 @@ import type { Contractor, OutsourcedJob } from '../../shared/outsourcing'
 import type { EmploymentContract, SalaryPer } from '../../shared/contracts'
 import { DEFAULT_VAT_RATE, type PnlLine, type PnlSettings } from '../../shared/pnl'
 import type { GiftCard, GiftCards, LoyaltyState } from '../../shared/loyalty'
-import type { CoffeeClubState } from '../../shared/coffeeClub'
+import type { CoffeeClubState, SquareCategory } from '../../shared/coffeeClub'
 import type { StockItem, StockMovement, Supplier, StockPrice } from '../../shared/stock'
 import type { Recipe } from '../../shared/recipes'
 import type { MenuDesign, MenuImage, MenuItem, SquarePriceNote } from '../../shared/menu'
@@ -1701,6 +1701,7 @@ export function createSupabaseApi(url: string, key: string, captchaKey?: string 
     async sortClubCoffee(id) {
       await worker(`/api/coffee-club/coffees/${encodeURIComponent(id)}/sorted`, { method: 'POST', body: '{}' })
     },
+    coffeeClubCategories: async () => (await worker<{ categories: SquareCategory[] }>('/api/coffee-club/categories')).categories,
     async uploadMedia(file, folder) {
       const { url, type } = await worker<{ url: string; type: 'image' | 'video' }>(`/api/integrations/media?folder=${folder}`, {
         method: 'POST', body: file, headers: { 'content-type': file.type } })

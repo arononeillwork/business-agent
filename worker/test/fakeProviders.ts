@@ -340,6 +340,10 @@ export class FakeProviders {
     clubOrders: [] as { id: string; closed_at: string; [k: string]: unknown }[],
     notes: new Map<string, { note: string; version: number }>(),
     noteWrites: 0,
+    /** Customer groups (by id, with their name) and who is in each; how often someone was put in or taken out. */
+    groups: new Map<string, { name: string; key: string }>(),
+    groupMembers: new Map<string, Set<string>>(),
+    groupChanges: 0,
   }
   stripe = {
     revoked: false,
@@ -427,6 +431,30 @@ export class FakeProviders {
     if (object && method === 'GET') {
       const o = sq.catalogObjects.find(x => x.id === decodeURIComponent(object[1]))
       return o ? json({ object: o }) : notFound('Catalog object')
+    }
+    if (object && method === 'DELETE') {
+      const i = sq.catalogObjects.findIndex(x => x.id === decodeURIComponent(object[1]))
+      if (i < 0) return notFound('Catalog object')
+      sq.catalogObjects.splice(i, 1)
+      return json({ deleted_object_ids: [decodeURIComponent(object[1])] })
+    }
+    if (p === '/v2/customers/groups' && method === 'POST') {
+      const b = body() as { idempotency_key: string; group: { name: string } }
+      const kept = [...sq.groups].find(([, g]) => g.key === b.idempotency_key)
+      const id = kept?.[0] ?? `GRP-${this.nextId++}`
+      if (!kept) sq.groups.set(id, { name: b.group.name, key: b.idempotency_key })
+      return json({ group: { id, name: b.group.name } })
+    }
+    const grouping = p.match(/^\/v2\/customers\/([^/]+)\/groups\/([^/]+)$/)
+    if (grouping && (method === 'PUT' || method === 'DELETE')) {
+      const [customer, group] = [decodeURIComponent(grouping[1]), decodeURIComponent(grouping[2])]
+      if (!sq.groups.has(group)) return notFound('Customer group')
+      const members = sq.groupMembers.get(group) ?? new Set<string>()
+      if (method === 'PUT') members.add(customer)
+      else members.delete(customer)
+      sq.groupMembers.set(group, members)
+      sq.groupChanges++
+      return json({})
     }
     if (p === '/v2/online-checkout/payment-links' && method === 'POST') {
       const b = body() as { idempotency_key: string }

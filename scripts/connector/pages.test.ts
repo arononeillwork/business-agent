@@ -24,7 +24,7 @@ describe('connector pages, worked out from the app', () => {
 
   it('finds a page’s live reads written as templates, but not an address built from values', () => {
     expect(page('loyalty').live).toEqual(['/api/giftcards', '/api/loyalty'])
-    expect(page('coffee-club').live).toEqual(['/api/coffee-club'])
+    expect(page('coffee-club').live).toEqual(['/api/coffee-club', '/api/coffee-club/categories'])
     expect(pages.flatMap(p => p.live).some(l => l.endsWith('/'))).toBe(false)
   })
 
