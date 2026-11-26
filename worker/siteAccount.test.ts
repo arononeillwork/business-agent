@@ -11,6 +11,7 @@
 //   - so many calls a minute per business, then 429
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { siteAccount, forgetSiteAccountCalls, REQUESTS_A_MINUTE } from './siteAccount'
+import { site } from './site'
 import { integrations } from './integrations'
 import { forgetErrorReports } from './errors'
 import type { Env } from './supabase'
@@ -296,5 +297,71 @@ describe('the email stays private', () => {
     // Nor in any address the Worker asks for.
     const urls = vi.mocked(fetch).mock.calls.map(([u]) => String(u))
     expect(urls.some(u => u.includes('example.com') || u.includes('%40'))).toBe(false)
+  })
+})
+
+describe('the coffee club on the website', () => {
+  const clubRow = (more: Row = {}): Row => ({
+    id: 1, business_id: 1, name: 'Coffee club', price: 10, currency: 'EUR', coffees_per_week: 1, max_value: 5, till_language: 'en', selling: true,
+    square_location_id: 'L1', square_plan_id: 'P1', square_variation_id: 'V1', square_old_variation_ids: [], square_discount_id: 'D1',
+    square_link_id: 'PL0', signup_url: 'https://square.link/u/counter', set_up_at: '2026-11-20T09:00:00Z', auto_discount: false, auto_category_ids: [], ...more,
+  })
+  const feed = (business = '1') => site.request(`${APP}/api/site/${business}/club`, {}, env, ctx())
+  const join = (body: Row = {}, key: string | null = KEY_1) => post('/api/site/1/account/club/join', who(body), key)
+
+  it('anyone may read it: the price, the coffees a week and whether it’s taking members; no club is not found', async () => {
+    expect((await feed()).status).toBe(404)
+    db.tables.coffee_club = [clubRow()]
+    const res = await feed()
+    expect(res.status).toBe(200)
+    expect(res.headers.get('access-control-allow-origin')).toBe('*')
+    expect(await res.json()).toMatchObject({ version: 1, business: { id: 1, name: 'Easy Beans Coffee' },
+      club: { name: 'Coffee club', price: 10, currency: 'EUR', coffees_per_week: 1, max_value: 5, taking_members: true, signup_url: 'https://square.link/u/counter' } })
+    db.tables.coffee_club = [clubRow({ selling: false, signup_url: null, square_link_id: null })]
+    expect(await (await feed()).json()).toMatchObject({ club: { taking_members: false, signup_url: null } })
+    expect((await feed('2')).status).toBe(404)
+  })
+
+  it('joining: Square’s checkout page with their email filled in, back to the website once paid; the same link again, not a second', async () => {
+    await connectSquare()
+    db.tables.coffee_club = [clubRow()]
+    db.tables.business[0].website = 'https://www.easybeanscoffee.com'
+    expect((await join({}, null)).status).toBe(401)
+    expect((await post('/api/site/1/account/club/join', { email: ANA })).status).toBe(403)
+    const res = await join({ redirect_url: 'https://www.easybeanscoffee.com/en/account?club=joined' })
+    noCors(res)
+    expect(res.status).toBe(200)
+    const { url } = await res.json() as { url: string }
+    expect(url).toMatch(/^https:\/\/square\.link\//)
+    expect(apis.square.links).toHaveLength(1)
+    expect(apis.square.links[0].request).toMatchObject({
+      quick_pay: { name: 'Easy Beans Coffee: Coffee club', price_money: { amount: 1000, currency: 'EUR' }, location_id: 'L1' },
+      checkout_options: { subscription_plan_id: 'V1', redirect_url: 'https://www.easybeanscoffee.com/en/account?club=joined' },
+      pre_populated_data: { buyer_email: ANA },
+    })
+    // Pressing Join again: the same page, nothing new in Square; the email isn't in what's kept.
+    expect(await (await join({ redirect_url: 'https://www.easybeanscoffee.com/en/account?club=joined' })).json()).toEqual({ url })
+    expect(apis.square.links).toHaveLength(1)
+    expect(JSON.stringify(db.table('provider_cache').map(r => r.key))).not.toContain('example.com')
+  })
+
+  it('only back to the business’s own website; not while it isn’t taking members; nobody joins twice', async () => {
+    await connectSquare()
+    db.tables.business[0].website = 'easybeanscoffee.com'
+    db.tables.coffee_club = [clubRow()]
+    const away = await join({ redirect_url: 'https://evil.example.net/account' })
+    expect(away.status).toBe(400)
+    expect(await away.json()).toMatchObject({ fields: ['redirect_url'] })
+    expect((await join({ redirect_url: 'http://easybeanscoffee.com/account' })).status).toBe(400)
+    expect((await join({ redirect_url: 'https://shop.easybeanscoffee.com/account' })).status).toBe(200)
+    db.tables.customers = [{ id: 'c-ana', email: ANA, first_name: 'Ana', kind: 'customer', source: 'website', business_id: 1 }]
+    db.tables.coffee_club_members = [{ id: 'm1', business_id: 1, customer_id: 'c-ana', square_customer_id: 'SQC1', square_subscription_id: 'S1', status: 'active' }]
+    expect(await (await join()).json()).toEqual({ error: 'already_a_member' })
+    db.tables.coffee_club_members[0].status = 'canceled'
+    expect((await join()).status).toBe(200)
+    db.tables.coffee_club = [clubRow({ selling: false, signup_url: null, square_link_id: null })]
+    const closed = await join()
+    expect(closed.status).toBe(409)
+    expect(await closed.json()).toEqual({ error: 'not_taking_members' })
   })
 })

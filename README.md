@@ -1084,6 +1084,11 @@ once it's had (straight away with Square's order webhook, else within 15 minutes
 while it's switched off (the pricing rule goes). The team's own discount stays, for when it's needed (the
 club_automatic_discount migration).
 
+**Selling it on the website.** The business's website reads the club (`GET /api/site/<business>/club`: price,
+coffees a week, whether it's taking members) to show the offer, and asks for each signed-in visitor's own Square
+checkout page (`POST /api/site/<business>/account/club/join`), with their email filled in and back to the website
+once paid, so their pass shows on their account page (docs/WEBSITE.md → The coffee club).
+
 ## Use it from any AI
 
 The app is an MCP server at `https://<worker-url>/mcp`. Each person connects their own AI and it

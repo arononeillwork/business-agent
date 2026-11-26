@@ -54,12 +54,14 @@ export async function saveDiscount(sandbox: boolean, token: string, key: string,
 
 /** Square's checkout page for joining: pays the first month and keeps the card for the next. */
 export async function createSignupLink(sandbox: boolean, token: string, key: string,
-  l: { name: string; price: number; currency: string; locationId: string; variationId: string; description?: string }) {
+  l: { name: string; price: number; currency: string; locationId: string; variationId: string; description?: string; buyerEmail?: string; redirectUrl?: string }) {
   const r = await api<{ payment_link: { id: string; url: string } }>(sandbox, token, '/v2/online-checkout/payment-links', {
     idempotency_key: key,
     ...(l.description ? { description: l.description } : {}),
     quick_pay: { name: l.name, price_money: money(l.price, l.currency), location_id: l.locationId },
-    checkout_options: { subscription_plan_id: l.variationId, ask_for_shipping_address: false },
+    checkout_options: { subscription_plan_id: l.variationId, ask_for_shipping_address: false, ...(l.redirectUrl ? { redirect_url: l.redirectUrl } : {}) },
+    // Someone joining from the website: their email filled in, so the membership is theirs on its account page.
+    ...(l.buyerEmail ? { pre_populated_data: { buyer_email: l.buyerEmail } } : {}),
   })
   return { id: r.payment_link.id, url: r.payment_link.url }
 }

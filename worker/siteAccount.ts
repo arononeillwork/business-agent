@@ -3,6 +3,7 @@
 //   POST /api/site/<business>/account/sync      find or make the customer (as the Square sync matches)
 //   POST /api/site/<business>/account/summary   their points (Square Loyalty, read here), credit, cashback, rep, coffee club pass
 //   POST /api/site/<business>/account/erase     erase them (GDPR), from the website's "delete my account"
+//   POST /api/site/<business>/account/club/join Square's checkout page to join the coffee club, their email filled in
 // The work is in the site_accounts migration's functions; this checks who's asking and adds the points.
 //
 // Only the website's server calls these, with the business's website key (worker/websiteKey.ts): no key
@@ -22,8 +23,8 @@ import * as loyalty from './providers/squareLoyalty'
 import { reportError } from './errors'
 import { cleanPhone } from '../shared/customers'
 import { splitName } from '../shared/newsletter'
-import { siteSummary, type SiteAccountErase, type SiteAccountSync, type SiteClub, type SitePoints, type SummaryRow } from '../shared/siteAccount'
-import { siteClub } from './coffeeClub'
+import { siteSummary, type SiteAccountErase, type SiteAccountSync, type SiteClub, type SiteClubJoin, type SitePoints, type SummaryRow } from '../shared/siteAccount'
+import { clubJoinLink, siteClub } from './coffeeClub'
 import type { LoyaltyProgram } from '../shared/loyalty'
 
 export const siteAccount = new Hono<{ Bindings: Env }>()
@@ -177,6 +178,26 @@ siteAccount.post('/api/site/:business/account/summary', async c => {
     return c.json(UNAVAILABLE, 503, HEADERS)
   }
   return c.json(siteSummary(row, points, club), 200, HEADERS)
+})
+
+// Join the coffee club: Square's checkout page for them, their email filled in, back to the website once paid
+// ({ email, email_verified: true, redirect_url? }). 409 when the club isn't taking members or they're one already;
+// 400 for a return address that isn't on the business's website.
+const JOIN = WHO.extend({ redirect_url: z.string().trim().max(500).url().nullish() })
+siteAccount.post('/api/site/:business/account/club/join', async c => {
+  const g = await gate(c)
+  if (g instanceof Response) return g
+  const read = JOIN.safeParse(g.body)
+  if (!read.success) return badBody(c, read.error)
+  try {
+    const r = await clubJoinLink(c.env, g.db, read.data.email, read.data.redirect_url ?? null)
+    if ('url' in r) return c.json({ url: r.url } satisfies SiteClubJoin, 200, HEADERS)
+    if (r.error === 'not_their_website') return c.json({ error: 'redirect_url must be on the business’s own website (Website & SEO), over https.', fields: ['redirect_url'] }, 400, HEADERS)
+    return c.json({ error: r.error === 'already_a_member' ? 'already_a_member' : 'not_taking_members' }, 409, HEADERS)
+  } catch (e) {
+    await failed(c.env, g.business, 'club join', e)
+    return c.json(UNAVAILABLE, 503, HEADERS)
+  }
 })
 
 // Erase them: from the website's "delete my account".

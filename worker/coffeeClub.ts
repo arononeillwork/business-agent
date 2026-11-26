@@ -25,7 +25,7 @@ import * as square from './providers/squareClub'
 import { importSquareCustomer } from './squareCustomers'
 import { signInCheck } from './signedIn'
 import { zoneOf } from './zone'
-import type { SiteClub } from '../shared/siteAccount'
+import type { SiteClub, SiteClubFeed } from '../shared/siteAccount'
 import {
   clubInputProblem, clubProblem, dueACoffee, inGoodStanding, noteLine, standing, weekOf, withNoteLine,
   type ClubCoffee, type ClubMember, type ClubStatus, type CoffeeClubInput, type CoffeeClubSettings, type CoffeeClubState, type TillLanguage,
@@ -604,4 +604,74 @@ export async function siteClub(db: SupabaseClient, customerId: string, squareCus
       week_start: week, started_on: m.started_on, ends_on: m.ends_on, card_code: m.card_code ?? null,
     } : null,
   }
+}
+
+/** The club as anyone may read it (GET /api/site/<business>/club): null when the business has none. */
+export async function siteClubFeed(db: SupabaseClient, businessId: number): Promise<SiteClubFeed | null> {
+  const c = await loadClub(db)
+  if (!c?.square_variation_id) return null
+  const { data: biz } = await db.from('business').select('name').maybeSingle()
+  return {
+    version: 1,
+    business: { id: businessId, name: ((biz as { name?: string } | null)?.name ?? '').trim() },
+    club: {
+      name: c.name, price: c.price, currency: c.currency, coffees_per_week: c.coffees_per_week, max_value: c.max_value,
+      taking_members: c.selling && !!c.signup_url, signup_url: c.selling ? c.signup_url : null,
+    },
+    generated_at: new Date().toISOString(),
+  }
+}
+
+/** A website address that's the business's own (its Website & SEO address, or a subdomain of it), over https. */
+export function onTheirWebsite(url: string, website: string | null | undefined) {
+  try {
+    const u = new URL(url)
+    const home = new URL(/^https?:\/\//i.test(website ?? '') ? website! : `https://${website}`).hostname.replace(/^www\./, '')
+    return u.protocol === 'https:' && !!home && (u.hostname === home || u.hostname.endsWith(`.${home}`))
+  } catch {
+    return false
+  }
+}
+
+const sha256 = async (s: string) =>
+  [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map(b => b.toString(16).padStart(2, '0')).join('')
+/** A person's own checkout page is kept this long, so pressing Join again doesn't make another in Square. */
+const JOIN_LINK_MINUTES = 7 * 24 * 60
+
+export type ClubJoin = { url: string } | { error: 'not_taking_members' | 'already_a_member' | 'not_their_website' }
+
+/**
+ * Square's checkout page for one person joining from the business's website: their email filled in (so the
+ * membership is found on their account page) and, when asked, back to `redirect` on the business's website once
+ * they've paid. The same person and page get the same link back for a week (its key is a hash of the email, never
+ * the email). Nobody joins twice: someone with a membership running is told so.
+ */
+export async function clubJoinLink(env: Env, db: SupabaseClient, email: string, redirect: string | null): Promise<ClubJoin> {
+  const c = await loadClub(db)
+  if (!c?.square_variation_id || !c.selling || !c.square_location_id) return { error: 'not_taking_members' }
+  const { data: biz } = await db.from('business').select('name, website').maybeSingle()
+  const business = biz as { name?: string; website?: string | null } | null
+  if (redirect && !onTheirWebsite(redirect, business?.website)) return { error: 'not_their_website' }
+  const people = check(await db.from('customers').select('id, square_id').eq('email', email)) as { id: string; square_id: string | null }[]
+  const squareIds = people.map(p => p.square_id).filter((x): x is string => !!x)
+  const [byCustomer, bySquare] = await Promise.all([
+    people.length ? db.from('coffee_club_members').select('status').in('customer_id', people.map(p => p.id)).then(check) as Promise<{ status: ClubStatus }[]> : [],
+    squareIds.length ? db.from('coffee_club_members').select('status').in('square_customer_id', squareIds).then(check) as Promise<{ status: ClubStatus }[]> : [],
+  ])
+  if ([...byCustomer, ...bySquare].some(m => m.status !== 'canceled' && m.status !== 'deactivated')) return { error: 'already_a_member' }
+  const key = `club-join:${(await sha256(`${email}|${c.square_variation_id}|${redirect ?? ''}`)).slice(0, 40)}`
+  const { data } = await cached(db, key, JOIN_LINK_MINUTES, async () => {
+    const s = await squareSession(env, db)
+    const lang = c.till_language
+    const price = money(c.price, c.currency, lang)
+    const per = c.coffees_per_week
+    const what = lang === 'es' ? (per === 1 ? 'un café a la semana' : `${per} cafés a la semana`) : (per === 1 ? 'a coffee a week' : `${per} coffees a week`)
+    const name = (business?.name ?? '').trim()
+    return square.createSignupLink(s.sandbox, s.token, key, {
+      name: name ? `${name}: ${c.name}` : c.name, price: c.price, currency: c.currency, locationId: c.square_location_id!, variationId: c.square_variation_id!,
+      description: lang === 'es' ? `${what} por ${price} al mes. Se cobra cada mes; cancela cuando quieras.` : `${what} for ${price} a month. Charged monthly; cancel any time.`,
+      buyerEmail: email, ...(redirect ? { redirectUrl: redirect } : {}),
+    })
+  })
+  return { url: data.url }
 }

@@ -136,3 +136,28 @@ export function siteSummary(row: SummaryRow, points: SitePoints | null, club?: S
   } : null
   return { customer: { id: row.customer.id, first_name: row.customer.first_name ?? null }, points, credit, cashback, rep, ...(club ? { club } : {}) }
 }
+
+/**
+ * GET /api/site/<business>/club: the coffee club as anyone may read it, for a page that sells it (no sign-in).
+ * `taking_members` false: show it, without a way to join.
+ */
+export interface SiteClubFeed {
+  version: 1
+  business: { id: number; name: string }
+  club: {
+    name: string
+    /** A month, tax included. */
+    price: number
+    currency: string
+    coffees_per_week: number
+    /** The most a free coffee is worth (a dearer drink costs the difference). */
+    max_value: number
+    taking_members: boolean
+    /** Square's checkout page anyone can join on (the counter's QR code). A website that signs people in first asks for their own (account/club/join). */
+    signup_url: string | null
+  }
+  generated_at: string
+}
+
+/** POST /api/site/<business>/account/club/join: Square's checkout page for this person, their email filled in. */
+export interface SiteClubJoin { url: string }
