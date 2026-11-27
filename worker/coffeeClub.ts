@@ -1,8 +1,9 @@
 // The coffee club (Sales → Coffee club; shared/coffeeClub.ts says what it is). Square takes the money, the app
 // counts the coffees:
 //   - Setting it up makes, in Square: a subscription plan at one flat monthly price (a new variation when the price
-//     changes: members who joined at the old one keep it), the discount the team applies on the till (the whole
-//     drink, up to the club's most) and the checkout page people join on (taken down when not selling).
+//     changes: members who joined at the old one keep it), the club's one discount on the till (the whole drink, up
+//     to the club's most: the team applies it, or Square does by itself) and the checkout page people join on (taken
+//     down when not selling). A save that failed partway and is tried again gets back what it had already made.
 //   - Square's subscriptions at the business's locations on one of the club's variations are its members; the
 //     latest invoice of each says whether the month's charge went through.
 //   - A sale on the till with the club's discount is a coffee (Square's order webhook straight away, and every
@@ -55,7 +56,12 @@ interface ClubRow {
   square_location_id: string | null; square_plan_id: string | null; square_variation_id: string | null; square_old_variation_ids: string[] | null
   square_discount_id: string | null; square_link_id: string | null; signup_url: string | null; orders_checked_at: string | null; set_up_at: string
   auto_discount: boolean; auto_category_ids: string[] | null; square_group_id: string | null
-  square_auto_discount_id: string | null; square_product_set_id: string | null; square_pricing_rule_id: string | null
+  /**
+   * The separate discount Square's automatic discount once had (a second "Coffee club" on the till). No longer made:
+   * the pricing rule applies the club's discount, and a club that still has one is put onto the one (oneDiscount).
+   */
+  square_auto_discount_id: string | null
+  square_product_set_id: string | null; square_pricing_rule_id: string | null
   hours_from: string | null; hours_to: string | null; hours_days: number[] | null; square_time_period_id: string | null
 }
 
@@ -78,8 +84,11 @@ interface MemberRow {
   card_code: string | null; in_square_group: boolean
 }
 const MEMBER_COLUMNS = 'id, square_subscription_id, square_customer_id, square_variation_id, customer_id, status, started_on, ends_on, paid, paid_through, note_line, card_code, in_square_group'
-/** The club's discounts on Square: the one the team applies, and the one Square applies by itself. */
-const discountsOf = (c: ClubRow) => [c.square_discount_id, c.square_auto_discount_id].filter((x): x is string => !!x)
+/**
+ * The club's discounts on Square whose coffees count: its one discount (the team applies it, or Square does by itself),
+ * and while it's still there, the separate one Square's automatic discount once had.
+ */
+const discountsOf = (c: ClubRow) => [...new Set([c.square_discount_id, c.square_auto_discount_id].filter((x): x is string => !!x))]
 
 const missingScope = (e: unknown) => e instanceof SquareError && e.code === 'INSUFFICIENT_SCOPES'
 const check = <T>(r: { data: T; error: { message: string } | null }) => { if (r.error) throw new Error(r.error.message); return r.data }
@@ -200,6 +209,35 @@ async function catchUp(db: SupabaseClient, c: ClubRow, s: { sandbox: boolean; to
   check(await db.from('coffee_club').update({ orders_checked_at: started.toISOString() }).eq('id', 1))
 }
 
+/**
+ * One "Coffee club" discount on the till. A club whose automatic discount was set up with a discount of its own (two on
+ * the till) gets its pricing rule onto the club's discount and the other taken out of Square, once the sales are
+ * caught up so a coffee the other took off is counted first. The club's discount deleted in Square meanwhile: the other
+ * one becomes it; both gone: it's made again. Returns the club as it is now.
+ */
+async function oneDiscount(db: SupabaseClient, c: ClubRow, s: { sandbox: boolean; token: string; locationIds: string[] }, tz?: string): Promise<ClubRow> {
+  const other = c.square_auto_discount_id
+  if (!other) return c
+  await catchUp(db, c, s, tz)
+  const [mine, theirs] = await Promise.all([square.versionOf(s.sandbox, s.token, c.square_discount_id), square.versionOf(s.sandbox, s.token, other)])
+  const discountId = c.square_discount_id && mine !== null ? c.square_discount_id
+    : theirs !== null ? other
+    : await square.saveDiscount(s.sandbox, s.token, `club-discount:one:${other}`, { id: null, name: c.name, max: c.max_value, currency: c.currency })
+  let rule = { productSetId: c.square_product_set_id, ruleId: c.square_pricing_rule_id, timePeriodId: c.square_time_period_id }
+  // The rule onto the one discount before the other goes, so Square never has a rule without its discount.
+  if (c.auto_discount && c.square_pricing_rule_id && c.square_group_id) {
+    rule = await square.saveAutoDiscount(s.sandbox, s.token, `club-auto:one:${other}`, {
+      ...rule, discountId, name: c.name, categoryIds: c.auto_category_ids ?? [], groupId: c.square_group_id, hours: hoursOf(c),
+    })
+  }
+  if (discountId !== other && theirs !== null) await square.deleteCatalogObject(s.sandbox, s.token, other)
+  check(await db.from('coffee_club').update({
+    square_discount_id: discountId, square_auto_discount_id: null,
+    square_product_set_id: rule.productSetId, square_pricing_rule_id: rule.ruleId, square_time_period_id: rule.timePeriodId,
+  }).eq('id', 1))
+  return (await loadClub(db))!
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // The note on the till
 // ---------------------------------------------------------------------------------------------------------------
@@ -277,9 +315,10 @@ export async function syncCoffeeClub(env: Env, db: SupabaseClient): Promise<numb
   const s = await squareSession(env, db)
   const tz = await zoneOf(db)
   try {
-    const members = await syncMembers(db, c, s)
-    await catchUp(db, c, s, tz)
-    await writeNotes(db, c, s, tz, NOTES_A_RUN)
+    const one = await oneDiscount(db, c, s, tz)
+    const members = await syncMembers(db, one, s)
+    await catchUp(db, one, s, tz)
+    await writeNotes(db, one, s, tz, NOTES_A_RUN)
     return members.length
   } catch (e) {
     if (missingScope(e)) return 'reconnect'
@@ -435,7 +474,9 @@ const money = (n: number, currency: string, lang: TillLanguage) =>
 /**
  * Sets the club up, or changes it: { name, price, coffees_per_week, max_value, till_language, selling, key }.
  * Only what changed is made again in Square: a new price is a new variation (and a new checkout page); a new name
- * or most off a drink changes the discount; not selling takes the checkout page down.
+ * or most off a drink changes the discount; not selling takes the checkout page down. The page sends the same `key`
+ * until a save goes through, and what's made in Square is keyed by it and by what it holds: a save that failed
+ * partway (Square to connect again, say) and is tried again gets back what it had made rather than a second one.
  */
 coffeeClubRoutes.post('/api/coffee-club', async c => {
   const db = await requestDb(c)
@@ -452,8 +493,11 @@ coffeeClubRoutes.post('/api/coffee-club', async c => {
       hours: b.hours ? { from: String(b.hours.from), to: String(b.hours.to), days: [...new Set((Array.isArray(b.hours.days) ? b.hours.days : []).map(Number))].sort() } : null,
     }
     if (input.auto_category_ids.length > 50 || input.auto_category_ids.some(id => !/^[\w-]{1,191}$/.test(id))) throw new ClubError('Choose the drinks from the list')
-    const was = await loadClub(db)
     const s = await squareSession(c.env, db)
+    const tz = await zoneOf(db)
+    const loaded = await loadClub(db)
+    // A club with two discounts on the till (from before they were one): one, first.
+    const was = loaded && await oneDiscount(db, loaded, s, tz)
     const location = was?.square_location_id ?? s.locationIds[0]
     if (!location) throw new ClubError('Square has no location for this business. Connect Square again.')
     const { data: integ } = await db.from('integrations').select('external').eq('provider', 'square').single()
@@ -463,16 +507,22 @@ coffeeClubRoutes.post('/api/coffee-club', async c => {
     const lang = input.till_language
     const price = money(input.price, currency, lang)
     const per = input.coffees_per_week
+    // Square's idempotency key for one thing made: the save's key, and a short hash of what it holds.
+    const keyFor = async (what: string, holds: unknown) => `${what}:${b.key}:${(await sha256(JSON.stringify(holds))).slice(0, 12)}`
 
-    const planId = was?.square_plan_id ?? await square.createPlan(s.sandbox, s.token, `club-plan:${b.key}`, input.name)
+    const planId = was?.square_plan_id ?? await square.createPlan(s.sandbox, s.token, await keyFor('club-plan', input.name), input.name)
     const newPrice = !was?.square_variation_id || was.price !== input.price
+    const variationName = lang === 'es' ? `${input.name}, ${price} al mes` : `${input.name}, ${price} a month`
     const variationId = newPrice
-      ? await square.createVariation(s.sandbox, s.token, `club-variation:${b.key}`, planId,
-        lang === 'es' ? `${input.name}, ${price} al mes` : `${input.name}, ${price} a month`, input.price, currency)
+      ? await square.createVariation(s.sandbox, s.token, await keyFor('club-variation', [planId, variationName, input.price, currency]), planId,
+        variationName, input.price, currency)
       : was!.square_variation_id!
     const old = [...(was?.square_old_variation_ids ?? []), ...(newPrice && was?.square_variation_id ? [was.square_variation_id] : [])]
-    const discountId = !was?.square_discount_id || was.name !== input.name || was.max_value !== input.max_value
-      ? await square.saveDiscount(s.sandbox, s.token, `club-discount:${b.key}`, { id: was?.square_discount_id, name: input.name, max: input.max_value, currency })
+    // The club's one discount: changed in place, or made again if it was deleted in Square.
+    const discountGone = !!was?.square_discount_id && await square.versionOf(s.sandbox, s.token, was.square_discount_id) === null
+    const discountId = !was?.square_discount_id || discountGone || was.name !== input.name || was.max_value !== input.max_value
+      ? await square.saveDiscount(s.sandbox, s.token, await keyFor('club-discount', [was?.square_discount_id, discountGone, input.name, input.max_value, currency]),
+        { id: discountGone ? null : was?.square_discount_id, name: input.name, max: input.max_value, currency })
       : was.square_discount_id
     // The checkout page: a new one for a new price or name; none while not selling.
     let link = was?.square_link_id && was.signup_url ? { id: was.square_link_id, url: was.signup_url } : null
@@ -482,29 +532,25 @@ coffeeClubRoutes.post('/api/coffee-club', async c => {
     }
     const description = signupDescription(input, price)
     if (input.selling && !link) {
-      link = await square.createSignupLink(s.sandbox, s.token, `club-link:${b.key}`, {
-        name: business ? `${business}: ${input.name}` : input.name, price: input.price, currency, locationId: location, variationId, description,
-      })
+      const page = { name: business ? `${business}: ${input.name}` : input.name, price: input.price, currency, locationId: location, variationId, description }
+      link = await square.createSignupLink(s.sandbox, s.token, await keyFor('club-link', page), page)
     } else if (link && (!sameHours(hoursOf(was!), input.hours) || was!.till_language !== lang)) {
       // New times: the same page says them (its address, and the QR codes printed for it, stay).
       await square.updateSignupDescription(s.sandbox, s.token, link.id, description)
     }
-    // Square applies the free coffee by itself: the group, then its discount, drinks and pricing rule (made again only
-    // when something they hold changed); off, the pricing rule goes and the group is emptied over the next runs.
+    // Square applies the free coffee by itself: the group, then the drinks and the pricing rule for the club's discount
+    // (made again only when something they hold changed); off, the pricing rule goes and the group is emptied over the
+    // next runs.
     let groupId = was?.square_group_id ?? null
-    let auto = {
-      discountId: was?.square_auto_discount_id ?? null, productSetId: was?.square_product_set_id ?? null, ruleId: was?.square_pricing_rule_id ?? null,
-      timePeriodId: was?.square_time_period_id ?? null,
-    }
+    let auto = { productSetId: was?.square_product_set_id ?? null, ruleId: was?.square_pricing_rule_id ?? null, timePeriodId: was?.square_time_period_id ?? null }
     if (input.auto_discount) {
       groupId ??= await square.createGroup(s.sandbox, s.token, `club-group:${b.key}`,
         lang === 'es' ? `${input.name}: café pendiente` : `${input.name}: coffee due`)
       const sameDrinks = [...(was?.auto_category_ids ?? [])].sort().join() === [...input.auto_category_ids].sort().join()
-      if (!was?.auto_discount || !auto.ruleId || !sameDrinks || was.name !== input.name || was.max_value !== input.max_value
+      if (!was?.auto_discount || !auto.ruleId || !sameDrinks || was.name !== input.name || discountId !== was.square_discount_id
         || !sameHours(hoursOf(was), input.hours)) {
-        auto = await square.saveAutoDiscount(s.sandbox, s.token, `club-auto:${b.key}`, {
-          ...auto, name: input.name, max: input.max_value, currency, categoryIds: input.auto_category_ids, groupId, hours: input.hours,
-        })
+        const rule = { ...auto, discountId, name: input.name, categoryIds: input.auto_category_ids, groupId, hours: input.hours }
+        auto = await square.saveAutoDiscount(s.sandbox, s.token, await keyFor('club-auto', rule), rule)
       }
     } else if (auto.ruleId) {
       await square.deleteCatalogObject(s.sandbox, s.token, auto.ruleId)
@@ -516,7 +562,7 @@ coffeeClubRoutes.post('/api/coffee-club', async c => {
       id: 1, ...settings, currency, ...(was ? {} : { set_up_at: new Date().toISOString() }), square_location_id: location, square_plan_id: planId, square_variation_id: variationId,
       hours_from: hours?.from ?? null, hours_to: hours?.to ?? null, hours_days: hours?.days ?? [1, 2, 3, 4, 5, 6, 7], square_time_period_id: auto.timePeriodId,
       square_old_variation_ids: old, square_discount_id: discountId, square_link_id: link?.id ?? null, signup_url: link?.url ?? null,
-      square_group_id: groupId, square_auto_discount_id: auto.discountId, square_product_set_id: auto.productSetId, square_pricing_rule_id: auto.ruleId,
+      square_group_id: groupId, square_auto_discount_id: null, square_product_set_id: auto.productSetId, square_pricing_rule_id: auto.ruleId,
     }, { onConflict: 'business_id' }))
     // The new week's allowance or wording on every member's note, over the next runs.
     if (was && (was.coffees_per_week !== per || was.name !== input.name || was.till_language !== lang || !sameHours(hoursOf(was), input.hours))) {
@@ -525,7 +571,7 @@ coffeeClubRoutes.post('/api/coffee-club', async c => {
     // Square's automatic discount switched on or off: the group filled or emptied now, as far as one request goes.
     if (was && !!was.auto_discount !== input.auto_discount) {
       const now = await loadClub(db)
-      if (now) await writeNotes(db, now, s, await zoneOf(db), AUTO_SWITCH_A_REQUEST)
+      if (now) await writeNotes(db, now, s, tz, AUTO_SWITCH_A_REQUEST)
     }
     return c.json(await clubState(db, 'ok', c.env))
   } catch (e) {

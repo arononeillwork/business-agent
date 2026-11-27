@@ -95,8 +95,8 @@ export default {
   'Choose the language of the note on the till': 'Elige el idioma de la nota en caja',
   'Square takes the free coffee off by itself': 'Square descuenta el café gratis por sí solo',
   'Drinks it covers': 'Bebidas que incluye',
-  'Square makes one of these free by itself when a member who’s due their coffee is added to the sale, up to the most off a drink. The team’s own discount stays, for when it’s needed.':
-    'Square deja gratis una de estas bebidas por sí solo cuando se añade a la venta un socio al que le toca su café, hasta el descuento máximo por bebida. El descuento del equipo sigue ahí, por si hace falta.',
+  'Square makes one of these free by itself when a member who’s due their coffee is added to the sale, up to the most off a drink. It’s the club’s own discount, so the team can still apply it by hand when needed.':
+    'Square deja gratis una de estas bebidas por sí solo cuando se añade a la venta un socio al que le toca su café, hasta el descuento máximo por bebida. Es el mismo descuento del club, así que el equipo también puede aplicarlo a mano si hace falta.',
   'If this week’s coffee is due, Square takes one drink off by itself. If it doesn’t, they’ve had it: charge as usual.':
     'Si le toca el café de esta semana, Square descuenta una bebida por sí solo. Si no lo hace, ya lo ha tomado: cobra como siempre.',
   'Choose the drinks Square takes off by itself': 'Elige las bebidas que Square descuenta por sí solo',

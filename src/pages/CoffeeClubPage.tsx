@@ -5,7 +5,7 @@ import {
 import CopyIcon from '@mui/icons-material/ContentCopyOutlined'
 import OpenIcon from '@mui/icons-material/OpenInNew'
 import RefreshIcon from '@mui/icons-material/Refresh'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
@@ -119,9 +119,12 @@ function ClubForm({ initial, first }: { initial: CoffeeClubInput; first?: boolea
   const set = (patch: Partial<CoffeeClubInput>) => setV(x => ({ ...x, ...patch }))
   const problem = clubInputProblem(v)
   const changed = JSON.stringify(v) !== JSON.stringify(initial)
+  // One key until a save goes through (the form starts afresh then): pressing Save again after one that failed partway
+  // gets back what Square had already made, rather than a second discount or plan.
+  const saveKey = useRef(crypto.randomUUID())
   const save = async () => {
     setBusy(true)
-    await run(() => api.saveCoffeeClub(v, crypto.randomUUID()), first ? t('The coffee club is set up in Square') : t('Club settings saved'), { fresh: true })
+    await run(() => api.saveCoffeeClub(v, saveKey.current), first ? t('The coffee club is set up in Square') : t('Club settings saved'), { fresh: true })
     setBusy(false)
   }
   return (
@@ -204,7 +207,7 @@ function AutoDrinks({ chosen, onChange }: { chosen: string[]; onChange: (ids: st
     <Box>
       <TextField select fullWidth label={t('Drinks it covers')} value={chosen}
         onChange={e => onChange(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value as string[])}
-        helperText={categories.error ?? t('Square makes one of these free by itself when a member who’s due their coffee is added to the sale, up to the most off a drink. The team’s own discount stays, for when it’s needed.')}
+        helperText={categories.error ?? t('Square makes one of these free by itself when a member who’s due their coffee is added to the sale, up to the most off a drink. It’s the club’s own discount, so the team can still apply it by hand when needed.')}
         error={!!categories.error}
         slotProps={{ select: { multiple: true, renderValue: v => (v as string[]).map(id => names.get(id) ?? id).join(', ') } }}>
         {(categories.data ?? []).map(c => <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>)}

@@ -1,7 +1,9 @@
 // The coffee club (worker/coffeeClub.ts) against stand-ins for Supabase and Square. What must never break:
 //   - only admins, and only while Square is the connected till; an older connection is asked to connect again
 //   - setting it up makes the plan, its price, the discount and the checkout page in Square once (a retry makes
-//     nothing twice); a new price is a new variation and checkout page, members on the old one still count
+//     nothing twice, even after one that failed partway); a new price is a new variation and checkout page, members on
+//     the old one still count
+//   - one "Coffee club" discount on the till: Square's automatic discount applies the club's own
 //   - a sale with the club's discount counts once, against the member added to it, at most the week's coffees;
 //     one that can't be counted is kept with why, for an admin
 //   - the note on the till: the club's line first, the team's own lines kept, written only when it changes
@@ -127,6 +129,28 @@ describe('The coffee club page', () => {
     expect(db.tables.coffee_club_members.map(m => m.square_subscription_id).sort()).toEqual(['S-new', 'S-old'])
   })
 
+  it('a save that failed partway and is tried again makes nothing twice: one plan, one discount, one checkout page', async () => {
+    await connectSquare()
+    // Square refuses the checkout page the first time (the plan and the discount are made by then).
+    apis.square.failOnce.push('/v2/online-checkout/payment-links')
+    expect((await post('/api/coffee-club', club())).status).toBe(400)
+    expect(db.tables.coffee_club ?? []).toHaveLength(0)
+    expect(apis.square.catalogObjects.map(o => o.type)).toEqual(['SUBSCRIPTION_PLAN', 'SUBSCRIPTION_PLAN_VARIATION', 'DISCOUNT'])
+    // Pressed again (the same key, as the page sends until a save goes through): the same ones, and the page.
+    expect((await post('/api/coffee-club', club())).status).toBe(200)
+    expect(apis.square.catalogObjects.map(o => o.type)).toEqual(['SUBSCRIPTION_PLAN', 'SUBSCRIPTION_PLAN_VARIATION', 'DISCOUNT'])
+    expect(apis.square.links).toHaveLength(1)
+    const [, variation, discount] = apis.square.catalogObjects
+    expect(db.tables.coffee_club[0]).toMatchObject({ square_variation_id: variation.id, square_discount_id: discount.id, signup_url: apis.square.links[0].url })
+    // Changed before trying again: what it holds now (a new price is its own variation), nothing else twice.
+    const second = club({ price: 12, key: 'key-two-22' })
+    apis.square.failOnce.push('/v2/online-checkout/payment-links')
+    expect((await post('/api/coffee-club', second)).status).toBe(400)
+    expect((await post('/api/coffee-club', { ...second, max_value: 4 })).status).toBe(200)
+    expect(apis.square.catalogObjects.map(o => o.type)).toEqual(['SUBSCRIPTION_PLAN', 'SUBSCRIPTION_PLAN_VARIATION', 'DISCOUNT', 'SUBSCRIPTION_PLAN_VARIATION'])
+    expect(apis.square.catalogObjects.find(o => o.id === discount.id)).toMatchObject({ discount_data: { maximum_amount_money: { amount: 400 } } })
+  })
+
   it('a connection made before subscriptions were asked for says to connect Square again', async () => {
     await connectSquare()
     apis.square.clubScope = false
@@ -149,8 +173,8 @@ describe('Square takes the free coffee off by itself', () => {
     expect((await (await post('/api/coffee-club', auto({ auto_category_ids: [] }))).json() as { error: string }).error).toMatch(/Choose the drinks/)
   })
 
-  it('switched on: a group, a discount of its own, the drinks (one a sale) and a pricing rule for the group; members due a coffee are in it', async () => {
-    const { variation } = await setUp()
+  it('switched on: a group, the drinks (one a sale) and a pricing rule for the group with the club’s one discount; members due a coffee are in it', async () => {
+    const { variation, discount } = await setUp()
     drinks()
     apis.square.subscriptions = [sub('S1', 'SQC1', variation), sub('S2', 'SQC2', variation)]
     apis.square.invoices = [{ id: 'I2', location_id: 'L1', subscription_id: 'S2', status: 'UNPAID', created_at: '2026-11-01T09:00:00Z' }]
@@ -161,11 +185,12 @@ describe('Square takes the free coffee off by itself', () => {
     const row = db.tables.coffee_club[0]
     expect(apis.square.groups.get(group())).toMatchObject({ name: 'Coffee club: coffee due' })
     const of = (id: unknown) => apis.square.catalogObjects.find(o => o.id === id)
-    expect(of(row.square_auto_discount_id)).toMatchObject({ type: 'DISCOUNT', discount_data: { percentage: '100', maximum_amount_money: { amount: 500 } } })
-    expect(row.square_auto_discount_id).not.toBe(row.square_discount_id)
+    // One "Coffee club" on the till: the rule applies the club's discount, the one the team applies by hand.
+    expect(apis.square.catalogObjects.filter(o => o.type === 'DISCOUNT').map(o => o.id)).toEqual([discount])
+    expect(row).toMatchObject({ square_discount_id: discount, square_auto_discount_id: null })
     expect(of(row.square_product_set_id)).toMatchObject({ type: 'PRODUCT_SET', product_set_data: { product_ids_any: ['cat-coffee', 'cat-matcha'], quantity_max: 1 } })
     expect(of(row.square_pricing_rule_id)).toMatchObject({ type: 'PRICING_RULE', pricing_rule_data: {
-      discount_id: row.square_auto_discount_id, match_products_id: row.square_product_set_id, customer_group_ids_any: [group()] } })
+      discount_id: discount, match_products_id: row.square_product_set_id, customer_group_ids_any: [group()] } })
     // Lucía is due her coffee; Tom's payment failed, so he isn't.
     expect(inGroup()).toEqual(['SQC1'])
     // Saved again unchanged: nothing new in Square.
@@ -181,7 +206,7 @@ describe('Square takes the free coffee off by itself', () => {
     await syncCoffeeClub(env, b1())
     await post('/api/coffee-club', auto())
     expect(inGroup()).toEqual(['SQC1'])
-    apis.square.clubOrders = [sale('O1', 'SQC1', db.tables.coffee_club[0].square_auto_discount_id as string)]
+    apis.square.clubOrders = [sale('O1', 'SQC1', db.tables.coffee_club[0].square_discount_id as string)]
     await coffeeClubEvent(env, b1(), completed('O1'))
     expect(db.tables.coffee_club_coffees).toEqual([expect.objectContaining({ square_order_id: 'O1', problem: null })])
     expect(inGroup()).toEqual([])
@@ -206,7 +231,52 @@ describe('Square takes the free coffee off by itself', () => {
     // On again: a new rule with the same discount and drinks.
     await post('/api/coffee-club', auto({ key: 'key-on-2' }))
     expect(db.tables.coffee_club[0].square_pricing_rule_id).toBeTruthy()
+    expect(apis.square.catalogObjects.find(o => o.id === db.tables.coffee_club[0].square_pricing_rule_id)).toMatchObject({ pricing_rule_data: { discount_id: discount } })
     expect(inGroup()).toEqual(['SQC1'])
+  })
+
+  /** A club whose automatic discount was set up with a discount of its own, as it was made before they were one. */
+  async function twoDiscounts() {
+    const { variation, discount } = await setUp()
+    drinks()
+    apis.square.subscriptions = [sub('S1', 'SQC1', variation)]
+    await syncCoffeeClub(env, b1())
+    await post('/api/coffee-club', auto())
+    const other = { id: 'CAT-OLD', type: 'DISCOUNT', version: 1, discount_data: { name: 'Coffee club', discount_type: 'FIXED_PERCENTAGE', percentage: '100' } }
+    apis.square.catalogObjects.push(other)
+    const rule = apis.square.catalogObjects.find(o => o.id === db.tables.coffee_club[0].square_pricing_rule_id)!
+    ;(rule.pricing_rule_data as Row).discount_id = other.id
+    db.tables.coffee_club[0].square_auto_discount_id = other.id
+    const of = (id: unknown) => apis.square.catalogObjects.find(o => o.id === id)
+    return { discount, other: other.id, rule: rule.id, of, discounts: () => apis.square.catalogObjects.filter(o => o.type === 'DISCOUNT').map(o => o.id) }
+  }
+
+  it('two "Coffee club" discounts on the till from before: the next look at Square leaves one, and a coffee the other took off still counts', async () => {
+    const { discount, other, rule, of, discounts } = await twoDiscounts()
+    expect(discounts()).toEqual([discount, other])
+    // A coffee Square took off with the other one, not counted yet.
+    vi.setSystemTime(NOW + 30 * 60_000)
+    apis.square.clubOrders = [sale('O1', 'SQC1', other, '2026-11-25T10:15:00Z')]
+    await syncCoffeeClub(env, b1())
+    expect(discounts()).toEqual([discount])
+    expect(of(rule)).toMatchObject({ pricing_rule_data: { discount_id: discount } })
+    expect(db.tables.coffee_club[0]).toMatchObject({ square_discount_id: discount, square_auto_discount_id: null, square_pricing_rule_id: rule })
+    expect(db.tables.coffee_club_coffees).toEqual([expect.objectContaining({ square_order_id: 'O1', problem: null })])
+    // Nothing more to do on the next look.
+    const objects = JSON.stringify(apis.square.catalogObjects)
+    await syncCoffeeClub(env, b1())
+    expect(JSON.stringify(apis.square.catalogObjects)).toBe(objects)
+  })
+
+  it('two discounts, the club’s one deleted in Square meanwhile: the other becomes it; saving the club does the same', async () => {
+    const { discount, other, rule, of, discounts } = await twoDiscounts()
+    apis.square.catalogObjects.splice(apis.square.catalogObjects.findIndex(o => o.id === discount), 1)
+    const res = await post('/api/coffee-club', auto({ max_value: 6, key: 'key-auto-9' }))
+    expect(res.status).toBe(200)
+    expect(discounts()).toEqual([other])
+    expect(of(other)).toMatchObject({ discount_data: { maximum_amount_money: { amount: 600 } } })
+    expect(of(rule)).toMatchObject({ pricing_rule_data: { discount_id: other } })
+    expect(db.tables.coffee_club[0]).toMatchObject({ square_discount_id: other, square_auto_discount_id: null })
   })
 })
 
