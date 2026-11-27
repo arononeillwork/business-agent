@@ -251,7 +251,7 @@ export function qrSvg(payload: string, o: { dark: string; light: string; logo?: 
 // ---------------------------------------------------------------------------------------------
 // Suggestions for a business starting out
 // ---------------------------------------------------------------------------------------------
-export type QrSuggestionKey = 'menu' | 'competition' | 'wifi' | 'review'
+export type QrSuggestionKey = 'menu' | 'competition' | 'wifi' | 'review' | 'suggestions'
 export interface QrSuggestion { key: QrSuggestionKey; label: string; description: string; code: QrCodeInput }
 
 /** An address on the business's website: ("https://example.com/", "menu") → https://example.com/menu. */
@@ -266,12 +266,13 @@ export const googleReviewUrl = (placeId: string) => `https://search.google.com/l
 
 /**
  * The usual codes a business starts with, in English (shown with t()), less any it already has: the
- * menu (from its website, when it has one), its competition, its Wi-Fi and, when its Google place is
- * known, a Google review. One already there under its English name, or its name in the person's
+ * menu (from its website, when it has one), its competition, its Wi-Fi, when its Google place is
+ * known a Google review, and its suggestion box (`suggestionBox`, the page's address: customers' ideas
+ * land on the Suggestions page). One already there under its English name, or its name in the person's
  * language (`translate`), isn't suggested again.
  */
 export function qrSuggestions(have: Pick<QrCode, 'name' | 'kind' | 'url'>[],
-  o: { website?: string | null; placeId?: string | null; translate?: (english: string) => string }): QrSuggestion[] {
+  o: { website?: string | null; placeId?: string | null; suggestionBox?: string | null; translate?: (english: string) => string }): QrSuggestion[] {
   const names = new Set(have.map(c => c.name.trim().toLowerCase()))
   const named = (n: string) => names.has(n.toLowerCase()) || names.has((o.translate?.(n) ?? n).toLowerCase())
   const review = o.placeId ? googleReviewUrl(o.placeId) : null
@@ -284,6 +285,9 @@ export function qrSuggestions(have: Pick<QrCode, 'name' | 'kind' | 'url'>[],
       code: { name: msg('Wi-Fi'), kind: 'wifi', wifi_security: 'WPA', used_where: msg('On the counter'), caption: msg('Scan to join the Wi-Fi') } },
     { key: 'review', label: msg('Google review'), description: msg('Straight to leaving a review on Google'), have: !review || named('Google review') || have.some(c => c.url === review),
       code: { name: msg('Google review'), kind: 'link', url: review, used_where: msg('On the receipts'), caption: msg('Enjoyed it? Scan to leave us a review') } },
+    { key: 'suggestions', label: msg('Suggestion box'), description: msg('Customers send their ideas: they land on the Suggestions page'),
+      have: !o.suggestionBox || named('Suggestion box') || have.some(c => c.url === o.suggestionBox),
+      code: { name: msg('Suggestion box'), kind: 'link', url: o.suggestionBox ?? null, used_where: msg('On the tables'), caption: msg('Got an idea for us? Scan to tell us') } },
   ]
   return all.filter(s => !s.have).map(s => ({ key: s.key, label: s.label, description: s.description, code: s.code }))
 }

@@ -1,6 +1,7 @@
 // The demo's QR codes (Business section): Easy Beans' three in the owner's order, as the `qr_codes`
 // migration has them (the menu on the tables, the competition on the café screen, the Wi-Fi on the
-// counter), with the demo's Wi-Fi filled in so its downloads can be tried. Mirrors the migration's
+// counter), with the demo's Wi-Fi filled in so its downloads can be tried, and its Suggestion box after
+// them (the `suggestion_box` migration). Mirrors the migration's
 // rules: the team reads them, admins change them.
 import type { Api } from './api'
 import { cleanUrl, qrProblem, sortQrCodes, type QrCode } from '../../shared/qrCodes'
@@ -28,6 +29,8 @@ export function demoQrCodeApi(w: Who): QrCodeApi {
       caption: 'Scan to enter the competition', sort: 2 }),
     code('qr-wifi', { name: 'Wi-Fi', kind: 'wifi', wifi_ssid: 'EasyBeans-Guest', wifi_password: 'flatwhite2026', used_where: 'On the counter',
       caption: 'Scan to join the Wi-Fi', sort: 3 }),
+    code('qr-suggestions', { name: 'Suggestion box', url: 'https://businesssagent.com/api/site/1/suggest', used_where: 'On the tables',
+      caption: 'Got an idea for us? Scan to tell us', sort: 4 }),
   ]
   const needAdmin = () => { if (!w.isAdmin()) throw new Error('new row violates row-level security policy for table "qr_codes"') }
 

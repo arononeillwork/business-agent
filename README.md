@@ -836,6 +836,13 @@ built-in **AI connector** so owners can run it by talking to Claude.
   remove them, starting from suggestions (the menu from the website, the competition, the Wi-Fi, a Google
   review when the business's Google place is known on Competitors) (`shared/qrCodes.ts`, the `qr_codes`
   migration, which starts Easy Beans with its Menu, Competition and Wi-Fi codes).
+- Suggestion box (QR codes and Suggestions): a code customers scan to send the business an idea without
+  signing in. It opens a short page in their language (Spanish or English, the business's name and colour) at
+  `/api/site/<business>/suggest`; what they send is on the Suggestions page straight away, in Not sorted yet,
+  heard "Suggestion box" on the business's day, with their name when they give it. Five ideas an hour from one
+  address and sixty a business, counted as an HMAC of the address for a day, never the address; a hidden field
+  catches robots (`worker/suggestionBox.ts`, `shared/suggestionBox.ts`, the `suggestion_box` migration, which
+  adds Easy Beans' Suggestion box code on the tables; other businesses are offered it on the QR codes page).
 
 See [docs/PLAN.md](docs/PLAN.md) for decisions, architecture and phases.
 
