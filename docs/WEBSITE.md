@@ -253,6 +253,7 @@ how to join, and the person's pass, which they can hold up at the counter so the
 ```jsonc
 "club": {
   "name": "Coffee club", "price": 10, "currency": "EUR", "coffees_per_week": 1,
+  "hours": { "from": "09:00", "to": "11:00", "days": [1, 2, 3, 4, 5, 6, 7] },  // null: whenever it's open
   "join_url": null,                        // Square's checkout page to join; null for a member, or while not taking members
   "pass": {                                // null: not a member (or it has ended)
     "standing": "active",                  // active, ending (cancelled, still running), pending, paused, payment_failed
@@ -313,6 +314,7 @@ no club (or no such business); `503` when it can't be read just then. `SiteClubF
   "club": {
     "name": "Coffee club", "price": 10, "currency": "EUR", "coffees_per_week": 1,
     "max_value": 5,                        // the most a free coffee is worth; a dearer drink costs the difference
+    "hours": { "from": "09:00", "to": "11:00", "days": [1, 2, 3, 4, 5, 6, 7] },  // null: whenever it's open
     "taking_members": true,                // false: show it, without a way to join
     "signup_url": "https://square.link/u/…" // the counter's checkout page (anyone, nothing filled in); null while not taking members
   },
@@ -321,6 +323,10 @@ no club (or no such business); `503` when it can't be read just then. `SiteClubF
 ```
 
 A change on the Coffee club page (the price, the coffees a week) is on the website a minute or two later.
+
+`hours` is when the free coffee can be had, in the business's own time (Monday 1 … Sunday 7; until `to`, not at it),
+or null for whenever it's open. Say it with the offer and on the pass ("a coffee a week, 9:00–11:00"; with the days
+when they aren't every day, "Mon–Fri"): outside it the member pays as usual.
 
 ### Joining: their own checkout page
 

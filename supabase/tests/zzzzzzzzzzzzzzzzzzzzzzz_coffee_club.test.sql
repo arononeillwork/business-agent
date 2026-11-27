@@ -63,6 +63,18 @@ do $$ begin
   assert (select not in_square_group from public.coffee_club_members where square_subscription_id = 'cc-S1'), 'nobody in the group until the Worker puts them there';
 end $$;
 update public.coffee_club set auto_discount = false;
+-- The free coffee at set times only (the club_hours migration): both times or neither, ending after they start, on
+-- days of the week; a coffee given outside them is kept with why.
+update public.coffee_club set hours_from = '09:00', hours_to = '11:00', hours_days = '{1,2,3,4,5}';
+do $$ begin
+  assert (select hours_from = '09:00' and hours_to = '11:00' and hours_days = '{1,2,3,4,5}' from public.coffee_club), 'its times';
+end $$;
+select pg_temp.expect_error($$update public.coffee_club set hours_to = null$$, 'coffee_club_hours');
+select pg_temp.expect_error($$update public.coffee_club set hours_to = '08:00'$$, 'coffee_club_hours');
+select pg_temp.expect_error($$update public.coffee_club set hours_days = '{}'$$, 'coffee_club_hours_days_check');
+select pg_temp.expect_error($$update public.coffee_club set hours_days = '{0,1}'$$, 'coffee_club_hours_days_check');
+insert into public.coffee_club_coffees (square_order_id, square_line_uid, at, week, problem) values ('cc-O4', 'L1', now(), '2026-11-23', 'outside_hours');
+update public.coffee_club set hours_from = null, hours_to = null;
 
 -- When it was set up stays.
 update public.coffee_club set set_up_at = '2020-01-01', price = 12;

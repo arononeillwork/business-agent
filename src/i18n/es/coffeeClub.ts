@@ -100,4 +100,14 @@ export default {
   'If this week’s coffee is due, Square takes one drink off by itself. If it doesn’t, they’ve had it: charge as usual.':
     'Si le toca el café de esta semana, Square descuenta una bebida por sí solo. Si no lo hace, ya lo ha tomado: cobra como siempre.',
   'Choose the drinks Square takes off by itself': 'Elige las bebidas que Square descuenta por sí solo',
+  // The free coffee at set times only.
+  'It was given outside the free coffee’s hours': 'Se dio fuera del horario del café gratis',
+  'Free coffee only at set times': 'Café gratis solo a ciertas horas',
+  'Until': 'Hasta',
+  'Outside these times the member pays as usual: Square doesn’t take the coffee off, and their note on the till says the times. A coffee given with the club’s discount outside them is listed for you to look at.':
+    'Fuera de este horario el socio paga como siempre: Square no descuenta el café y su nota en la caja dice el horario. Si se da un café con el descuento del club fuera de él, aparece en la lista para que lo revises.',
+  'The free coffee is only from {hours}. Outside then, charge the drink as usual.': 'El café gratis es solo de {hours}. Fuera de ese horario, cobra la bebida como siempre.',
+  'Give the times as hours and minutes': 'Indica las horas con horas y minutos',
+  'The free coffee’s hours must end after they start': 'El horario del café gratis debe terminar después de empezar',
+  'Choose at least one day for the free coffee': 'Elige al menos un día para el café gratis',
 }

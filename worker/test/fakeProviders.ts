@@ -334,7 +334,7 @@ export class FakeProviders {
     clubScope: true,
     catalogObjects: [] as { id: string; type: string; version: number; [k: string]: unknown }[],
     catalogKeys: new Map<string, string>(),
-    links: [] as { id: string; url: string; deleted: boolean; request: Record<string, unknown> }[],
+    links: [] as { id: string; url: string; deleted: boolean; request: Record<string, unknown>; version?: number }[],
     subscriptions: [] as { id: string; [k: string]: unknown }[],
     invoices: [] as { id: string; [k: string]: unknown }[],
     clubOrders: [] as { id: string; closed_at: string; [k: string]: unknown }[],
@@ -464,6 +464,18 @@ export class FakeProviders {
       return json({ payment_link: { id: link.id, url: link.url } })
     }
     const link = p.match(/^\/v2\/online-checkout\/payment-links\/([^/]+)$/)
+    const live = link && sq.links.find(x => x.id === decodeURIComponent(link[1]) && !x.deleted)
+    if (link && method === 'GET') {
+      return live ? json({ payment_link: { id: live.id, url: live.url, version: live.version ?? 1, description: live.request.description } }) : notFound('Payment link')
+    }
+    if (link && method === 'PUT') {
+      if (!live) return notFound('Payment link')
+      const b = body() as { payment_link: { version: number; description?: string } }
+      if (b.payment_link.version !== (live.version ?? 1)) return json({ errors: [{ category: 'INVALID_REQUEST_ERROR', code: 'VERSION_MISMATCH', detail: 'Version does not match' }] }, 400)
+      live.version = (live.version ?? 1) + 1
+      if (b.payment_link.description !== undefined) live.request = { ...live.request, description: b.payment_link.description }
+      return json({ payment_link: { id: live.id, url: live.url, version: live.version } })
+    }
     if (link && method === 'DELETE') {
       const l = sq.links.find(x => x.id === decodeURIComponent(link[1]) && !x.deleted)
       if (!l) return notFound('Payment link')

@@ -5,12 +5,15 @@
 // Sunday, the business's days) and writes what's left on the member's Square customer note, which the till shows
 // whenever they're added to a sale (worker/coffeeClub.ts, the coffee_club migration).
 import { msg } from './i18n'
-import { localDate, weekStart } from './time'
+import { localDate, localTime, weekStart } from './time'
 
 /** A member's Square subscription, as Square has it. */
 export type ClubStatus = 'pending' | 'active' | 'paused' | 'canceled' | 'deactivated'
 /** Why a coffee on the till didn't count as a member's: see clubProblem. */
-export type ClubProblem = 'no_customer' | 'not_member' | 'not_paid' | 'over_limit'
+export type ClubProblem = 'no_customer' | 'not_member' | 'not_paid' | 'over_limit' | 'outside_hours'
+
+/** When the free coffee can be had: from and to ("09:00", the business's time) on these ISO days (Monday 1 … Sunday 7). */
+export interface ClubHours { from: string; to: string; days: number[] }
 /** What the note on the till is written in. */
 export type TillLanguage = 'en' | 'es'
 
@@ -32,6 +35,8 @@ export interface CoffeeClubSettings {
   auto_discount: boolean
   /** The Square categories whose drinks it covers (their ids). */
   auto_category_ids: string[]
+  /** The free coffee only at these times; null: whenever the café is open. */
+  hours: ClubHours | null
 }
 
 export interface ClubMember {
@@ -102,6 +107,7 @@ export interface CoffeeClubInput {
   /** Square applies the free coffee by itself, to a drink in these categories. */
   auto_discount: boolean
   auto_category_ids: string[]
+  hours: ClubHours | null
 }
 
 /** A category of the Square item library, for choosing the drinks the automatic discount covers. */
@@ -110,6 +116,57 @@ export interface SquareCategory { id: string; name: string }
 /** What's usual to start with: €10 a month, a coffee a week, up to €5 off a drink. */
 export const CLUB_DEFAULTS: CoffeeClubInput = {
   name: 'Coffee club', price: 10, coffees_per_week: 1, max_value: 5, till_language: 'en', selling: true, auto_discount: false, auto_category_ids: [],
+  hours: null,
+}
+
+/** What's usual when switching set times on: the morning, every day. */
+export const CLUB_HOURS_DEFAULT: ClubHours = { from: '09:00', to: '11:00', days: [1, 2, 3, 4, 5, 6, 7] }
+
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
+/** What's wrong with the hours typed, or null. */
+export function hoursProblem(h: ClubHours | null | undefined): string | null {
+  if (!h) return null
+  if (!HHMM.test(h.from) || !HHMM.test(h.to)) return msg('Give the times as hours and minutes')
+  if (h.from >= h.to) return msg('The free coffee’s hours must end after they start')
+  if (!h.days.length || h.days.some(d => !Number.isInteger(d) || d < 1 || d > 7)) return msg('Choose at least one day for the free coffee')
+  return null
+}
+
+/** The ISO day (Monday 1 … Sunday 7) and the time ("09:30") of an instant, in the business's time zone. */
+function dayAndTime(iso: string, tz?: string) {
+  const date = localDate(iso, tz)
+  return { day: ((new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7) + 1, time: localTime(iso, tz) }
+}
+
+/** Whether an instant is inside the free coffee's hours (always, without them). */
+export function withinHours(iso: string, h: ClubHours | null | undefined, tz?: string) {
+  if (!h) return true
+  const { day, time } = dayAndTime(iso, tz)
+  return h.days.includes(day) && time >= h.from && time < h.to
+}
+
+const DAY_NAMES: Record<TillLanguage, string[]> = {
+  en: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+  es: ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'],
+}
+const clock = (hhmm: string) => hhmm.replace(/^0(\d)/, '$1')
+
+/** "9:00–11:00", with the days when they aren't every day: "9:00–11:00, Mon–Fri" ("lun–vie" in Spanish). */
+export function hoursText(h: ClubHours, lang: TillLanguage = 'en') {
+  const days = [...new Set(h.days)].sort()
+  const names = DAY_NAMES[lang]
+  let dayText = ''
+  if (days.length < 7) {
+    // Runs of days: Mon–Fri; single days on their own: Mon, Wed.
+    const runs: number[][] = []
+    for (const d of days) {
+      const last = runs[runs.length - 1]
+      if (last && last[last.length - 1] === d - 1) last.push(d)
+      else runs.push([d])
+    }
+    dayText = `, ${runs.map(r => (r.length > 2 ? `${names[r[0] - 1]}–${names[r[r.length - 1] - 1]}` : r.map(d => names[d - 1]).join(', '))).join(', ')}`
+  }
+  return `${clock(h.from)}–${clock(h.to)}${dayText}`
 }
 
 const cents = (n: number) => Math.abs(Math.round(n * 100) - n * 100) < 1e-6
@@ -129,6 +186,8 @@ export function clubInputProblem(i: Partial<CoffeeClubInput>): string | null {
   if (!cents(max)) return msg('Use euros and cents')
   if (i.till_language !== 'en' && i.till_language !== 'es') return msg('Choose the language of the note on the till')
   if (i.auto_discount && !(i.auto_category_ids ?? []).length) return msg('Choose the drinks Square takes off by itself')
+  const hours = hoursProblem(i.hours)
+  if (hours) return hours
   return null
 }
 
@@ -157,10 +216,11 @@ export const weekOf = (iso: string, tz?: string) => weekStart(localDate(iso, tz)
  * who isn't a member, a member not in good standing, or one whose week's coffees `used` already had.
  */
 export function clubProblem(customerId: string | null, member: Pick<ClubMember, 'status' | 'paid'> | null,
-  used: number, quantity: number, perWeek: number): ClubProblem | null {
+  used: number, quantity: number, perWeek: number, inHours = true): ClubProblem | null {
   if (!customerId) return 'no_customer'
   if (!member) return 'not_member'
   if (!inGoodStanding(member)) return 'not_paid'
+  if (!inHours) return 'outside_hours'
   return used + quantity > perWeek ? 'over_limit' : null
 }
 
@@ -176,7 +236,7 @@ const dayMonth = (date: string) => `${Number(date.slice(8, 10))}/${Number(date.s
  * The line on a member's Square customer note, which the till shows when they're added to a sale: whether this
  * week's coffee is there to have. Null: no line (the membership has ended).
  */
-export function noteLine(club: Pick<CoffeeClubSettings, 'name' | 'coffees_per_week' | 'till_language'>,
+export function noteLine(club: Pick<CoffeeClubSettings, 'name' | 'coffees_per_week' | 'till_language'> & { hours?: ClubHours | null },
   m: Pick<ClubMember, 'status' | 'paid' | 'started_on' | 'used_this_week'>): string | null {
   const es = club.till_language === 'es'
   const n = club.coffees_per_week
@@ -190,8 +250,9 @@ export function noteLine(club: Pick<CoffeeClubSettings, 'name' | 'coffees_per_we
     if (n === 1) return say(es ? 'ya tomó el café de esta semana. El próximo, el lunes' : 'this week’s coffee used. Next one on Monday')
     return say(es ? `ya tomó los ${n} cafés de esta semana. Más el lunes` : `all ${n} coffees used this week. More on Monday`)
   }
-  if (n === 1) return say(es ? 'el café de esta semana está listo' : 'this week’s coffee is ready')
-  return say(es ? `le quedan ${left} de ${n} cafés esta semana` : `${left} of ${n} coffees left this week`)
+  const at = club.hours ? ` (${hoursText(club.hours, club.till_language)})` : ''
+  if (n === 1) return say(es ? `el café de esta semana está listo${at}` : `this week’s coffee is ready${at}`)
+  return say(es ? `le quedan ${left} de ${n} cafés esta semana${at}` : `${left} of ${n} coffees left this week${at}`)
 }
 
 /** The team's own note, without the app's line. */

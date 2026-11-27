@@ -4,7 +4,7 @@
 // page (the site_accounts migration's site_account_summary()); how a post earns cashback is the café's
 // rates (shared/cashback.ts). The contract only grows: fields are added, never renamed or removed.
 import { earnsCredit, reachMultiplier, reachTier, type ReachTierId, type RepKind, type RewardStatus } from './reps'
-import type { Standing } from './coffeeClub'
+import type { ClubHours, Standing } from './coffeeClub'
 
 /** POST /account/sync: who they are here. */
 export interface SiteAccountSync {
@@ -84,6 +84,8 @@ export interface SiteClub {
   price: number
   currency: string
   coffees_per_week: number
+  /** When the free coffee can be had (the business's time, Monday 1 … Sunday 7); null: whenever it's open. */
+  hours: ClubHours | null
   /** Square's checkout page to join; null when they're a member already, or the business isn't taking members. */
   join_url: string | null
   /** Their membership (null: not a member, or it has ended). */
@@ -152,6 +154,8 @@ export interface SiteClubFeed {
     coffees_per_week: number
     /** The most a free coffee is worth (a dearer drink costs the difference). */
     max_value: number
+    /** When the free coffee can be had (the business's time, Monday 1 … Sunday 7); null: whenever it's open. */
+    hours: ClubHours | null
     taking_members: boolean
     /** Square's checkout page anyone can join on (the counter's QR code). A website that signs people in first asks for their own (account/club/join). */
     signup_url: string | null

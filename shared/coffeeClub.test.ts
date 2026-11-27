@@ -1,8 +1,8 @@
 // The coffee club's rules (shared/coffeeClub.ts): what can be set, how a member stands, why a coffee didn't count,
 // and the line on the till, in English and Spanish, which leaves the team's own note alone.
 import { describe, expect, it } from 'vitest'
-import { clubInputProblem, clubProblem, clubTotals, noteLine, standing, weekOf, withNoteLine, withoutNoteLine, CLUB_DEFAULTS } from './coffeeClub'
-import { clubLines, paidBySubscription } from '../worker/providers/squareClub'
+import { clubInputProblem, clubProblem, clubTotals, hoursText, noteLine, standing, weekOf, withinHours, withNoteLine, withoutNoteLine, CLUB_DEFAULTS, CLUB_HOURS_DEFAULT } from './coffeeClub'
+import { clubHoursEvent, clubLines, paidBySubscription } from '../worker/providers/squareClub'
 
 const club = { name: 'Coffee club', coffees_per_week: 1, till_language: 'en' as const }
 const member = { status: 'active' as const, paid: true, started_on: '2026-11-01', used_this_week: 0 }
@@ -66,7 +66,7 @@ describe('The coffee club', () => {
 
   it('the figures: members in good standing and their month, coffees this week and this month', () => {
     const totals = clubTotals({
-      club: { name: 'Coffee club', price: 10, currency: 'EUR', coffees_per_week: 1, max_value: 5, till_language: 'en', selling: true, signup_url: null, set_up_at: '', auto_discount: false, auto_category_ids: [] },
+      club: { name: 'Coffee club', price: 10, currency: 'EUR', coffees_per_week: 1, max_value: 5, till_language: 'en', selling: true, signup_url: null, set_up_at: '', auto_discount: false, auto_category_ids: [], hours: null },
       week: '2026-11-23',
       members: [
         { id: 'a', customer_id: null, name: 'A', square_customer_id: 'x', status: 'active', started_on: null, ends_on: null, paid: true, paid_through: null, used_this_week: 1, last_coffee: null, coffees: 3, card_code: null, loyalty: null },
@@ -108,5 +108,46 @@ describe('Square’s side', () => {
       { id: '4', status: 'PAID', created_at: '2026-11-01T00:00:00Z' },
     ])
     expect(Object.fromEntries(paid)).toEqual({ S1: true, S2: false })
+  })
+})
+
+describe('The free coffee at set times only', () => {
+  const h = CLUB_HOURS_DEFAULT
+  it('9:00 to 11:00 every day unless changed; times that end after they start, on one day at least', () => {
+    expect(h).toEqual({ from: '09:00', to: '11:00', days: [1, 2, 3, 4, 5, 6, 7] })
+    expect(clubInputProblem({ ...CLUB_DEFAULTS, hours: h })).toBeNull()
+    expect(clubInputProblem({ ...CLUB_DEFAULTS, hours: { ...h, to: '09:00' } })).toMatch(/end after/)
+    expect(clubInputProblem({ ...CLUB_DEFAULTS, hours: { ...h, from: '9am' } })).toMatch(/hours and minutes/)
+    expect(clubInputProblem({ ...CLUB_DEFAULTS, hours: { ...h, to: '24:00' } })).toMatch(/hours and minutes/)
+    expect(clubInputProblem({ ...CLUB_DEFAULTS, hours: { ...h, days: [] } })).toMatch(/one day/)
+    expect(clubInputProblem({ ...CLUB_DEFAULTS, hours: { ...h, days: [0] } })).toMatch(/one day/)
+  })
+
+  it('in the business’s own time: from 9:00, up to (not at) 11:00, on the days chosen', () => {
+    // Wednesday 25 November in Madrid (UTC+1).
+    expect(withinHours('2026-11-25T07:59:00Z', h, 'Europe/Madrid')).toBe(false)
+    expect(withinHours('2026-11-25T08:00:00Z', h, 'Europe/Madrid')).toBe(true)
+    expect(withinHours('2026-11-25T09:59:00Z', h, 'Europe/Madrid')).toBe(true)
+    expect(withinHours('2026-11-25T10:00:00Z', h, 'Europe/Madrid')).toBe(false)
+    expect(withinHours('2026-11-25T09:00:00Z', { ...h, days: [1, 2] }, 'Europe/Madrid')).toBe(false)
+    // Sunday the 29th, 9:30 in Madrid.
+    expect(withinHours('2026-11-29T08:30:00Z', { ...h, days: [7] }, 'Europe/Madrid')).toBe(true)
+    expect(withinHours('2026-11-25T03:00:00Z', null, 'Europe/Madrid')).toBe(true)
+  })
+
+  it('a coffee outside the times doesn’t count; the note and the website say them', () => {
+    expect(clubProblem('SQC1', { id: 'm', status: 'active', paid: true } as never, 0, 1, 1, false)).toBe('outside_hours')
+    expect(hoursText(h)).toBe('9:00–11:00')
+    expect(hoursText({ ...h, days: [1, 2, 3, 4, 5] })).toBe('9:00–11:00, Mon–Fri')
+    expect(hoursText({ from: '08:30', to: '12:00', days: [1, 3, 6, 7] }, 'es')).toBe('8:30–12:00, lun, mié, sáb, dom')
+    expect(noteLine({ ...club, hours: h }, member)).toBe('☕ Coffee club: this week’s coffee is ready (9:00–11:00)')
+    expect(noteLine({ ...club, till_language: 'es', hours: { ...h, days: [1, 2, 3, 4, 5] } }, member)).toBe('☕ Coffee club: el café de esta semana está listo (9:00–11:00, lun–vie)')
+    // Used: no times needed.
+    expect(noteLine({ ...club, hours: h }, { ...member, used_this_week: 1 })).toBe('☕ Coffee club: this week’s coffee used. Next one on Monday')
+  })
+
+  it('Square’s time period: a weekly event from the start, lasting until the end', () => {
+    expect(clubHoursEvent(h)).toBe('BEGIN:VEVENT\nDTSTART:20261123T090000\nDURATION:PT2H\nRRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR,SA,SU\nEND:VEVENT')
+    expect(clubHoursEvent({ from: '08:45', to: '09:15', days: [6, 7] })).toContain('DTSTART:20261123T084500\nDURATION:PT30M\nRRULE:FREQ=WEEKLY;BYDAY=SA,SU')
   })
 })
