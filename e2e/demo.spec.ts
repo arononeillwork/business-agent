@@ -5546,6 +5546,38 @@ test.describe('coffee club', () => {
     await expect(till).not.toContainText('Apply the “Coffee club” discount')
   })
 
+  test('the free coffee only at set times: 9:00 to 11:00 to start, changed here, and the till told', async ({ page }) => {
+    await openClub(page)
+    await page.getByRole('region', { name: 'Set up the coffee club' }).getByRole('button', { name: 'Set up in Square' }).click()
+    await toast(page, 'The coffee club is set up in Square')
+    const settings = page.getByRole('region', { name: 'Club settings' })
+    const till = page.getByRole('region', { name: 'At the till', exact: true })
+    await expect(till).not.toContainText('The free coffee is only from')
+
+    await settings.getByRole('switch', { name: 'Free coffee only at set times' }).click()
+    await expect(settings.getByLabel('From')).toHaveValue('09:00')
+    await expect(settings.getByLabel('Until')).toHaveValue('11:00')
+    await settings.getByRole('button', { name: 'Saturday' }).click()
+    await settings.getByRole('button', { name: 'Sunday' }).click()
+    await settings.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Club settings saved')
+    await expect(till).toContainText('The free coffee is only from 9:00–11:00, Mon–Fri.')
+
+    // Times that end before they start can't be saved.
+    await settings.getByLabel('Until').fill('08:00')
+    await expect(settings).toContainText('The free coffee’s hours must end after they start')
+    await expect(settings.getByRole('button', { name: 'Save' })).toBeDisabled()
+    await settings.getByLabel('Until').fill('11:30')
+    await settings.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Club settings saved')
+    await expect(till).toContainText('9:00–11:30, Mon–Fri')
+
+    await settings.getByRole('switch', { name: 'Free coffee only at set times' }).click()
+    await settings.getByRole('button', { name: 'Save' }).click()
+    await toast(page, 'Club settings saved')
+    await expect(till).not.toContainText('The free coffee is only from')
+  })
+
   test('employees don’t get the coffee club', async ({ page }) => {
     await open(page, '/', 'maria@example.com')
     await expect(page.getByRole('heading', { name: /Hola/ })).toBeVisible()

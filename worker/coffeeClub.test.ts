@@ -7,7 +7,7 @@
 //   - the note on the till: the club's line first, the team's own lines kept, written only when it changes
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { integrations } from './integrations'
-import { coffeeClubEvent, coffeeClubRoutes, siteClub, syncCoffeeClub, RECONNECT } from './coffeeClub'
+import { coffeeClubEvent, coffeeClubRoutes, siteClub, siteClubFeed, syncCoffeeClub, RECONNECT } from './coffeeClub'
 import { businessDb, type Env } from './supabase'
 import { FakeSupabase, type Row } from './test/fakeSupabase'
 import { FakeProviders } from './test/fakeProviders'
@@ -210,6 +210,108 @@ describe('Square takes the free coffee off by itself', () => {
   })
 })
 
+describe('The free coffee at set times only', () => {
+  const NINE_TO_ELEVEN = { from: '09:00', to: '11:00', days: [1, 2, 3, 4, 5, 6, 7] }
+  const drinks = () => apis.square.catalog.push({ type: 'CATEGORY', id: 'cat-coffee', category_data: { name: 'Coffee' } })
+  const of = (id: unknown) => apis.square.catalogObjects.find(o => o.id === id)
+
+  it('9:00 to 11:00: kept, on the page, on the checkout page (the same one) and on the note', async () => {
+    const { variation } = await setUp()
+    apis.square.subscriptions = [sub('S1', 'SQC1', variation)]
+    await syncCoffeeClub(env, b1())
+    const link = db.tables.coffee_club[0].square_link_id
+    const res = await post('/api/coffee-club', club({ hours: NINE_TO_ELEVEN, key: 'key-hours-1' }))
+    expect(res.status).toBe(200)
+    expect((await res.json() as CoffeeClubState).club!.hours).toEqual(NINE_TO_ELEVEN)
+    expect(db.tables.coffee_club[0]).toMatchObject({ hours_from: '09:00', hours_to: '11:00', hours_days: [1, 2, 3, 4, 5, 6, 7], square_link_id: link })
+    const page = apis.square.links.find(l => l.id === link)!
+    expect(page.request.description).toBe('A coffee a week (9:00–11:00) for €10 a month. Charged monthly; cancel any time.')
+    // The notes change on the next look at Square.
+    await syncCoffeeClub(env, b1())
+    expect(apis.square.notes.get('SQC1')!.note).toBe('☕ Coffee club: this week’s coffee is ready (9:00–11:00)')
+    // Weekdays only; then whenever again.
+    await post('/api/coffee-club', club({ hours: { ...NINE_TO_ELEVEN, days: [1, 2, 3, 4, 5] }, key: 'key-hours-2' }))
+    await syncCoffeeClub(env, b1())
+    expect(apis.square.notes.get('SQC1')!.note).toBe('☕ Coffee club: this week’s coffee is ready (9:00–11:00, Mon–Fri)')
+    await post('/api/coffee-club', club({ hours: null, key: 'key-hours-3' }))
+    expect(db.tables.coffee_club[0]).toMatchObject({ hours_from: null, hours_to: null })
+    await syncCoffeeClub(env, b1())
+    expect(apis.square.notes.get('SQC1')!.note).toBe('☕ Coffee club: this week’s coffee is ready')
+    expect(page.request.description).toBe('A coffee a week for €10 a month. Charged monthly; cancel any time.')
+    expect(apis.square.links.filter(l => !l.deleted)).toHaveLength(1)
+  })
+
+  it('times that don’t make sense are refused', async () => {
+    await setUp()
+    const refused = async (hours: unknown) => (await (await post('/api/coffee-club', club({ hours, key: `key-bad-${Math.random()}` }))).json() as { error: string }).error
+    expect(await refused({ from: '11:00', to: '09:00', days: [1] })).toMatch(/end after they start/)
+    expect(await refused({ from: '9', to: '11:00', days: [1] })).toMatch(/hours and minutes/)
+    expect(await refused({ from: '09:00', to: '11:00', days: [] })).toMatch(/at least one day/)
+    expect(db.tables.coffee_club[0].hours_from).toBeNull()
+  })
+
+  it('a coffee with the club’s discount outside the times is kept as outside the hours, not counted', async () => {
+    const { variation, discount } = await setUp()
+    apis.square.subscriptions = [sub('S1', 'SQC1', variation)]
+    await syncCoffeeClub(env, b1())
+    await post('/api/coffee-club', club({ hours: NINE_TO_ELEVEN, key: 'key-hours-1' }))
+    await syncCoffeeClub(env, b1())
+    // 11:15 in Madrid: too late. 10:30: counted.
+    apis.square.clubOrders = [sale('O1', 'SQC1', discount, '2026-11-25T10:15:00Z'), sale('O2', 'SQC1', discount, '2026-11-25T09:30:00Z')]
+    await coffeeClubEvent(env, b1(), completed('O1'))
+    expect(db.tables.coffee_club_coffees).toEqual([expect.objectContaining({ square_order_id: 'O1', problem: 'outside_hours' })])
+    expect(apis.square.notes.get('SQC1')!.note).toMatch(/ready \(9:00–11:00\)/)
+    await coffeeClubEvent(env, b1(), completed('O2'))
+    expect(db.tables.coffee_club_coffees.find(c => c.square_order_id === 'O2')).toMatchObject({ problem: null })
+    expect((await state()).members[0]).toMatchObject({ used_this_week: 1 })
+  })
+
+  it('with Square taking it off by itself: its rule follows the times, kept as one time period', async () => {
+    const { variation } = await setUp()
+    drinks()
+    apis.square.subscriptions = [sub('S1', 'SQC1', variation)]
+    await syncCoffeeClub(env, b1())
+    const auto = (more: Row) => club({ auto_discount: true, auto_category_ids: ['cat-coffee'], ...more })
+    await post('/api/coffee-club', auto({ key: 'key-auto-1' }))
+    expect(db.tables.coffee_club[0].square_time_period_id).toBeNull()
+    expect(of(db.tables.coffee_club[0].square_pricing_rule_id)!.pricing_rule_data).not.toHaveProperty('time_period_ids')
+
+    await post('/api/coffee-club', auto({ hours: NINE_TO_ELEVEN, key: 'key-auto-2' }))
+    const row = db.tables.coffee_club[0]
+    const period = row.square_time_period_id as string
+    expect(of(period)).toMatchObject({ type: 'TIME_PERIOD', time_period_data: {
+      event: 'BEGIN:VEVENT\nDTSTART:20261123T090000\nDURATION:PT2H\nRRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR,SA,SU\nEND:VEVENT' } })
+    expect(of(row.square_pricing_rule_id)).toMatchObject({ pricing_rule_data: { time_period_ids: [period] } })
+
+    // New times: the same period, changed.
+    await post('/api/coffee-club', auto({ hours: { from: '08:30', to: '11:00', days: [1, 2, 3, 4, 5] }, key: 'key-auto-3' }))
+    expect(db.tables.coffee_club[0].square_time_period_id).toBe(period)
+    expect((of(period)!.time_period_data as { event: string }).event).toContain('DTSTART:20261123T083000\nDURATION:PT2H30M\nRRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR')
+
+    // Times off: the rule is for whenever and the period goes; switched off altogether, it goes too.
+    await post('/api/coffee-club', auto({ hours: null, key: 'key-auto-4' }))
+    expect(of(period)).toBeUndefined()
+    expect(db.tables.coffee_club[0].square_time_period_id).toBeNull()
+    expect(of(db.tables.coffee_club[0].square_pricing_rule_id)!.pricing_rule_data).not.toHaveProperty('time_period_ids')
+    await post('/api/coffee-club', auto({ hours: NINE_TO_ELEVEN, key: 'key-auto-5' }))
+    const again = db.tables.coffee_club[0].square_time_period_id
+    await post('/api/coffee-club', club({ hours: NINE_TO_ELEVEN, key: 'key-auto-6' }))
+    expect(of(again)).toBeUndefined()
+    expect(db.tables.coffee_club[0]).toMatchObject({ auto_discount: false, square_time_period_id: null, hours_from: '09:00' })
+  })
+
+  it('the website says the times', async () => {
+    const { variation } = await setUp()
+    apis.square.subscriptions = [sub('S1', 'SQC1', variation)]
+    await syncCoffeeClub(env, b1())
+    // As Postgres gives a time back: "09:00:00".
+    await post('/api/coffee-club', club({ hours: NINE_TO_ELEVEN, key: 'key-hours-1' }))
+    Object.assign(db.tables.coffee_club[0], { hours_from: '09:00:00', hours_to: '11:00:00' })
+    expect(await siteClub(b1(), 'c-someone', null)).toMatchObject({ hours: NINE_TO_ELEVEN })
+    expect(await siteClubFeed(b1(), 1)).toMatchObject({ club: { hours: NINE_TO_ELEVEN } })
+  })
+})
+
 describe('Square Loyalty, for tapping in', () => {
   it('without a programme the page says so; Square failing leaves it unknown, and the page still opens', async () => {
     const { variation } = await setUp()
@@ -356,7 +458,7 @@ describe('Members and their coffees', () => {
     // The database gives each member a code (the club_member_codes migration).
     db.tables.coffee_club_members[0].card_code = '7Q2K9XMB'
     expect(await siteClub(b1(), 'c-lucia', 'SQC1')).toEqual({
-      name: 'Coffee club', price: 10, currency: 'EUR', coffees_per_week: 1, join_url: null,
+      name: 'Coffee club', price: 10, currency: 'EUR', coffees_per_week: 1, hours: null, join_url: null,
       pass: { standing: 'active', used_this_week: 1, left_this_week: 0, week_start: '2026-11-23', started_on: '2026-11-01', ends_on: null, card_code: '7Q2K9XMB' },
     })
     expect(await siteClub(b1(), 'c-someone', null)).toMatchObject({ join_url: db.tables.coffee_club[0].signup_url, pass: null })

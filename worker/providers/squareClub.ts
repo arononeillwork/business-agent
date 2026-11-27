@@ -66,6 +66,13 @@ export async function createSignupLink(sandbox: boolean, token: string, key: str
   return { id: r.payment_link.id, url: r.payment_link.url }
 }
 
+/** A checkout page's description changed in place (its address, and the QR codes printed for it, stay the same). */
+export async function updateSignupDescription(sandbox: boolean, token: string, id: string, description: string) {
+  const path = `/v2/online-checkout/payment-links/${encodeURIComponent(id)}`
+  const { payment_link: link } = await api<{ payment_link: { version: number } }>(sandbox, token, path)
+  await api(sandbox, token, path, { payment_link: { version: link.version, description } }, 'PUT')
+}
+
 /** Takes a checkout page down (already gone is fine). */
 export async function deleteSignupLink(sandbox: boolean, token: string, id: string) {
   try {
@@ -260,10 +267,13 @@ async function versionOf(sandbox: boolean, token: string, id: string | null | un
  * change made in Square meanwhile is refused rather than overwritten; one deleted in Square is made again.
  */
 export async function saveAutoDiscount(sandbox: boolean, token: string, key: string, a: {
-  discountId?: string | null; productSetId?: string | null; ruleId?: string | null
+  discountId?: string | null; productSetId?: string | null; ruleId?: string | null; timePeriodId?: string | null
   name: string; max: number; currency: string; categoryIds: string[]; groupId: string
+  /** Only at these times (the business's time, Monday 1 … Sunday 7); null: whenever. */
+  hours?: { from: string; to: string; days: number[] } | null
 }) {
-  const [dv, sv, rv] = await Promise.all([versionOf(sandbox, token, a.discountId), versionOf(sandbox, token, a.productSetId), versionOf(sandbox, token, a.ruleId)])
+  const [dv, sv, rv, tv] = await Promise.all([versionOf(sandbox, token, a.discountId), versionOf(sandbox, token, a.productSetId),
+    versionOf(sandbox, token, a.ruleId), versionOf(sandbox, token, a.timePeriodId)])
   const keep = (id: string | null | undefined, version: number | null, temp: string) => (id && version !== null ? { id, version } : { id: temp })
   const discountId = (await upsert(sandbox, token, `${key}:discount`, {
     type: 'DISCOUNT', ...keep(a.discountId, dv, '#club-auto-discount'),
@@ -273,11 +283,34 @@ export async function saveAutoDiscount(sandbox: boolean, token: string, key: str
     type: 'PRODUCT_SET', ...keep(a.productSetId, sv, '#club-drinks'),
     product_set_data: { name: `${a.name}: drinks`, product_ids_any: a.categoryIds, quantity_max: 1 },
   })).id
+  // The times: a weekly-repeating period Square's rule follows (an iCalendar event, in the seller's local time).
+  const timePeriodId = a.hours ? (await upsert(sandbox, token, `${key}:hours`, {
+    type: 'TIME_PERIOD', ...keep(a.timePeriodId, tv, '#club-hours'),
+    time_period_data: { event: clubHoursEvent(a.hours) },
+  })).id : null
   const ruleId = (await upsert(sandbox, token, `${key}:rule`, {
     type: 'PRICING_RULE', ...keep(a.ruleId, rv, '#club-rule'),
-    pricing_rule_data: { name: a.name, discount_id: discountId, match_products_id: productSetId, customer_group_ids_any: [a.groupId] },
+    pricing_rule_data: {
+      name: a.name, discount_id: discountId, match_products_id: productSetId, customer_group_ids_any: [a.groupId],
+      ...(timePeriodId ? { time_period_ids: [timePeriodId] } : {}),
+    },
   })).id
-  return { discountId, productSetId, ruleId }
+  // Times taken off: the rule no longer follows the old period, so it goes.
+  if (!a.hours && a.timePeriodId && tv !== null) await deleteCatalogObject(sandbox, token, a.timePeriodId)
+  return { discountId, productSetId, ruleId, timePeriodId }
+}
+
+const ICAL_DAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
+/**
+ * The free coffee's times as Square's time period wants them: an iCalendar event starting on a past Monday at `from`,
+ * lasting until `to`, repeating weekly on the days. Square reads DTSTART without a zone as the seller's local time.
+ */
+export function clubHoursEvent(h: { from: string; to: string; days: number[] }, monday = '20261123') {
+  const minutes = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
+  const length = minutes(h.to) - minutes(h.from)
+  const duration = `PT${Math.floor(length / 60) ? `${Math.floor(length / 60)}H` : ''}${length % 60 ? `${length % 60}M` : ''}`
+  const days = [...new Set(h.days)].sort().map(d => ICAL_DAYS[d - 1]).join(',')
+  return ['BEGIN:VEVENT', `DTSTART:${monday}T${h.from.replace(':', '')}00`, `DURATION:${duration}`, `RRULE:FREQ=WEEKLY;BYDAY=${days}`, 'END:VEVENT'].join('\n')
 }
 
 /** Removes a catalog object (already gone is fine). */

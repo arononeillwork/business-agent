@@ -27,7 +27,7 @@ import { signInCheck } from './signedIn'
 import { zoneOf } from './zone'
 import type { SiteClub, SiteClubFeed } from '../shared/siteAccount'
 import {
-  clubInputProblem, clubProblem, dueACoffee, inGoodStanding, noteLine, standing, weekOf, withNoteLine,
+  clubInputProblem, clubProblem, dueACoffee, hoursText, inGoodStanding, noteLine, standing, weekOf, withinHours, withNoteLine, type ClubHours,
   type ClubCoffee, type ClubMember, type ClubStatus, type CoffeeClubInput, type CoffeeClubSettings, type CoffeeClubState, type TillLanguage,
 } from '../shared/coffeeClub'
 import { addDays, today, weekStart } from '../shared/time'
@@ -56,6 +56,21 @@ interface ClubRow {
   square_discount_id: string | null; square_link_id: string | null; signup_url: string | null; orders_checked_at: string | null; set_up_at: string
   auto_discount: boolean; auto_category_ids: string[] | null; square_group_id: string | null
   square_auto_discount_id: string | null; square_product_set_id: string | null; square_pricing_rule_id: string | null
+  hours_from: string | null; hours_to: string | null; hours_days: number[] | null; square_time_period_id: string | null
+}
+
+/** The free coffee's times as kept ("09:00:00" → "09:00"); null: whenever the café is open. */
+const hoursOf = (c: Pick<ClubRow, 'hours_from' | 'hours_to' | 'hours_days'>): ClubHours | null =>
+  c.hours_from && c.hours_to ? { from: c.hours_from.slice(0, 5), to: c.hours_to.slice(0, 5), days: [...(c.hours_days ?? [1, 2, 3, 4, 5, 6, 7])].sort() } : null
+const sameHours = (a: ClubHours | null, b: ClubHours | null) => JSON.stringify(a) === JSON.stringify(b)
+
+/** What Square's checkout page says: "A coffee a week (9:00–11:00) for €10 a month. Charged monthly; cancel any time." */
+function signupDescription(c: { coffees_per_week: number; till_language: TillLanguage; hours: ClubHours | null }, price: string) {
+  const es = c.till_language === 'es'
+  const per = c.coffees_per_week
+  const what = es ? (per === 1 ? 'Un café a la semana' : `${per} cafés a la semana`) : (per === 1 ? 'A coffee a week' : `${per} coffees a week`)
+  const at = c.hours ? ` (${hoursText(c.hours, c.till_language)})` : ''
+  return es ? `${what}${at} por ${price} al mes. Se cobra cada mes; cancela cuando quieras.` : `${what}${at} for ${price} a month. Charged monthly; cancel any time.`
 }
 interface MemberRow {
   id: string; square_subscription_id: string; square_customer_id: string; square_variation_id: string | null; customer_id: string | null
@@ -163,7 +178,7 @@ export async function recordOrder(db: SupabaseClient, c: ClubRow, o: square.Squa
   const member = members.find(inGoodStanding) ?? members.find(m => m.status === 'active') ?? members[0] ?? null
   let used = member ? (await usedIn(db, week, [member.id])).get(member.id) ?? 0 : 0
   const rows = fresh.map(l => {
-    const problem = clubProblem(customerId, member, used, l.quantity, c.coffees_per_week)
+    const problem = clubProblem(customerId, member, used, l.quantity, c.coffees_per_week, withinHours(at, hoursOf(c), tz))
     if (!problem) used += l.quantity
     return {
       square_order_id: o.id, square_line_uid: l.uid, member_id: member?.id ?? null, square_customer_id: customerId,
@@ -215,7 +230,7 @@ async function writeNotes(db: SupabaseClient, c: ClubRow, s: { sandbox: boolean;
     const current = primary(m)
     // An earlier membership of someone who joined again: the note is the current one's to write; this one only leaves
     // the group (the current one puts the customer back if they're due a coffee).
-    const line = current ? noteLine(c, { ...m, used_this_week: used.get(m.id) ?? 0 }) : null
+    const line = current ? noteLine({ ...c, hours: hoursOf(c) }, { ...m, used_this_week: used.get(m.id) ?? 0 }) : null
     const inGroup = current && !!c.auto_discount && !!c.square_group_id && dueACoffee({ ...m, used_this_week: used.get(m.id) ?? 0 }, c.coffees_per_week)
     const noteChanges = current && line !== m.note_line
     const groupChanges = !!c.square_group_id && (inGroup !== m.in_square_group || (inGroup && takenOut.has(m.square_customer_id)))
@@ -346,7 +361,7 @@ async function failure(db: SupabaseClient, e: unknown) {
 const settingsOf = (c: ClubRow): CoffeeClubSettings => ({
   name: c.name, price: c.price, currency: c.currency, coffees_per_week: c.coffees_per_week, max_value: c.max_value,
   till_language: c.till_language, selling: c.selling, signup_url: c.signup_url, set_up_at: c.set_up_at,
-  auto_discount: !!c.auto_discount, auto_category_ids: c.auto_category_ids ?? [],
+  auto_discount: !!c.auto_discount, auto_category_ids: c.auto_category_ids ?? [], hours: hoursOf(c),
 })
 
 /** Square Loyalty's programme and the Square customers in it, read now and then (provider_cache); null when Square can't say. */
@@ -434,6 +449,7 @@ coffeeClubRoutes.post('/api/coffee-club', async c => {
       max_value: Number(b.max_value), till_language: b.till_language!, selling: b.selling !== false,
       auto_discount: b.auto_discount === true,
       auto_category_ids: [...new Set((Array.isArray(b.auto_category_ids) ? b.auto_category_ids : []).map(String))],
+      hours: b.hours ? { from: String(b.hours.from), to: String(b.hours.to), days: [...new Set((Array.isArray(b.hours.days) ? b.hours.days : []).map(Number))].sort() } : null,
     }
     if (input.auto_category_ids.length > 50 || input.auto_category_ids.some(id => !/^[\w-]{1,191}$/.test(id))) throw new ClubError('Choose the drinks from the list')
     const was = await loadClub(db)
@@ -464,41 +480,46 @@ coffeeClubRoutes.post('/api/coffee-club', async c => {
       await square.deleteSignupLink(s.sandbox, s.token, link.id)
       link = null
     }
+    const description = signupDescription(input, price)
     if (input.selling && !link) {
-      const what = lang === 'es'
-        ? (per === 1 ? 'un café a la semana' : `${per} cafés a la semana`)
-        : (per === 1 ? 'a coffee a week' : `${per} coffees a week`)
       link = await square.createSignupLink(s.sandbox, s.token, `club-link:${b.key}`, {
-        name: business ? `${business}: ${input.name}` : input.name, price: input.price, currency, locationId: location, variationId,
-        description: lang === 'es'
-          ? `${what} por ${price} al mes. Se cobra cada mes; cancela cuando quieras.`
-          : `${what} for ${price} a month. Charged monthly; cancel any time.`,
+        name: business ? `${business}: ${input.name}` : input.name, price: input.price, currency, locationId: location, variationId, description,
       })
+    } else if (link && (!sameHours(hoursOf(was!), input.hours) || was!.till_language !== lang)) {
+      // New times: the same page says them (its address, and the QR codes printed for it, stay).
+      await square.updateSignupDescription(s.sandbox, s.token, link.id, description)
     }
     // Square applies the free coffee by itself: the group, then its discount, drinks and pricing rule (made again only
     // when something they hold changed); off, the pricing rule goes and the group is emptied over the next runs.
     let groupId = was?.square_group_id ?? null
-    let auto = { discountId: was?.square_auto_discount_id ?? null, productSetId: was?.square_product_set_id ?? null, ruleId: was?.square_pricing_rule_id ?? null }
+    let auto = {
+      discountId: was?.square_auto_discount_id ?? null, productSetId: was?.square_product_set_id ?? null, ruleId: was?.square_pricing_rule_id ?? null,
+      timePeriodId: was?.square_time_period_id ?? null,
+    }
     if (input.auto_discount) {
       groupId ??= await square.createGroup(s.sandbox, s.token, `club-group:${b.key}`,
         lang === 'es' ? `${input.name}: café pendiente` : `${input.name}: coffee due`)
       const sameDrinks = [...(was?.auto_category_ids ?? [])].sort().join() === [...input.auto_category_ids].sort().join()
-      if (!was?.auto_discount || !auto.ruleId || !sameDrinks || was.name !== input.name || was.max_value !== input.max_value) {
+      if (!was?.auto_discount || !auto.ruleId || !sameDrinks || was.name !== input.name || was.max_value !== input.max_value
+        || !sameHours(hoursOf(was), input.hours)) {
         auto = await square.saveAutoDiscount(s.sandbox, s.token, `club-auto:${b.key}`, {
-          ...auto, name: input.name, max: input.max_value, currency, categoryIds: input.auto_category_ids, groupId,
+          ...auto, name: input.name, max: input.max_value, currency, categoryIds: input.auto_category_ids, groupId, hours: input.hours,
         })
       }
     } else if (auto.ruleId) {
       await square.deleteCatalogObject(s.sandbox, s.token, auto.ruleId)
-      auto = { ...auto, ruleId: null }
+      if (auto.timePeriodId) await square.deleteCatalogObject(s.sandbox, s.token, auto.timePeriodId)
+      auto = { ...auto, ruleId: null, timePeriodId: null }
     }
+    const { hours, ...settings } = input
     check(await db.from('coffee_club').upsert({
-      id: 1, ...input, currency, ...(was ? {} : { set_up_at: new Date().toISOString() }), square_location_id: location, square_plan_id: planId, square_variation_id: variationId,
+      id: 1, ...settings, currency, ...(was ? {} : { set_up_at: new Date().toISOString() }), square_location_id: location, square_plan_id: planId, square_variation_id: variationId,
+      hours_from: hours?.from ?? null, hours_to: hours?.to ?? null, hours_days: hours?.days ?? [1, 2, 3, 4, 5, 6, 7], square_time_period_id: auto.timePeriodId,
       square_old_variation_ids: old, square_discount_id: discountId, square_link_id: link?.id ?? null, signup_url: link?.url ?? null,
       square_group_id: groupId, square_auto_discount_id: auto.discountId, square_product_set_id: auto.productSetId, square_pricing_rule_id: auto.ruleId,
     }, { onConflict: 'business_id' }))
     // The new week's allowance or wording on every member's note, over the next runs.
-    if (was && (was.coffees_per_week !== per || was.name !== input.name || was.till_language !== lang)) {
+    if (was && (was.coffees_per_week !== per || was.name !== input.name || was.till_language !== lang || !sameHours(hoursOf(was), input.hours))) {
       check(await db.from('coffee_club_members').update({ note_line: null }).neq('status', 'canceled'))
     }
     // Square's automatic discount switched on or off: the group filled or emptied now, as far as one request goes.
@@ -597,7 +618,7 @@ export async function siteClub(db: SupabaseClient, customerId: string, squareCus
   const used = m ? (await usedIn(db, week, [m.id])).get(m.id) ?? 0 : 0
   const st = m ? standing(m) : null
   return {
-    name: c.name, price: c.price, currency: c.currency, coffees_per_week: c.coffees_per_week,
+    name: c.name, price: c.price, currency: c.currency, coffees_per_week: c.coffees_per_week, hours: hoursOf(c),
     join_url: !m && c.selling ? c.signup_url : null,
     pass: m && st && st !== 'ended' ? {
       standing: st, used_this_week: used, left_this_week: inGoodStanding(m) ? Math.max(0, c.coffees_per_week - used) : 0,
@@ -615,7 +636,7 @@ export async function siteClubFeed(db: SupabaseClient, businessId: number): Prom
     version: 1,
     business: { id: businessId, name: ((biz as { name?: string } | null)?.name ?? '').trim() },
     club: {
-      name: c.name, price: c.price, currency: c.currency, coffees_per_week: c.coffees_per_week, max_value: c.max_value,
+      name: c.name, price: c.price, currency: c.currency, coffees_per_week: c.coffees_per_week, max_value: c.max_value, hours: hoursOf(c),
       taking_members: c.selling && !!c.signup_url, signup_url: c.selling ? c.signup_url : null,
     },
     generated_at: new Date().toISOString(),
@@ -659,17 +680,17 @@ export async function clubJoinLink(env: Env, db: SupabaseClient, email: string, 
     squareIds.length ? db.from('coffee_club_members').select('status').in('square_customer_id', squareIds).then(check) as Promise<{ status: ClubStatus }[]> : [],
   ])
   if ([...byCustomer, ...bySquare].some(m => m.status !== 'canceled' && m.status !== 'deactivated')) return { error: 'already_a_member' }
-  const key = `club-join:${(await sha256(`${email}|${c.square_variation_id}|${redirect ?? ''}`)).slice(0, 40)}`
+  const hours = hoursOf(c)
+  const key = `club-join:${(await sha256(`${email}|${c.square_variation_id}|${redirect ?? ''}|${JSON.stringify(hours)}`)).slice(0, 40)}`
   const { data } = await cached(db, key, JOIN_LINK_MINUTES, async () => {
     const s = await squareSession(env, db)
     const lang = c.till_language
     const price = money(c.price, c.currency, lang)
     const per = c.coffees_per_week
-    const what = lang === 'es' ? (per === 1 ? 'un café a la semana' : `${per} cafés a la semana`) : (per === 1 ? 'a coffee a week' : `${per} coffees a week`)
     const name = (business?.name ?? '').trim()
     return square.createSignupLink(s.sandbox, s.token, key, {
       name: name ? `${name}: ${c.name}` : c.name, price: c.price, currency: c.currency, locationId: c.square_location_id!, variationId: c.square_variation_id!,
-      description: lang === 'es' ? `${what} por ${price} al mes. Se cobra cada mes; cancela cuando quieras.` : `${what} for ${price} a month. Charged monthly; cancel any time.`,
+      description: signupDescription({ coffees_per_week: per, till_language: lang, hours }, price),
       buyerEmail: email, ...(redirect ? { redirectUrl: redirect } : {}),
     })
   })

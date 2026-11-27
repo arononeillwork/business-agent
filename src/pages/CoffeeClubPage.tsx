@@ -1,6 +1,6 @@
 import {
   Alert, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, FormControlLabel, InputAdornment,
-  Link, MenuItem, Stack, Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
+  Link, MenuItem, Stack, Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material'
 import CopyIcon from '@mui/icons-material/ContentCopyOutlined'
 import OpenIcon from '@mui/icons-material/OpenInNew'
@@ -15,9 +15,10 @@ import { DecimalField, Empty, ErrorBox, Loading, PageHeader, SectionTitle, StatG
 import { QrPicture, useQrLook } from '../components/QrCode'
 import { formatLocal, formatMoney, today } from '../../shared/time'
 import {
-  CLUB_DEFAULTS, cardCodeText, clubInputProblem, clubTotals, standing,
-  type ClubCoffee, type ClubMember, type ClubProblem, type CoffeeClubInput, type CoffeeClubState, type Standing,
+  CLUB_DEFAULTS, CLUB_HOURS_DEFAULT, cardCodeText, clubInputProblem, clubTotals, hoursText, standing,
+  type ClubCoffee, type ClubHours, type ClubMember, type ClubProblem, type CoffeeClubInput, type CoffeeClubState, type Standing,
 } from '../../shared/coffeeClub'
+import { WEEKDAYS, WEEKDAY_NAMES, WEEKDAY_SHORT } from '../../shared/themeDays'
 import { SQUARE_LOYALTY_SETUP } from '../../shared/loyalty'
 import { tokens } from '../theme'
 import { currentLanguage, msg, t } from '../i18n'
@@ -35,6 +36,7 @@ const PROBLEM: Record<ClubProblem, string> = {
   not_member: msg('The customer added to the sale isn’t a member'),
   not_paid: msg('The member’s payment had failed, or the membership wasn’t active'),
   over_limit: msg('The member had already had this week’s coffees'),
+  outside_hours: msg('It was given outside the free coffee’s hours'),
 }
 const day = (date: string | null) => (date ? formatLocal(`${date}T12:00:00Z`, 'd MMM yyyy') : '–')
 const when = (iso: string | null) => (iso ? formatLocal(iso, 'd MMM, HH:mm') : '–')
@@ -149,6 +151,9 @@ function ClubForm({ initial, first }: { initial: CoffeeClubInput; first?: boolea
           <FormControlLabel control={<Switch checked={v.auto_discount} onChange={e => set({ auto_discount: e.target.checked })} />}
             label={t('Square takes the free coffee off by itself')} />
           {v.auto_discount && <AutoDrinks chosen={v.auto_category_ids} onChange={ids => set({ auto_category_ids: ids })} />}
+          <FormControlLabel control={<Switch checked={!!v.hours} onChange={e => set({ hours: e.target.checked ? initial.hours ?? CLUB_HOURS_DEFAULT : null })} />}
+            label={t('Free coffee only at set times')} />
+          {v.hours && <HoursFields hours={v.hours} onChange={hours => set({ hours })} />}
           {!first && v.price !== initial.price && (
             <Alert severity="info">{t('A new price makes a new sign-up page. Members who joined already keep paying what they joined at.')}</Alert>
           )}
@@ -161,6 +166,29 @@ function ClubForm({ initial, first }: { initial: CoffeeClubInput; first?: boolea
         </Stack>
       </CardContent>
     </Card>
+  )
+}
+
+/** When the free coffee can be had: from and to (the café's own time), on the days chosen. */
+function HoursFields({ hours: h, onChange }: { hours: ClubHours; onChange: (h: ClubHours) => void }) {
+  return (
+    <Stack spacing={1.5}>
+      <Stack direction="row" spacing={1.5}>
+        <TextField type="time" label={t('From')} value={h.from} onChange={e => onChange({ ...h, from: e.target.value })} sx={{ flex: 1 }}
+          slotProps={{ inputLabel: { shrink: true } }} />
+        <TextField type="time" label={t('Until')} value={h.to} onChange={e => onChange({ ...h, to: e.target.value })} sx={{ flex: 1 }}
+          slotProps={{ inputLabel: { shrink: true } }} />
+      </Stack>
+      <Box>
+        <ToggleButtonGroup size="small" value={h.days} aria-label={t('Days')} sx={{ flexWrap: 'wrap' }}
+          onChange={(_, days: number[]) => { if (days.length) onChange({ ...h, days: [...days].sort() }) }}>
+          {WEEKDAYS.map(w => <ToggleButton key={w} value={w} aria-label={t(WEEKDAY_NAMES[w - 1])} sx={{ px: 1.5 }}>{t(WEEKDAY_SHORT[w - 1])}</ToggleButton>)}
+        </ToggleButtonGroup>
+      </Box>
+      <Typography variant="body2" sx={{ color: tokens.inkSoft }}>
+        {t('Outside these times the member pays as usual: Square doesn’t take the coffee off, and their note on the till says the times. A coffee given with the club’s discount outside them is listed for you to look at.')}
+      </Typography>
+    </Stack>
   )
 }
 
@@ -198,13 +226,13 @@ function Club({ state: s }: { state: CoffeeClubState }) {
       </StatGrid>
       {problems.length > 0 && <Problems coffees={problems} />}
       <SignUp url={club.signup_url} />
-      <AtTheTill name={club.name} auto={club.auto_discount} />
+      <AtTheTill name={club.name} auto={club.auto_discount} hours={club.hours} />
       <TapToCheckIn program={s.loyalty_program} members={s.members} />
       <Members members={s.members} perWeek={club.coffees_per_week} />
       <Latest coffees={s.coffees.filter(c => !c.problem || c.sorted_at).slice(0, 15)} />
       <ClubForm key={JSON.stringify(club)} initial={{
         name: club.name, price: club.price, coffees_per_week: club.coffees_per_week, max_value: club.max_value, till_language: club.till_language, selling: club.selling,
-        auto_discount: club.auto_discount, auto_category_ids: club.auto_category_ids,
+        auto_discount: club.auto_discount, auto_category_ids: club.auto_category_ids, hours: club.hours,
       }} />
     </>
   )
@@ -268,7 +296,7 @@ function SignUp({ url }: { url: string | null }) {
 }
 
 /** What the team does on the Square till, to show them: with Square taking the coffee off by itself, one step fewer. */
-function AtTheTill({ name, auto }: { name: string; auto: boolean }) {
+function AtTheTill({ name, auto, hours }: { name: string; auto: boolean; hours: ClubHours | null }) {
   return (
     <Card component="section" aria-label={t('At the till')} sx={{ mb: 3 }}>
       <CardContent>
@@ -285,6 +313,11 @@ function AtTheTill({ name, auto }: { name: string; auto: boolean }) {
             </>
           )}
         </Box>
+        {hours && (
+          <Typography sx={{ mt: 1 }}>
+            {t('The free coffee is only from {hours}. Outside then, charge the drink as usual.', { hours: hoursText(hours, currentLanguage() === 'es' ? 'es' : 'en') })}
+          </Typography>
+        )}
         <Typography variant="body2" sx={{ mt: 1, color: tokens.inkSoft }}>
           {t('The note changes within a minute of the sale, and every Monday for the new week.')}
         </Typography>

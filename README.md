@@ -1089,6 +1089,13 @@ coffees a week, whether it's taking members) to show the offer, and asks for eac
 checkout page (`POST /api/site/<business>/account/club/join`), with their email filled in and back to the website
 once paid, so their pass shows on their account page (docs/WEBSITE.md → The coffee club).
 
+**Free coffee only at set times.** Switched on in the club settings (9:00 to 11:00 to start; the times and days can
+be changed there), the free coffee is only for those hours, in the business's own time: Square's automatic discount
+follows them (a time period on its pricing rule), the note on the till and the checkout page say them ("this week's
+coffee is ready (9:00–11:00)"), and a coffee given with the club's discount outside them is kept under **Coffees to
+look at** ("outside the free coffee's hours") rather than counted. The website gets them as `hours` (the club_hours
+migration).
+
 ## Use it from any AI
 
 The app is an MCP server at `https://<worker-url>/mcp`. Each person connects their own AI and it
