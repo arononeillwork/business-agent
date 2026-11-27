@@ -1695,20 +1695,22 @@ test.describe('opening hours', () => {
     await expect(page.getByRole('dialog', { name: 'Add shift' }).getByText('The café is closed that day: Fiesta Nacional de España')).toBeVisible()
   })
 
-  test('@phone the headings once at the top, each day’s four times on a line under them, nothing wider than the screen', async ({ page }) => {
+  test('@phone each day: its name with Break and Open, then its hours in the order they happen, nothing wider than the screen', async ({ page }) => {
     await open(page, '/opening-hours')
     const week = page.getByRole('region', { name: 'Weekly hours' })
     await week.getByLabel('Closes for a break on Thursday').check()
-    // Each heading once, not on every day; each field still says which it is, and the day.
-    for (const heading of ['Opens', 'Closes', 'Closed from', 'Reopens']) {
-      await expect(week.getByText(heading, { exact: true })).toHaveCount(1)
-      await expect(week.getByText(heading, { exact: true })).toBeVisible()
-    }
+    // Each time still says which it is, and the day.
     await expect(week.getByLabel(/^Opens on /)).toHaveCount(7)
-    const thursday = ['Opens', 'Closes', 'Closed from', 'Reopens'].map(f => week.getByLabel(`${f} on Thursday`, { exact: true }))
+    // Thursday reads as it happens, on one line: 08:00 – 14:00, then 17:00 – 18:00.
+    const thursday = ['Opens', 'Closed from', 'Reopens', 'Closes'].map(f => week.getByLabel(`${f} on Thursday`, { exact: true }))
+    for (const [i, time] of ['08:00', '14:00', '17:00', '18:00'].entries()) await expect(thursday[i]).toHaveValue(time)
     await thursday[3].scrollIntoViewIfNeeded()
-    const tops = await Promise.all(thursday.map(async f => Math.round((await f.boundingBox())!.y)))
-    expect(new Set(tops).size, 'Thursday’s four times on one line').toBe(1)
+    const boxes = await Promise.all(thursday.map(async f => (await f.boundingBox())!))
+    expect(new Set(boxes.map(b => Math.round(b.y))).size, 'Thursday’s times on one line').toBe(1)
+    expect(boxes.map(b => b.x), 'left to right in the order they happen').toEqual([...boxes.map(b => b.x)].sort((x, y) => x - y))
+    // Switched off, a day says it's closed and has no times.
+    await week.getByLabel('Open on Sunday').uncheck()
+    await expect(week.getByLabel('Opens on Sunday')).toHaveCount(0)
     // A common Android width and a small one: no scrolling sideways, Thursday's last time on screen.
     for (const width of [412, 360]) {
       await page.setViewportSize({ width, height: 915 })

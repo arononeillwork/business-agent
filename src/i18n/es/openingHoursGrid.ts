@@ -1,4 +1,4 @@
-// Opening hours: the headings once at the top, and each day's times named for screen readers.
+// Opening hours: each day's Break box, and its times named for screen readers.
 export default {
   'hours|Break': 'Mediodía',
   'Opens on {day}': 'Abre: {day}',
