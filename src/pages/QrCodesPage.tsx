@@ -27,6 +27,8 @@ import {
   QR_KINDS, QR_LIMITS, QR_PLACES, WIFI_SECURITY, brandDark, colourProblem, qrCaption, qrColours, qrFileName, qrMissing, qrPayload, qrProblem, qrSuggestions,
   sortQrCodes, QR_LIGHT, type QrCode, type QrCodeInput, type QrKind, type QrSuggestion, type WifiSecurity,
 } from '../../shared/qrCodes'
+import { suggestionBoxUrl } from '../../shared/suggestionBox'
+import { businessConfig } from '../../shared/business.config'
 import { tokens } from '../theme'
 import { t, tc } from '../i18n'
 
@@ -47,7 +49,9 @@ export function QrCodesPage() {
   const [editing, setEditing] = useState<QrCode | QrCodeInput | null>(null)
   const list = sortQrCodes(codes.data ?? [])
   const placeId = competitors.data?.competitors.find(c => c.is_self)?.place_id ?? null
-  const suggestions = isAdmin && codes.data ? qrSuggestions(list, { website: business?.website, placeId, translate: suggested }) : []
+  // The suggestion box at the app's own address (a printed code keeps working whichever address the app was opened at).
+  const suggestionBox = business?.id ? suggestionBoxUrl(businessConfig.appUrl, business.id) : null
+  const suggestions = isAdmin && codes.data ? qrSuggestions(list, { website: business?.website, placeId, suggestionBox, translate: suggested }) : []
   const run = useAction()
   const move = (i: number, by: -1 | 1) => {
     const ids = list.map(c => c.id)

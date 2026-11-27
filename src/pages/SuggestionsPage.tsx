@@ -13,6 +13,7 @@ import {
   type CollisionDetection, type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core'
 import { useState, type ReactNode } from 'react'
+import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
 import { useAction } from '../app/Notify'
@@ -114,6 +115,11 @@ export function SuggestionsPage() {
       <ErrorBox error={data.error} />
       <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2, maxWidth: 760 }}>
         {t('Ideas customers give us, for the team only. Add them here or through your AI assistant (“a customer suggested…”). Drag ideas that say the same thing into one section: its counter shows how many times customers asked.')}
+      </Typography>
+      {/* Customers' own, from the Suggestion box QR code (worker/suggestionBox.ts). */}
+      <Typography variant="body2" sx={{ color: 'text.secondary', mt: -1, mb: 2, maxWidth: 760 }}>
+        {t('Customers can send their own too: what they write from the Suggestion box QR code arrives here in Not sorted yet.')}
+        {isAdmin && <Button size="small" component={RouterLink} to="/qr-codes" sx={{ ml: 0.5, py: 0 }}>{t('Print the code')}</Button>}
       </Typography>
 
       {data.data && !board.total && !groups.length ? (

@@ -116,6 +116,20 @@ describe('QR codes', () => {
     expect(onWebsite('easybeanscoffee.com', 'menu')).toBe('https://easybeanscoffee.com/menu')
   })
 
+  it('suggests the suggestion box at its address, until the business has it (by name, in either language, or by its link)', () => {
+    const box = 'https://businesssagent.com/api/site/7/suggest'
+    const all = qrSuggestions([], { suggestionBox: box })
+    expect(all.map(s => s.key)).toEqual(['menu', 'competition', 'wifi', 'suggestions'])
+    expect(all[3]).toMatchObject({ label: 'Suggestion box', code: { name: 'Suggestion box', kind: 'link', url: box, used_where: 'On the tables',
+      caption: 'Got an idea for us? Scan to tell us' } })
+    const es = (s: string) => (s === 'Suggestion box' ? 'Buzón de sugerencias' : s)
+    for (const have of [[code({ name: 'suggestion box' })], [code({ name: 'Buzón de sugerencias' })], [code({ name: 'Ideas', url: box })]]) {
+      expect(qrSuggestions(have, { suggestionBox: box, translate: es }).map(s => s.key)).not.toContain('suggestions')
+    }
+    // No business number yet: nowhere for it to go.
+    expect(qrSuggestions([], { suggestionBox: null }).map(s => s.key)).not.toContain('suggestions')
+  })
+
   it('orders, names files and captions them', () => {
     expect(sortQrCodes([code({ id: 'b', name: 'B', sort: 2 }), code({ id: 'a', name: 'A', sort: 1 })]).map(c => c.id)).toEqual(['a', 'b'])
     expect(qrFileName('Wi-Fi del café')).toBe('wi-fi-del-cafe-qr-code')

@@ -53,6 +53,7 @@ import { cameras, purgeCameraClips } from './cameras'
 import { competitors, watchCompetitors } from './competitors'
 import { push, pushNotifications } from './push'
 import { repPage } from './repPage'
+import { suggestionBox } from './suggestionBox'
 import { postIdeas } from './postIdeas'
 import { ideas, readIdeasChat } from './instagramIdeas'
 import { socialAnalytics } from './socialAnalytics'
@@ -347,6 +348,8 @@ app.route('/', siteAccount)
 // Newsletter sign-ups from the business's own website, into Customers (worker/newsletter.ts). Before the menu's
 // routes, so a sign-up's CORS check is answered here.
 app.route('/', newsletter)
+// The suggestion box: ideas customers send from its QR code, onto the Suggestions page (worker/suggestionBox.ts).
+app.route('/', suggestionBox)
 // The business's own website: its menu, read with no sign-in once the business turns it on (worker/site.ts).
 app.route('/', site)
 

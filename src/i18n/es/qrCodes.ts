@@ -81,6 +81,7 @@ export default {
   'Scan for the menu': 'Escanea para ver la carta',
   'Scan to enter the competition': 'Escanea para participar en el sorteo',
   'Enjoyed it? Scan to leave us a review': '¿Te ha gustado? Escanea y déjanos una reseña',
+  'Got an idea for us? Scan to tell us': '¿Tienes una idea? Escanea y cuéntanosla',
   // Suggestions
   'qr|Competition': 'Sorteo',
   'Google review': 'Reseña de Google',
@@ -88,6 +89,7 @@ export default {
   'For the screen or a poster: how to enter': 'Para la pantalla o un cartel: cómo participar',
   'Customers join the Wi-Fi without typing the password': 'Los clientes se conectan al wifi sin escribir la contraseña',
   'Straight to leaving a review on Google': 'Directo a dejar una reseña en Google',
+  'Customers send their ideas: they land on the Suggestions page': 'Los clientes envían sus ideas y llegan a la página Sugerencias',
   // Printing
   'That QR code has gone.': 'Ese código QR ya no está.',
   'Back to QR codes': 'Volver a Códigos QR',

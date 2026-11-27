@@ -45,4 +45,9 @@ export default {
   'Keep where it was heard to 80 characters': 'Dónde se oyó puede tener hasta 80 caracteres',
   'Give the section a name': 'Ponle un nombre a la sección',
   'Keep the section name to 120 characters': 'El nombre de la sección puede tener hasta 120 caracteres',
+  // The suggestion box: customers' own ideas, from its QR code.
+  'Suggestion box': 'Buzón de sugerencias',
+  'Customers can send their own too: what they write from the Suggestion box QR code arrives here in Not sorted yet.':
+    'Los clientes también pueden enviar las suyas: lo que escriben desde el código QR del buzón de sugerencias llega aquí, a Sin ordenar.',
+  'Print the code': 'Imprimir el código',
 } satisfies Record<string, string>

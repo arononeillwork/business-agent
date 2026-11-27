@@ -1,5 +1,6 @@
 -- QR codes (the `qr_codes` migration): Easy Beans starts with its menu, competition and Wi-Fi codes in
--- the owner's order, the Wi-Fi waiting for its network; the team reads them, admins change them, the
+-- the owner's order, the Wi-Fi waiting for its network, and its Suggestion box after them (the
+-- `suggestion_box` migration); the team reads them, admins change them, the
 -- café tablet sees none, and another business sees none of them (nor they its own).
 -- People from the tests before it: maria (admin), julio (employee); qr-tablet is new here.
 
@@ -22,16 +23,17 @@ reset role; select set_config('request.jwt.claim.sub', '', false);
 insert into auth.users (email, raw_user_meta_data, invited_at) values ('qr-tablet@test', '{"full_name":"Tablet"}', now());
 update public.profiles set role = 'kiosk' where email = 'qr-tablet@test';
 
--- 1. Easy Beans' three codes, in order: the menu on the tables, the competition on the café screen,
---    and the Wi-Fi on the counter with no network or password yet.
+-- 1. Easy Beans' codes, in order: the menu on the tables, the competition on the café screen, the
+--    Wi-Fi on the counter with no network or password yet, and the suggestion box on the tables.
 select pg_temp.act_as('julio@test');
 do $$ begin
   assert (select array_agg(name || ':' || kind || ':' || coalesce(used_where, '-') order by sort) from public.qr_codes)
-    = array['Menu:link:On the tables', 'Competition:link:On the café screen', 'Wi-Fi:wifi:On the counter'], 'the three codes';
+    = array['Menu:link:On the tables', 'Competition:link:On the café screen', 'Wi-Fi:wifi:On the counter', 'Suggestion box:link:On the tables'], 'the four codes';
   assert (select url from public.qr_codes where name = 'Menu') = 'https://easybeanscoffee.com/menu', 'the menu link';
   assert (select url from public.qr_codes where name = 'Competition') = 'https://easybeanscoffee.com/competition', 'the competition link';
   assert (select wifi_ssid is null and wifi_password is null and wifi_security = 'WPA' and not wifi_hidden from public.qr_codes where name = 'Wi-Fi'),
     'the Wi-Fi waits for its network';
+  assert (select url from public.qr_codes where name = 'Suggestion box') = 'https://businesssagent.com/api/site/1/suggest', 'the suggestion box link';
 end $$;
 
 -- 2. An employee reads them and changes none of them.
@@ -45,7 +47,7 @@ begin
   delete from public.qr_codes;
   get diagnostics n = row_count;
   assert n = 0, 'removes none';
-  assert (select count(*) from public.qr_codes) = 3, 'all three still there';
+  assert (select count(*) from public.qr_codes) = 4, 'all four still there';
 end $$;
 
 -- 3. The café tablet sees none.
@@ -67,9 +69,9 @@ begin
   returning * into v;
   assert v.name = 'Instagram' and v.url = 'https://instagram.com/easy.beans.coffee' and v.used_where is null and v.caption = 'Follow us', 'tidied';
   assert v.updated_by = auth.uid() and v.business_id = 1, 'stamped, and Easy Beans''';
-  assert (select array_agg(name order by sort) from public.qr_codes) = array['Instagram', 'Menu', 'Competition', 'Wi-Fi'], 'first';
+  assert (select array_agg(name order by sort) from public.qr_codes) = array['Instagram', 'Menu', 'Competition', 'Wi-Fi', 'Suggestion box'], 'first';
   update public.qr_codes set sort = 9 where name = 'Instagram';
-  assert (select array_agg(name order by sort) from public.qr_codes) = array['Menu', 'Competition', 'Wi-Fi', 'Instagram'], 'now last';
+  assert (select array_agg(name order by sort) from public.qr_codes) = array['Menu', 'Competition', 'Wi-Fi', 'Suggestion box', 'Instagram'], 'now last';
   insert into public.qr_codes (name, kind, content) values ('Table 4', 'text', ' Table 4 ');
   insert into public.qr_codes (name, kind, wifi_ssid, wifi_security, wifi_hidden) values ('Staff Wi-Fi', 'wifi', 'Señor café', 'nopass', true);
 end $$;
@@ -84,7 +86,7 @@ select pg_temp.expect_error($q$insert into public.qr_codes (name, dark_colour) v
 select pg_temp.expect_error($q$insert into public.qr_codes (name) values ('   ')$q$, 'qr_codes_name_check');
 do $$ begin
   delete from public.qr_codes where name in ('Instagram', 'Table 4', 'Staff Wi-Fi');
-  assert (select count(*) from public.qr_codes) = 3, 'removed';
+  assert (select count(*) from public.qr_codes) = 4, 'removed';
   update public.qr_codes set wifi_ssid = '', wifi_password = '' where name = 'Wi-Fi';
   assert (select wifi_ssid is null and wifi_password is null from public.qr_codes where name = 'Wi-Fi'), 'emptied back to waiting';
 end $$;
@@ -110,7 +112,7 @@ do $$ begin
 end $$;
 select pg_temp.act_as('maria@test');
 do $$ begin
-  assert (select count(*) from public.qr_codes) = 3, 'Easy Beans sees only its own';
+  assert (select count(*) from public.qr_codes) = 4, 'Easy Beans sees only its own';
   assert (select url from public.qr_codes where name = 'Menu') = 'https://easybeanscoffee.com/menu', 'and its Menu unchanged';
 end $$;
 rollback;

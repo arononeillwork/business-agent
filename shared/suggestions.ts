@@ -45,10 +45,12 @@ export const USUAL_SOURCES: string[] = [
 ]
 /** Offered before: ideas kept with them still show them in the person's language. */
 const EARLIER_SOURCES: string[] = [msg('At the counter'), msg('Website')]
+/** Ideas customers send themselves from the Suggestion box QR code (shared/suggestionBox.ts). */
+export const SUGGESTION_BOX_SOURCE = msg('Suggestion box')
 
 /** Whether a source is one of the usual ones (kept in English, shown translated). */
 export const isUsualSource = (source: string | null | undefined): source is string =>
-  !!source && (USUAL_SOURCES.includes(source) || EARLIER_SOURCES.includes(source))
+  !!source && (USUAL_SOURCES.includes(source) || EARLIER_SOURCES.includes(source) || source === SUGGESTION_BOX_SOURCE)
 
 /**
  * A source as it's kept: a usual one typed in English or in the person's language (`translate`, the page's
@@ -57,7 +59,7 @@ export const isUsualSource = (source: string | null | undefined): source is stri
 export function sourceToKeep(typed: string | null | undefined, translate: (s: string) => string = s => s): string {
   const q = fold(typed ?? '')
   if (!q) return tidy(typed)
-  return [...USUAL_SOURCES, ...EARLIER_SOURCES].find(s => fold(s) === q || fold(translate(s)) === q) ?? tidy(typed)
+  return [...USUAL_SOURCES, ...EARLIER_SOURCES, SUGGESTION_BOX_SOURCE].find(s => fold(s) === q || fold(translate(s)) === q) ?? tidy(typed)
 }
 
 const tidy = (s: string | null | undefined) => (s ?? '').replace(/\s+/g, ' ').trim()
