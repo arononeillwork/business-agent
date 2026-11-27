@@ -1,8 +1,7 @@
 import {
-  Alert, Box, Button, Card, CardContent, Checkbox, FormControlLabel, Grid, Stack, TextField, Typography,
+  Alert, Box, Button, Card, CardContent, Checkbox, FormControlLabel, Grid, InputBase, Stack, Switch, Typography,
 } from '@mui/material'
-import type { SxProps, Theme } from '@mui/material/styles'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useApp } from '../app/AppContext'
 import { useAsync } from '../app/hooks'
@@ -21,73 +20,77 @@ const DAY_LABELS: Record<DayKey, string> = {
 /** The day without its break. */
 const withoutBreak = ({ open, close }: DayHours): DayHours => ({ open, close })
 
-// The week is a grid, the headings' row and every day's alike, sized by the card (not the screen), so it
-// fits whatever the menu beside it leaves. A wide card (a computer): one line a day, the day, its two boxes and
-// its four times. A narrow one (a phone, a tablet): the day and its boxes, then its four times under the headings.
-const WIDE = '@container (min-width: 880px)'
-/** A big monitor: the columns stop growing, so the times don't stretch across it. */
-const HUGE = '@container (min-width: 1100px)'
-/** Too narrow for the time fields' clock buttons and their usual padding (a phone, a small tablet). */
+// The week is a grid, every day's line alike, sized by the card (not the screen), so it fits whatever the menu
+// beside it leaves. A narrow card (a phone, a tablet): the day with its Break and Open switches, then the hours it's
+// open under it, in order: one span, or two either side of its break (09:00 – 14:00, 17:00 – 20:00). A wide card
+// (a computer): all of that on one line a day.
+const WIDE = '@container (min-width: 820px)'
+/** Too narrow for the time fields' clock buttons (a phone, a small tablet). */
 const NARROW = '@container (max-width: 599.98px)'
-/** A 12-hour clock ("06:00 PM") takes more room than "18:00": on a phone its times get a smaller font, to fit. */
+/** A 12-hour clock ("06:00 PM") takes more room than "18:00": on a phone a day's two spans go one under the other. */
 const TWELVE_HOUR = (() => {
   try { return /^h1[12]$/.test(new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions().hourCycle ?? '') } catch { return false }
 })()
 const COLUMNS = {
-  display: 'grid', alignItems: 'center', columnGap: 1, rowGap: 0.75,
-  gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-  gridTemplateAreas: '"day day ticks ticks" "opens closes from reopens"',
+  display: 'grid', alignItems: 'center', columnGap: 1.25, rowGap: 1,
+  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+  gridTemplateAreas: TWELVE_HOUR ? '"head head" "first first" "second second"' : '"head head" "first second"',
   [WIDE]: {
-    columnGap: 1.5,
-    gridTemplateColumns: 'minmax(100px, 0.8fr) 56px repeat(2, minmax(0, 1fr)) 120px repeat(2, minmax(0, 1fr))',
-    gridTemplateAreas: '"day open opens closes brk from reopens"',
+    columnGap: 2, gridAutoRows: 'minmax(44px, auto)',
+    gridTemplateColumns: 'minmax(110px, 180px) repeat(2, minmax(0, 230px)) minmax(0, 1fr) auto',
+    gridTemplateAreas: '"day first second . switches"',
   },
-  [HUGE]: { gridTemplateColumns: '160px 56px repeat(2, 170px) 132px repeat(2, 170px)' },
 }
 /** What staff see: each day and its hours. */
 const STAFF_COLUMNS = {
   display: 'grid', alignItems: 'center', columnGap: 2, gridTemplateColumns: 'minmax(0, 1fr) auto', gridTemplateAreas: '"day hours"',
   [WIDE]: { gridTemplateColumns: 'minmax(110px, 200px) minmax(0, 1fr)' },
 }
-const ROW = { borderTop: 1, borderColor: 'divider', py: 1.25, [WIDE]: { py: 1 } }
-/** The two boxes: side by side at the end of the day's line, or each in its column on a wide card. */
-const TICKS = { gridArea: 'ticks', display: 'flex', justifySelf: 'end', [WIDE]: { display: 'contents' } }
-const tick = (area: 'open' | 'brk') => ({ gridArea: area, width: 60, display: 'flex', justifyContent: 'center', textAlign: 'center', [WIDE]: { width: 'auto' } })
-/** Text in a time's column starts where the times do. */
-const INSET = { pl: 1.25, [NARROW]: { pl: 0.75 } }
-const TIME = {
-  '& .MuiInputBase-root': { height: 40 },
-  '& .MuiInputBase-input': { px: 1.25, fontVariantNumeric: 'tabular-nums' },
-  [NARROW]: {
-    // Four to a line, each a quarter of the card less the gaps; "06:00 PM" in a smaller font.
-    '& .MuiInputBase-input': TWELVE_HOUR ? { px: 0.5, fontSize: 'min(1em, calc((100cqi - 56px) / 20))' } : { px: 0.75 },
-    '& input::-webkit-calendar-picker-indicator': { display: 'none' },
+const ROW = { borderTop: 1, borderColor: 'divider', py: 1.5, [WIDE]: { py: 1.25 } }
+/** The day and its switches on one line; on a wide card each in its own column. */
+const HEAD = {
+  gridArea: 'head', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, minHeight: 40,
+  [WIDE]: { display: 'contents' },
+}
+const SWITCHES = { gridArea: 'switches', display: 'flex', alignItems: 'center', flexShrink: 0, gap: 1.5, mr: -1 }
+/** A switch with its word before it ("Break ☐", "Open ●"): the word says it, and a tap on it works too. */
+const LABELLED = { m: 0, gap: 0.25, '& .MuiFormControlLabel-label': { fontSize: '0.875rem', color: 'text.secondary' }, '& .MuiCheckbox-root': { p: 0.75 } }
+/** One span the café is open: a single box, its two times either side of a dash. */
+const SPAN = {
+  display: 'flex', alignItems: 'center', minWidth: 0, height: 44, px: 0.5,
+  border: 1, borderColor: tokens.lineStrong, borderRadius: '12px', bgcolor: tokens.surface,
+  transition: 'border-color 120ms, box-shadow 120ms',
+  '&:hover': { borderColor: tokens.inkFaint },
+  '&:focus-within': { borderColor: tokens.roseDeep, boxShadow: `inset 0 0 0 1px ${tokens.roseDeep}` },
+  '& .MuiInputBase-root': { flex: '1 1 0', minWidth: 0, height: '100%', font: 'inherit', fontSize: '1rem' },
+  '& .MuiInputBase-root.Mui-error': { color: 'error.main' },
+  '& .MuiInputBase-input': {
+    height: '100%', minWidth: 0, p: 0, boxSizing: 'border-box', textAlign: 'center', fontVariantNumeric: 'tabular-nums', cursor: 'pointer',
+    // A phone's own look for a time is a drop-down with its arrow, which leaves the time no room ("09:0"): plain text instead.
+    appearance: 'none', WebkitAppearance: 'none',
   },
-}
-/** Where "Closed" goes on a day that doesn't open: across its times. */
-const CLOSED = { gridColumn: '1 / -1', gridRow: 2, [WIDE]: { gridColumn: '3 / -1', gridRow: 1 } }
-
-function Heading({ sx, children }: { sx?: SxProps<Theme>; children: ReactNode }) {
-  return (
-    <Typography variant="caption" sx={[{ color: 'text.secondary', fontWeight: 600, lineHeight: 1.3 }, ...(Array.isArray(sx) ? sx : [sx])]}>
-      {children}
-    </Typography>
-  )
+  '& input::-webkit-date-and-time-value': { m: 0, textAlign: 'center' },
+  // A computer's clock button (it opens a list of times) only shows while the box is pointed at or in use.
+  '& input::-webkit-calendar-picker-indicator': { ml: 0.25, opacity: 0, cursor: 'pointer', transition: 'opacity 120ms' },
+  '&:hover input::-webkit-calendar-picker-indicator, &:focus-within input::-webkit-calendar-picker-indicator': { opacity: 0.5 },
+  [NARROW]: { '& input::-webkit-calendar-picker-indicator': { display: 'none' } },
 }
 
-function Muted({ sx, quiet, children }: { sx?: SxProps<Theme>; quiet?: boolean; children: ReactNode }) {
-  return (
-    <Typography aria-hidden={quiet || undefined} sx={[INSET, { color: quiet ? tokens.inkFaint : 'text.secondary' }, ...(Array.isArray(sx) ? sx : [sx])]}>
-      {children}
-    </Typography>
-  )
+type Time = { label: string; value: string; error?: boolean; onChange: (v: string) => void }
+
+/** A time in a span; its name says which and the day ("Reopens on Thursday"). */
+function TimeInput({ label, value, error, onChange }: Time) {
+  return <InputBase type="time" value={value} error={error} onChange={e => onChange(e.target.value)} inputProps={{ 'aria-label': label }} />
 }
 
-/** A time under its heading; its name says which and the day ("Reopens on Thursday"). */
-function TimeField({ area, label, value, error, onChange }: { area: string; label: string; value: string; error?: boolean; onChange: (v: string) => void }) {
+/** From one time to the other, in one box. */
+function Span({ area, from, to }: { area: string; from: Time; to: Time }) {
   return (
-    <TextField type="time" value={value} error={error} onChange={e => onChange(e.target.value)} sx={[{ gridArea: area }, TIME]}
-      slotProps={{ htmlInput: { 'aria-label': label } }} />
+    <Box sx={[SPAN, { gridArea: area }, (!!from.error || !!to.error) && { borderColor: 'error.main', '&:hover': { borderColor: 'error.main' } }]}>
+      <TimeInput {...from} />
+      <Box component="span" aria-hidden sx={{ color: 'text.secondary', flexShrink: 0, px: 0.5 }}>{'–'}</Box>
+      <TimeInput {...to} />
+    </Box>
   )
 }
 
@@ -119,26 +122,7 @@ export function OpeningHoursPage() {
           <Card component="section" aria-label={t('Weekly hours')}>
             <CardContent sx={{ px: { xs: 2, sm: 3 } }}>
               <Box sx={{ containerType: 'inline-size' }}>
-                {/* On a narrow card the boxes' headings share the title's line, over the boxes at the end of each day's. */}
-                <SectionTitle action={isAdmin && (
-                  <Box aria-hidden sx={{ display: 'flex', alignSelf: 'end', [WIDE]: { display: 'none' } }}>
-                    <Heading sx={tick('open')}>{tc('hours', 'Open')}</Heading>
-                    <Heading sx={tick('brk')}>{tc('hours', 'Break')}</Heading>
-                  </Box>
-                )}>{t('Every week')}</SectionTitle>
-                {isAdmin && (
-                  // The headings, once: every day's boxes and times line up under them (each field has its own name, with its day).
-                  <Box aria-hidden sx={[COLUMNS, { alignItems: 'end', rowGap: 0, pb: 0.75 }]}>
-                    <Box sx={{ ...TICKS, display: 'none' }}>
-                      <Heading sx={tick('open')}>{tc('hours', 'Open')}</Heading>
-                      <Heading sx={tick('brk')}>{t('Closes for a break')}</Heading>
-                    </Box>
-                    <Heading sx={[INSET, { gridArea: 'opens' }]}>{t('Opens')}</Heading>
-                    <Heading sx={[INSET, { gridArea: 'closes' }]}>{t('Closes')}</Heading>
-                    <Heading sx={[INSET, { gridArea: 'from' }]}>{t('Closed from')}</Heading>
-                    <Heading sx={[INSET, { gridArea: 'reopens' }]}>{t('Reopens')}</Heading>
-                  </Box>
-                )}
+                <SectionTitle>{t('Every week')}</SectionTitle>
                 {DAY_KEYS.map(d => {
                   const h = hours[d]
                   const day = t(DAY_LABELS[d])
@@ -157,43 +141,36 @@ export function OpeningHoursPage() {
                         : <Typography sx={{ gridArea: 'hours', color: 'text.secondary' }}>{t('Closed')}</Typography>}
                     </Box>
                   )
+                  const opens: Time = { label: t('Opens on {day}', { day }), value: h?.open ?? '', onChange: open => h && setDay(d, { ...h, open }) }
+                  const closes: Time = { label: t('Closes on {day}', { day }), value: h?.close ?? '', error: bad, onChange: close => h && setDay(d, { ...h, close }) }
                   return (
                     <Box key={d} sx={[COLUMNS, ROW]}>
-                      {name}
-                      <Box sx={TICKS}>
-                        {/* A ticked "Open" box: unticked means closed all day. */}
-                        <Box sx={tick('open')}>
-                          <Checkbox checked={!!h} slotProps={{ input: { 'aria-label': t('Open on {day}', { day }) } }}
-                            onChange={e => setDay(d, e.target.checked ? (b.opening_hours[d] ?? { open: '09:00', close: '17:00' }) : null)} />
-                        </Box>
-                        {/* Closed in between (09:00–14:00 and 17:00–20:00): Google Maps and the website show both parts. */}
-                        <Box sx={tick('brk')}>
+                      <Box sx={HEAD}>
+                        {name}
+                        <Box sx={SWITCHES}>
+                          {/* Closed in between (09:00–14:00 and 17:00–20:00): Google Maps and the website show both parts. */}
                           {h && (
-                            <Checkbox checked={!!h.break} slotProps={{ input: { 'aria-label': t('Closes for a break on {day}', { day }) } }}
-                              onChange={e => setDay(d, e.target.checked ? { ...h, break: b.opening_hours[d]?.break ?? { from: '14:00', to: '17:00' } } : withoutBreak(h))} />
+                            <FormControlLabel labelPlacement="start" sx={LABELLED} label={tc('hours', 'Break')} control={
+                              <Checkbox checked={!!h.break} slotProps={{ input: { 'aria-label': t('Closes for a break on {day}', { day }) } }}
+                                onChange={e => setDay(d, e.target.checked ? { ...h, break: b.opening_hours[d]?.break ?? { from: '14:00', to: '17:00' } } : withoutBreak(h))} />
+                            } />
                           )}
+                          {/* Switched off: closed all day. */}
+                          <FormControlLabel labelPlacement="start" sx={LABELLED} label={h ? tc('hours', 'Open') : t('Closed')} control={
+                            <Switch checked={!!h} slotProps={{ input: { 'aria-label': t('Open on {day}', { day }) } }}
+                              onChange={e => setDay(d, e.target.checked ? (b.opening_hours[d] ?? { open: '09:00', close: '17:00' }) : null)} />
+                          } />
                         </Box>
                       </Box>
-                      {h ? (
+                      {h?.break ? (
+                        // In the order they happen: open until the break, then from the end of the break until closing.
                         <>
-                          <TimeField area="opens" label={t('Opens on {day}', { day })} value={h.open} onChange={open => setDay(d, { ...h, open })} />
-                          <TimeField area="closes" label={t('Closes on {day}', { day })} value={h.close} error={bad} onChange={close => setDay(d, { ...h, close })} />
-                          {h.break ? (
-                            <>
-                              <TimeField area="from" label={t('Closed from on {day}', { day })} value={h.break.from} error={badBreak}
-                                onChange={from => setDay(d, { ...h, break: { ...h.break!, from } })} />
-                              <TimeField area="reopens" label={t('Reopens on {day}', { day })} value={h.break.to} error={badBreak}
-                                onChange={to => setDay(d, { ...h, break: { ...h.break!, to } })} />
-                            </>
-                          ) : (
-                            // No break: a quiet dash under each of its headings (its box already says so to a screen reader).
-                            <>
-                              <Muted quiet sx={{ gridArea: 'from' }}>{'–'}</Muted>
-                              <Muted quiet sx={{ gridArea: 'reopens' }}>{'–'}</Muted>
-                            </>
-                          )}
+                          <Span area="first" from={opens} to={{ label: t('Closed from on {day}', { day }), value: h.break.from, error: badBreak,
+                            onChange: from => setDay(d, { ...h, break: { ...h.break!, from } }) }} />
+                          <Span area="second" from={{ label: t('Reopens on {day}', { day }), value: h.break.to, error: badBreak,
+                            onChange: to => setDay(d, { ...h, break: { ...h.break!, to } }) }} to={closes} />
                         </>
-                      ) : <Muted sx={CLOSED}>{t('Closed')}</Muted>}
+                      ) : h && <Span area="first" from={opens} to={closes} />}
                     </Box>
                   )
                 })}
