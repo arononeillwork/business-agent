@@ -332,6 +332,8 @@ export class FakeProviders {
      * customers' notes (with how often one was written).
      */
     clubScope: true,
+    /** Paths Square fails once each (a 500), as when a save fails partway. */
+    failOnce: [] as string[],
     catalogObjects: [] as { id: string; type: string; version: number; [k: string]: unknown }[],
     catalogKeys: new Map<string, string>(),
     links: [] as { id: string; url: string; deleted: boolean; request: Record<string, unknown>; version?: number }[],
@@ -412,6 +414,11 @@ export class FakeProviders {
     const p = url.pathname
     const clubPath = p === '/v2/catalog/object' || p.startsWith('/v2/catalog/object/') || p.startsWith('/v2/online-checkout/') || p.startsWith('/v2/subscriptions') || p === '/v2/invoices'
     if (clubPath && !sq.clubScope) return scopeless()
+    const failing = sq.failOnce.indexOf(p)
+    if (failing >= 0 && method === 'POST') {
+      sq.failOnce.splice(failing, 1)
+      return json({ errors: [{ category: 'API_ERROR', code: 'INTERNAL_SERVER_ERROR', detail: 'Something went wrong' }] }, 500)
+    }
     if (p === '/v2/catalog/object' && method === 'POST') {
       const b = body() as { idempotency_key: string; object: { id: string; type: string; version?: number; [k: string]: unknown } }
       const seen = sq.catalogKeys.get(b.idempotency_key)

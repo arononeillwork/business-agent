@@ -12,8 +12,13 @@ const euros = (m?: { amount?: number } | null) => Math.round(m?.amount ?? 0) / 1
 
 interface CatalogObject { id: string; type: string; version?: number; [k: string]: unknown }
 
+/**
+ * Makes or changes a catalog object. Something made (a `#` id) keeps the key, so trying again gets the same one back;
+ * a change to one already there carries its version, and the key does too, so it's never mistaken for an earlier one.
+ */
 async function upsert(sandbox: boolean, token: string, key: string, object: Record<string, unknown>) {
-  const r = await api<{ catalog_object: CatalogObject }>(sandbox, token, '/v2/catalog/object', { idempotency_key: key, object })
+  const idempotency_key = object.version !== undefined ? `${key}:v${object.version}` : key
+  const r = await api<{ catalog_object: CatalogObject }>(sandbox, token, '/v2/catalog/object', { idempotency_key, object })
   return r.catalog_object
 }
 
@@ -220,9 +225,10 @@ export async function setNote(sandbox: boolean, token: string, id: string, note:
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Square applies the free coffee by itself: a customer group of the members due a coffee, a discount of its own, the
-// drinks it covers (a product set of categories, one drink a sale) and a pricing rule tying them together. Square
-// applies a pricing rule's discount by itself; `customer_group_ids_any` keeps it to customers in the group.
+// Square applies the free coffee by itself: a customer group of the members due a coffee, the drinks it covers (a
+// product set of categories, one drink a sale) and a pricing rule tying them to the club's discount, the same one the
+// team can apply by hand (so the till lists one). Square applies a pricing rule's discount by itself;
+// `customer_group_ids_any` keeps it to customers in the group.
 // ---------------------------------------------------------------------------------------------------------------
 
 /** The item library's categories (for choosing the drinks), by name. */
@@ -251,7 +257,7 @@ export async function setInGroup(sandbox: boolean, token: string, customerId: st
 }
 
 /** A catalog object's current version, or null when it's gone from Square. */
-async function versionOf(sandbox: boolean, token: string, id: string | null | undefined): Promise<number | null> {
+export async function versionOf(sandbox: boolean, token: string, id: string | null | undefined): Promise<number | null> {
   if (!id) return null
   try {
     return (await api<{ object?: CatalogObject }>(sandbox, token, `/v2/catalog/object/${encodeURIComponent(id)}`)).object?.version ?? null
@@ -262,23 +268,19 @@ async function versionOf(sandbox: boolean, token: string, id: string | null | un
 }
 
 /**
- * The automatic discount, made or brought up to date: its discount (the whole drink, up to `max`), the drinks (the
- * categories, at most one a sale) and the pricing rule for the group. Each sends Square's current version back, so a
- * change made in Square meanwhile is refused rather than overwritten; one deleted in Square is made again.
+ * The automatic discount, made or brought up to date: the drinks (the categories, at most one a sale) and the pricing
+ * rule for the group, which applies the club's discount (`discountId`, the whole drink up to the most). Each sends
+ * Square's current version back, so a change made in Square meanwhile is refused rather than overwritten; one deleted
+ * in Square is made again.
  */
 export async function saveAutoDiscount(sandbox: boolean, token: string, key: string, a: {
-  discountId?: string | null; productSetId?: string | null; ruleId?: string | null; timePeriodId?: string | null
-  name: string; max: number; currency: string; categoryIds: string[]; groupId: string
+  discountId: string; productSetId?: string | null; ruleId?: string | null; timePeriodId?: string | null
+  name: string; categoryIds: string[]; groupId: string
   /** Only at these times (the business's time, Monday 1 … Sunday 7); null: whenever. */
   hours?: { from: string; to: string; days: number[] } | null
 }) {
-  const [dv, sv, rv, tv] = await Promise.all([versionOf(sandbox, token, a.discountId), versionOf(sandbox, token, a.productSetId),
-    versionOf(sandbox, token, a.ruleId), versionOf(sandbox, token, a.timePeriodId)])
+  const [sv, rv, tv] = await Promise.all([versionOf(sandbox, token, a.productSetId), versionOf(sandbox, token, a.ruleId), versionOf(sandbox, token, a.timePeriodId)])
   const keep = (id: string | null | undefined, version: number | null, temp: string) => (id && version !== null ? { id, version } : { id: temp })
-  const discountId = (await upsert(sandbox, token, `${key}:discount`, {
-    type: 'DISCOUNT', ...keep(a.discountId, dv, '#club-auto-discount'),
-    discount_data: { name: a.name, discount_type: 'FIXED_PERCENTAGE', percentage: '100', maximum_amount_money: money(a.max, a.currency), pin_required: false },
-  })).id
   const productSetId = (await upsert(sandbox, token, `${key}:drinks`, {
     type: 'PRODUCT_SET', ...keep(a.productSetId, sv, '#club-drinks'),
     product_set_data: { name: `${a.name}: drinks`, product_ids_any: a.categoryIds, quantity_max: 1 },
@@ -291,13 +293,13 @@ export async function saveAutoDiscount(sandbox: boolean, token: string, key: str
   const ruleId = (await upsert(sandbox, token, `${key}:rule`, {
     type: 'PRICING_RULE', ...keep(a.ruleId, rv, '#club-rule'),
     pricing_rule_data: {
-      name: a.name, discount_id: discountId, match_products_id: productSetId, customer_group_ids_any: [a.groupId],
+      name: a.name, discount_id: a.discountId, match_products_id: productSetId, customer_group_ids_any: [a.groupId],
       ...(timePeriodId ? { time_period_ids: [timePeriodId] } : {}),
     },
   })).id
   // Times taken off: the rule no longer follows the old period, so it goes.
   if (!a.hours && a.timePeriodId && tv !== null) await deleteCatalogObject(sandbox, token, a.timePeriodId)
-  return { discountId, productSetId, ruleId, timePeriodId }
+  return { productSetId, ruleId, timePeriodId }
 }
 
 const ICAL_DAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
